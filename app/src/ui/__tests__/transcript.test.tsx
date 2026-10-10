@@ -287,6 +287,27 @@ describe('the button on a recording', () => {
     act(() => tree.unmount());
   });
 
+  it('says what the minutes are and what is left, from a server that counts them', () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const tree = open(
+      recordingWith('none', { spendsFreeUse: true, freeMinutes: { cost: 4, left: 37 } })
+    );
+    act(() => findButton(tree, 'Transcribe')!.props.onPress());
+
+    const [title, body, buttons] = alert.mock.calls[0] as [
+      string,
+      string,
+      Array<{ text: string; style?: string }>,
+    ];
+    expect(title).toBe('Use your free minutes?');
+    expect(body).toMatch(/uses 4 of the 37 free transcription minutes you have left this week/);
+    expect(body).not.toMatch(/one free transcript/i);
+    expect(buttons[0]).toMatchObject({ text: 'Cancel', style: 'cancel' });
+    expect(buttons[1].text).toBe('Transcribe');
+    alert.mockRestore();
+    act(() => tree.unmount());
+  });
+
   it('does not mention a free use to an account that has no limit', () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const tree = open(recordingWith('none'));

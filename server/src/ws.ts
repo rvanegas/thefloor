@@ -549,6 +549,8 @@ export function registerWebsocket(deps: {
   liveLineNotifier?: LiveLineNotifier;
   /** Whether this account may turn a channel's live transcript on. */
   mayTranscribeLive?: (userId: string) => boolean;
+  /** Whether this account may set *Record automatically*'s Text. */
+  mayAutoTranscribe?: (userId: string) => boolean;
   reachability: Reachability;
   preferences: NotificationPreferences;
   /** Where a guest's page should connect for audio. Absent without a media plane. */
@@ -1324,6 +1326,7 @@ export function registerWebsocket(deps: {
         // About the reader, like `publicNotice`: whether the switch is
         // theirs to see. Everybody else's answer is nobody's business here.
         mayTranscribeLive: deps.mayTranscribeLive?.(connection.userId) ?? false,
+        mayAutoTranscribe: deps.mayAutoTranscribe?.(connection.userId) ?? false,
         // The words that opened those windows, where there were any. The same
         // answer for everybody, like the windows themselves — see
         // `Channels.pingTexts` for why a sender's name travels with them.

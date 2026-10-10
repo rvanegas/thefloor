@@ -1189,7 +1189,9 @@ export class ChannelRegistry {
     userId: string,
     on: boolean,
     /** Start's other half: begin the audio in the same step, if they may. */
-    withAudio = false
+    withAudio = false,
+    /** Whose free minutes it spends; absent, the house's. The route decides. */
+    paidBy?: string
   ): { ok: true; channel: ChannelState } | Refused {
     const channel = this.channels.get(channelId);
     if (!channel || !channel.participants.includes(userId)) {
@@ -1221,6 +1223,7 @@ export class ChannelRegistry {
         on,
         runId,
         startRecording: withAudio && canStartRecording(channel, userId),
+        ...(on && paidBy ? { paidBy } : {}),
       },
       this.now()
     );
@@ -1230,6 +1233,38 @@ export class ChannelRegistry {
       this.emit([channelId]);
     }
     return { ok: true, channel: this.channels.get(channelId) ?? next };
+  }
+
+  /** Every channel whose live transcript somebody's free minutes pay for. */
+  livePayers(): Array<{ channelId: string; paidBy: string }> {
+    const payers: Array<{ channelId: string; paidBy: string }> = [];
+    for (const [channelId, state] of this.channels) {
+      if (state.status === 'active' && state.liveTranscription && state.liveTranscriptionPaidBy) {
+        payers.push({ channelId, paidBy: state.liveTranscriptionPaidBy });
+      }
+    }
+    return payers;
+  }
+
+  /**
+   * Switches a channel's live transcript off because whoever was paying for
+   * it has run out of free minutes. Nobody's action, so none of
+   * `setLiveTranscription`'s checks: the floor may be held, the payer may
+   * have left, and the text stops regardless — the audio, if it records,
+   * carries on in a new segment, as for any change of what is kept.
+   */
+  endPaidLiveTranscription(channelId: string): void {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active' || !channel.liveTranscriptionPaidBy) return;
+    const next = reduce(
+      channel,
+      { type: 'SET_LIVE_TRANSCRIPTION', on: false, runId: newId('rec') },
+      this.now()
+    );
+    if (next !== channel) {
+      this.commit(channel, next);
+      this.emit([channelId]);
+    }
   }
 
   /**
@@ -7508,6 +7543,11 @@ export class ChannelRegistry {
       // stop a channel recording itself.
       autoRecord: channel.autoRecord,
       liveTranscription: channel.liveTranscription ?? false,
+      // With the switch it belongs to, so a restart mid-sitting keeps the
+      // bill where it was rather than moving it to the house.
+      ...(channel.liveTranscriptionPaidBy
+        ? { liveTranscriptionPaidBy: channel.liveTranscriptionPaidBy }
+        : {}),
       autoTranscribe: channel.autoTranscribe ?? false,
       // Durable for the same reason: it is a setting somebody chose.
       transcriptionModel: channel.transcriptionModel,
@@ -7883,6 +7923,7 @@ export class ChannelRegistry {
       description?: string | null;
       autoRecord?: boolean;
       liveTranscription?: boolean;
+      liveTranscriptionPaidBy?: string;
       autoTranscribe?: boolean;
       transcriptionModel?: ChannelState['transcriptionModel'];
       initiator?: string;
@@ -7940,6 +7981,9 @@ export class ChannelRegistry {
       // channels did.
       autoRecord: durable.autoRecord ?? false,
       liveTranscription: durable.liveTranscription ?? false,
+      ...(durable.liveTranscription && durable.liveTranscriptionPaidBy
+        ? { liveTranscriptionPaidBy: durable.liveTranscriptionPaidBy }
+        : {}),
       // **A row from before the field, with the live transcript on, is read
       // as asking for it every sitting** — which is what the live transcript
       // meant until 2026-10-10, when it began to end with the room. Without

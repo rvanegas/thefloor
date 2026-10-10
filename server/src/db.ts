@@ -145,13 +145,19 @@ export interface AccountRow {
    * Whether this account may transcribe without limit: 1 for yes, null or 0
    * for no. Set by hand — `bin/db --write` — like `debug` and `leaderboard`,
    * and unlike either of those it is the only flag here that licenses
-   * spending. Everybody else gets the one free transcript the two columns
-   * below record.
+   * spending. Everybody else gets free transcription minutes each week,
+   * which `transcript_usage` records.
    */
   transcripts_unlimited: number | null;
   /**
    * The recording whose transcript spent this account's one free use, or null
    * while it is unspent.
+   *
+   * **Unread since 2026-10-10**, when the one free use became
+   * `FREE_TRANSCRIPT_MINUTES` a calendar week, shared with the live
+   * transcript and recorded in `transcript_usage`. Left in place rather than
+   * dropped so that a rollback finds what it expects; what follows is why it
+   * was on the account, which is also why the ledger is its own table.
    *
    * **On the account rather than counted from `transcripts`**, and that is the
    * whole point of it: transcript rows are swept — a transcript deleted on its
@@ -730,8 +736,8 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- somebody sets it by hand; the only flag here that licenses spending.
   transcripts_unlimited INTEGER,
   -- The recording whose transcript spent this account's one free use, and
-  -- when. Null while unspent. Kept here rather than counted from the
-  -- transcripts table, whose rows are swept; see the row type above.
+  -- when. Unread since the free use became minutes a week, which
+  -- transcript_usage records; see the row type above.
   free_transcript_id TEXT,
   free_transcript_at INTEGER,
   -- Where this person can be reached outside the app — a phone number and
@@ -1995,6 +2001,33 @@ CREATE TABLE IF NOT EXISTS live_sessions (
 CREATE INDEX IF NOT EXISTS live_sessions_opened
   ON live_sessions(opened_at);
 
+-- What an account without the unlimited mark has spent of its free
+-- transcription minutes, one row per spend: a recording's transcript when it
+-- is asked for, and a live session when it closes. A week's use is the sum of
+-- its rows since the week began, batch and live together.
+--
+-- **Its own table rather than counted from transcripts or live_sessions**,
+-- for the reason free_transcript_id was on the account: transcript rows are
+-- swept, so a sum derived from them hands minutes back when a transcript is
+-- deleted, and "delete it and ask again" becomes the way round the limit.
+--
+-- A recording's row is written when the transcript is asked for, as the same
+-- upper bound transcripts.billed_ms starts at, and deleted only if that
+-- transcript fails — so one in flight holds its minutes. A live row is never
+-- deleted. Unlimited accounts write nothing here.
+CREATE TABLE IF NOT EXISTS transcript_usage (
+  account_id   TEXT NOT NULL,
+  at           INTEGER NOT NULL,
+  ms           INTEGER NOT NULL,
+  -- Exactly one of these: what the minutes went on.
+  recording_id TEXT,
+  channel_id   TEXT
+);
+CREATE INDEX IF NOT EXISTS transcript_usage_account
+  ON transcript_usage(account_id, at);
+CREATE INDEX IF NOT EXISTS transcript_usage_recording
+  ON transcript_usage(recording_id);
+
 -- How loudly one channel may interrupt one person.
 --
 -- **Only the people who have changed it have a row.** Absence means
@@ -2412,8 +2445,8 @@ function migrate(db: Db): void {
   }
   // Null for everyone, including the account that held TRANSCRIBE_IDENTIFIER
   // before this existed. Marking that one is a deliberate act with a command
-  // behind it, not something a migration should infer from an env var it
-  // cannot see.
+  // behind it, not something a migration should infer from an env var. The
+  // variable itself was retired on 2026-10-10, once the column was set.
   if (!accountColumns.some((c) => c.name === 'transcripts_unlimited')) {
     db.exec('ALTER TABLE accounts ADD COLUMN transcripts_unlimited INTEGER');
   }

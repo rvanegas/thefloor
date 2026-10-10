@@ -115,7 +115,8 @@ caused; the list carries the meaning.
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Text made from a recording, on request, by a provider — offered only for a recording made with no *live transcript*, and drawn in the *Record* log under it as live lines are, since 2026-10-10, when its own screen went; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
-- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
+- **Free minutes** — What an account without the `transcripts_unlimited` mark may spend on transcription each calendar week, from Monday 00:00 UTC: `FREE_TRANSCRIPT_MINUTES`, 60 unless set, shared between a recording's *transcript* (length times stems, held when asked for) and the *live transcript* (each session's open time, billed to whoever switched it on), and kept in `transcript_usage`. Since 2026-10-10, replacing one free transcript per account
+- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel`
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
@@ -2731,9 +2732,14 @@ One line per finished turn of one speaker, named after whose microphone it came
 from — a *stem* is one voice — with the name frozen as it was said, placed on
 the wall clock, and kept in `live_lines` until the channel goes.
 
-**Switched on per channel, by somebody on the house.** The setting is
-`ChannelState.liveTranscription`; who may turn it is the `transcripts_unlimited`
-mark, checked by the server's route. **The switch is *Text* on the *Record*
+**Switched on per channel, by somebody on the house or with *free minutes*
+left**, since 2026-10-10 — before that, only on the house. The setting is
+`ChannelState.liveTranscription`; who may turn it is the
+`transcripts_unlimited` mark or what is left of the week's minutes, checked by
+the server's route. Whoever turns it on without the mark pays
+(`liveTranscriptionPaidBy`), each session's open time spending their minutes,
+and the server switches it off when they are gone. *Record automatically*'s
+Text stays the house's, a sitting begun with it being begun by nobody. **The switch is *Text* on the *Record*
 tab since 2026-10-09**, beside *Audio* and independent of it, and drawn for
 everybody — it says what is being kept — but moved only by that account, and
 only while present and holding the controls (`canSetLiveTranscription`); it
@@ -2757,7 +2763,8 @@ member of a channel is offered a recording's transcript and the way to ask for
 one.
 
 Text made from a recording, on request, by a third-party provider named on the
-screen that asks. Everybody gets one free; asking sends everybody's audio out,
+screen that asks. Everybody may ask within their *free minutes* — one free
+transcript per account until 2026-10-10; asking sends everybody's audio out,
 so who asked is always shown.
 
 **Offered only for a recording made with no text, and read in the log**, since

@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { FREE_TRANSCRIPT_MINUTES_DEFAULT } from './accounts';
 import { buildApp } from './app';
 import { ConsoleMailer, SesMailer, type Mailer } from './mail';
 import { LiveKitMediaServer, type MediaServer } from './media';
@@ -281,38 +282,31 @@ const streaming = assemblyAiKey
   : undefined;
 
 /**
- * An address that transcribes without limit — a bootstrap for the account
- * that used to be the only one allowed to, and deprecated.
- *
- * The variable's meaning changed on 2026-08-25 when transcription opened up:
- * it named the *only* address that could transcribe, and it now names one
- * more that is not held to the free use everybody else gets. It is still read
- * so that opening the feature up does not silently demote the person named in
- * a deployed .env. The durable mark is a column:
+ * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
+ * was retired on 2026-10-10: the mark is the `transcripts_unlimited` column
+ * alone, set with
  *
  *     bin/db --write "update accounts set transcripts_unlimited = 1 \
  *       where identifier = 'someone@example.com'"
  *
- * Set that, then unset this. Reading and searching were never restricted
- * either way.
+ * Read only to say it is ignored, so that a .env still carrying it does not
+ * look as though it means something.
  */
-const transcribeUnlimitedIdentifier = process.env.TRANSCRIBE_IDENTIFIER;
+const retiredTranscribeIdentifier = !!process.env.TRANSCRIBE_IDENTIFIER;
 
 /**
- * How much audio one free transcript may cover, in transcription minutes — a
- * recording's length times the number of people recorded in it, which is what
- * the provider bills for.
- *
- * Unset, a free transcript may be of any length, which caps the count and not
- * the bill: one use of a twenty-minute pair is about ten cents and one use of
- * a three-hour four-way is about two dollars.
+ * How many transcription minutes an account without the unlimited mark may
+ * spend each calendar week, recordings and the live transcript together — a
+ * recording's length times the number of people recorded in it, and a live
+ * session's open time, which are what the provider bills for. Unset, it is
+ * FREE_TRANSCRIPT_MINUTES_DEFAULT.
  */
 const freeTranscriptMinutes = process.env.FREE_TRANSCRIPT_MINUTES
   ? Number(process.env.FREE_TRANSCRIPT_MINUTES)
   : undefined;
 if (freeTranscriptMinutes !== undefined && !(freeTranscriptMinutes > 0)) {
-  // Refused rather than ignored: a typo here reads as "no cap", which is the
-  // opposite of what somebody setting it meant, and nothing later would say so.
+  // Refused rather than ignored: a typo here reads as the default, which is
+  // not what somebody setting it meant, and nothing later would say so.
   throw new Error('FREE_TRANSCRIPT_MINUTES must be a positive number.');
 }
 
@@ -340,7 +334,6 @@ const app = buildApp({
   liveActivityEnder: pusher,
   transcription,
   streaming,
-  transcribeUnlimitedIdentifier,
   freeTranscriptMinutes,
   logger: true,
 });
@@ -389,10 +382,13 @@ app.fastify
         liveTranscription: streaming ? 'AssemblyAI streaming' : 'not configured',
         // Worth a line for the same reason `review` is: these decide what
         // anybody may spend, and reading .env is not how anybody should find
-        // out. Everybody gets one free transcript; the account marks that
-        // lift that are in the database and are not visible from here.
-        transcribeUnlimited: transcribeUnlimitedIdentifier ?? 'marked accounts only',
-        freeTranscriptMinutes: freeTranscriptMinutes ?? 'any length',
+        // out. Everybody gets free minutes a week; the account marks that
+        // lift the limit are in the database and are not visible from here.
+        freeTranscriptMinutesPerWeek:
+          freeTranscriptMinutes ?? FREE_TRANSCRIPT_MINUTES_DEFAULT,
+        ...(retiredTranscribeIdentifier
+          ? { transcribeIdentifier: 'set, and ignored since 2026-10-10' }
+          : {}),
         // The first line in the journal after a restart is where somebody
         // looks when a deploy is in doubt, and until now it could not say
         // which deploy it was.

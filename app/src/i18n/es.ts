@@ -1293,12 +1293,15 @@ export const es: Strings = {
     transcribe: () => 'Transcribir',
     starting: () => 'Empezando\u2026',
     spendFreeAsk: () => '\u00bfUsar tu transcripci\u00f3n gratuita?',
+    spendMinutesAsk: () => '\u00bfUsar tus minutos gratuitos?',
     transcribeAsk: () => '\u00bfTranscribir esta grabaci\u00f3n?',
-    transcribeBody: (provider: string, spends: boolean) =>
+    transcribeBody: (provider: string, free: boolean | { cost: number; left: number }) =>
       `El audio se env\u00eda a ${provider} para convertirlo en texto, y todos los del canal ver\u00e1n el resultado. Cuesta un poco, y solo se puede hacer una vez por grabaci\u00f3n.` +
-      (spends
+      (free === true
         ? '\n\nEsta es la \u00fanica transcripci\u00f3n gratuita que tiene tu cuenta. Una vez usada no se podr\u00e1 transcribir ninguna otra grabaci\u00f3n, y borrar esta transcripci\u00f3n no la devuelve.'
-        : ''),
+        : free
+          ? `\n\nEsto usa ${free.cost} de los ${free.left} minutos de transcripci\u00f3n gratuitos que te quedan esta semana: la duraci\u00f3n de la grabaci\u00f3n por el n\u00famero de personas que hay en ella. Vuelven el lunes, y borrar esta transcripci\u00f3n no los devuelve.`
+          : ''),
     useIt: () => 'Usarla',
     couldNotTranscribe: () => 'No se ha podido transcribir',
     preparing: () => 'Preparando\u2026',

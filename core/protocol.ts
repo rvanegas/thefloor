@@ -725,14 +725,14 @@ export interface RecordingView {
      * Whether *this* viewer may start one, for *this* recording.
      *
      * On the wire rather than inferred, because the answer is the server's:
-     * everybody gets one free transcript and some accounts are marked for
+     * everybody gets free minutes a week and some accounts are marked for
      * more — it is the first thing here that costs money per tap, and the
      * first whose cost somebody else can incur on your behalf. Reading and
      * searching are never limited, so this says nothing about what may be
      * seen.
      *
-     * Per recording rather than per account, since a free use can also be
-     * refused for being too much audio.
+     * Per recording rather than per account, since a recording can also be
+     * refused for being more audio than the minutes left.
      *
      * Optional: a server that predates it sends nothing, which reads as
      * permitted — the behaviour such a server had.
@@ -750,18 +750,27 @@ export interface RecordingView {
      */
     requestLimit?: string;
     /**
-     * Whether starting one would spend this viewer's single free use.
+     * Whether starting one would spend this viewer's free minutes.
      *
-     * The confirmation says so and offers to cancel, because it is a thing
-     * that can only be done once and the app should not let somebody find
-     * that out afterwards. False for an account marked unlimited, whose taps
-     * spend nothing they will miss.
+     * The confirmation says so and offers to cancel, because the minutes are
+     * few and the app should not let somebody find that out afterwards. False
+     * for an account marked unlimited, whose taps spend nothing they will
+     * miss.
      *
      * Optional, and absent reads as false: a server that predates this says
      * nothing, and an app that predates it shows the confirmation it always
      * showed.
      */
     spendsFreeUse?: boolean;
+    /**
+     * What starting one would spend and what this viewer has left this
+     * calendar week, in whole transcription minutes — present exactly when
+     * `spendsFreeUse` is, since 2026-10-10, when one free transcript per
+     * account became free minutes a week shared with the live transcript. A
+     * build that predates it reads `spendsFreeUse` alone and speaks of one
+     * free transcript.
+     */
+    freeMinutes?: { cost: number; left: number };
     /**
      * Whether this viewer may remove this transcript, or say who its voices
      * were — which is whoever asked for it, plus any unlimited account.
@@ -1145,6 +1154,14 @@ export interface ChannelView {
    * `publicNotice`. Optional, read as no.
    */
   mayTranscribeLive?: boolean;
+  /**
+   * Whether this connection's own member may set *Record automatically*'s
+   * Text, since 2026-10-10 — narrower than `mayTranscribeLive`, which an
+   * account with free minutes left also has: a sitting that begins with the
+   * text on was begun by nobody, so only an account on the house may ask for
+   * it. Optional, read as no.
+   */
+  mayAutoTranscribe?: boolean;
   /**
    * When this channel declared itself public, or null — which is every
    * channel that has not.

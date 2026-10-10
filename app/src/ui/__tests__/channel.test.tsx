@@ -3649,6 +3649,20 @@ describe('Channel', () => {
     asked.mockRestore();
   });
 
+  it('refuses automatic transcription to an account on free minutes', () => {
+    // The live switch is theirs; a sitting that begins with it is the house's.
+    showChannel(channelOf(), [], { mayTranscribeLive: true, mayAutoTranscribe: false });
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    act(() => findButton(tree, 'Settings')!.props.onPress());
+    expect(findSwitch(tree, 'Text')!.props.disabled).toBe(true);
+    act(() => tree.unmount());
+  });
+
   it('offers the transcription model to a debug account and nobody else', () => {
     // The server refuses the change from anybody without `debug`, so offering
     // it to them would be a control that always fails.

@@ -160,6 +160,29 @@ export const WATCH_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
  */
 export const INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
+/**
+ * Free transcription minutes a week, for an account without the unlimited
+ * mark, when `FREE_TRANSCRIPT_MINUTES` does not say otherwise. Shared between
+ * recordings and the live transcript. Since 2026-10-10.
+ */
+export const FREE_TRANSCRIPT_MINUTES_DEFAULT = 60;
+
+/**
+ * When the calendar week containing `at` began: Monday 00:00 UTC, which is
+ * when every account's free minutes come back at once. UTC because the server
+ * knows nobody's time zone, and one instant for everybody is the honest
+ * reading of "a calendar week" for a rule the server keeps.
+ */
+export function weekStartOf(at: number): number {
+  const day = new Date(at);
+  const sinceMonday = (day.getUTCDay() + 6) % 7;
+  return Date.UTC(
+    day.getUTCFullYear(),
+    day.getUTCMonth(),
+    day.getUTCDate() - sinceMonday
+  );
+}
+
 
 /**
  * How `accounts.invited_by` was arrived at. See the column in db.ts.
@@ -435,48 +458,61 @@ export class Accounts {
   }
 
   /**
-   * Where this account stands with transcription's one free use.
-   *
-   * `unlimited` is the hand-set mark; `spentOn` is the recording whose
-   * transcript took the free use, null while it is unspent. Two facts rather
-   * than one boolean because the refusal has to say *which* rule refused: "not
-   * this server" and "you have had yours" are different sentences, and the
-   * second one is temporary in a way the first is not.
+   * Whether this account transcribes without limit: the hand-set mark.
+   * Everybody else has free minutes a week, which `transcriptMsSince` counts.
    */
-  transcriptAllowance(id: string): { unlimited: boolean; spentOn: string | null } {
-    const row = this.byId(id);
-    return {
-      unlimited: row?.transcripts_unlimited === 1,
-      spentOn: row?.free_transcript_id ?? null,
-    };
+  transcribesUnlimited(id: string): boolean {
+    return this.byId(id)?.transcripts_unlimited === 1;
   }
 
   /**
-   * Records that this account's free transcript has gone on this recording.
+   * How much of its free transcription this account has spent since `since`,
+   * in transcription milliseconds — batch and live together, closed live
+   * sessions only. The caller adds whatever is streaming now.
+   */
+  transcriptMsSince(id: string, since: number): number {
+    const row = this.db
+      .prepare(
+        `SELECT COALESCE(SUM(ms), 0) AS ms FROM transcript_usage
+         WHERE account_id = ? AND at >= ?`
+      )
+      .get(id, since) as { ms: number };
+    return row.ms;
+  }
+
+  /**
+   * Records free minutes spent: on a recording's transcript, when it is asked
+   * for, or on a live session, when it closes.
    *
-   * Written when the transcript is asked for rather than when it lands, so a
-   * pending one holds the credit — otherwise five taps in the time one takes
-   * to come back are five free transcripts. `refundFreeTranscript` is the
-   * other half, for when the thing never arrives.
-   *
-   * Idempotent in the only way that matters: the guard is `IS NULL`, so a
-   * second call cannot move an already-spent credit onto a different
-   * recording, and an unlimited account that somehow reaches here does not
-   * quietly acquire a spent one.
+   * A recording's is written at the request rather than when it lands, so a
+   * pending one holds its minutes — otherwise five taps in the time one takes
+   * to come back are five transcripts against the same remainder.
+   * `refundTranscript` is the other half, for when the thing never arrives.
    *
    * Takes the clock rather than reading one, for the reason `start` does.
    */
-  spendFreeTranscript(id: string, recordingId: string, at: number): void {
+  spendTranscriptMs(
+    id: string,
+    ms: number,
+    at: number,
+    on: { recordingId: string } | { channelId: string }
+  ): void {
     this.db
       .prepare(
-        `UPDATE accounts SET free_transcript_id = ?, free_transcript_at = ?
-         WHERE id = ? AND free_transcript_id IS NULL`
+        `INSERT INTO transcript_usage (account_id, at, ms, recording_id, channel_id)
+         VALUES (?, ?, ?, ?, ?)`
       )
-      .run(recordingId, at, id);
+      .run(
+        id,
+        at,
+        Math.max(0, Math.round(ms)),
+        'recordingId' in on ? on.recordingId : null,
+        'channelId' in on ? on.channelId : null
+      );
   }
 
   /**
-   * Gives the free use back, because this transcript produced nothing.
+   * Gives a recording's minutes back, because its transcript produced nothing.
    *
    * Keyed on the recording rather than the account, so the caller does not
    * have to remember who paid — the row does. **Only a failure calls this.**
@@ -484,12 +520,9 @@ export class Accounts {
    * making it again costs what it cost the first time, which is exactly the
    * loop this limit exists to close.
    */
-  refundFreeTranscript(recordingId: string): void {
+  refundTranscript(recordingId: string): void {
     this.db
-      .prepare(
-        `UPDATE accounts SET free_transcript_id = NULL, free_transcript_at = NULL
-         WHERE free_transcript_id = ?`
-      )
+      .prepare('DELETE FROM transcript_usage WHERE recording_id = ?')
       .run(recordingId);
   }
 

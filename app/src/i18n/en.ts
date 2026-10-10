@@ -1556,13 +1556,21 @@ export const en = {
     transcribe: () => 'Transcribe',
     starting: () => 'Starting\u2026',
     spendFreeAsk: () => 'Use your one free transcript?',
+    spendMinutesAsk: () => 'Use your free minutes?',
     transcribeAsk: () => 'Transcribe this recording?',
-    /** `provider` is a service's own name and is not translated. */
-    transcribeBody: (provider: string, spends: boolean) =>
+    /**
+     * `provider` is a service's own name and is not translated. `free` is what
+     * it would spend and what is left this week, in transcription minutes;
+     * `true` alone is a server from before minutes, which gave one free
+     * transcript per account.
+     */
+    transcribeBody: (provider: string, free: boolean | { cost: number; left: number }) =>
       `The audio is sent to ${provider} to be turned into text, and everybody in the channel will see the result. It costs a little, and it can only be done once per recording.` +
-      (spends
+      (free === true
         ? '\n\nThis is the one free transcript your account gets. Once it is used no other recording can be transcribed, and deleting this transcript does not give it back.'
-        : ''),
+        : free
+          ? `\n\nThis uses ${free.cost} of the ${free.left} free transcription minutes you have left this week — the recording's length times the number of people in it. They come back on Monday, and deleting this transcript does not give them back.`
+          : ''),
     useIt: () => 'Use it',
     couldNotTranscribe: () => 'Could not transcribe',
     preparing: () => 'Preparing\u2026',

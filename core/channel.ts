@@ -2279,6 +2279,13 @@ function reduceAction(
       ...state,
       liveTranscription: action.on,
       liveTranscriptionPaused: false,
+      // Turning it on again while on — Start, with the text already running —
+      // leaves the bill where it was rather than moving it.
+      liveTranscriptionPaidBy: !action.on
+        ? undefined
+        : state.liveTranscription
+          ? state.liveTranscriptionPaidBy
+          : action.paidBy,
       ...(starts ? { recording: startRecording(state.recording, action.runId!, now) } : {}),
     };
   }
@@ -2567,7 +2574,12 @@ function reduceAction(
         // **The first arrival opens a sitting**, and a sitting begins with the
         // live transcript the channel asks for. See `autoTranscribe`.
         ...(state.present.length === 0 && state.autoTranscribe
-          ? { liveTranscription: true, liveTranscriptionPaused: false }
+          ? {
+              liveTranscription: true,
+              liveTranscriptionPaused: false,
+              // On the house: only an unlimited account may set it.
+              liveTranscriptionPaidBy: undefined,
+            }
           : {}),
         // **A fresh arrival has declared no screen**, and clearing it here is
         // what covers a device change. An account is present on one device at
@@ -3823,7 +3835,12 @@ function settleEmpty(state: ChannelState, now: number): ChannelState {
   // asks, through `autoTranscribe`. A hold goes with it.
   const settled =
     watched.liveTranscription || watched.liveTranscriptionPaused
-      ? { ...watched, liveTranscription: false, liveTranscriptionPaused: false }
+      ? {
+          ...watched,
+          liveTranscription: false,
+          liveTranscriptionPaused: false,
+          liveTranscriptionPaidBy: undefined,
+        }
       : watched;
   if (!isRecordingActive(settled.recording)) return settled;
   return endRun(settled, now);

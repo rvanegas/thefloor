@@ -831,6 +831,8 @@ export function showChannel(
     liveTranscript?: boolean;
     /** Whether this reader may turn the live transcript on. */
     mayTranscribeLive?: boolean;
+    /** Whether this reader may set a sitting to begin with it. */
+    mayAutoTranscribe?: boolean;
   } = {}
 ) {
   const names: Record<string, string> = {

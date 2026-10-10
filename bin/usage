@@ -313,36 +313,35 @@ GROUP BY t.requested_by
 ORDER BY usd DESC;
 
 .print ''
-.print '── The free use, and who is not held to it ─────────────────────'
+.print '── Free minutes, and who is not held to them ───────────────────'
 .print ''
--- Everybody gets one free transcript; `transcripts_unlimited` lifts it, set by
--- hand with bin/db --write. This is the count that says whether the limit is
--- doing anything: `spent` approaching `accounts` is a population that has all
--- met the feature and cannot use it again, which is the moment to decide what
--- the second one costs.
+-- Everybody gets FREE_TRANSCRIPT_MINUTES a calendar week (60 unless set),
+-- recordings and the live transcript together; `transcripts_unlimited` lifts
+-- it, set by hand with bin/db --write. `this_week` counts accounts that have
+-- spent anything since Monday 00:00 UTC.
 --
--- Needs the 2026-08-25 columns. Against a box that has not had that deploy
--- yet, this one query errors with `no such column` and the rest of the report
+-- Needs the 2026-10-10 table. Against a box that has not had that deploy
+-- yet, this one query errors with `no such table` and the rest of the report
 -- still prints.
-SELECT COUNT(*) AS accounts,
-       SUM(free_transcript_id IS NOT NULL) AS spent,
-       SUM(transcripts_unlimited = 1) AS unlimited
-FROM accounts WHERE identifier NOT LIKE 'erased:%';
+SELECT (SELECT COUNT(*) FROM accounts WHERE identifier NOT LIKE 'erased:%') AS accounts,
+       (SELECT COUNT(DISTINCT account_id) FROM transcript_usage
+         WHERE at >= strftime('%s', date('now', '-6 days', 'weekday 1')) * 1000) AS this_week,
+       (SELECT COUNT(*) FROM accounts WHERE transcripts_unlimited = 1) AS unlimited;
 
 .print ''
-.print '── Where a free use went, newest first ─────────────────────────'
+.print '── Where free minutes went this week, most first ───────────────'
 .print ''
--- One row per account that has spent theirs, and it outlives the transcript
--- it was spent on: the account row is the ledger precisely because the
--- transcripts table is swept. A NULL `on_recording` name is that — the
--- recording is gone and the credit is still spent, which is the rule working
--- rather than a defect.
+-- From the ledger, which outlives what it was spent on: transcripts are
+-- swept, and a NULL `on_recording` is that — the recording is gone and the
+-- minutes are still spent, which is the rule working rather than a defect.
 SELECT a.identifier AS who,
-       datetime(a.free_transcript_at / 1000, 'unixepoch') AS spent_at,
-       r.name AS on_recording
-FROM accounts a LEFT JOIN recordings r ON r.id = a.free_transcript_id
-WHERE a.free_transcript_id IS NOT NULL
-ORDER BY a.free_transcript_at DESC;
+       ROUND(SUM(u.ms) / 60000.0, 1) AS minutes,
+       ROUND(SUM(CASE WHEN u.channel_id IS NOT NULL THEN u.ms ELSE 0 END) / 60000.0, 1) AS live,
+       datetime(MAX(u.at) / 1000, 'unixepoch') AS last_spent
+FROM transcript_usage u LEFT JOIN accounts a ON a.id = u.account_id
+WHERE u.at >= strftime('%s', date('now', '-6 days', 'weekday 1')) * 1000
+GROUP BY u.account_id
+ORDER BY minutes DESC;
 SQL
 }
 

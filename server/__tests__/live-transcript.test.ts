@@ -25,7 +25,7 @@ const auth = (token: string) => ({ authorization: `Bearer ${token}` });
 /** 10 ms of 16 kHz audio, loud or silent. */
 const frame = (loud: boolean) => new Int16Array(160).fill(loud ? 4_000 : 0);
 
-function boot(withStreaming = true) {
+function boot(withStreaming = true, freeTranscriptMinutes?: number) {
   media = new MemoryMediaServer();
   streaming = new MemoryStreaming();
   app = buildApp({
@@ -35,6 +35,7 @@ function boot(withStreaming = true) {
     streaming: withStreaming ? streaming : undefined,
     now: () => clock,
     roomCloseGraceMs: 0,
+    freeTranscriptMinutes,
   });
 }
 
@@ -102,16 +103,21 @@ function talk(roomName: string, speaker: string, ms: number, loud = true) {
   }
 }
 
+/** The same two, in a channel Bob — on free minutes — holds the controls of. */
+async function bobsRoom() {
+  const { alice, bob } = await room();
+  const created = app.channels.create(bob.account.id, [alice.account.id]);
+  if (!created.ok) throw new Error(created.error);
+  return { alice, bob, channelId: created.channel.id, room: created.channel.mediaRoom };
+}
+
 describe('the switch', () => {
-  it('is offered only to somebody who transcribes on the house', async () => {
+  it('is the house\'s, on the house', async () => {
     boot();
-    const { alice, bob, channelId } = await room();
-
-    expect((await turnOn(bob.token, channelId)).statusCode).toBe(404);
-    expect(app.channels.get(channelId)?.liveTranscription).toBe(false);
-
+    const { alice, channelId } = await room();
     expect((await turnOn(alice.token, channelId)).statusCode).toBe(200);
     expect(app.channels.get(channelId)?.liveTranscription).toBe(true);
+    expect(app.channels.get(channelId)?.liveTranscriptionPaidBy).toBeUndefined();
   });
 
   it('is the room\'s: refused the house from outside it', async () => {
@@ -171,6 +177,114 @@ describe('the switch', () => {
       state: string;
     };
     expect(JSON.parse(row.state).liveTranscription).toBe(true);
+  });
+});
+
+describe('on free minutes', () => {
+  // Since 2026-10-10 the live transcript shares an account's free minutes a
+  // calendar week with its recordings' transcripts, rather than being the
+  // house's alone. Whoever switches it on pays, as it runs.
+
+  const usage = () =>
+    app.db.prepare('SELECT account_id, ms, channel_id FROM transcript_usage').all() as Array<{
+      account_id: string;
+      ms: number;
+      channel_id: string | null;
+    }>;
+
+  it('may be switched on by anybody with minutes left, who then pays', async () => {
+    boot();
+    const { bob, channelId } = await bobsRoom();
+    expect((await turnOn(bob.token, channelId)).statusCode).toBe(200);
+    expect(app.channels.get(channelId)?.liveTranscriptionPaidBy).toBe(bob.account.id);
+  });
+
+  it('spends the payer\'s minutes when a session closes, and the house\'s on nobody', async () => {
+    boot();
+    const { alice, bob, channelId, room: roomName } = await bobsRoom();
+    await turnOn(bob.token, channelId);
+    // Alice speaks, and Bob pays: the bill is whoever switched it on.
+    talk(roomName, alice.account.id, 1_000);
+    clock += IDLE_MS;
+    app.channels.tick();
+    expect(usage()).toEqual([
+      { account_id: bob.account.id, ms: expect.any(Number), channel_id: channelId },
+    ]);
+    expect(usage()[0].ms).toBeGreaterThan(0);
+  });
+
+  it('writes nothing for a run on the house', async () => {
+    boot();
+    const { alice, channelId, room: roomName } = await room();
+    await turnOn(alice.token, channelId);
+    talk(roomName, alice.account.id, 1_000);
+    clock += IDLE_MS;
+    app.channels.tick();
+    expect(usage()).toEqual([]);
+  });
+
+  it('switches itself off when the minutes run out, counting what is still open', async () => {
+    // Six seconds a week; a session open for longer than that has spent it
+    // before it has closed, and the meter does not wait for the close.
+    boot(true, 0.1);
+    const { bob, channelId, room: roomName } = await bobsRoom();
+    await turnOn(bob.token, channelId);
+    talk(roomName, bob.account.id, 3_000);
+    app.meterLive();
+    expect(app.channels.get(channelId)?.liveTranscription).toBe(true);
+
+    talk(roomName, bob.account.id, 3_500);
+    app.meterLive();
+    expect(app.channels.get(channelId)?.liveTranscription).toBe(false);
+    expect(app.channels.get(channelId)?.liveTranscriptionPaidBy).toBeUndefined();
+    // And the open session closed with it, onto the ledger.
+    expect(streaming.live()).toHaveLength(0);
+
+    const refused = await turnOn(bob.token, channelId);
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().error).toMatch(/used this week's 0.1 free transcription minutes/);
+  });
+
+  it('may be switched off by somebody with nothing left', async () => {
+    boot(true, 0.1);
+    const { bob, channelId } = await bobsRoom();
+    await turnOn(bob.token, channelId);
+    app.accounts.spendTranscriptMs(bob.account.id, 60_000, clock, { recordingId: 'rec_x' });
+    expect((await turnOn(bob.token, channelId, false)).statusCode).toBe(200);
+    expect(app.channels.get(channelId)?.liveTranscription).toBe(false);
+  });
+
+  it('is refused once a recording has spent the week', async () => {
+    // One allowance, shared: minutes spent on a recording are not there for
+    // the live transcript.
+    boot();
+    const { bob, channelId } = await bobsRoom();
+    app.accounts.spendTranscriptMs(bob.account.id, 60 * 60_000, clock, { recordingId: 'rec_x' });
+    expect((await turnOn(bob.token, channelId)).statusCode).toBe(403);
+  });
+
+  it('does not set a sitting to begin with it', async () => {
+    // *Record automatically*'s Text starts a sitting nobody switched on, so
+    // there is nobody to bill: it stays the house's.
+    boot();
+    const { bob, channelId } = await bobsRoom();
+    const auto = await app.fastify.inject({
+      method: 'PUT',
+      url: `/channels/${channelId}/auto-transcribe`,
+      headers: auth(bob.token),
+      payload: { on: true },
+    });
+    expect(auto.statusCode).toBe(404);
+  });
+
+  it('keeps the payer across a restart', async () => {
+    boot();
+    const { bob, channelId } = await bobsRoom();
+    await turnOn(bob.token, channelId);
+    const row = app.db.prepare('SELECT state FROM channels WHERE id = ?').get(channelId) as {
+      state: string;
+    };
+    expect(JSON.parse(row.state).liveTranscriptionPaidBy).toBe(bob.account.id);
   });
 });
 
@@ -361,9 +475,18 @@ describe('on the wire', () => {
 
     const a = await watcher(base, alice.token, channelId);
     const b = await watcher(base, bob.token, channelId);
-    const view = (m: Record<string, unknown>) => m.view as { mayTranscribeLive?: boolean };
-    expect(view(await a.next((m) => m.type === 'channel')).mayTranscribeLive).toBe(true);
-    expect(view(await b.next((m) => m.type === 'channel')).mayTranscribeLive).toBe(false);
+    const view = (m: Record<string, unknown>) =>
+      m.view as { mayTranscribeLive?: boolean; mayAutoTranscribe?: boolean };
+    // Bob has his free minutes, so the switch is his too; only the house may
+    // set a sitting to begin with it.
+    expect(view(await a.next((m) => m.type === 'channel'))).toMatchObject({
+      mayTranscribeLive: true,
+      mayAutoTranscribe: true,
+    });
+    expect(view(await b.next((m) => m.type === 'channel'))).toMatchObject({
+      mayTranscribeLive: true,
+      mayAutoTranscribe: false,
+    });
 
     await turnOn(alice.token, channelId);
     talk(roomName, alice.account.id, 100);

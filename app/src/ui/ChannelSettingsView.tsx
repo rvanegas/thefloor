@@ -166,8 +166,14 @@ export function ChannelSettingsView({
   const autoRecord = channel.autoRecord ?? false;
   /** And Text beside it, `?? false` for the same reason. See `autoTranscribe`. */
   const autoTranscribe = channel.autoTranscribe ?? false;
-  /** Whether this account pays for live transcription, which Text needs. */
-  const mayTranscribeLive = app.channelViews[channel.id]?.mayTranscribeLive ?? false;
+  /**
+   * Whether this account transcribes on the house, which Text needs: a
+   * sitting that begins with it was begun by nobody, so free minutes cannot
+   * pay for it. A server that predates `mayAutoTranscribe` sends only
+   * `mayTranscribeLive`, which meant the same thing there.
+   */
+  const view = app.channelViews[channel.id];
+  const mayAutoTranscribe = view?.mayAutoTranscribe ?? view?.mayTranscribeLive ?? false;
   /** `?? 'standard'` for the same reason. See `transcriptionModel`. */
   const transcriptionModel = channel.transcriptionModel ?? 'standard';
   const [name, setName] = useState(channel.name ?? '');
@@ -460,7 +466,7 @@ export function ChannelSettingsView({
           <KeepSwitch
             label={tc.keepText()}
             on={autoTranscribe}
-            refused={!mayEdit || !mayTranscribeLive}
+            refused={!mayEdit || !mayAutoTranscribe}
             onChange={(on) => {
               if (!app.token) return;
               api

@@ -860,6 +860,19 @@ export interface ChannelState {
    */
   liveTranscriptionPaused?: boolean;
   /**
+   * Whose free minutes the live transcript running now is spending, since
+   * 2026-10-10 — whoever switched it on, when they are not marked unlimited.
+   * Absent when the house pays: an unlimited account switched it on, or the
+   * sitting began with it through `autoTranscribe`.
+   *
+   * Here rather than in the server's memory so that a restart mid-sitting
+   * does not quietly move the bill to the house. The server reads it to meter
+   * the sessions and to switch the text off when the minutes run out; the
+   * reducer only carries it, set with `SET_LIVE_TRANSCRIPTION` and cleared
+   * whenever the text stops.
+   */
+  liveTranscriptionPaidBy?: UserId;
+  /**
    * The grade of speech model this channel's next transcript is asked for.
    * See `TranscriptionModel`.
    *
@@ -1247,6 +1260,11 @@ export type ChannelAction =
        * has asked `canStartRecording` for whoever pressed it.
        */
       startRecording?: boolean;
+      /**
+       * Whose free minutes this spends, when it turns the text on: see
+       * `ChannelState.liveTranscriptionPaidBy`. Absent, the house pays.
+       */
+      paidBy?: UserId;
     }
   /**
    * *Record automatically*'s Text. Server-applied for `SET_LIVE_TRANSCRIPTION`'s

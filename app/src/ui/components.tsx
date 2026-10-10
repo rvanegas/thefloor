@@ -1926,9 +1926,9 @@ function TranscriptButton({
   const [busy, setBusy] = React.useState(false);
   const transcript = recording.transcript;
   if (!transcript || transcript.live) return null;
-  // Everybody gets one free transcript, so a refusal here is usually "you have
-  // had yours" or "this one is too long for a free use" — temporary, personal,
-  // and worth a sentence. Reading is never limited, so a transcript that
+  // Everybody gets free minutes a week, so a refusal here is usually "this
+  // week's are spent" or "this one is more than you have left" — temporary,
+  // personal, and worth a sentence. Reading is never limited, so a transcript that
   // exists is in the log either way; what goes is the ability to spend.
   const mayRequest = transcript.mayRequest !== false;
   const limit = transcript.requestLimit;
@@ -2025,13 +2025,16 @@ function TranscriptButton({
           // discover afterwards — so the title asks about the free use rather
           // than about the recording, and Cancel is the way out of both.
           const spends = transcript.spendsFreeUse === true;
+          // Minutes since 2026-10-10; a server from before them sends the
+          // flag alone, which meant the one free transcript.
+          const free = spends ? (transcript.freeMinutes ?? true) : false;
           Alert.alert(
-            spends ? t.spendFreeAsk() : t.transcribeAsk(),
-            t.transcribeBody(transcript.provider, spends),
+            free === true ? t.spendFreeAsk() : free ? t.spendMinutesAsk() : t.transcribeAsk(),
+            t.transcribeBody(transcript.provider, free),
             [
               { text: t.cancel(), style: 'cancel' },
               {
-                text: spends ? t.useIt() : t.transcribe(),
+                text: free === true ? t.useIt() : t.transcribe(),
                 onPress: async () => {
                   if (!app.token) return;
                   setBusy(true);

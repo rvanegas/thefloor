@@ -35,7 +35,13 @@ import {
   type NotificationAlert,
   type NotificationLevel,
 } from '../../core/notifications';
-import { Accounts, SWEEP_INTERVAL_MS, UsernameTakenError } from './accounts';
+import {
+  Accounts,
+  FREE_TRANSCRIPT_MINUTES_DEFAULT,
+  SWEEP_INTERVAL_MS,
+  UsernameTakenError,
+  weekStartOf,
+} from './accounts';
 import { openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
 import { deletionPage } from './deletion';
 import { logSafeRequest } from './log-url';
@@ -288,36 +294,18 @@ export interface BuildOptions {
    */
   streaming?: StreamingTranscriptionProvider;
   /**
-   * An address that may transcribe without limit, on top of whatever accounts
-   * carry the `transcripts_unlimited` mark.
+   * How many transcription minutes an account without the
+   * `transcripts_unlimited` mark may spend each calendar week, recordings and
+   * the live transcript together — a recording's length times the number of
+   * stems, and a live session's open time, which are the units the provider
+   * bills in. The week begins Monday 00:00 UTC.
    *
-   * **A bootstrap, and deprecated.** Until 2026-08-25 this was
-   * `transcribeIdentifier` and meant the opposite of what it means now: the
-   * *only* address allowed to start a transcript, everybody else refused.
-   * Transcription is open to everybody since, one free use each, and the mark
-   * that lifts the limit lives on the account — `bin/db --write "update
-   * accounts set transcripts_unlimited = 1 where identifier = '…'"`.
-   *
-   * It is still read so that a server whose `.env` names an address does not
-   * silently demote that person to one free use on the deploy that opens the
-   * feature up. Set the column, then unset the variable; nothing else should
-   * be added to it.
-   *
-   * Matched the way sign-in matches: trimmed, case-insensitively.
-   */
-  transcribeUnlimitedIdentifier?: string;
-  /**
-   * How much audio one free transcript may cover, in transcription minutes —
-   * a recording's length times the number of stems, which is the unit the
-   * provider bills in and the unit `billed_ms` already records.
-   *
-   * Unset, a free transcript may be of any length. Set, it is the second
-   * thing that can refuse one, and it refuses with the number in the sentence
-   * so nobody has to guess how far over they were.
-   *
-   * It exists because "one free use" caps the count and not the bill: one use
-   * of a twenty-minute pair costs about ten cents and one use of a three-hour
-   * four-way costs about two dollars. Unlimited accounts ignore it.
+   * Since 2026-10-10, replacing one free transcript per account, which capped
+   * the count and not the bill — one use of a twenty-minute pair cost about
+   * ten cents, one of a three-hour four-way about two dollars. Defaults to
+   * `FREE_TRANSCRIPT_MINUTES_DEFAULT`. The mark is set by hand: `bin/db
+   * --write "update accounts set transcripts_unlimited = 1 where identifier =
+   * '…'"`.
    */
   freeTranscriptMinutes?: number;
   /**
@@ -363,6 +351,12 @@ export interface App {
    * socket to reach the decision.
    */
   publication: Publication;
+  /**
+   * Switches off every live transcript whose payer is out of free minutes —
+   * what the server runs every `LIVE_METER_INTERVAL_MS`. Exposed so a test
+   * can step it, as `channels.tick` is.
+   */
+  meterLive: () => void;
 }
 
 /**
@@ -393,6 +387,9 @@ const TRACK_CONTENT_TYPES: Record<string, string> = {
   '.opus': 'audio/ogg',
   '.caf': 'audio/x-caf',
 };
+
+/** How often a live transcript on somebody's free minutes is checked. */
+export const LIVE_METER_INTERVAL_MS = 5_000;
 
 export function buildApp(options: BuildOptions = {}): App {
   const now = options.now ?? Date.now;
@@ -958,6 +955,8 @@ export function buildApp(options: BuildOptions = {}): App {
           stateOf: (channelId) => channels.get(channelId),
           accountName: (userId) => accounts.byId(userId)?.display_name ?? null,
           onLine: (channelId, line) => liveLineNotifier.notify(channelId, line),
+          onSpent: (paidBy, channelId, ms) =>
+            accounts.spendTranscriptMs(paidBy, ms, now(), { channelId }),
           onError: (error, context) =>
             fastify.log.error({ err: error, context }, 'live transcript failed'),
         })
@@ -968,13 +967,38 @@ export function buildApp(options: BuildOptions = {}): App {
   }
 
   /**
-   * Whether this account may turn a channel's live transcript on: somebody
-   * who transcribes on the house, on a server that can do it at all. Until
-   * `free-to-talk-paid-to-transcribe-and-digest.md` answers who pays, that is
-   * the whole rule, and everybody else is never shown the switch.
+   * Whether this account may turn a channel's live transcript on: on a server
+   * that can do it at all, somebody who transcribes on the house or has free
+   * minutes left this week. The second kind pays for it as it runs, and
+   * `meterLive` switches it off when the minutes are gone.
    */
   const mayTranscribeLive = (userId: string): boolean =>
+    live !== null && (transcribesFreely(userId) || freeMsLeft(userId) > 0);
+
+  /**
+   * Whether this account may set *Record automatically*'s Text. Only on the
+   * house: a sitting that begins with the text on was begun by nobody, so
+   * there is nobody whose minutes it could spend.
+   */
+  const mayAutoTranscribe = (userId: string): boolean =>
     live !== null && transcribesFreely(userId);
+
+  /**
+   * Switches off every live transcript whose payer has run out of free
+   * minutes. A poll rather than a timer per channel, since what runs the
+   * minutes out is speech, which no timer can predict; at this interval a
+   * payer overruns by at most a few seconds a speaker.
+   */
+  function meterLive(): void {
+    for (const { channelId, paidBy } of channels.livePayers()) {
+      if (freeMsLeft(paidBy) <= 0) channels.endPaidLiveTranscription(channelId);
+    }
+  }
+  if (live) {
+    const meter = setInterval(meterLive, LIVE_METER_INTERVAL_MS);
+    meter.unref?.();
+    fastify.addHook('onClose', async () => clearInterval(meter));
+  }
 
   // Reads the stems through the same gate the export does, and spends money,
   // so it is given the provider only when one is configured — with none, it
@@ -990,11 +1014,11 @@ export function buildApp(options: BuildOptions = {}): App {
     // A transcript landing is not an action anybody took, so nothing else
     // pushes a snapshot on its behalf — the same reason a finished mix emits.
     onChanged: (channelId) => channels.announce(channelId),
-    // A transcript that produced nothing gives the free use back. Keyed on
-    // the recording, so this does not have to remember who paid — the account
-    // row holds that, which is also what makes it survive the sweep that
+    // A transcript that produced nothing gives its minutes back. Keyed on the
+    // recording, so this does not have to remember who paid — the ledger row
+    // holds that, which is also what makes it survive the sweep that
     // eventually removes the transcript.
-    onFailed: (recordingId) => accounts.refundFreeTranscript(recordingId),
+    onFailed: (recordingId) => accounts.refundTranscript(recordingId),
   });
 
   // Channels outlive the process that was holding them, so the first thing a
@@ -4296,13 +4320,17 @@ export function buildApp(options: BuildOptions = {}): App {
       // so changing the setting afterwards changes nothing already asked for.
       const model =
         channels.get(allowed.row.channel_id)?.transcriptionModel ?? 'standard';
+      // Read before the request, which is what the gate measured against.
+      const estimate = transcripts.costEstimateMs(id) ?? 0;
       await transcripts.request(id, account.id, model);
       // After the request rather than before it: everything `request` refuses
       // — no speech, already transcribed, deleted underneath — spends nothing
-      // and must not spend the free use either. A no-op for an unlimited
-      // account, and for one whose credit is already gone, which cannot reach
-      // here anyway.
-      accounts.spendFreeTranscript(account.id, id, now());
+      // and must not spend free minutes either. The upper bound, as
+      // `billed_ms` starts at, and not corrected down when the jobs land:
+      // the free minutes are a ceiling, so they are spent as one.
+      if (!transcribesFreely(account.id)) {
+        accounts.spendTranscriptMs(account.id, estimate, now(), { recordingId: id });
+      }
     } catch (error) {
       // Everything this throws is an answer the caller should relay rather
       // than retry: already transcribed, nothing to transcribe, deleted
@@ -4391,7 +4419,7 @@ export function buildApp(options: BuildOptions = {}): App {
 
     // Whoever asked for this one may unmake it, and so may an unlimited
     // account. Deleting spends nothing and destroys something that costs what
-    // it cost to make again — and it does not return the free use, so this is
+    // it cost to make again — and it does not return the minutes, so this is
     // not a way round the limit.
     if (!mayRemoveTranscript(account.id, id)) {
       return reply.code(403).send({
@@ -4438,7 +4466,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const account = await requireAccount(request, reply);
     if (!account) return;
     const { id } = request.params as { id: string };
-    if (!mayTranscribeLive(account.id)) {
+    if (!mayAutoTranscribe(account.id)) {
       return reply.code(404).send({ error: 'No such setting.' });
     }
     const on = (request.body as { on?: unknown } | undefined)?.on;
@@ -4456,7 +4484,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const account = await requireAccount(request, reply);
     if (!account) return;
     const { id } = request.params as { id: string };
-    if (!mayTranscribeLive(account.id)) {
+    if (live === null) {
       return reply.code(404).send({ error: 'No such setting.' });
     }
     const body = request.body as { on?: unknown; audio?: unknown } | undefined;
@@ -4464,9 +4492,21 @@ export function buildApp(options: BuildOptions = {}): App {
     if (typeof on !== 'boolean') {
       return reply.code(400).send({ error: 'on must be true or false.' });
     }
+    // Switching it off spends nothing, so it is anybody's who may change what
+    // the channel keeps; switching it on is for whoever has minutes to spend.
+    const unlimited = transcribesFreely(account.id);
+    if (on && !mayTranscribeLive(account.id)) {
+      return reply.code(403).send({ error: freeMinutesSpentMessage() });
+    }
     // `audio: true` is Start: the audio begins in the same step as the text,
     // so the segment they share begins at one instant. Since 2026-10-10.
-    const result = channels.setLiveTranscription(id, account.id, on, body?.audio === true);
+    const result = channels.setLiveTranscription(
+      id,
+      account.id,
+      on,
+      body?.audio === true,
+      unlimited ? undefined : account.id
+    );
     if (!result.ok) {
       return reply.code(statusFor(result.code)).send({ error: result.error });
     }
@@ -5554,11 +5594,23 @@ export function buildApp(options: BuildOptions = {}): App {
     // recording would take. Absent when the answer is yes, so nothing has to
     // remember to clear it.
     const requestLimit = gate.ok ? {} : { requestLimit: gate.message };
-    // Only when the tap would actually cost this person their one use — an
+    // Only when the tap would actually cost this person free minutes — an
     // unlimited account is not warned about spending something it does not
-    // have, and neither is anybody being refused.
+    // have, and neither is anybody being refused. `freeMinutes` is what a
+    // build from 2026-10-10 says; an older one says "your one free
+    // transcript" from `spendsFreeUse` alone, which overstates the stakes
+    // rather than understating them.
+    const estimate = transcripts.costEstimateMs(row.id);
     const spendsFreeUse =
-      gate.ok && !transcribesFreely(viewerId) ? { spendsFreeUse: true } : {};
+      gate.ok && !transcribesFreely(viewerId)
+        ? {
+            spendsFreeUse: true,
+            freeMinutes: {
+              cost: Math.ceil((estimate ?? 0) / 60_000),
+              left: Math.floor(freeMsLeft(viewerId) / 60_000),
+            },
+          }
+        : {};
     const view = transcripts.viewFor(row.id);
     // `'none'` rather than nothing: this server can transcribe this recording
     // and nobody has asked. Absent is reserved for a server that cannot, which
@@ -5609,20 +5661,39 @@ export function buildApp(options: BuildOptions = {}): App {
   }
 
   /**
-   * Whether this account's transcribing is unmetered.
-   *
-   * Resolved on each call rather than at boot: the account named in the
-   * environment may not exist when this server starts, and an address
-   * configured before its owner has signed in should start working when they
-   * do rather than after a restart. One indexed lookup, on a path that is
-   * already a database read.
+   * Whether this account's transcribing is unmetered: the
+   * `transcripts_unlimited` mark, and nothing else since 2026-10-10, when
+   * `TRANSCRIBE_IDENTIFIER` was retired. Resolved on each call, so setting
+   * the mark by hand takes effect without a restart.
    */
   function transcribesFreely(userId: string): boolean {
-    if (accounts.transcriptAllowance(userId).unlimited) return true;
-    const only = options.transcribeUnlimitedIdentifier;
-    if (!only) return false;
-    const allowed = accounts.byIdentifier(only);
-    return !!allowed && allowed.id === userId;
+    return accounts.transcribesUnlimited(userId);
+  }
+
+  /** This week's free transcription minutes, in milliseconds. */
+  const freeAllowanceMs =
+    (options.freeTranscriptMinutes ?? FREE_TRANSCRIPT_MINUTES_DEFAULT) * 60_000;
+
+  /**
+   * What is left of this account's free minutes this calendar week, in
+   * milliseconds: the allowance, less what the ledger holds since Monday and
+   * whatever live sessions it is paying for are open now. Never meaningful for
+   * an unlimited account, which nothing asks it about.
+   */
+  function freeMsLeft(userId: string): number {
+    const spent =
+      accounts.transcriptMsSince(userId, weekStartOf(now())) +
+      (live?.openMsPaidBy(userId) ?? 0);
+    return Math.max(0, freeAllowanceMs - spent);
+  }
+
+  /** The refusal for somebody with no free minutes left this week. */
+  function freeMinutesSpentMessage(): string {
+    return (
+      `You have used this week's ${freeAllowanceMs / 60_000} free ` +
+      'transcription minutes. They come back on Monday, 00:00 UTC. Reading ' +
+      'and searching the transcripts in your channels is not limited.'
+    );
   }
 
   /**
@@ -5634,8 +5705,8 @@ export function buildApp(options: BuildOptions = {}): App {
    * reach and about not changing a shared thing from outside a conversation
    * in progress. This is only the first.
    *
-   * The refusals here are both *temporary and personal* — "you have had
-   * yours", "this one is too long for a free use" — which is why they come
+   * The refusals here are both *temporary and personal* — "this week's are
+   * spent", "this one is more than you have left" — which is why they come
    * with a sentence. The rule they replaced was "not you, ever, on this
    * server", which was worth no words at all and is why the button used to be
    * withheld in silence.
@@ -5645,31 +5716,23 @@ export function buildApp(options: BuildOptions = {}): App {
     recordingId: string
   ): { ok: true } | { ok: false; message: string } {
     if (transcribesFreely(userId)) return { ok: true };
-    const { spentOn } = accounts.transcriptAllowance(userId);
-    if (spentOn) {
-      return {
-        ok: false,
-        message:
-          'You have used your one free transcript. Reading and searching ' +
-          'the transcripts in your channels is not limited.',
-      };
-    }
-    const cap = options.freeTranscriptMinutes;
-    if (cap === undefined) return { ok: true };
+    const left = freeMsLeft(userId);
+    if (left <= 0) return { ok: false, message: freeMinutesSpentMessage() };
     const estimate = transcripts.costEstimateMs(recordingId);
     // Nothing to transcribe, or no such recording. Not this rule's refusal to
     // make: `request` says so precisely, and saying "too long" about a
     // recording with no speech in it would be a wrong answer confidently
     // given.
     if (estimate === undefined) return { ok: true };
-    const minutes = Math.ceil(estimate / 60_000);
-    if (minutes <= cap) return { ok: true };
+    if (estimate <= left) return { ok: true };
     return {
       ok: false,
       message:
-        `A free transcript covers up to ${cap} transcription minutes — a ` +
-        `recording's length times the number of people recorded in it. This ` +
-        `one comes to ${minutes}.`,
+        `This recording comes to ${Math.ceil(estimate / 60_000)} ` +
+        `transcription minutes — its length times the number of people ` +
+        `recorded in it — and you have ${Math.floor(left / 60_000)} of ` +
+        `this week's ${freeAllowanceMs / 60_000} free minutes left. They ` +
+        `come back on Monday, 00:00 UTC.`,
     };
   }
 
@@ -5680,7 +5743,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * make again — so it is not for anybody who happens to be in the channel.
    * It is for whoever asked for this one, who is unmaking their own act, and
    * for an unlimited account, who can always make it again. **A deletion does
-   * not return the free use**, which is the whole reason this is not simply
+   * not return the free minutes**, which is the whole reason this is not simply
    * `mayManageRecording`: if it did, delete-and-ask-again would be an
    * unlimited supply of free transcripts.
    */
@@ -5790,6 +5853,7 @@ export function buildApp(options: BuildOptions = {}): App {
       settingsNotifier,
       liveLineNotifier,
       mayTranscribeLive,
+      mayAutoTranscribe,
       reachability,
       preferences,
       mediaUrl: options.mediaUrl,
@@ -5813,6 +5877,7 @@ export function buildApp(options: BuildOptions = {}): App {
     recordingsInChannel,
     recordingView: toRecordingView,
     publication,
+    meterLive,
   };
 }
 

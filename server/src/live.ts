@@ -75,6 +75,12 @@ interface Stream {
   anchors: Anchor[];
   sentMs: number;
   openedAt: number;
+  /**
+   * Whose free minutes this session spends, read when it opened: by the time
+   * it closes, the switching-off that closed it has already cleared the
+   * channel's `liveTranscriptionPaidBy`. Absent, the house pays.
+   */
+  paidBy?: string;
 }
 
 interface Speaker {
@@ -101,6 +107,11 @@ export interface LiveTranscriberOptions {
   accountName: (userId: string) => string | null;
   /** A line was written. The registry tells whoever is watching. */
   onLine: (channelId: string, line: LiveLine) => void;
+  /**
+   * A session somebody's free minutes paid for has closed, and this is what
+   * it cost them. Never called for one the house paid for.
+   */
+  onSpent?: (paidBy: string, channelId: string, ms: number) => void;
   onError: (error: unknown, context: string) => void;
 }
 
@@ -132,6 +143,22 @@ export class LiveTranscriber {
         }
       }
     }
+  }
+
+  /**
+   * How long the sessions `paidBy` is paying for have been open so far — the
+   * part of their spending that `onSpent` has not reported yet, so that a
+   * meter read mid-sitting sees the minutes being spent as well as the spent.
+   */
+  openMsPaidBy(paidBy: string): number {
+    const now = this.options.now();
+    let ms = 0;
+    for (const room of this.rooms.values()) {
+      for (const speaker of room.speakers.values()) {
+        if (speaker.stream?.paidBy === paidBy) ms += now - speaker.stream.openedAt;
+      }
+    }
+    return ms;
   }
 
   /** Stops everything, for a server going down. */
@@ -224,14 +251,29 @@ export class LiveTranscriber {
 
   private openStream(channelId: string, identity: string, speaker: Speaker): Stream {
     const openedAt = this.options.now();
+    const paidBy = this.options.stateOf(channelId)?.liveTranscriptionPaidBy;
     // Built before the session so its handlers can reach the anchors: a turn
     // that lands after this speaker's next session opened still belongs to
     // this one's timeline.
-    const stream = { anchors: [], sentMs: 0, openedAt } as unknown as Stream;
+    const stream = {
+      anchors: [],
+      sentMs: 0,
+      openedAt,
+      ...(paidBy ? { paidBy } : {}),
+    } as unknown as Stream;
     stream.session = this.options.provider.open({
       onTurn: (turn) => this.write(channelId, identity, stream, turn),
       onClose: ({ error, billedSeconds }) => {
         if (speaker.stream === stream) speaker.stream = null;
+        if (paidBy) {
+          // The provider's own measure when it gave one, and how long the
+          // session was open when it did not — which is what it bills by.
+          const ms =
+            billedSeconds != null
+              ? billedSeconds * 1000
+              : this.options.now() - openedAt;
+          this.options.onSpent?.(paidBy, channelId, ms);
+        }
         this.options.db
           .prepare(
             `INSERT INTO live_sessions
