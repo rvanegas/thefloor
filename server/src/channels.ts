@@ -34,6 +34,7 @@ import {
   capacityOf,
   isOwner,
   presentOrEmpty,
+  canSetLiveTranscription,
   holdsTheControls,
   COMMUNITY_OWNER_ACTIONS,
   GUEST_ACTIONS,
@@ -1187,6 +1188,18 @@ export class ChannelRegistry {
     }
     if (channel.status !== 'active') {
       return { ok: false, error: 'This channel has ended.', code: 'conflict' };
+    }
+    // The room's control, as Audio is: see `canSetLiveTranscription`.
+    if (!canSetLiveTranscription(channel, userId, on)) {
+      return {
+        ok: false,
+        error: !holdsTheControls(channel, userId)
+          ? 'Only the owner of this community can change what it keeps.'
+          : !isPresent(channel, userId)
+            ? 'Step in to change what this channel keeps.'
+            : 'Not while somebody else holds the floor.',
+        code: 'forbidden',
+      };
     }
     const next = reduce(channel, { type: 'SET_LIVE_TRANSCRIPTION', on }, this.now());
     if (next !== channel) {

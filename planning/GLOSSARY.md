@@ -2434,7 +2434,9 @@ which is what *Record* says without borrowing the word.
 channel's header on the *Record* tab since 2026-10-09 (`KeepSwitches`).
 *Audio* is a *recording*: on starts one, off ends it, on the recording's own
 rules. *Text* is the *live transcript*: `ChannelState.liveTranscription`,
-moved only by somebody on the house. They replaced the Record and Pause
+moved only by somebody on the house — and, since 2026-10-10, only while
+present and holding the controls, so a community's owner alone, as *Audio*
+is (`canSetLiveTranscription`). They replaced the Record and Pause
 buttons and the *Live transcript* setting on *Channel Settings*.
 
 **Independent: either, both or neither, since 2026-10-10.** Each switch moves
@@ -2717,7 +2719,8 @@ the wall clock, and kept in `live_lines` until the channel goes.
 `ChannelState.liveTranscription`; who may turn it is the `transcripts_unlimited`
 mark, checked by the server's route. **The switch is *Text* on the *Record*
 tab since 2026-10-09**, beside *Audio* and independent of it, and drawn for
-everybody — it says what is being kept — but moved only by that account; it
+everybody — it says what is being kept — but moved only by that account, and
+only while present and holding the controls (`canSetLiveTranscription`); it
 was an On/Off pair in channel settings, drawn for that account alone. Everybody in the room sees that it is on — the
 *Transcribing* pill — because everybody's speech goes to the provider while it
 is. **Held by the *Record* tab's Pause** since 2026-10-09

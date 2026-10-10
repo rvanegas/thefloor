@@ -14,6 +14,7 @@ import {
   canPauseLiveTranscription,
   canPauseRecording,
   canResumeLiveTranscription,
+  canSetLiveTranscription,
   canResumeRecording,
   canStartRecording,
   canStopRecording,
@@ -526,8 +527,10 @@ export function formatRoomText(
  *
  * **Audio is the recording's own rules**: on is `START_RECORDING`, off is
  * `STOP_RECORDING`, and the switch is refused exactly where the button it
- * replaces was. **Text is the account's**, `mayTranscribeLive`, since the
- * house pays for it; everybody else sees its state and cannot move it. A
+ * replaces was. **Text is the account's and the room's**: `mayTranscribeLive`,
+ * since the house pays for it, and `canSetLiveTranscription`, since what is
+ * kept is decided by somebody present who holds the controls — in a
+ * community, its owner. Everybody else sees its state and cannot move it. A
  * switch says what is *chosen*, so a held run leaves it on.
  *
  * **Start turns on both in one press, since 2026-10-10.** While nothing is
@@ -590,6 +593,8 @@ export function KeepSwitches({
   const resuming = audioHeld || textHeld;
   const starting = !audioOn && !textOn;
   const mayStartAudio = canStartRecording(channel, me);
+  // The account pays for it and the room decides it, as Audio is decided.
+  const mayStartText = mayTranscribeLive && canSetLiveTranscription(channel, me, true);
   const holds: Array<
     | { type: 'PAUSE_RECORDING' }
     | { type: 'RESUME_RECORDING' }
@@ -614,7 +619,7 @@ export function KeepSwitches({
   const starts = starting
     ? [
         ...(mayStartAudio ? [() => switchAudio(true)] : []),
-        ...(mayTranscribeLive ? [() => setText(true)] : []),
+        ...(mayStartText ? [() => setText(true)] : []),
       ]
     : [];
   const press = starting
@@ -624,7 +629,7 @@ export function KeepSwitches({
   const word = starting ? t.start() : resuming ? t.resume() : t.pause();
 
   const audioRefused = audioOn ? !mayStop : !mayStartAudio;
-  const textRefused = !mayTranscribeLive;
+  const textRefused = !mayTranscribeLive || !canSetLiveTranscription(channel, me, !textOn);
   const refusal = recordingRefusal(channel, me);
 
   return (

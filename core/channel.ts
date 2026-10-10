@@ -1380,6 +1380,32 @@ export function canResumeLiveTranscription(state: ChannelState, userId: UserId):
   );
 }
 
+/**
+ * Whether `userId` may switch the live transcript on or off — the *Record*
+ * tab's Text, and its half of Start. **The room's, as Audio is**, since
+ * 2026-10-10: somebody present, holding the controls, so a community's owner
+ * alone; and switching it off carries Pause's floor clause, being a cut-off
+ * of the record by another name. Before this only the account's mark and
+ * membership were asked, so the house could switch it from outside the room
+ * and inside a community it did not own.
+ *
+ * **The mark is not here**: who pays is the server's to know, not the
+ * reducer's, and the route asks both. Asked at the route rather than in the
+ * reducer, `SET_LIVE_TRANSCRIPTION` carrying no user — as `canLoadTrack` is.
+ */
+export function canSetLiveTranscription(
+  state: ChannelState,
+  userId: UserId,
+  on: boolean
+): boolean {
+  return (
+    state.status === 'active' &&
+    isPresent(state, userId) &&
+    holdsTheControls(state, userId) &&
+    (on || canPauseOrStopRecording(state.floor, userId))
+  );
+}
+
 /** Pause's rule, applied to the end of the run. See `canPauseRecording`. */
 export function canStopRecording(state: ChannelState, userId: UserId): boolean {
   return (

@@ -2347,6 +2347,22 @@ describe('Channel', () => {
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
     act(() => live.unmount());
 
+    // The house, standing outside the room: Text is the room's to switch,
+    // as Audio is, so it is refused — and Start has nothing to turn on.
+    showChannel(
+      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW)),
+      [],
+      { mayTranscribeLive: true }
+    );
+    const outside = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecord(outside);
+    expect(state(outside, 'Text')).toEqual({ on: false, refused: true });
+    expect(state(outside, 'Audio')).toEqual({ on: false, refused: true });
+    expect(findButton(outside, 'Start')!.props.accessibilityState.disabled).toBe(true);
+    act(() => outside.unmount());
+
     // Text on, for somebody who may switch it: audio on leaves text alone.
     mockApp.act.mockClear();
     asked.mockClear();

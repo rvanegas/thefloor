@@ -114,6 +114,21 @@ describe('the switch', () => {
     expect(app.channels.get(channelId)?.liveTranscription).toBe(true);
   });
 
+  it('is the room\'s: refused the house from outside it', async () => {
+    // The mark says who pays; being present is what lets you decide, as it
+    // is for the audio. See `canSetLiveTranscription`.
+    boot();
+    const { alice, channelId } = await room();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    const refused = await turnOn(alice.token, channelId);
+    expect(refused.statusCode).toBe(403);
+    expect(refused.json().error).toBe('Step in to change what this channel keeps.');
+    expect(app.channels.get(channelId)?.liveTranscription).toBe(false);
+
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    expect((await turnOn(alice.token, channelId)).statusCode).toBe(200);
+  });
+
   it('is refused everybody on a server that cannot stream', async () => {
     boot(false);
     const { alice, channelId } = await room();

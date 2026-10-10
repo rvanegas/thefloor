@@ -1,4 +1,4 @@
-import { createChannel, isTranscribingLive, reduce } from '../channel';
+import { canSetLiveTranscription, createChannel, isTranscribingLive, reduce } from '../channel';
 import type { ChannelState } from '../types';
 
 const A = 'user-a';
@@ -85,5 +85,36 @@ describe('holding the live transcript', () => {
 
     const emptied = reduce(held, { type: 'STEP_OUT', userId: A }, T0);
     expect(emptied.liveTranscriptionPaused).toBeFalsy();
+  });
+});
+
+/*
+  **Switched by the room, since 2026-10-10**, as Audio is: somebody present
+  who holds the controls, so a community's owner alone, and switching it off
+  carries Pause's floor clause. The account mark, who pays, is the server's.
+*/
+describe('who may switch the live transcript', () => {
+  const both = (): ChannelState => reduce(fresh(), { type: 'ENTER', userId: B }, T0);
+
+  it('is anybody present, and nobody who is not', () => {
+    expect(canSetLiveTranscription(fresh(), A, true)).toBe(true);
+    expect(canSetLiveTranscription(fresh(), B, true)).toBe(false);
+    const away = reduce(fresh(), { type: 'STEP_OUT', userId: A }, T0);
+    expect(canSetLiveTranscription(away, A, true)).toBe(false);
+    expect(canSetLiveTranscription(on(away), A, false)).toBe(false);
+  });
+
+  it('is the owner alone, in a community', () => {
+    const community: ChannelState = { ...both(), owner: A };
+    expect(canSetLiveTranscription(community, A, true)).toBe(true);
+    expect(canSetLiveTranscription(community, B, true)).toBe(false);
+    expect(canSetLiveTranscription(on(community), B, false)).toBe(false);
+  });
+
+  it('may not be switched off by somebody the floor has silenced', () => {
+    const held = reduce(on(both()), { type: 'CLAIM_FLOOR', userId: A }, T0 + 1_000);
+    expect(canSetLiveTranscription(held, B, false)).toBe(false);
+    expect(canSetLiveTranscription(held, B, true)).toBe(true);
+    expect(canSetLiveTranscription(held, A, false)).toBe(true);
   });
 });
