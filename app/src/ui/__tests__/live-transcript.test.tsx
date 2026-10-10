@@ -3,7 +3,7 @@ import { act } from 'react-test-renderer';
 import { reduce } from '../../../../core/channel';
 import type { LiveLine } from '../../../../core/protocol';
 import { ChannelView } from '../ChannelView';
-import { merge } from '../Conversation';
+import { merge } from '../RecordTab';
 import { receiveLiveLine } from '../../live/lines';
 import {
   AUDIO,
@@ -68,19 +68,19 @@ const segment = (id: string, name: string, startedAt: number) => ({
 });
 
 /*
-  **The Transcript tab went into *Conversation* on 2026-10-09**, which is
+  **The Transcript tab went into *Record* on 2026-10-09**, which is
   always offered: a recording is the conversation kept as audio and the live
   transcript is the same conversation kept as text, and the one tab shows
   whichever this channel keeps, with each recording a segment at the moment
   it began.
 */
-describe('the Conversation tab', () => {
+describe('the Record tab', () => {
   it('is offered whether or not there is a live transcript, and there is no Transcript tab', () => {
     showChannel(channelOf());
     const tree = render(screen());
-    expect(findTab(tree, 'Conversation')).toBeDefined();
+    expect(findTab(tree, 'Record')).toBeDefined();
     expect(findTab(tree, 'Transcript')).toBeUndefined();
-    showTab(tree, 'Conversation');
+    showTab(tree, 'Record');
     // Nothing fetched and nothing said about a transcript nobody turned on.
     expect(textOf(tree)).toContain('Nothing recorded here yet');
     act(() => tree.unmount());
@@ -92,7 +92,7 @@ describe('the Conversation tab', () => {
       .mockResolvedValue({ lines: [line('l1', ME, 'Me', NOW, 'hello')], more: false } as never);
     showChannel(channelOf(), [], { liveTranscript: true });
     const after = render(screen());
-    showTab(after, 'Conversation');
+    showTab(after, 'Record');
     await settle();
     expect(spy).toHaveBeenCalled();
     expect(textOf(after)).toContain('hello');
@@ -113,7 +113,7 @@ describe('the Conversation tab', () => {
       segment('rec_1', 'First stretch', NOW + 10_000),
     ]);
     const tree = render(screen());
-    showTab(tree, 'Conversation');
+    showTab(tree, 'Record');
     await settle();
 
     const text = textOf(tree);
@@ -136,7 +136,7 @@ describe('the Conversation tab', () => {
     } as never);
     showChannel(transcribed(), [segment('rec_1', 'Long ago', NOW - 600_000)]);
     const tree = render(screen());
-    showTab(tree, 'Conversation');
+    showTab(tree, 'Record');
     await settle();
     expect(textOf(tree)).toContain('newer');
     expect(textOf(tree)).not.toContain('Long ago');
@@ -154,7 +154,7 @@ describe('the Conversation tab', () => {
     } as never);
     showChannel(transcribed());
     const tree = render(screen());
-    showTab(tree, 'Conversation');
+    showTab(tree, 'Record');
     await settle();
 
     const text = textOf(tree);
@@ -176,7 +176,7 @@ describe('the Conversation tab', () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({ lines: [first], more: false } as never);
     showChannel(transcribed());
     const tree = render(screen());
-    showTab(tree, 'Conversation');
+    showTab(tree, 'Record');
     await settle();
 
     act(() => receiveLiveLine('sess_1', line('l2', THEM, 'Dana Chu', NOW + 5_000, 'hi back')));
@@ -196,7 +196,7 @@ describe('the Conversation tab', () => {
       .mockResolvedValueOnce({ lines: [line('l1', ME, 'Me', NOW - 60_000, 'older')], more: false } as never);
     showChannel(transcribed());
     const tree = render(screen());
-    showTab(tree, 'Conversation');
+    showTab(tree, 'Record');
     await settle();
 
     await act(async () => findButton(tree, 'Earlier')!.props.onPress());

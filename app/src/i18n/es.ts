@@ -788,7 +788,7 @@ export const es: Strings = {
       'Entra para cambiar esto. Lo que se conserva de una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
     liveTranscript: () => 'Transcripci\u00f3n en directo',
     liveTranscriptNote: () =>
-      'S\u00ed, todo lo que se dice en este canal se transcribe mientras se dice y se guarda en la pesta\u00f1a Conversaci\u00f3n, sin grabaci\u00f3n. Todos en el canal ven que est\u00e1 activada.',
+      'S\u00ed, todo lo que se dice en este canal se transcribe mientras se dice y se guarda en la pesta\u00f1a Grabado, sin grabaci\u00f3n. Todos en el canal ven que est\u00e1 activada.',
     liveTranscriptOnlyYou: () =>
       'Solo t\u00fa ves este ajuste: la transcripci\u00f3n corre por cuenta de la casa.',
     transcriptionModel: () => 'Modelo de transcripci\u00f3n',
@@ -1047,7 +1047,7 @@ export const es: Strings = {
     tabClipboard: () => 'Portapapeles',
     tabInvite: () => 'Invitar',
     tabListen: () => 'Escuchar',
-    tabConversation: () => 'Conversaci\u00f3n',
+    tabRecord: () => 'Grabado',
     tabWatch: () => 'Ver',
     aBrowser: () => 'Un navegador',
     anotherPhone: () => 'Otro tel\u00e9fono',

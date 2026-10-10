@@ -140,7 +140,7 @@ import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
-import { Conversation } from './Conversation';
+import { RecordTab } from './RecordTab';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -158,11 +158,13 @@ const SKIP_MS = 15_000;
  * subject it belongs to.
  *
  * **Six, always the same six, since 2026-10-09**, when *Recordings* and the
- * live *Transcript* became one tab, *Conversation*, and it took *Listen*'s
+ * live *Transcript* became one tab, *Record*, and it took *Listen*'s
  * place as the first of the carried things. A recording is the conversation
  * kept as audio and a live transcript is the same conversation kept as text;
  * a channel may keep either, both or neither, and the tab is named for what
- * they are records of rather than for either form. *Transcript* had been the
+ * the two forms are together — the record of what was said — rather than for
+ * either form. It was *Conversation* for its first day, which collided with
+ * the conversation you step in to and out of. *Transcript* had been the
  * one tab that came and went, and a strip that changes length while you reach
  * for it is the thing the rest of this order is arranged to avoid.
  */
@@ -170,7 +172,7 @@ export type ChannelTab =
   | 'people'
   | 'clipboard'
   | 'invites'
-  | 'conversation'
+  | 'record'
   | 'listen'
   | 'watch';
 
@@ -2184,11 +2186,11 @@ export function ChannelView({
    * one control up — the thing you were reaching for is somewhere else by the
    * time you land — and the reason to tolerate it was withholding an
    * experimental feature, which is no longer a thing being done here.
-   * *Transcript* was the last exception, and went into *Conversation* on
+   * *Transcript* was the last exception, and went into *Record* on
    * 2026-10-09; see `ChannelTab`.
    */
   /**
-   * Whether *Conversation* carries the live transcript: while it is switched
+   * Whether *Record* carries the live transcript: while it is switched
    * on, or once it has left anything behind — facts about the channel that
    * change when its owner turns a setting, not while people come and go.
    */
@@ -2214,8 +2216,8 @@ export function ChannelView({
       icon: (color) => <InviteIcon color={color} />,
     },
     {
-      value: 'conversation',
-      label: t.tabConversation(),
+      value: 'record',
+      label: t.tabRecord(),
       icon: (color) => <TranscriptIcon color={color} />,
     },
     {
@@ -3162,7 +3164,7 @@ export function ChannelView({
       // The conversation grows at the bottom while people talk, with its
       // transport under it; every other tab is read from the top. See
       // `Screen.followEnd`.
-      followEnd={tab === 'conversation'}
+      followEnd={tab === 'record'}
     >
         {/*
           Why you are in a room with people you have never met.
@@ -4027,7 +4029,7 @@ export function ChannelView({
           </>
         ) : null}
 
-        {tab === 'conversation' ? (
+        {tab === 'record' ? (
           <>
         {/*
           **One conversation, since 2026-10-09**: what was said here as the
@@ -4035,7 +4037,7 @@ export function ChannelView({
           moment it began, oldest at the top. *Recordings* and *Transcript*
           were two tabs; a recording is this conversation kept as audio and
           the transcript is the same conversation kept as text, and a channel
-          may keep either, both or neither. See `Conversation`.
+          may keep either, both or neither. See `RecordTab`.
 
           Above the timeline, because the question it answers — which
           conversation was that in — is one scrolling cannot answer. Only shown
@@ -4047,7 +4049,7 @@ export function ChannelView({
             onOpen={(recordingId) => setTranscriptFor(recordingId)}
           />
         ) : null}
-        <Conversation
+        <RecordTab
           channelId={channelId}
           live={offersTranscript}
           transcribing={isTranscribingLive(channel)}

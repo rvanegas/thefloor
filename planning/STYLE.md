@@ -373,7 +373,7 @@ the variant's foreground colour, and it is drawn where the label would be; the
 label stays required and becomes the `accessibilityLabel`, so the word survives
 for a screen reader and for the tests that press controls by name. Instead of
 the word, never beside it — a shape with its own caption is teaching what the
-shape already says. The recording transport on *Conversation* is the only
+shape already says. The recording transport on *Record* is the only
 user: two of them, `primary` then `default`, in the `buttonRow` / `flexButton`
 row the player's transport is built from, which is the point of drawing them
 this way. It was three until 2026-10-09, when Stop went and every pause became
@@ -559,7 +559,7 @@ An option may carry an `icon`, drawn at 22px in a 24pt box above an 11pt
 label — the footer's construction, not a second one. **A caller gives every
 option an icon or none**; a row with a gap in it draws two heights of segment.
 Both tab strips carry icons — the channel screen's six since 2026-09-12
-(*Conversation*'s is `lucide/scroll-text`, the record dot having gone to the
+(*Record*'s is `lucide/scroll-text`, the record dot having gone to the
 Record button when that tab took in *Recordings* on 2026-10-09), Home's
 four since 2026-09-22, when a fourth tab arrived and a strip where one tab
 carried a glyph and three did not would have read as one tab singled out. The
@@ -636,7 +636,7 @@ control type was not. What carried over: every button present always, so the
 positions never move; and no RECORDING label over them, the header's pill
 being where the state of the run is reported. **Two since 2026-10-09**: Stop
 went, and Pause ends the run, so a recording made in stretches is a row of
-segments in the *Conversation* timeline rather than one file with holes in it.
+segments in the *Record* timeline rather than one file with holes in it.
 
 **The card came back later the same day, and the label did not.** Dropping
 both was one move, and only half of it was about the label: a `Card` is not a
@@ -1236,7 +1236,7 @@ rather than "Empty".
 **A tab with one thing on it gets no label**, since 2026-09-13. A section
 label divides; where there is nothing to divide from, it is the screen saying
 its own name twice under a tab that already said it. *Listen* lost SHARED
-AUDIO, and *Conversation* has none since 2026-10-09: its recordings stand in
+AUDIO, and *Record* has none since 2026-10-09: its recordings stand in
 the timeline rather than in a list under RECORDINGS, the days are divided by
 rules rather than labels, and the transport under it has no heading at all.
 

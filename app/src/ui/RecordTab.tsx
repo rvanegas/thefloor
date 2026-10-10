@@ -10,7 +10,7 @@ import { Button, Card, Empty } from './components';
 import { colors, spacing, type } from './theme';
 
 /**
- * The Conversation tab's history: what was said in a channel, as one
+ * The Record tab's history: what was said in a channel, as one
  * continuous thing, with its recordings standing in it.
  *
  * **One long conversation rather than a list of them**, which is the shape
@@ -41,7 +41,7 @@ import { colors, spacing, type } from './theme';
  * Following the newest line is the `Screen`'s job — see `followEnd` — and
  * only while the reader is already at the bottom.
  */
-export function Conversation({
+export function RecordTab({
   channelId,
   live,
   transcribing,

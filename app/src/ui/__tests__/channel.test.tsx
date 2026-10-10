@@ -41,7 +41,7 @@ import {
   showInvites,
   showClipboard,
   showListen,
-  showConversation,
+  showRecord,
   showPeople,
   showWatch,
   textOf,
@@ -442,7 +442,7 @@ describe('Channel', () => {
     // filter, which would have claimed every contact was already in here.
     expect(invites).toContain('Miro Okafor');
 
-    showConversation(tree);
+    showRecord(tree);
     // The recording row's actions are behind a tap, and two of the three are
     // refused. Share is not, and that is the assertion worth having.
     act(() => findButton(tree, 'Book club')!.props.onPress());
@@ -506,7 +506,7 @@ describe('Channel', () => {
     ).toEqual({ disabled: false, expanded: false });
     expect(on('Share a guest link')).toEqual({ disabled: false });
 
-    showConversation(tree);
+    showRecord(tree);
     act(() => findButton(tree, 'Book club')!.props.onPress());
     expect(on('Rename')).toEqual({ disabled: false });
     expect(on('Delete')).toEqual({ disabled: false });
@@ -521,7 +521,7 @@ describe('Channel', () => {
     expect(on('In')).toEqual({ disabled: false, selected: false });
     expect(on('Claim').disabled).toBe(true);
 
-    showConversation(tree);
+    showRecord(tree);
     expect(on('Record')).toEqual({ disabled: true });
 
     showListen(tree);
@@ -630,7 +630,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(tree);
+    showRecord(tree);
     const text = textOf(tree);
     expect(text).toContain('Recording failed');
     expect(text).toContain('no supported codec');
@@ -670,7 +670,7 @@ describe('Channel', () => {
           onClose={() => {}}
           onExit={() => {}}
         />);
-      showConversation(tree);
+      showRecord(tree);
       return tree;
     };
 
@@ -1574,7 +1574,7 @@ describe('Channel', () => {
       'People',
       'Clipboard',
       'Invite',
-      'Conversation',
+      'Record',
       'Listen',
       'Watch',
     ]);
@@ -1618,16 +1618,16 @@ describe('Channel', () => {
     expect(sections()).toEqual([]);
 
     // Nothing at all, since 2026-09-13: the recording transport moved to
-    // *Recordings*, now *Conversation*, on 2026-09-12, and what was left was one card under a
+    // *Recordings*, now *Record*, on 2026-09-12, and what was left was one card under a
     // SHARED AUDIO label on a tab called *Listen* — the screen naming itself
     // twice over a card whose own sentence says everyone hears this.
     showListen(tree);
     expect(sections()).toEqual([]);
 
-    // None, since 2026-10-09: *Conversation* is one timeline with the
+    // None, since 2026-10-09: *Record* is one timeline with the
     // transport under it, and the RECORDINGS heading over a list went with
     // the list. The day dividers in the timeline are rules, not labels.
-    showConversation(tree);
+    showRecord(tree);
     expect(sections()).toEqual([]);
 
     // And none over the watch card either, since 2026-09-22 — the same
@@ -2188,7 +2188,7 @@ describe('Channel', () => {
     const idle = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showConversation(idle);
+    showRecord(idle);
     expect(transport(idle, 'Record')).toBe(false);
     expect(transport(idle, 'Pause')).toBe(true);
     expect(findButton(idle, 'Stop')).toBeUndefined();
@@ -2203,7 +2203,7 @@ describe('Channel', () => {
     const live = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showConversation(live);
+    showRecord(live);
     expect(transport(live, 'Record')).toBe(true);
     expect(transport(live, 'Pause')).toBe(false);
     act(() => findButton(live, 'Pause')!.props.onPress());
@@ -2224,7 +2224,7 @@ describe('Channel', () => {
     const paused = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showConversation(paused);
+    showRecord(paused);
     expect(transport(paused, 'Resume')).toBe(false);
     expect(transport(paused, 'Pause')).toBe(false);
     act(() =>
@@ -2911,7 +2911,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(tree);
+    showRecord(tree);
     const text = textOf(tree);
     expect(text).toContain('Book club');
     expect(text).not.toContain('Nothing recorded here yet');
@@ -2958,7 +2958,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(mine);
+    showRecord(mine);
     act(() => findButton(mine, 'Tuesday')!.props.onPress());
     expect(findButton(mine, 'Play')!.props.disabled).toBeFalsy();
     act(() => mine.unmount());
@@ -2973,7 +2973,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(theirs);
+    showRecord(theirs);
     act(() => findButton(theirs, 'Tuesday')!.props.onPress());
     expect(findButton(theirs, 'Play')!.props.disabled).toBe(true);
     expect(textOf(theirs)).toContain('the floor decides what plays');
@@ -3025,7 +3025,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(asked);
+    showRecord(asked);
     act(() => findButton(asked, 'Tuesday')!.props.onPress());
     expect(checkbox(asked)).toBeDefined();
     expect(textOf(asked)).toContain('Waiting on');
@@ -3040,7 +3040,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(bystander);
+    showRecord(bystander);
     act(() => findButton(bystander, 'Tuesday')!.props.onPress());
     expect(checkbox(bystander)).toBeUndefined();
     // Still told where it stands: it is the channel's recording either way.
@@ -3066,7 +3066,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(tree);
+    showRecord(tree);
 
     // Share, Rename and Delete rather than Play, which is also the name of
     // the shared audio control further up the screen — and 'Share' is that
@@ -3106,7 +3106,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(tree);
+    showRecord(tree);
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
 
     const { Alert } = require('react-native');
@@ -3152,7 +3152,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(tree);
+    showRecord(tree);
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
 
     const { api } = require('../../api/http');
@@ -3207,7 +3207,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(tree);
+    showRecord(tree);
 
     act(() => findButton(tree, 'Tuesday')!.props.onPress());
     act(() => findButton(tree, 'Rename')!.props.onPress());
@@ -3233,7 +3233,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(tree);
+    showRecord(tree);
     expect(textOf(tree)).toContain('Nothing recorded here yet');
     act(() => tree.unmount());
   });
@@ -3449,7 +3449,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(speaking);
+    showRecord(speaking);
     expect(findButton(speaking, 'Record')!.props.disabled).toBe(false);
     act(() => speaking.unmount());
 
@@ -3460,7 +3460,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(muted);
+    showRecord(muted);
     expect(findButton(muted, 'Record')!.props.disabled).toBe(true);
     act(() => muted.unmount());
   });
@@ -3491,7 +3491,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showConversation(tree);
+    showRecord(tree);
     expect(textOf(tree)).not.toContain('records itself');
     expect(findButton(tree, 'Record')!.props.disabled).toBe(true);
     act(() => tree.unmount());

@@ -629,8 +629,8 @@ export function showListen(tree: ReactTestRenderer): void {
 }
 
 /** What was said here, its recordings among it, and the recording transport. */
-export function showConversation(tree: ReactTestRenderer): void {
-  showTab(tree, 'Conversation');
+export function showRecord(tree: ReactTestRenderer): void {
+  showTab(tree, 'Record');
 }
 
 /**

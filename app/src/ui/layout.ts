@@ -375,12 +375,12 @@ export function useWholeWindow(take: WindowClaim | null = 'glass'): void {
  * is the floor under this number — six tabs unwrap at 480 rather than 540, and
  * anything under 80 starts clipping the word that made the rule.
  *
- * **It no longer holds for every word, since 2026-10-09.** *Conversation*
- * replaced *Recordings* and runs about 71 points, as Spanish *Portapapeles*
- * already did, so on a pane from 480 to roughly 510 points either truncates.
- * Raising this to fit them would wrap Home's four tabs on the narrowest iPhone
- * in support, which is the case the number exists for; a phone draws six in
- * two rows and is unaffected.
+ * **It does not hold for every word.** Spanish *Portapapeles* runs about 71
+ * points, as *Conversation* did for its one day on 2026-10-09 before it became
+ * *Record*, so on a pane from 480 to roughly 510 points it truncates. Raising
+ * this to fit it would wrap Home's four tabs on the narrowest iPhone in
+ * support, which is the case the number exists for; a phone draws six in two
+ * rows and is unaffected.
  */
 export const MIN_SEGMENT = 80;
 

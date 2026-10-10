@@ -991,7 +991,7 @@ export const en = {
       'Step in to change this. What is kept from a conversation is for whoever is in it.',
     liveTranscript: () => 'Live transcript',
     liveTranscriptNote: () =>
-      'On, everything said in this channel is transcribed as it is said and kept in the Conversation tab, with no recording. Everyone in the channel sees that it is on.',
+      'On, everything said in this channel is transcribed as it is said and kept in the Record tab, with no recording. Everyone in the channel sees that it is on.',
     liveTranscriptOnlyYou: () =>
       'Only you see this setting: the transcription is on the house.',
     /** Shown only to an account with `debug` set. See `transcriptionModel`. */
@@ -1283,7 +1283,7 @@ export const en = {
     tabClipboard: () => 'Clipboard',
     tabInvite: () => 'Invite',
     tabListen: () => 'Listen',
-    tabConversation: () => 'Conversation',
+    tabRecord: () => 'Record',
     tabWatch: () => 'Watch',
     aBrowser: () => 'A browser',
     anotherPhone: () => 'Another phone',
