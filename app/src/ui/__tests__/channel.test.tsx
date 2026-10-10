@@ -2914,7 +2914,7 @@ describe('Channel', () => {
     showRecord(tree);
     const text = textOf(tree);
     expect(text).toContain('Book club');
-    expect(text).not.toContain('Nothing recorded here yet');
+    expect(text).not.toContain('Nothing kept yet');
 
     // Closed until asked: the list is what this section is for, and the
     // actions belong to whichever row somebody has opened.
@@ -3234,7 +3234,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(tree);
-    expect(textOf(tree)).toContain('Nothing recorded here yet');
+    expect(textOf(tree)).toContain('Nothing kept yet');
     act(() => tree.unmount());
   });
 

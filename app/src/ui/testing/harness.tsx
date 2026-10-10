@@ -15,7 +15,7 @@ import type {
   ScreenDevice,
 } from '../../../../core/protocol';
 import type { UploadHooks } from '../../api/upload';
-import type { GuestLinkSummary } from '../../api/http';
+import { api, type GuestLinkSummary } from '../../api/http';
 import type { Introduction } from '../../state/introduction';
 import { Alert } from 'react-native';
 
@@ -864,6 +864,7 @@ export function knowing(...ids: string[]) {
  */
 export const downloadMock = () => ({
   shareRecording: jest.fn(async () => {}),
+  shareRoom: jest.fn(async () => {}),
   shareTrack: jest.fn(async () => {}),
 });
 
@@ -881,8 +882,45 @@ export const appProviderMock = () => ({
   AppProvider: ({ children }: { children: React.ReactNode }) => children,
 });
 
+/** A value as a thenable that calls back at once; see `api.rooms` below. */
+function answered<T>(value: T) {
+  return {
+    then(onValue: (value: T) => unknown) {
+      onValue(value);
+      return { catch: () => undefined };
+    },
+  };
+}
+
 /** What the old file's `beforeEach` did. Every test file calls it in one. */
 export function resetHarness(): void {
+  // **One room holding everything**, unless a test says otherwise: the
+  // *Record* log draws only what falls in a room, and every test written
+  // before rooms existed means its recordings and its transcript to be on it.
+  // Opened a week before `NOW`, which is earlier than any fixture's times.
+  //
+  // **Answered synchronously**, by a thenable rather than a promise: the
+  // tests that open the tab read it in the same breath (`showRecord`), as they
+  // did when recordings were drawn straight from the snapshot, and a real
+  // promise would leave them reading *Loading…*. A test that wants the real
+  // timing spies on `api.rooms` itself.
+  jest.spyOn(api, 'rooms').mockImplementation(((_token: string, channelId: string) => {
+    const view = mockApp.channelViews[channelId];
+    const recordings = view?.recordings ?? [];
+    return answered({
+      rooms: [
+        {
+          id: `room_${channelId}`,
+          openedAt: Math.min(NOW - 7 * 86_400_000, ...recordings.map((r) => r.startedAt)),
+          closedAt: null,
+          recordingIds: [...recordings]
+            .sort((a, b) => a.startedAt - b.startedAt)
+            .map((r) => r.id),
+          transcribed: !!(view as { liveTranscript?: boolean } | undefined)?.liveTranscript,
+        },
+      ],
+    });
+  }) as never);
   // Who the app thinks it is. Reset like everything else here, because a test
   // that renders a channel from a *guest's* side has to say so by setting it
   // and would otherwise leave every later test in the file signed in as

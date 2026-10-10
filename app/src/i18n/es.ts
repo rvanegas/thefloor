@@ -1075,6 +1075,20 @@ export const es: Strings = {
       }),
     liveTime: (at: number) =>
       new Date(at).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' }),
+    roomSpan: (from: number, to: number | null) =>
+      `${new Date(from).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })}\u2013${
+        to === null
+          ? 'ahora'
+          : new Date(to).toLocaleTimeString('es', { hour: 'numeric', minute: '2-digit' })
+      }`,
+    shareRoom: () => 'Compartir el audio de esta sala',
+    preparingRoom: () => 'Preparando el audio\u2026',
+    couldNotShareRoom: () => 'No se pudo compartir la sala',
+    roomNoAudioTitle: () => 'Sin audio',
+    roomNoAudio: () =>
+      'En esta sala no se grab\u00f3 nada, as\u00ed que no hay audio que compartir. Su transcripci\u00f3n se guarda aqu\u00ed.',
+    roomsNothingYet: () =>
+      'Todav\u00eda no se ha guardado nada. Lo que se grabe o se transcriba aqu\u00ed aparece como un registro, sala por sala.',
     paused: () => 'En pausa',
     settings: () => 'Ajustes',
     home: () => 'Inicio',
@@ -1257,7 +1271,6 @@ export const es: Strings = {
       'Sala en silencio: no se oye a nadie mientras va el v\u00eddeo.',
     audio: () => 'Audio',
     audioDiagnostics: () => 'Diagn\u00f3stico de audio',
-    nothingRecordedYet: () => 'Aqu\u00ed todav\u00eda no hay nada grabado.',
   },
   recordings: {
     rowLabel: (name: string, length: string, open: boolean) =>

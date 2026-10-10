@@ -19,7 +19,7 @@ import type { RecordingView } from '../../../core/protocol';
 import { shareRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
-import { CheckIcon } from './icons';
+import { CheckIcon, RecordingsIcon } from './icons';
 import { BodyHeightContext, segmentRowsFor, usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
@@ -554,6 +554,31 @@ export function Screen({
   const frame = React.useRef<View>(null);
   /** Where the content currently sits under that frame. */
   const viewport = React.useRef({ offset: 0, height: 0 });
+  /** Who has asked to hear the scroll move; see `ScrollPositionContext`. */
+  const listeners = React.useRef(new Set<(offset: number) => void>());
+  const position = React.useMemo<ScrollPosition>(
+    () => ({
+      offset: () => viewport.current.offset,
+      subscribe: (listener) => {
+        listeners.current.add(listener);
+        return () => {
+          listeners.current.delete(listener);
+        };
+      },
+      contentTopOf: (node, then) => {
+        const target = node.current;
+        const container = frame.current;
+        if (!target || !container) return;
+        // Window coordinates, for the reason `reveal` gives below.
+        target.measureInWindow((_x, top) => {
+          container.measureInWindow((_cx, frameTop) => {
+            then(top - frameTop + viewport.current.offset);
+          });
+        });
+      },
+    }),
+    []
+  );
 
   /**
    * Brings a region of the content wholly into view, if it is not already.
@@ -606,6 +631,7 @@ export function Screen({
       }
     >
       <RevealContext.Provider value={reveal}>
+      <ScrollPositionContext.Provider value={position}>
         {header}
         {/*
           The body: whatever the `aside` is, and the scroll under or behind
@@ -657,6 +683,7 @@ export function Screen({
           scrollEventThrottle={16}
           onScroll={(e) => {
             viewport.current.offset = e.nativeEvent.contentOffset.y;
+            for (const listener of listeners.current) listener(viewport.current.offset);
             const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
             // Within a line's height of the end counts as at it, so a
             // reader who is a few points short is still followed.
@@ -677,9 +704,31 @@ export function Screen({
         </BodyHeightContext.Provider>
         </View>
         {footer}
+      </ScrollPositionContext.Provider>
       </RevealContext.Provider>
     </KeyboardAvoidingView>
   );
+}
+
+/**
+ * Where a `Screen`'s scroll is, for content that has to know what is at the
+ * top of it — the *Record* tab, whose pinned bar names the room there.
+ *
+ * `contentTopOf` gives a node's top as an offset within the content, measured
+ * in window coordinates the way `reveal` is, since `onLayout` is relative to
+ * the parent. Null outside a `Screen`, and nothing is ever measured in a test
+ * renderer, so a reader has to work with neither.
+ */
+export interface ScrollPosition {
+  offset: () => number;
+  subscribe: (listener: (offset: number) => void) => () => void;
+  contentTopOf: (node: React.RefObject<View | null>, then: (top: number) => void) => void;
+}
+
+const ScrollPositionContext = React.createContext<ScrollPosition | null>(null);
+
+export function useScrollPosition(): ScrollPosition | null {
+  return React.useContext(ScrollPositionContext);
 }
 
 /**
@@ -1319,8 +1368,15 @@ export function RecordingRow({
   playDisabledReason,
   manageable = true,
   onOpenTranscript,
+  inline = false,
 }: {
   recording: RecordingView;
+  /**
+   * A line in the *Record* tab's log rather than a card, since 2026-10-09:
+   * the record dot, the name, when it began and how long it ran, muted, in
+   * the flow of what was said around it. Opens to the same actions.
+   */
+  inline?: boolean;
   /** Whether this row can be played into the room. */
   playable?: boolean;
   /** Whoever holds the floor decides what plays, and this says when that is not you. */
@@ -1370,6 +1426,7 @@ export function RecordingRow({
    */
   const [renaming, setRenaming] = React.useState(false);
 
+  const Shell = inline ? View : Card;
   const reveal = useReveal();
   /**
    * Measured, not laid out — see `Screen`'s `reveal`. The rename field is the
@@ -1391,7 +1448,7 @@ export function RecordingRow({
         reveal(row);
       }}
     >
-    <Card style={recordingStyles.row}>
+    <Shell style={recordingStyles.row}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t.rowLabel(
@@ -1414,6 +1471,19 @@ export function RecordingRow({
         }}
         style={({ pressed }) => (pressed ? recordingStyles.pressed : undefined)}
       >
+        {inline ? (
+          <View style={recordingStyles.marker}>
+            <RecordingsIcon color={colors.textMuted} size={14} />
+            <Text style={[type.muted, recordingStyles.markerText]} numberOfLines={1}>
+              {recording.name} ·{' '}
+              {new Date(recording.startedAt).toLocaleTimeString([], {
+                hour: '2-digit',
+                minute: '2-digit',
+              })}{' '}
+              · {formatDuration(recording.durationMs)}
+            </Text>
+          </View>
+        ) : (
         <View style={recordingStyles.main}>
           {/*
             Decided when the run stopped and the same for everybody who was in
@@ -1427,6 +1497,7 @@ export function RecordingRow({
             {formatDuration(recording.durationMs)}
           </Text>
         </View>
+        )}
       </Pressable>
 
       {open && renaming ? (
@@ -1494,7 +1565,7 @@ export function RecordingRow({
           )}
         </View>
       ) : null}
-    </Card>
+    </Shell>
     </View>
   );
 }
@@ -2047,6 +2118,8 @@ const recordingStyles = StyleSheet.create({
   // sitting beside it.
   row: { gap: spacing(1.5) },
   main: { gap: spacing(0.25) },
+  marker: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
+  markerText: { flexShrink: 1 },
   name: { color: colors.text, fontSize: 16, fontWeight: '600' },
   pressed: { opacity: 0.6 },
   actions: { gap: spacing(1) },

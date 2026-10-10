@@ -17,6 +17,44 @@ export async function shareRecording(
   name: string,
   endedAt: number
 ): Promise<void> {
+  await shareOgg(
+    token,
+    `${API_URL}/recordings/${recordingId}/export`,
+    name,
+    endedAt,
+    `Recording — ${name}`
+  );
+}
+
+/**
+ * A room's recordings as one file, back to back — see `joinRecordings` on the
+ * server. Named like a recording's, by the channel and when the room began,
+ * since that is what tells two rooms of one channel apart.
+ */
+export async function shareRoom(
+  token: string,
+  channelId: string,
+  roomId: string,
+  name: string,
+  openedAt: number
+): Promise<void> {
+  await shareOgg(
+    token,
+    `${API_URL}/channels/${channelId}/rooms/${roomId}/export`,
+    name,
+    openedAt,
+    name
+  );
+}
+
+/** Downloads one Ogg the server exports and offers it to the share sheet. */
+async function shareOgg(
+  token: string,
+  url: string,
+  name: string,
+  at: number,
+  dialogTitle: string
+): Promise<void> {
   if (!API_URL) throw new ApiError('No server configured.', 0);
 
   // Cache rather than documents: this is a copy, the server holds the original,
@@ -29,12 +67,12 @@ export async function shareRecording(
   // and in whatever folder they land in. When it ended is what tells them
   // apart, and it is the thing a person would look for anyway.
   const safeName = name.replace(/[^\w\- ]/g, '').trim() || 'channel';
-  const target = `${directory}The Floor — ${safeName} — ${stamp(endedAt)}.ogg`;
+  const target = `${directory}The Floor — ${safeName} — ${stamp(at)}.ogg`;
 
   let result: FileSystem.FileSystemDownloadResult;
   try {
     result = await FileSystem.downloadAsync(
-      `${API_URL}/recordings/${recordingId}/export`,
+      url,
       target,
       { headers: { authorization: `Bearer ${token}` } }
     );
@@ -65,7 +103,7 @@ export async function shareRecording(
   await Sharing.shareAsync(result.uri, {
     mimeType: 'audio/ogg',
     UTI: 'public.audio',
-    dialogTitle: `Recording — ${name}`,
+    dialogTitle,
   });
 }
 

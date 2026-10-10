@@ -1313,6 +1313,25 @@ export const en = {
       }),
     liveTime: (at: number) =>
       new Date(at).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' }),
+    /**
+     * The pinned bar over the *Record* log: when the room at the top of the
+     * scroll ran, by the clock. A room is a sitting, first step in to last
+     * step out; one still going has no end yet.
+     */
+    roomSpan: (from: number, to: number | null) =>
+      `${new Date(from).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })}\u2013${
+        to === null
+          ? 'now'
+          : new Date(to).toLocaleTimeString('en', { hour: 'numeric', minute: '2-digit' })
+      }`,
+    shareRoom: () => "Share this room's audio",
+    preparingRoom: () => 'Preparing the audio\u2026',
+    couldNotShareRoom: () => 'Could not share the room',
+    roomNoAudioTitle: () => 'No audio',
+    roomNoAudio: () =>
+      'Nothing was recorded in this room, so there is no audio to share. Its transcript is kept here.',
+    roomsNothingYet: () =>
+      'Nothing kept yet. What is recorded or transcribed here appears as a log, one room at a time.',
     paused: () => 'Paused',
     settings: () => 'Settings',
     home: () => 'Home',
@@ -1504,7 +1523,6 @@ export const en = {
     partyMuted: () => 'Party-muted — nobody is heard while the video plays.',
     audio: () => 'Audio',
     audioDiagnostics: () => 'Audio diagnostics',
-    nothingRecordedYet: () => 'Nothing recorded here yet.',
   },
   recordings: {
     rowLabel: (name: string, length: string, open: boolean) =>

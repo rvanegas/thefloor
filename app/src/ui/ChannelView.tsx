@@ -140,7 +140,8 @@ import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
-import { RecordTab } from './RecordTab';
+import { RecordTab, RoomBar } from './RecordTab';
+import type { RoomView } from '../../../core/protocol';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -371,6 +372,8 @@ export function ChannelView({
    * leaving it showing a conversation that no longer exists.
    */
   const [transcriptFor, setTranscriptFor] = useState<string | null>(null);
+  /** The room at the top of the *Record* log, which its pinned bar names. */
+  const [roomAtTop, setRoomAtTop] = useState<RoomView | null>(null);
 
   /**
    * Sends an action to this channel.
@@ -3148,7 +3151,22 @@ export function ChannelView({
 
   return (
     <Screen
-      header={header}
+      header={
+        tab === 'record' ? (
+          <>
+            {header}
+            {/* Under the channel's own header rather than in it: it is
+                about the log, and goes when the log does. See `RoomBar`. */}
+            <RoomBar
+              channelId={channelId}
+              name={channel.name ?? derivedTitle}
+              room={roomAtTop}
+            />
+          </>
+        ) : (
+          header
+        )
+      }
       footer={footer}
       aside={dockSlot}
       /*
@@ -4054,9 +4072,11 @@ export function ChannelView({
           live={offersTranscript}
           transcribing={isTranscribingLive(channel)}
           recordings={recordings}
+          onRoomAtTop={setRoomAtTop}
           renderRecording={(r) => (
             <RecordingRow
               key={r.id}
+              inline
               recording={r}
               // Playing one loads it as the channel's shared track, so it is
               // governed by exactly what governs a track somebody uploaded —

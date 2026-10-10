@@ -44,7 +44,11 @@ import { LiveActivities } from './live-activities';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
 import { artworkKeyFor, MAX_ARTWORK_BYTES, readArtwork } from './artwork';
-import { PUBLISHED_CONTENT_TYPE, RECORDING_CONTENT_TYPE } from './export';
+import {
+  joinRecordings,
+  PUBLISHED_CONTENT_TYPE,
+  RECORDING_CONTENT_TYPE,
+} from './export';
 import { renderFeed, type FeedEpisode } from './feed';
 import { Publication, publishedKeyFor } from './publication';
 import { publicChannelPage } from './public-page';
@@ -4464,6 +4468,62 @@ export function buildApp(options: BuildOptions = {}): App {
     }
     const lines = live ? live.linesBefore(id, before, limit).reverse() : [];
     return { lines, more: lines.length === limit };
+  });
+
+  /**
+   * A channel's rooms — its sittings, first step in to last step out — that
+   * kept something, oldest first. Members only, with the same 404 as the live
+   * transcript beside it. See rooms.ts.
+   */
+  fastify.get('/channels/:id/rooms', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!channels.isMemberOf(id, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    return { rooms: channels.rooms.forChannel(id, Date.now()) };
+  });
+
+  /**
+   * A room's audio: every recording made in it, back to back. The export rule
+   * of a single recording — membership of the channel — because it is the
+   * same read of the same audio, several at once. See `joinRecordings` for why
+   * the gaps go.
+   */
+  fastify.get('/channels/:id/rooms/:roomId/export', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, roomId } = request.params as { id: string; roomId: string };
+    const room = channels.isMemberOf(id, account.id)
+      ? channels.rooms.forChannel(id, Date.now()).find((r) => r.id === roomId)
+      : undefined;
+    if (!room) return reply.code(404).send({ error: 'No such room.' });
+    if (room.recordingIds.length === 0) {
+      return reply.code(404).send({ error: 'Nothing was recorded in this room.' });
+    }
+    if (!options.store) {
+      return reply.code(503).send({ error: 'Recording storage is not configured.' });
+    }
+    try {
+      const parts: Buffer[] = [];
+      for (const recordingId of room.recordingIds) {
+        parts.push(await channels.recordingAudio(recordingId));
+      }
+      const data = await joinRecordings(parts);
+      channels.usage.recordBytes({
+        kind: 'export',
+        bytes: data.length,
+        accountId: account.id,
+      });
+      return reply
+        .header('content-type', RECORDING_CONTENT_TYPE)
+        .header('content-disposition', `attachment; filename="${roomId}.ogg"`)
+        .send(data);
+    } catch (error) {
+      request.log.error({ err: error, room: roomId }, 'room export failed');
+      return reply.code(500).send({ error: 'Could not prepare the room.' });
+    }
   });
 
   fastify.get('/channels/:id/transcripts/search', async (request, reply) => {

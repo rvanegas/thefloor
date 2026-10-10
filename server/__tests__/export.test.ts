@@ -8,6 +8,7 @@ import {
   buildStemGraph,
   encodeRecording,
   encodeStem,
+  joinRecordings,
   stemKeysFor,
 } from '../src/export';
 import { MemoryMailer } from '../src/mail';
@@ -320,6 +321,35 @@ describe('the encoded recording', () => {
   });
 });
 
+
+describe('a room\u2019s recordings, joined', () => {
+  let dir: string;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(join(tmpdir(), 'thefloor-room-test-'));
+  });
+
+  afterAll(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it('runs back to back, as long as what was recorded and no longer', async () => {
+    const joined = await joinRecordings([
+      await tone(dir, 'first.ogg', 3, 440),
+      await tone(dir, 'second.ogg', 4, 660),
+    ]);
+    const peaks = await peaksPerSecond(joined, dir);
+    // Seven seconds of tone, with no silence where the gap between them was.
+    expect(peaks.length).toBeGreaterThanOrEqual(6);
+    expect(peaks.length).toBeLessThanOrEqual(7);
+    for (const peak of peaks.slice(0, 6)) expect(peak).toBeGreaterThan(-20);
+  });
+
+  it('hands one recording back as it is', async () => {
+    const only = await tone(dir, 'only.ogg', 2, 440);
+    expect(await joinRecordings([only])).toBe(only);
+  });
+});
 
 describe('the export endpoint', () => {
   let app: App;

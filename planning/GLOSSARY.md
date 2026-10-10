@@ -104,12 +104,12 @@ caused; the list carries the meaning.
 - **Podcast directory** — Apple's, Spotify's, and the rest: somewhere a *feed* is submitted, reviewed and then findable. Nothing here does it; what needs doing is a person pressing a button. Not the *directory page*, which is this server's own
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
-- **Record (the tab)** — What was said in a channel as it was kept, as one timeline: the *live transcript*, with each *recording* a segment where it began, and the recording transport under it; either form, both or neither. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
+- **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions, a pinned bar with the date of the room at the top and its share, and the recording transport under it. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
 - **Record automatically** — A channel setting: the room's first recording begins by itself, and only its first
 - **Recording** — Audio kept from a channel, started by anybody present and ended by a pause; each one a segment of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
-- **Share** — Handing a copy of a *recording*, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
+- **Share** — Handing a copy of a *recording*, a *room*'s recordings back to back, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
@@ -194,7 +194,7 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
-- **Room** — The media plane's word for a media thing; never appears in the interface, which says *channel*
+- **Room** — Three senses. The user's: a sitting, a channel's span from the first member stepping in to the last stepping out (`rooms`, `RoomView`), the unit the *Record* log is laid out in and whose audio is shared whole; since 2026-10-09. The media plane's: `mediaRoom`, LiveKit's room. And in `core/guests.ts`, everybody present including guests
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — notifications being the other — and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
@@ -2388,13 +2388,24 @@ channel settings saying so.
 
 ## Record (the tab)
 
-**What was said in a channel, as it was kept, as one timeline.** The fourth of
+**What was kept of a channel, as a log, one room at a time.** The fourth of
 the *channel tabs* since 2026-10-09, when *Recordings* and *Transcript* became
 it and it took *Listen*'s place. The *live transcript* runs oldest at the top
-and newest at the foot under a rule for each day; each *recording* stands in it
-as a segment at the moment it began, its card offering what a recording's card
-always has, Share — the download — among it. The recording transport is under
-the timeline, and the tab opens at its foot.
+and newest at the foot as plain text, the way a chat reads — no cards — each
+speaker's run of lines under their name and the time it began. Each
+*recording* is one muted line at the moment it began, the record dot and its
+name, which opens in place to what a recording's card always offered, Share
+among it. The recording transport is under the log, and the tab opens at its
+foot.
+
+**Laid out in rooms.** Each *room* — a sitting, first step in to last step
+out — that kept something starts with a rule bearing its date and hours, and
+a pinned bar over the log names the one at the top of the scroll and carries
+the share glyph, which sends that room's recordings as one file, back to back.
+A room that was only transcribed keeps the glyph, faint, and says why when
+pressed. **Nothing outside a room is drawn**: sittings were first written on
+2026-10-09, so what was said or recorded before then is not on this tab, and
+neither is a sitting that kept nothing.
 
 **Named for what the two forms are together, not for either form.** A
 channel may keep the conversation as audio, as text, both, or neither:
@@ -4208,13 +4219,28 @@ flight — and not the channel. A deploy costs presence, not channels.
 
 ## Room
 
+**Three senses, and the first is the only one a user meets.**
+
+**A sitting**, since 2026-10-09: a channel's span from the first member
+stepping in to the last stepping out. `rooms` on the server, written on those
+two transitions — the second is the one `channelEmptied` fires on, so a guest
+left talking alone does not hold a room open — and `RoomView` on the wire.
+The *Record* tab is laid out in them and shares one's audio whole, its
+recordings back to back with the gaps between them dropped. A restart closes
+every open one and the people reconnecting within ten minutes resume it.
+Nothing earlier has one and nothing is reconstructed: `usage_spans` could,
+and the application does not read it. "Sala" in Spanish, which the app
+already said.
+
 **The media plane's word for a media thing.** `ChannelState.mediaRoom` names
-the LiveKit room a channel's audio flows through; it never appears in the
-interface, which only ever says *channel*.
+the LiveKit room a channel's audio flows through; this sense never appears in
+the interface, which says *channel* for the place and *room* only for the
+sitting.
 
 Separately, "the room" in prose and in `core/guests.ts` means **everybody
 present including guests** — `roomOccupants`, `inRoom` — as against
-`state.present`, which is members only.
+`state.present`, which is members only. A sitting is bounded by the
+members-only one.
 
 ## Reach
 

@@ -54,6 +54,13 @@ const screen = () => (
   <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
 );
 
+const room = (
+  id: string,
+  openedAt: number,
+  closedAt: number | null,
+  recordingIds: string[]
+) => ({ id, openedAt, closedAt, recordingIds, transcribed: true });
+
 /** Lets the history fetch settle. */
 const settle = () => act(async () => {});
 
@@ -82,7 +89,7 @@ describe('the Record tab', () => {
     expect(findTab(tree, 'Transcript')).toBeUndefined();
     showTab(tree, 'Record');
     // Nothing fetched and nothing said about a transcript nobody turned on.
-    expect(textOf(tree)).toContain('Nothing recorded here yet');
+    expect(textOf(tree)).toContain('Nothing kept yet');
     act(() => tree.unmount());
   });
 
@@ -143,7 +150,7 @@ describe('the Record tab', () => {
     act(() => tree.unmount());
   });
 
-  it('reads as one conversation: grouped by speaker, under the day', async () => {
+  it('reads as a log: grouped by speaker, under the room and its date', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [
         line('l1', ME, 'Me', NOW, 'so the plan is'),
@@ -151,6 +158,9 @@ describe('the Record tab', () => {
         line('l3', THEM, 'Dana Chu', NOW + 4_000, 'Monday works'),
       ],
       more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [room('room_1', NOW - 1_000, NOW + 60_000, [])],
     } as never);
     showChannel(transcribed());
     const tree = render(screen());
@@ -162,7 +172,7 @@ describe('the Record tab', () => {
     expect(text).toContain('we start on Monday');
     expect(text).toContain('Monday works');
     // One entry for two lines in a row from one person: the name once.
-    expect(text.split('Dana Chu').length - 1).toBeGreaterThanOrEqual(1);
+    expect(text.split('Me ').length - 1).toBeGreaterThanOrEqual(1);
     expect(text).toContain(new Date(NOW).toLocaleDateString('en', {
       weekday: 'short',
       day: 'numeric',
@@ -259,5 +269,88 @@ describe('merging lines', () => {
     const a = line('a', ME, 'Me', 2, 'two');
     const b = line('b', ME, 'Me', 1, 'one');
     expect(merge([a], [b, a]).map((l) => l.id)).toEqual(['b', 'a']);
+  });
+});
+
+/*
+  **Rooms, since 2026-10-09**: the log is laid out in sittings, first step in
+  to last step out, and the pinned bar over it names the one at the top and
+  shares its audio.
+*/
+describe('rooms on the Record tab', () => {
+  const { shareRoom } = require('../../api/download');
+  const { Alert } = require('react-native');
+
+  it('starts each room with its date and hours, and leaves out what fell in none', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        line('l0', ME, 'Me', NOW - 3_600_000, 'before rooms existed'),
+        line('l1', ME, 'Me', NOW, 'in the first'),
+        line('l2', THEM, 'Dana Chu', NOW + 600_000, 'in the second'),
+      ],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW - 1_000, NOW + 60_000, []),
+        room('room_2', NOW + 500_000, null, []),
+      ],
+    } as never);
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    const text = textOf(tree);
+    expect(text).not.toContain('before rooms existed');
+    expect(text.indexOf('in the first')).toBeLessThan(text.indexOf('in the second'));
+    // The second is still going, so it has no end yet.
+    expect(text).toContain('now');
+    act(() => tree.unmount());
+  });
+
+  it("shares the audio of the room on the bar, whole", async () => {
+    showChannel(channelOf(), [segment('rec_1', 'Planning', NOW + 10_000)]);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [room('room_1', NOW, NOW + 60_000, ['rec_1'])],
+    } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    const share = tree.root.findAll(
+      (node: { props: Record<string, unknown> }) =>
+        node.props.accessibilityLabel === "Share this room's audio" && !!node.props.onPress
+    )[0];
+    expect(share.props.accessibilityState.disabled).toBe(false);
+    await act(async () => share.props.onPress());
+    expect(shareRoom).toHaveBeenCalledWith(expect.any(String), 'sess_1', 'room_1', expect.any(String), NOW);
+    act(() => tree.unmount());
+  });
+
+  it('keeps the share icon on a room with no audio, and says why when pressed', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 1_000, 'only written down')],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [room('room_1', NOW, NOW + 60_000, [])],
+    } as never);
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    shareRoom.mockClear();
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    const share = tree.root.findAll(
+      (node: { props: Record<string, unknown> }) =>
+        node.props.accessibilityLabel === "Share this room's audio" && !!node.props.onPress
+    )[0];
+    expect(share.props.accessibilityState.disabled).toBe(true);
+    await act(async () => share.props.onPress());
+    expect(alert).toHaveBeenCalledWith('No audio', expect.stringContaining('Nothing was recorded'));
+    expect(shareRoom).not.toHaveBeenCalled();
+    act(() => tree.unmount());
   });
 });

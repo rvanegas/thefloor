@@ -81,6 +81,7 @@ import type {
 } from '../../core/protocol';
 import type { Accounts } from './accounts';
 import { Guests, isGuestId, type AdmittedGuest } from './guests';
+import { Rooms } from './rooms';
 import {
   insertWithUniqueKey,
   newId,
@@ -800,6 +801,12 @@ export class ChannelRegistry {
    */
   readonly guests: Guests;
   /**
+   * The sittings, opened and closed on the two transitions of `present` that
+   * bound one, which pass through here for the reason guests' do. See
+   * rooms.ts.
+   */
+  readonly rooms: Rooms;
+  /**
    * The durable projection last written per channel, as its JSON. What makes
    * writing on every commit affordable: a transition that changes only
    * volatile state — a claim, a connection flap, a tick — produces the same
@@ -1077,6 +1084,7 @@ export class ChannelRegistry {
       mixWaitMs
     );
     this.guests = new Guests(db);
+    this.rooms = new Rooms(db);
     this.trackRoot =
       trackRoot ??
       join(tmpdir(), `thefloor-tracks-${process.pid}-${++ephemeralRoots}`);
@@ -4234,6 +4242,9 @@ export class ChannelRegistry {
     // earlier caller's mark. Members only: a guest has no Home to draw it on.
     const last = steppedIn.at(-1);
     if (last !== undefined) this.lastEntry.set(after.id, { by: last, at: this.now() });
+    if (before.present.length === 0 && after.present.length > 0) {
+      this.rooms.opened(after.id, this.now());
+    }
     if (before.present.length > 0 && after.present.length === 0) {
       // The rule guest links are given: valid until the channel is emptied of
       // present members. Written here, on the transition, and never asked as a
@@ -4242,6 +4253,7 @@ export class ChannelRegistry {
       // outstanding link at every deploy. A restart empties nothing anybody
       // chose to empty. See guests.ts.
       this.guests.channelEmptied(after.id, this.now());
+      this.rooms.closed(after.id, this.now());
       // **And the invitations with them**, since 2026-09-22. The rows'
       // expiries are pulled back by the call above, and the copies in
       // `ChannelState` would otherwise go on claiming six more hours — which
@@ -7489,6 +7501,7 @@ export class ChannelRegistry {
    */
   restore(): void {
     const now = this.now();
+    this.rooms.restore(now);
 
     // Runs the previous process never finished. Kept rather than deleted —
     // the audio LiveKit wrote is real and the row's last checkpoint references

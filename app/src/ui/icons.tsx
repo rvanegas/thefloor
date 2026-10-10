@@ -506,6 +506,30 @@ export function TranscriptIcon({
 }
 
 /**
+ * Hands something to the rest of the phone. `lucide/share`.
+ *
+ * The arrow leaving the box, which is the platform's own share glyph on iOS
+ * and the one people already reach for to send a file somewhere. On the
+ * *Record* tab's pinned bar since 2026-10-09, where it shares the audio of the
+ * room at the top of the scroll.
+ */
+export function ShareIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
+      <Path d="m16 6-4-4-4 4" />
+      <Path d="M12 2v13" />
+    </Glyph>
+  );
+}
+
+/**
  * The home tier's four tabs, below.
  *
  * Added 2026-09-22 with the Podcasts tab, and the other three came with it:

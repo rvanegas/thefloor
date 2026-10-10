@@ -105,6 +105,22 @@ export async function shareRecording(
   );
 }
 
+/** A room's recordings as one file; see the native side. */
+export async function shareRoom(
+  token: string,
+  channelId: string,
+  roomId: string,
+  name: string,
+  openedAt: number
+): Promise<void> {
+  await download(
+    token,
+    `${API_URL}/channels/${channelId}/rooms/${roomId}/export`,
+    `${fileStem(name, openedAt)}.ogg`,
+    'Could not download the room'
+  );
+}
+
 export async function shareTranscript(
   token: string,
   recordingId: string,

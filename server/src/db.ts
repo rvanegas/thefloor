@@ -1948,6 +1948,21 @@ CREATE TABLE IF NOT EXISTS live_lines (
 CREATE INDEX IF NOT EXISTS live_lines_channel
   ON live_lines(channel_id, start_at);
 
+-- A sitting: a channel's span from the first member stepping in to the last
+-- stepping out. Null closed_at while somebody is present. closed_by_restart
+-- marks one the boot closed rather than anybody leaving, which the people
+-- reconnecting may resume; see rooms.ts. None exist before 2026-10-09, and
+-- none are reconstructed.
+CREATE TABLE IF NOT EXISTS rooms (
+  id                TEXT PRIMARY KEY,
+  channel_id        TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  opened_at         INTEGER NOT NULL,
+  closed_at         INTEGER,
+  closed_by_restart INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS rooms_channel
+  ON rooms(channel_id, opened_at);
+
 -- One streaming session per row: what the live transcript cost. The provider
 -- bills by how long a session is open, which is billed_seconds as its own
 -- Termination reported it — null when it never said, an error or a timeout.

@@ -513,3 +513,61 @@ function run(command: string, args: string[], cwd: string): Promise<void> {
     });
   });
 }
+
+/**
+ * A room's recordings as one file, back to back, oldest first.
+ *
+ * **The gaps are not kept.** A room's runs are separated by however long
+ * nobody was recording — minutes, or the hour somebody forgot — and silence of
+ * that length is not something anybody sharing a conversation wants to send.
+ * The mixes are joined where they are, so the file runs exactly as long as
+ * what was recorded.
+ *
+ * Re-encoded rather than stream-copied: the concat demuxer copies Ogg Opus
+ * only when every input agrees on its stream parameters, and the mixes are
+ * the encoder's output from whatever version made them, so the safe path is
+ * the filter. One recording is returned as it is.
+ */
+export async function joinRecordings(
+  parts: readonly Buffer[],
+  ffmpegPath = process.env.FFMPEG_PATH ?? 'ffmpeg'
+): Promise<Buffer> {
+  if (parts.length === 0) throw new Error('This room has no audio.');
+  if (parts.length === 1) return parts[0];
+
+  const dir = await mkdtemp(join(tmpdir(), 'thefloor-room-'));
+  try {
+    const args: string[] = [];
+    for (const [index, part] of parts.entries()) {
+      const local = join(dir, `${index}.ogg`);
+      await writeFile(local, part);
+      args.push('-i', local);
+    }
+    const inputs = parts.map((_, index) => `[${index}:a]`).join('');
+    const output = join(dir, 'room.ogg');
+    await run(
+      ffmpegPath,
+      [
+        '-v',
+        'error',
+        '-threads',
+        '1',
+        '-filter_threads',
+        '1',
+        ...args,
+        '-filter_complex',
+        `${inputs}concat=n=${parts.length}:v=0:a=1[room]`,
+        '-map',
+        '[room]',
+        '-c:a',
+        'libopus',
+        '-y',
+        output,
+      ],
+      dir
+    );
+    return await readFile(output);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}

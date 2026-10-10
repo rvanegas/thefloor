@@ -1,5 +1,6 @@
 import type {
   LiveLine,
+  RoomView,
   HelpQuestion,
   HelpView,
   HomeView,
@@ -887,6 +888,10 @@ export const api = {
         (before === undefined ? '' : `?before=${before}`),
       { token }
     ),
+
+  /** A channel's rooms that kept something, oldest first. */
+  rooms: (token: string, channelId: string) =>
+    request<{ rooms: RoomView[] }>(`/channels/${channelId}/rooms`, { token }),
 
   /** Turns a channel's live transcript on or off, for whoever may. */
   setLiveTranscription: (token: string, channelId: string, on: boolean) =>

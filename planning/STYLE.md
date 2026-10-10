@@ -1183,7 +1183,15 @@ price of a corner that a screen without a footer can also use.
 
 ### The pinned header
 
-Two screens have one and they are built identically:
+Two screens have one and they are built identically — and since 2026-10-09
+the *Record* tab hangs a second bar under the channel's, `RoomBar`, built
+the same way: the date and hours of the room at the top of the scroll, muted,
+with the share glyph (`lucide/share`) at the trailing end. The glyph is
+drawn in `textFaint` for a room nothing was recorded in and still answers a
+press with why, since a control that comes and goes as you scroll is rule
+six broken. The bar's text changes as the next room's rule scrolls under it,
+which is how its date is always visible without a floating label over the
+log:
 
 ```
 header      paddingTop: spacing(1), paddingBottom: spacing(1–1.5),
@@ -1237,8 +1245,18 @@ rather than "Empty".
 label divides; where there is nothing to divide from, it is the screen saying
 its own name twice under a tab that already said it. *Listen* lost SHARED
 AUDIO, and *Record* has none since 2026-10-09: its recordings stand in
-the timeline rather than in a list under RECORDINGS, the days are divided by
+the log rather than in a list under RECORDINGS, its rooms are divided by
 rules rather than labels, and the transport under it has no heading at all.
+
+**And *Record* is the one tab that is not cards.** Since 2026-10-09 it is a
+log, the way a chat reads: each speaker's run of lines under their name in
+`600` 14 with the time beside it muted, then the lines in `type.body`, with
+`spacing(1.5)` between entries and nothing around them. A recording is one
+muted line where it began — the record dot at 14, its name, the time, how
+long — that opens in place to the actions its card had (`RecordingRow`'s
+`inline`). Each room starts with a hairline rule bearing its date and hours.
+A card per entry was tried and is what this replaced: a transcript in boxes
+reads as a list of separate things, and it is one conversation.
 
 ### The watch body has two shapes, and one number decides which
 

@@ -1040,6 +1040,23 @@ export interface LiveLine {
   confidence: number | null;
 }
 
+/**
+ * A sitting: a channel's span from the first member stepping in to the last
+ * stepping out, as `GET /channels/:id/rooms` lists them — only those that kept
+ * something, oldest first. Since 2026-10-09; nothing earlier has one.
+ */
+export interface RoomView {
+  id: string;
+  /** Epoch milliseconds. */
+  openedAt: number;
+  /** Null while somebody is still present. */
+  closedAt: number | null;
+  /** The finished recordings that began inside it, oldest first. */
+  recordingIds: string[];
+  /** Whether any live transcript was written inside it. */
+  transcribed: boolean;
+}
+
 export interface ChannelView {
   channel: ChannelState;
   /**
