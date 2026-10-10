@@ -230,6 +230,16 @@ export function RecordTab({
     }
   }, [position]);
 
+  /** Where the log starts in the content, read afresh whenever it may have
+   * moved: what sits above it — the search, a note — changes height without
+   * the log's own frame changing, and a stale top hoists the wrong room. */
+  const measure = React.useCallback(() => {
+    position?.contentTopOf(root, (top) => {
+      rootTop.current = top;
+      settle();
+    });
+  }, [position, settle]);
+
   React.useEffect(() => (position ? position.subscribe(settle) : undefined), [position, settle]);
   React.useEffect(settle, [sittings, settle]);
   React.useEffect(
@@ -244,12 +254,7 @@ export function RecordTab({
       ref={root}
       collapsable={false}
       style={styles.body}
-      onLayout={() => {
-        position?.contentTopOf(root, (top) => {
-          rootTop.current = top;
-          settle();
-        });
-      }}
+      onLayout={measure}
     >
       {live ? (
         <Text style={type.muted}>
@@ -281,7 +286,7 @@ export function RecordTab({
           style={styles.room}
           onLayout={(event) => {
             tops.current.set(room.id, event.nativeEvent.layout.y);
-            settle();
+            measure();
           }}
         >
           {/* Where one sitting ends and the next begins — the line the

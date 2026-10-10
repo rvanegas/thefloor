@@ -562,6 +562,8 @@ export function Screen({
    * them back into offsets within the content.
    */
   const frame = React.useRef<View>(null);
+  /** The scroll's content container, which `contentTopOf` measures against. */
+  const inner = React.useRef<View>(null);
   /** Where the content currently sits under that frame. */
   const viewport = React.useRef({ offset: 0, height: 0 });
   /** Who has asked to hear the scroll move; see `ScrollPositionContext`. */
@@ -577,14 +579,18 @@ export function Screen({
       },
       contentTopOf: (node, then) => {
         const target = node.current;
-        const container = frame.current;
+        const container = inner.current;
         if (!target || !container) return;
-        // Window coordinates, for the reason `reveal` gives below.
-        target.measureInWindow((_x, top) => {
-          container.measureInWindow((_cx, frameTop) => {
-            then(top - frameTop + viewport.current.offset);
-          });
-        });
+        // **Against the content container, not the window**, since
+        // 2026-10-10. In window coordinates the answer was the node's top
+        // less the frame's plus the offset — and the offset is JS's last
+        // report of the scroll, which trails the native one. Measured while
+        // `followEnd` was animating to the end, the two disagreed by however
+        // far the scroll had moved in between, and the *Record* tab's pinned
+        // room line sat that far too high, over the switches, until the log
+        // was laid out again. Relative to the content, the scroll is not in
+        // the sum at all.
+        target.measureLayout(container, (_x, top) => then(top), () => {});
       },
     }),
     []
@@ -675,9 +681,13 @@ export function Screen({
             offsets within the content by subtracting this view's own top, so
             a pinned row inside it would put every reveal out by the height of
             that row. */}
-        <View ref={frame} collapsable={false} style={styles.screen}>
+        {/* Clipped, so the `overlay` stays inside the frame it is drawn
+            over: a hoisted room line pushed off by the next one slides up
+            and out under the header, rather than over the pinned rows. */}
+        <View ref={frame} collapsable={false} style={[styles.screen, styles.clip]}>
         <ScrollView
           ref={scroll}
+          innerViewRef={inner}
           style={styles.screen}
           // The measure, applied once for every screen in the app. Second, so
           // a screen that needs a narrower column of its own can still say so.
@@ -726,8 +736,8 @@ export function Screen({
  * top of it — the *Record* tab, whose pinned bar names the room there.
  *
  * `contentTopOf` gives a node's top as an offset within the content, measured
- * in window coordinates the way `reveal` is, since `onLayout` is relative to
- * the parent. Null outside a `Screen`, and nothing is ever measured in a test
+ * against the scroll's content container, since `onLayout` is relative to
+ * the parent and the window moves with the scroll. Null outside a `Screen`, and nothing is ever measured in a test
  * renderer, so a reader has to work with neither.
  */
 export interface ScrollPosition {
@@ -1129,6 +1139,7 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  clip: { overflow: 'hidden' },
   /**
    * The aside beside the scroll rather than above it.
    *
