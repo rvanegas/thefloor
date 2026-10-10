@@ -3215,7 +3215,7 @@ profile and a transcript all draw underneath it. `watch/Picture.tsx`.
 **Floating, it rests against a corner rather than at a remembered offset**, and
 the corners are the application's — so it sits over the pinned header and the
 pinned footer as readily as over a body, which is what makes it reachable on a
-screen that has neither. It starts bottom-right, snaps to whichever corner's
+screen that has neither. It starts top-right (bottom-right until 2026-10-09), snaps to whichever corner's
 quadrant it is let go in, and stays there for the life of the party. By
 quadrant rather than by nearest corner: a phone is more than twice as tall as
 the picture is wide, so a rectangle let go halfway up the left edge is nearer
