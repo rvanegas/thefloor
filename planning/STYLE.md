@@ -1223,7 +1223,7 @@ carrying the two switches of § *Switch*.
 
 **The room's line is not pinned, until it has to be.** Each room in the log
 opens with a `RoomLine` — its date and hours, muted, and the share glyph
-(`lucide/square-arrow-up`, the closed box) at the trailing end, over a hairline
+(`lucide/share`, the open box iOS uses) at the trailing end, over a hairline
 — and it scrolls with the log, so two rooms on screen at once have their line
 between them. Once a room's line has scrolled off the top the same component
 is drawn pinned over the top edge of the scroll (`HoistedRoom`, through
