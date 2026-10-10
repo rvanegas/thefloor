@@ -1,7 +1,7 @@
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
-import { ROOM_DEPARTURE_MS, ROOM_RESUME_MS } from '../src/rooms';
+import { ROOM_DEPARTURE_MS } from '../src/rooms';
 
 /**
  * Rooms: a channel's sittings, from the first member stepping in to the last
@@ -191,28 +191,23 @@ describe('rooms', () => {
     expect(rooms[1]).toMatchObject({ openedAt: sitting, transcribed: true });
   });
 
-  it('resume across a restart when people come back, and not otherwise', async () => {
+  it('end at a restart, which deletes the LiveKit room, however soon people return', async () => {
     const { alice, channelId } = await channel();
     clock += 1_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
     const sitting = rows(channelId).at(-1)!;
 
-    // The boot closes it; the reconnect inside the window takes it up again.
     clock += 1_000;
-    app.channels.rooms.restore(clock);
+    const boot = clock;
+    app.channels.rooms.restore(boot);
+    // Presence does not survive a restart; the reconnect is a fresh step in.
     app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
-    clock += ROOM_RESUME_MS - 1;
+    clock += 1_000;
     app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
-    expect(rows(channelId).at(-1)).toMatchObject({ id: sitting.id, closed_at: null });
 
-    // Past it, nobody came back and the restart was where it ended.
-    app.channels.rooms.restore(clock);
-    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
-    const ended = clock;
-    clock += ROOM_RESUME_MS + 1;
-    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
     const latest = rows(channelId);
-    expect(latest.at(-2)).toMatchObject({ id: sitting.id, closed_at: ended });
+    expect(latest.at(-2)).toMatchObject({ id: sitting.id, closed_at: boot });
+    expect(latest.at(-1)).toMatchObject({ closed_at: null });
     expect(latest.at(-1)!.id).not.toBe(sitting.id);
   });
 

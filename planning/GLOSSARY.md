@@ -4229,21 +4229,21 @@ flight — and not the channel. A deploy costs presence, not channels.
 **One LiveKit room, from creation to deletion — and, since 2026-10-09,
 nothing else.** LiveKit creates a channel's room when the first person
 connects and deletes it `ROOM_DEPARTURE_MS` after the last leaves (its
-`departure_timeout`, 20 seconds by default and not set by
-`bin/provision-livekit`). Being *present* is holding a connection to it, so
-its lifetime is a channel's **sitting**: first step in to last step out,
+`departure_timeout`, 20 seconds, which `bin/provision-livekit` sets). Being
+here — present, or a guest — is holding a connection to it, so its lifetime
+is a channel's **sitting**: first person here to last one gone,
 which is what the user means by a room and the meaning Rodrigo gave the word
 on 2026-10-09. `ChannelState.mediaRoom` is the *name* a channel's rooms are
 opened under — reused by every one of them, and not the same as the channel's
 id for a channel that took in a moving conversation.
 
 On the server a sitting is written as it happens, in `rooms`
-(`server/src/rooms.ts`), on the two transitions of `present`; stepping back in
-inside the departure window carries the same one on, as the LiveKit room
-does, and a restart closes every open one and lets the people reconnecting
-within ten minutes resume it. The end is the moment `channelEmptied` fires,
-which also ends every guest's seat — *the seat ends when the room does* — so
-it is the end for everybody. `RoomView` is one on the wire; the *Record* tab
+(`server/src/rooms.ts`), on the two transitions of `peopleHere`; stepping
+back in inside the departure window carries the same one on, as the LiveKit
+room does. **A restart ends it**, because the boot deletes every channel's
+LiveKit room, so the people reconnecting are in a new one however soon they
+come. The guests go with the last member (`settleEmpty`), so a room ends for
+everybody at once — *the seat ends when the room does*. `RoomView` is one on the wire; the *Record* tab
 is laid out in them and shares one's audio whole, its recordings back to back
 with the gaps dropped. A recording that fell in no sitting — every one made
 before rooms were written — is listed as a room of its own, `standIn`.

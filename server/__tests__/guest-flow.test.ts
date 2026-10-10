@@ -1703,3 +1703,29 @@ describe('a seat on the member socket', () => {
     dana.close();
   });
 });
+
+/*
+  A room is the LiveKit room's lifetime, which is everybody here, guests
+  included — and the guests go with the last member, so it ends for everybody
+  at once rather than lingering around a guest left alone.
+*/
+describe('a room with a guest in it', () => {
+  it('ends with the last member, the guest going with them', async () => {
+    const { alice, bob, channelId, guest, member } = await admitted();
+    const latest = () =>
+      app.db
+        .prepare('SELECT closed_at FROM rooms WHERE channel_id = ? ORDER BY opened_at DESC LIMIT 1')
+        .get(channelId) as { closed_at: number | null } | undefined;
+    expect(Object.keys(app.channels.get(channelId)!.guests)).toHaveLength(1);
+    expect(latest()).toEqual({ closed_at: null });
+
+    for (const id of [alice.account.id, bob.account.id]) {
+      app.channels.dispatch(channelId, id, { type: 'STEP_OUT' });
+    }
+    expect(app.channels.get(channelId)!.guests).toEqual({});
+    expect(latest()!.closed_at).not.toBeNull();
+
+    guest.close();
+    member.close();
+  });
+});

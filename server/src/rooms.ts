@@ -2,20 +2,9 @@ import { newId, type Db } from './db';
 import type { RoomView } from '../../core/protocol';
 
 /**
- * How long after a boot a room closed by the restart may be taken up again.
- *
- * Presence does not survive a restart, so every room open at the crash is
- * closed by `restore` — and then everybody who was in it reconnects and steps
- * back in, which is the empty-to-occupied transition that opens a room. Within
- * this window that is the same sitting resuming rather than a new one; past it,
- * nobody came back and the room really did end at the restart.
- */
-export const ROOM_RESUME_MS = 10 * 60_000;
-
-/**
  * How long LiveKit keeps a room standing after its last participant leaves —
- * its `room.departure_timeout`, which `bin/provision-livekit` does not set, so
- * this is LiveKit's default. **A room here is meant to be that room**: one
+ * its `room.departure_timeout`, which `bin/provision-livekit` sets to this
+ * (LiveKit's own default, written down so that it is not an assumption). **A room here is meant to be that room**: one
  * LiveKit room from creation to deletion, of which `mediaRoom` is the name.
  * Somebody stepping back in inside this window finds the same LiveKit room
  * still standing, so the sitting carries on rather than a second beginning.
@@ -28,21 +17,25 @@ export interface RoomRow {
   channel_id: string;
   opened_at: number;
   closed_at: number | null;
-  closed_by_restart: number;
+  closed_by_boot: number;
 }
 
 /**
- * **A room is a sitting**: a channel's span from the first member stepping in
- * to the last stepping out, written on those two transitions by the channel
- * registry and never inferred afterwards. Being present is holding a
- * connection to the channel's LiveKit room, so this is that room's lifetime:
- * LiveKit creates it on the first connection and deletes it
- * `ROOM_DEPARTURE_MS` after the last, which is why a return inside that
- * window is the same room. It is the unit the *Record* tab is
- * laid out in and the unit whose audio is shared whole.
+ * **A room is one LiveKit room, from creation to deletion**: a channel's
+ * sitting, from the first person here to the last one gone, written on those
+ * two transitions of `peopleHere` by the channel registry and never inferred
+ * afterwards. Everybody here holds a connection to the channel's LiveKit room
+ * — members present and guests alike, and the transcription listener and the
+ * shared track's participant follow the same count — so LiveKit creates it on
+ * the first and deletes it `ROOM_DEPARTURE_MS` after the last, and a return
+ * inside that window is the same room. A restart deletes it too; see
+ * `restore`. It is the unit the *Record* tab is laid out in and the unit whose
+ * audio is shared whole.
  *
- * Bounded by members, because `channelEmptied` is — and that moment also ends
- * every guest's seat, so it is the end of the room for everybody in it.
+ * Everybody here leaves together at the end: the guests go with the last
+ * member (`settleEmpty` in core, `Guests.channelEmptied` here), so a room
+ * ends for everybody in it at once. Their apps then drop the LiveKit
+ * connection a moment later, which is the only gap between the two.
  *
  * Nothing before 2026-10-09 has one, and nothing is reconstructed —
  * `usage_spans` could, and the application does not read it. **A recording
@@ -54,7 +47,7 @@ export interface RoomRow {
 export class Rooms {
   constructor(private db: Db) {}
 
-  /** The channel has gone from nobody present to somebody. */
+  /** The channel has gone from nobody here to somebody. */
   opened(channelId: string, now: number): void {
     const last = this.db
       .prepare(
@@ -62,11 +55,13 @@ export class Rooms {
       )
       .get(channelId) as RoomRow | undefined;
     if (last && last.closed_at === null) return;
-    const window = last?.closed_by_restart === 1 ? ROOM_RESUME_MS : ROOM_DEPARTURE_MS;
-    if (last && last.closed_at !== null && now - last.closed_at <= window) {
-      this.db
-        .prepare('UPDATE rooms SET closed_at = NULL, closed_by_restart = 0 WHERE id = ?')
-        .run(last.id);
+    if (
+      last &&
+      last.closed_at !== null &&
+      last.closed_by_boot === 0 &&
+      now - last.closed_at <= ROOM_DEPARTURE_MS
+    ) {
+      this.db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?').run(last.id);
       return;
     }
     this.db
@@ -74,7 +69,7 @@ export class Rooms {
       .run(newId('room'), channelId, now);
   }
 
-  /** The last member present has stepped out. */
+  /** The last person here has gone. */
   closed(channelId: string, now: number): void {
     this.db
       .prepare('UPDATE rooms SET closed_at = ? WHERE channel_id = ? AND closed_at IS NULL')
@@ -82,12 +77,15 @@ export class Rooms {
   }
 
   /**
-   * Closes every room the previous process left open, marked so that the
-   * people reconnecting within `ROOM_RESUME_MS` resume it. See `opened`.
+   * Closes every room the previous process left open, at the boot. A restart
+   * ends the LiveKit room — `restore` in the registry deletes every revived
+   * channel's — so the people reconnecting are in a new one, and so is the
+   * sitting — even for the people back inside `ROOM_DEPARTURE_MS`, which
+   * after a restart is nearly everybody.
    */
   restore(now: number): void {
     this.db
-      .prepare('UPDATE rooms SET closed_at = ?, closed_by_restart = 1 WHERE closed_at IS NULL')
+      .prepare('UPDATE rooms SET closed_at = ?, closed_by_boot = 1 WHERE closed_at IS NULL')
       .run(now);
   }
 

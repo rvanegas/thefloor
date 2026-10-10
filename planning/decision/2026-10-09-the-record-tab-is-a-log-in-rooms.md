@@ -11,7 +11,7 @@ ended. `usage_spans` has per-participant spans that could reconstruct them, and
 its own rule is that the application never reads it, so a `rooms` table is
 written on the two transitions of `present` instead (`server/src/rooms.ts`).
 A restart closes every open room and marks it, and the people
-reconnecting within ten minutes resume it rather than starting a second.
+reconnecting within ten minutes resume it rather than starting a second (superseded the same day: a restart now ends a room, see 2026-10-09-room-means-one-livekit-room.md).
 
 **What came before rooms, by his choice.** Asked whether to backfill from
 the usage spans, treat each old recording as its own room, or show only new

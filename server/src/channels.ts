@@ -4242,9 +4242,16 @@ export class ChannelRegistry {
     // earlier caller's mark. Members only: a guest has no Home to draw it on.
     const last = steppedIn.at(-1);
     if (last !== undefined) this.lastEntry.set(after.id, { by: last, at: this.now() });
-    if (before.present.length === 0 && after.present.length > 0) {
-      this.rooms.opened(after.id, this.now());
-    }
+    // **A room is the LiveKit room's lifetime**, which is everybody holding a
+    // connection to it: `peopleHere`, members and guests, which the
+    // transcription listener and the shared track's participant follow too.
+    // It reaches nobody on the same transition `present` does, since the
+    // guests go with the last member (`settleEmpty`), and is asked here
+    // because it is the count LiveKit sees. See rooms.ts.
+    const herePeople = peopleHere(after).length;
+    const wereHere = peopleHere(before).length;
+    if (wereHere === 0 && herePeople > 0) this.rooms.opened(after.id, this.now());
+    if (wereHere > 0 && herePeople === 0) this.rooms.closed(after.id, this.now());
     if (before.present.length > 0 && after.present.length === 0) {
       // The rule guest links are given: valid until the channel is emptied of
       // present members. Written here, on the transition, and never asked as a
@@ -4253,7 +4260,6 @@ export class ChannelRegistry {
       // outstanding link at every deploy. A restart empties nothing anybody
       // chose to empty. See guests.ts.
       this.guests.channelEmptied(after.id, this.now());
-      this.rooms.closed(after.id, this.now());
       // **And the invitations with them**, since 2026-09-22. The rows'
       // expiries are pulled back by the call above, and the copies in
       // `ChannelState` would otherwise go on claiming six more hours — which

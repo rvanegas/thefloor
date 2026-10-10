@@ -153,6 +153,14 @@ rtc:
   # announces itself: the range simply wins.
   udp_port: 7882-7885
 
+room:
+  # How long an emptied room stands before LiveKit deletes it. LiveKit's own
+  # default, written down because a room in this app *is* one of these — a
+  # sitting is a LiveKit room from creation to deletion, and somebody stepping
+  # back in inside this window carries the same one on. ROOM_DEPARTURE_MS in
+  # server/src/rooms.ts must say the same number, in milliseconds.
+  departure_timeout: 20
+
 redis:
   address: 127.0.0.1:6379
 
