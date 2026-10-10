@@ -703,6 +703,14 @@ export interface RecordingView {
   transcript?: {
     state: 'none' | 'pending' | 'ready' | 'failed';
     /**
+     * Whether it was transcribed live — Text was on for some of the run — so
+     * its words are already in the *Record* tab's log and there is no batch
+     * transcript to offer. Sent only with `'none'`, alongside a refusal in
+     * `mayRequest` and `requestLimit` for builds that predate it. Since
+     * 2026-10-10.
+     */
+    live?: true;
+    /**
      * What to name in the confirmation before one is started.
      *
      * On the wire rather than compiled into the app, and named at all rather
@@ -1054,12 +1062,15 @@ export interface RoomView {
   closedAt: number | null;
   /** The finished recordings that began inside it, oldest first. */
   recordingIds: string[];
-  /** Whether any live transcript was written inside it. */
+  /**
+   * Whether it holds any text: a line of live transcript written inside it,
+   * or, since 2026-10-10, a recording in it with a finished batch transcript.
+   */
   transcribed: boolean;
   /**
    * Not a sitting but one recording standing as its own room, because it
    * fell in none — every recording made before rooms existed. Spans exactly
-   * the run, recorded and not transcribed.
+   * the run, recorded, and transcribed only if that recording was by batch.
    */
   standIn?: true;
 }

@@ -53,8 +53,8 @@ provider, and no component library.
   properties. Generated from `theme.ts`, never written by hand.
 - **`appearance.ts`** — light, dark or system, applied to the window.
 - **`components.tsx`** — `Button`, `IconButton`, `Field`, `Checkbox`, `Screen`,
-  `Card`, `SectionLabel`, `Segmented`, `Empty`, plus the recording row and the
-  transcript search that are shared between screens.
+  `Card`, `SectionLabel`, `Segmented`, `Empty`, plus the recording row that
+  is shared between screens.
 - **`icons.tsx`** — the twenty glyphs, as vendored Lucide path data.
 - **`layout.ts`** / **`Panes.tsx`** — the breakpoint, the list width, and which
   pane a subtree is in.
@@ -1301,8 +1301,10 @@ log, the way a chat reads: each speaker's run of lines under their name in
 `spacing(1.5)` between entries and nothing around them. A recording is one
 muted line where it began — the record dot at 14, its name, the time, how
 long — that opens in place to the actions its card had (`RecordingRow`'s
-`inline`). Each room starts with its line — date, hours, share — over a
-hairline; see § *The pinned header*.
+`inline`). A recording's *transcript* is drawn under that line exactly as
+the live lines are, since 2026-10-10, when its own screen went. Each room
+starts with its line — date, hours, share — over a hairline; see § *The
+pinned header*.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 

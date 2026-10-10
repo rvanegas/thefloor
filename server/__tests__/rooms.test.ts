@@ -145,6 +145,27 @@ describe('rooms', () => {
     });
   });
 
+  it('count a recording\'s finished batch transcript as the room\'s text', async () => {
+    const { alice, channelId } = await channel();
+    const old = clock - 86_400_000;
+    recording(channelId, alice.account.id, old);
+    app.db
+      .prepare(
+        `INSERT INTO transcripts (recording_id, state, requested_by, requested_at, provider, billed_ms)
+         VALUES (?, 'ready', ?, ?, 'Memory', 0)`
+      )
+      .run(`rec_${old}`, alice.account.id, old);
+
+    const { rooms } = (
+      await app.fastify.inject({
+        method: 'GET',
+        url: `/channels/${channelId}/rooms`,
+        headers: auth(alice.token),
+      })
+    ).json() as { rooms: Array<Record<string, unknown>> };
+    expect(rooms[0]).toMatchObject({ standIn: true, transcribed: true });
+  });
+
   it('carry on through a step out and back inside the departure window, as LiveKit does', async () => {
     const { alice, channelId } = await channel();
     clock += 1_000;

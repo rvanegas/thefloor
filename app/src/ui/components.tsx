@@ -1379,7 +1379,7 @@ const styles = StyleSheet.create({
  * A finished recording, with the control that turns it into a file.
  *
  * Here rather than in `ChannelView.tsx`, which is now its only production
- * consumer, because it shares `recordingStyles` with `TranscriptSearch` below
+ * consumer, because it shares `recordingStyles` with the controls below
  * it. It was shared for a second reason until the floor passed 21: Home drew
  * recordings too, and a recording must not be called one thing on one screen
  * and something else on the other.
@@ -1390,7 +1390,6 @@ export function RecordingRow({
   playDisabled = false,
   playDisabledReason,
   manageable = true,
-  onOpenTranscript,
   inline = false,
 }: {
   recording: RecordingView;
@@ -1421,13 +1420,6 @@ export function RecordingRow({
    * it.
    */
   manageable?: boolean;
-  /**
-   * Opens this recording's transcript, when there is a screen to open it on.
-   *
-   * Absent leaves the row able to *start* one and not to read it, which is not
-   * a state worth having — so the button is withheld entirely without this.
-   */
-  onOpenTranscript?: () => void;
 }) {
   const t = useText().recordings;
   /**
@@ -1549,11 +1541,7 @@ export function RecordingRow({
               setRenaming(true);
             }}
           />
-          <TranscriptButton
-            recording={recording}
-            manageable={manageable}
-            onOpen={onOpenTranscript}
-          />
+          <TranscriptButton recording={recording} manageable={manageable} />
           <DeleteButton recording={recording} disabled={!manageable} />
           {/*
             Only on a channel that has declared itself public — the server
@@ -1885,112 +1873,19 @@ function PlayButton({
 }
 
 /**
- * Its own component so each row keeps its own progress state — the mix is
- * encoded on demand, so this is a wait of seconds rather than an instant
- * download, and a shared flag would show every row as busy.
- */
-/**
- * Searching every transcript in one channel.
+ * Starts a transcript, or says where the one there is stands.
  *
- * Above the recordings list rather than inside a recording, because the
- * question it answers is "which conversation was that in" — the one thing a
- * per-recording filter cannot do. A request rather than a local filter for the
- * obvious reason: the text of a year of conversation is not something a phone
- * holds.
+ * **The transcript itself is not here since 2026-10-10.** Its lines are drawn
+ * in the *Record* log under this recording's line, the way the live
+ * transcript's are, so what stays on the row is what is done to it: asking
+ * for one, and deleting it. A recording made with Text on offers neither —
+ * its words are in the log already — and says nothing about it.
  *
- * Debounced, because a keystroke is not a question. Nothing is asked until
- * somebody stops typing, which is also what keeps a common word from running
- * a query per letter on the way to a specific one.
- *
- * Withheld entirely when the channel holds no transcript, so the field appears
- * once there is something to find and not before.
- */
-export function TranscriptSearch({
-  channelId,
-  onOpen,
-}: {
-  channelId: string;
-  /** Opens the recording a hit came from. */
-  onOpen: (recordingId: string) => void;
-}) {
-  const t = useText().recordings;
-  const app = useApp();
-  const [query, setQuery] = React.useState('');
-  const [hits, setHits] = React.useState<Hit[] | null>(null);
-  const [searching, setSearching] = React.useState(false);
-
-  React.useEffect(() => {
-    const needle = query.trim();
-    if (!app.token || !needle) {
-      setHits(null);
-      return;
-    }
-    setSearching(true);
-    const token = app.token;
-    const timer = setTimeout(() => {
-      api
-        .searchTranscripts(token, channelId, needle)
-        .then((body) => setHits(body.hits))
-        .catch(() => setHits([]))
-        .finally(() => setSearching(false));
-    }, 300);
-    return () => {
-      clearTimeout(timer);
-      setSearching(false);
-    };
-  }, [app.token, channelId, query]);
-
-  return (
-    <View style={recordingStyles.search}>
-      <Field
-        value={query}
-        onChangeText={setQuery}
-        placeholder={t.searchWhatWasSaid()}
-        autoCapitalize="none"
-      />
-      {searching ? <Text style={type.muted}>{t.searching()}</Text> : null}
-      {hits !== null && hits.length === 0 && !searching ? (
-        <Text style={type.muted}>{t.nothingMatches()}</Text>
-      ) : null}
-      {hits?.map((hit, n) => (
-        <Pressable
-          key={`${hit.recordingId}-${hit.startMs}-${n}`}
-          accessibilityRole="button"
-          accessibilityLabel={`${hit.recordingName ?? t.aRecording()}, ${
-            hit.displayName ?? 'someone'
-          } at ${formatDuration(hit.startMs)}: ${hit.text}`}
-          onPress={() => onOpen(hit.recordingId)}
-          style={({ pressed }) => (pressed ? recordingStyles.pressed : undefined)}
-        >
-          <Card style={recordingStyles.hit}>
-            <Text style={type.muted} numberOfLines={1}>
-              {hit.recordingName ?? t.aRecording()} ·{' '}
-              {hit.displayName ?? t.someone()} · {formatDuration(hit.startMs)}
-            </Text>
-            <Text style={type.body}>{hit.text}</Text>
-          </Card>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
-interface Hit {
-  recordingId: string;
-  recordingName: string | null;
-  displayName: string | null;
-  startMs: number;
-  text: string;
-}
-
-/**
- * Starts a transcript, or opens the one there is.
- *
- * Four labels for four states, and the one that matters is the first: asking
- * costs money and sends everybody's audio to a third party, so it asks first
- * and names the company while doing it. That confirmation is not a formality —
- * whoever taps is deciding for everybody who was in the room, and the privacy
- * policy names the same provider in the same words.
+ * Asking is the state that matters: it costs money and sends everybody's
+ * audio to a third party, so it asks first and names the company while doing
+ * it. That confirmation is not a formality — whoever taps is deciding for
+ * everybody who was in the room, and the privacy policy names the same
+ * provider in the same words.
  *
  * Withheld entirely when the server sends no `transcript` field, which is how
  * a server with no credential says it cannot do this at all.
@@ -1998,21 +1893,20 @@ interface Hit {
 function TranscriptButton({
   recording,
   manageable,
-  onOpen,
 }: {
   recording: RecordingView;
   manageable: boolean;
-  onOpen?: () => void;
 }) {
   const t = useText().recordings;
+  const said = useText().transcript;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
   const transcript = recording.transcript;
-  if (!transcript || !onOpen) return null;
+  if (!transcript || transcript.live) return null;
   // Everybody gets one free transcript, so a refusal here is usually "you have
   // had yours" or "this one is too long for a free use" — temporary, personal,
-  // and worth a sentence. Reading is never limited, so the row still opens a
-  // transcript that exists; what goes is the ability to spend.
+  // and worth a sentence. Reading is never limited, so a transcript that
+  // exists is in the log either way; what goes is the ability to spend.
   const mayRequest = transcript.mayRequest !== false;
   const limit = transcript.requestLimit;
 
@@ -2021,16 +1915,60 @@ function TranscriptButton({
     // for on this screen, and the snapshot will move it when it moves.
     return <Button label={t.transcribingNow()} disabled onPress={() => {}} />;
   }
-  if (transcript.state === 'ready' || transcript.state === 'failed') {
+  if (transcript.state === 'ready') {
+    const missing = transcript.missing ? (
+      <Text style={type.muted}>{said.missing(transcript.missing)}</Text>
+    ) : null;
+    if (transcript.mayRemove === false) return missing;
     return (
-      <Button
-        label={
-          transcript.state === 'failed' ? t.transcriptFailed() : t.transcript()
-        }
-        onPress={onOpen}
-      />
+      <>
+        {missing}
+        <Button
+          label={said.deleteTranscript()}
+          disabled={!manageable || busy}
+          onPress={() => {
+            Alert.alert(
+              said.deleteThisTranscript(),
+              // Says the cost out loud. Nothing is refunded, and the app
+              // should not let somebody find that out by asking again.
+              said.deleteCost(),
+              [
+                { text: t.cancel(), style: 'cancel' },
+                {
+                  text: said.deleteConfirm(),
+                  style: 'destructive',
+                  onPress: async () => {
+                    if (!app.token) return;
+                    setBusy(true);
+                    try {
+                      await api.deleteTranscript(app.token, recording.id);
+                    } catch (e) {
+                      Alert.alert(
+                        said.couldNotDelete(),
+                        e instanceof Error ? e.message : String(e)
+                      );
+                    } finally {
+                      setBusy(false);
+                    }
+                  },
+                },
+              ]
+            );
+          }}
+        />
+      </>
     );
   }
+
+  // A failed one says why and may be asked for again, which is the retry.
+  const failed =
+    transcript.state === 'failed' ? (
+      <Text style={type.muted}>
+        {transcript.failure
+          ? said.transcribingFailedWith(transcript.failure)
+          : said.transcribingFailed()}
+      </Text>
+    ) : null;
 
   // A disabled button with the reason beside it, which is what a disabled
   // control means everywhere else on this card. Without a sentence there is
@@ -2038,9 +1976,10 @@ function TranscriptButton({
   // sends no reason, and "not you, ever, on this server" was never worth
   // putting on every recording in the list.
   if (!mayRequest) {
-    if (!limit) return null;
+    if (!limit) return failed;
     return (
       <>
+        {failed}
         <Button label={t.transcribe()} disabled onPress={() => {}} />
         <Text style={type.muted}>{limit}</Text>
       </>
@@ -2048,48 +1987,56 @@ function TranscriptButton({
   }
 
   return (
-    <Button
-      label={busy ? t.starting() : t.transcribe()}
-      // The mix has nothing to do with it — a transcript is made from the
-      // stems — but a recording still being prepared is one whose stems may
-      // not all have landed, and waiting a moment beats a job that fails.
-      disabled={busy || !manageable || !!recording.mixing}
-      onPress={() => {
-        // Two confirmations, because there are two different stakes. The
-        // ordinary one is about where the audio goes; the other is about
-        // something that can be done exactly once, which somebody should not
-        // discover afterwards — so the title asks about the free use rather
-        // than about the recording, and Cancel is the way out of both.
-        const spends = transcript.spendsFreeUse === true;
-        Alert.alert(
-          spends ? t.spendFreeAsk() : t.transcribeAsk(),
-          t.transcribeBody(transcript.provider, spends),
-          [
-            { text: t.cancel(), style: 'cancel' },
-            {
-              text: spends ? t.useIt() : t.transcribe(),
-              onPress: async () => {
-                if (!app.token) return;
-                setBusy(true);
-                try {
-                  await api.startTranscript(app.token, recording.id);
-                } catch (e) {
-                  Alert.alert(
-                    t.couldNotTranscribe(),
-                    e instanceof Error ? e.message : String(e)
-                  );
-                } finally {
-                  setBusy(false);
-                }
+    <>
+      {failed}
+      <Button
+        label={busy ? t.starting() : t.transcribe()}
+        // The mix has nothing to do with it — a transcript is made from the
+        // stems — but a recording still being prepared is one whose stems may
+        // not all have landed, and waiting a moment beats a job that fails.
+        disabled={busy || !manageable || !!recording.mixing}
+        onPress={() => {
+          // Two confirmations, because there are two different stakes. The
+          // ordinary one is about where the audio goes; the other is about
+          // something that can be done exactly once, which somebody should not
+          // discover afterwards — so the title asks about the free use rather
+          // than about the recording, and Cancel is the way out of both.
+          const spends = transcript.spendsFreeUse === true;
+          Alert.alert(
+            spends ? t.spendFreeAsk() : t.transcribeAsk(),
+            t.transcribeBody(transcript.provider, spends),
+            [
+              { text: t.cancel(), style: 'cancel' },
+              {
+                text: spends ? t.useIt() : t.transcribe(),
+                onPress: async () => {
+                  if (!app.token) return;
+                  setBusy(true);
+                  try {
+                    await api.startTranscript(app.token, recording.id);
+                  } catch (e) {
+                    Alert.alert(
+                      t.couldNotTranscribe(),
+                      e instanceof Error ? e.message : String(e)
+                    );
+                  } finally {
+                    setBusy(false);
+                  }
+                },
               },
-            },
-          ]
-        );
-      }}
-    />
+            ]
+          );
+        }}
+      />
+    </>
   );
 }
 
+/**
+ * Its own component so each row keeps its own progress state — the mix is
+ * encoded on demand, so this is a wait of seconds rather than an instant
+ * download, and a shared flag would show every row as busy.
+ */
 export function ShareButton({
   recording,
   disabled = false,

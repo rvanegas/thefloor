@@ -541,44 +541,19 @@ export const es: Strings = {
     headerKind: () => 'Invitado',
   },
   transcript: {
-    title: () => 'Transcripci\u00f3n',
-    preparing: () => 'Preparando\u2026',
-    share: () => 'Compartir',
-    shareTranscript: () => 'Compartir la transcripci\u00f3n',
-    whichFormat: () => '\u00bfEn qu\u00e9 formato?',
-    cancel: () => 'Cancelar',
-    text: () => 'Texto',
-    subtitles: () => 'Subt\u00edtulos',
-    data: () => 'Datos',
     deleteTranscript: () => 'Borrar la transcripci\u00f3n',
     deleteThisTranscript: () => '\u00bfBorrar esta transcripci\u00f3n?',
     deleteCost: () =>
       'La grabaci\u00f3n se conserva. Volver a transcribirla cuesta lo mismo que la primera vez.',
     deleteConfirm: () => 'Borrar',
     couldNotDelete: () => 'No se ha podido borrar',
-    beingTranscribed: () =>
-      'Se est\u00e1 transcribiendo. Tarda unos minutos; puedes salir de esta pantalla.',
     transcribingFailedWith: (reason: string) =>
       `Fall\u00f3 la transcripci\u00f3n — ${reason}`,
     transcribingFailed: () => 'Fall\u00f3 la transcripci\u00f3n.',
-    loading: () => 'Cargando\u2026',
     missing: (count: number) =>
       count === 1
         ? 'No se ha podido transcribir a una persona, y no est\u00e1 aqu\u00ed.'
         : `No se ha podido transcribir a ${count} personas, y no est\u00e1n aqu\u00ed.`,
-    findAWord: () => 'Buscar una palabra',
-    searchSeekable: () =>
-      'La b\u00fasqueda es solo tuya. Tocar una l\u00ednea mueve la reproducci\u00f3n para todos.',
-    searchOnly: () =>
-      'La b\u00fasqueda es solo tuya. Reproduce esta grabaci\u00f3n para saltar a una l\u00ednea.',
-    nothingMatches: () => 'No hay coincidencias.',
-    nothingWasTranscribed: () => 'No se transcribi\u00f3 nada.',
-    couldNotShare: () => 'No se ha podido compartir',
-    someone: () => 'Alguien',
-    jumpTo: (at: string, name: string, text: string) =>
-      `Saltar a ${at}, ${name}: ${text}`,
-    stepInToDelete: () =>
-      'Entra para borrar esto. Desaparece de la pantalla de todos a la vez.',
   },
   introduction: {
     somebodyLabel: () => 'Trae a alguien aqu\u00ed',
@@ -1314,14 +1289,7 @@ export const es: Strings = {
     loading: () => 'Cargando\u2026',
     play: () => 'Reproducir',
     couldNotPlay: () => 'No se ha podido reproducir',
-    searchWhatWasSaid: () => 'Buscar en lo que se dijo',
-    searching: () => 'Buscando\u2026',
-    nothingMatches: () => 'No hay coincidencias.',
-    aRecording: () => 'Una grabaci\u00f3n',
-    someone: () => 'Alguien',
     transcribingNow: () => 'Transcribiendo\u2026',
-    transcriptFailed: () => 'Fall\u00f3 la transcripci\u00f3n',
-    transcript: () => 'Transcripci\u00f3n',
     transcribe: () => 'Transcribir',
     starting: () => 'Empezando\u2026',
     spendFreeAsk: () => '\u00bfUsar tu transcripci\u00f3n gratuita?',

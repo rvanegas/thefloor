@@ -5561,6 +5561,21 @@ export function buildApp(options: BuildOptions = {}): App {
     // and nobody has asked. Absent is reserved for a server that cannot, which
     // is what withdraws the button entirely.
     if (!view) {
+      // Made with Text on, so its words are in the log already and there is
+      // nothing to offer. Said as a refusal too, with a sentence, so that a
+      // build which predates `live` shows why rather than a button that fails.
+      if (transcripts.transcribedLive(row.id)) {
+        return {
+          transcript: {
+            state: 'none',
+            provider: options.transcription?.name ?? '',
+            requestedBy: null,
+            live: true,
+            mayRequest: false,
+            requestLimit: 'This recording was transcribed as it was said.',
+          },
+        };
+      }
       return {
         transcript: {
           state: 'none',

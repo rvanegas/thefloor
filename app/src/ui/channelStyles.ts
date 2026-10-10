@@ -177,9 +177,8 @@ export const styles = StyleSheet.create({
    * `container` so the name lines up with the cards under it.
    *
    * The hairline is the one thing a pinned header needs that a scrolling one
-   * does not, for the reason TranscriptView's says: without an edge the
-   * content slides up to the buttons and stops, with nothing saying which of
-   * the two moved.
+   * does not: without an edge the content slides up to the buttons and stops,
+   * with nothing saying which of the two moved.
    */
   header: {
     paddingTop: spacing(1),

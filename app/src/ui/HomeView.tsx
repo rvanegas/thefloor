@@ -1520,7 +1520,7 @@ const styles = StyleSheet.create({
    * The pinned top. It carries `container`'s horizontal padding itself, being
    * outside the scroll, so the title lines up with the rows under it, and the
    * hairline is what a pinned header needs and a scrolling one does not — see
-   * the note on TranscriptView's.
+   * the note on `header` in channelStyles.ts.
    */
   header: {
     paddingTop: spacing(1),

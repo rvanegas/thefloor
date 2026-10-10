@@ -6,16 +6,16 @@ import renderer, {
 } from 'react-test-renderer';
 import { Alert } from 'react-native';
 import type { RecordingView } from '../../../../core/protocol';
-import { RecordingRow, Screen, TranscriptSearch } from '../components';
-import { TranscriptView } from '../TranscriptView';
+import { RecordingRow, Screen } from '../components';
 
 /**
- * The transcript, from the row that starts one to the screen that reads it.
+ * A recording's transcript, from the row that starts one. Its lines are drawn
+ * in the *Record* log since 2026-10-10 — `live-transcript.test.tsx` — so what
+ * is left here is asking for one and deleting it.
  *
- * Two things here are worth a test rather than a look: that asking names the
- * provider before it spends anything, because whoever taps is deciding for
- * everybody who was in the room; and that jumping to a line is offered only
- * when it would do what it says.
+ * The thing worth a test rather than a look: that asking names the provider
+ * before it spends anything, because whoever taps is deciding for everybody
+ * who was in the room.
  */
 
 const ME = 'acct_me';
@@ -23,58 +23,15 @@ const NOW = 1_700_000_000_000;
 
 const mockStart = jest.fn(async () => ({ ok: true as const }));
 const mockDelete = jest.fn(async () => ({ ok: true as const }));
-const mockGet = jest.fn(async () => ({
-  state: 'ready' as const,
-  requestedBy: { id: ME, displayName: 'Me' },
-  missing: [],
-  lines: [
-    {
-      identity: ME,
-      displayName: 'Me',
-      startMs: 4_000,
-      endMs: 5_000,
-      text: 'the part about the badgers',
-      confidence: 0.9,
-    },
-    {
-      identity: 'acct_them',
-      displayName: 'Dana Chu',
-      startMs: 9_000,
-      endMs: 10_000,
-      text: 'and then the owls',
-      confidence: 0.9,
-    },
-  ],
-}));
-
 jest.mock('../../api/http', () => ({
   api: {
     startTranscript: (...args: unknown[]) => mockStart(...(args as [])),
     deleteTranscript: (...args: unknown[]) => mockDelete(...(args as [])),
-    transcript: (...args: unknown[]) => mockGet(...(args as [])),
-    searchTranscripts: (...args: unknown[]) => mockSearch(...(args as [])),
   },
 }));
 
-const mockSearch = jest.fn(async () => ({
-  hits: [
-    {
-      recordingId: 'rec_1',
-      recordingName: 'Book club',
-      identity: 'acct_them',
-      displayName: 'Dana Chu',
-      startMs: 9_000,
-      endMs: 10_000,
-      text: 'and then the owls',
-      confidence: 0.9,
-    },
-  ],
-}));
-
-const mockExport = jest.fn(async () => {});
 jest.mock('../../api/download', () => ({
   shareRecording: jest.fn(async () => {}),
-  shareTranscript: (...args: unknown[]) => mockExport(...(args as [])),
 }));
 
 jest.mock('../../state/AppProvider', () => ({
@@ -153,7 +110,7 @@ beforeEach(() => {
 
 describe('the button on a recording', () => {
   /** Opens the row's drawer, which is where every action lives. */
-  const open = (recording: RecordingView, onOpenTranscript = () => {}) => {
+  const open = (recording: RecordingView, manageable = true) => {
     // Inside a Screen, as it is in the app: the row measures itself against
     // the scroll view to bring its own drawer into view. And inside `act`,
     // without which the renderer is torn down before anything can be found.
@@ -161,10 +118,7 @@ describe('the button on a recording', () => {
     act(() => {
       tree = renderer.create(
         <Screen>
-          <RecordingRow
-            recording={recording}
-            onOpenTranscript={onOpenTranscript}
-          />
+          <RecordingRow recording={recording} manageable={manageable} />
         </Screen>
       );
     });
@@ -225,11 +179,66 @@ describe('the button on a recording', () => {
     act(() => tree.unmount());
   });
 
-  it('opens the transcript once there is one', () => {
-    const opened = jest.fn();
-    const tree = open(recordingWith('ready'), opened);
-    act(() => findButton(tree, 'Transcript')!.props.onPress());
-    expect(opened).toHaveBeenCalled();
+  it('is not offered for a recording transcribed live, and says nothing', () => {
+    // Its words are in the log already. The refusal and its sentence are for
+    // builds that predate `live`.
+    const tree = open(
+      recordingWith('none', {
+        live: true,
+        mayRequest: false,
+        requestLimit: 'This recording was transcribed as it was said.',
+      })
+    );
+    expect(findButton(tree, 'Transcribe')).toBeUndefined();
+    expect(textOf(tree)).not.toContain('transcribed as it was said');
+    act(() => tree.unmount());
+  });
+
+  it('offers to delete one that is ready, and opens nothing', () => {
+    const tree = open(recordingWith('ready'));
+    expect(findButton(tree, 'Delete transcript')).toBeDefined();
+    expect(findButton(tree, 'Transcribe')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('warns that deleting is not free to undo', async () => {
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const tree = open(recordingWith('ready'));
+    act(() => findButton(tree, 'Delete transcript')!.props.onPress());
+
+    const [, body, buttons] = alert.mock.calls[0] as [
+      string,
+      string,
+      Array<{ text: string; onPress?: () => void }>,
+    ];
+    expect(body).toContain('The recording is kept');
+    expect(body).toContain('costs the same as the first time');
+    await act(async () => {
+      buttons.find((b) => b.text === 'Delete')!.onPress!();
+    });
+    expect(mockDelete).toHaveBeenCalledWith('token', 'rec_1');
+    act(() => tree.unmount());
+    alert.mockRestore();
+  });
+
+  it('greys deleting for somebody who is not in the room', () => {
+    const tree = open(recordingWith('ready'), false);
+    expect(findButton(tree, 'Delete transcript')!.props.disabled).toBe(true);
+    act(() => tree.unmount());
+  });
+
+  it('says who is missing rather than presenting a partial as whole', () => {
+    const tree = open(recordingWith('ready', { missing: 1 }));
+    expect(textOf(tree)).toContain(
+      'One person could not be transcribed and is missing from this.'
+    );
+    act(() => tree.unmount());
+  });
+
+  it('says why one failed, and offers to ask again', () => {
+    const tree = open(recordingWith('failed', { failure: 'audio_too_short' }));
+    expect(textOf(tree)).toContain('Transcribing failed — audio_too_short');
+    expect(findButton(tree, 'Transcribe')!.props.disabled).toBeFalsy();
     act(() => tree.unmount());
   });
 
@@ -290,314 +299,14 @@ describe('the button on a recording', () => {
     act(() => tree.unmount());
   });
 
-  it('still opens a transcript they may not have started', () => {
-    // Reading is never restricted. A transcript is a shared artefact of a
-    // shared conversation.
-    const opened = jest.fn();
-    const tree = open(recordingWith('ready', { mayRequest: false }), opened);
-    act(() => findButton(tree, 'Transcript')!.props.onPress());
-    expect(opened).toHaveBeenCalled();
-    act(() => tree.unmount());
-  });
 
   it('is withheld from somebody who is not in the room', () => {
     // The manage rule, the same one renaming and deleting use: this changes
     // what everybody's screen says.
-    let tree!: ReactTestRenderer;
-    act(() => {
-      tree = renderer.create(
-        <Screen>
-          <RecordingRow
-            recording={recordingWith('none')}
-            manageable={false}
-            onOpenTranscript={() => {}}
-          />
-        </Screen>
-      );
-    });
-    act(() => findButton(tree, 'Book club')!.props.onPress());
+    const tree = open(recordingWith('none'), false);
     expect(findButton(tree, 'Transcribe')!.props.accessibilityState).toEqual({
       disabled: true,
     });
-    act(() => tree.unmount());
-  });
-});
-
-describe('searching a whole channel', () => {
-  const show = async () => {
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(
-        <Screen>
-          <TranscriptSearch channelId="sess_1" onOpen={opened} />
-        </Screen>
-      );
-    });
-    return tree;
-  };
-
-  const opened = jest.fn();
-
-  /** Types, then lets the debounce elapse. */
-  const type = async (tree: ReactTestRenderer, text: string) => {
-    const field = tree.root.findAll((n) => n.props?.onChangeText)[0];
-    act(() => field.props.onChangeText(text));
-    await act(async () => {
-      jest.advanceTimersByTime(400);
-    });
-  };
-
-  beforeEach(() => {
-    jest.useFakeTimers();
-    opened.mockClear();
-  });
-  afterEach(() => {
-    jest.useRealTimers();
-  });
-
-  it('asks nothing until somebody stops typing', async () => {
-    // A keystroke is not a question. Without this, searching for one word runs
-    // a query per letter on the way to it.
-    const tree = await show();
-    const field = tree.root.findAll((n) => n.props?.onChangeText)[0];
-
-    act(() => field.props.onChangeText('o'));
-    act(() => field.props.onChangeText('ow'));
-    act(() => field.props.onChangeText('owl'));
-    expect(mockSearch).not.toHaveBeenCalled();
-
-    await act(async () => {
-      jest.advanceTimersByTime(400);
-    });
-    expect(mockSearch).toHaveBeenCalledTimes(1);
-    expect(mockSearch).toHaveBeenCalledWith('token', 'sess_1', 'owl');
-    act(() => tree.unmount());
-  });
-
-  it('asks nothing at all for an empty query', async () => {
-    const tree = await show();
-    await type(tree, '   ');
-    expect(mockSearch).not.toHaveBeenCalled();
-    act(() => tree.unmount());
-  });
-
-  it('says which conversation each hit came from', async () => {
-    // The one thing a per-recording filter cannot do, which is the whole
-    // reason this exists separately from the field on the transcript screen.
-    const tree = await show();
-    await type(tree, 'owls');
-
-    const text = textOf(tree);
-    expect(text).toContain('and then the owls');
-    expect(text).toContain('Book club');
-    expect(text).toContain('Dana Chu');
-    act(() => tree.unmount());
-  });
-
-  it('opens the recording a hit was said in', async () => {
-    const tree = await show();
-    await type(tree, 'owls');
-
-    act(() => findButton(tree, 'and then the owls')!.props.onPress());
-    expect(opened).toHaveBeenCalledWith('rec_1');
-    act(() => tree.unmount());
-  });
-
-  it('says so when nothing matches', async () => {
-    mockSearch.mockResolvedValueOnce({ hits: [] });
-    const tree = await show();
-    await type(tree, 'penguins');
-    expect(textOf(tree)).toContain('Nothing matches');
-    act(() => tree.unmount());
-  });
-});
-
-describe('the transcript screen', () => {
-  const show = async (
-    recording: RecordingView,
-    onSeek?: (positionMs: number) => void,
-    manageable = true
-  ) => {
-    let tree!: ReactTestRenderer;
-    await act(async () => {
-      tree = renderer.create(
-        <TranscriptView
-          recording={recording}
-          onBack={() => {}}
-          onSeek={onSeek}
-          manageable={manageable}
-        />
-      );
-    });
-    return tree;
-  };
-
-  it('shows what was said, by whom, and when', async () => {
-    const tree = await show(recordingWith('ready'));
-    const text = textOf(tree);
-
-    expect(text).toContain('the part about the badgers');
-    expect(text).toContain('Dana Chu');
-    expect(text).toContain('0:04');
-    act(() => tree.unmount());
-  });
-
-  it('filters to what somebody typed, without telling anybody', async () => {
-    const tree = await show(recordingWith('ready'));
-    const field = tree.root.findAll((n) => n.props?.onChangeText)[0];
-
-    act(() => field.props.onChangeText('owls'));
-
-    const text = textOf(tree);
-    expect(text).toContain('and then the owls');
-    expect(text).not.toContain('the part about the badgers');
-    act(() => tree.unmount());
-  });
-
-  it('says that searching is private and jumping is not', async () => {
-    // The one thing about this screen that is not guessable: playback here is
-    // shared, so a jump moves it for the whole room.
-    const seek = jest.fn();
-    const tree = await show(recordingWith('ready'), seek);
-    expect(textOf(tree)).toContain(
-      'Searching is yours alone. Tapping a line moves playback for everybody.'
-    );
-    act(() => tree.unmount());
-  });
-
-  it('jumps to a line when this recording is what is playing', async () => {
-    const seek = jest.fn();
-    const tree = await show(recordingWith('ready'), seek);
-
-    act(() => findButton(tree, 'the part about the badgers')!.props.onPress());
-
-    // The recording's own timeline, which is what rendering the stems with
-    // their delays in place bought.
-    expect(seek).toHaveBeenCalledWith(4_000);
-    act(() => tree.unmount());
-  });
-
-  it('offers no jump when it is not, and says why', async () => {
-    const tree = await show(recordingWith('ready'));
-    expect(findButton(tree, 'the part about the badgers')).toBeUndefined();
-    expect(textOf(tree)).toContain('Play this recording to jump to a line');
-    act(() => tree.unmount());
-  });
-
-  /**
-   * A recording where the played track says three things in a row, after
-   * one line from a member — two stems, each named after whose it is.
-   */
-  const said = (identity: string, displayName: string, startMs: number, text: string) => ({
-    identity,
-    displayName,
-    startMs,
-    endMs: startMs + 1_000,
-    text,
-    confidence: 0.9,
-  });
-
-  const withARun = () =>
-    mockGet.mockResolvedValueOnce({
-      state: 'ready' as const,
-      requestedBy: { id: ME, displayName: 'Me' },
-      missing: [],
-      lines: [
-        said(ME, 'Me', 0, 'here it is'),
-        said('media', 'Played audio', 1_000, 'welcome to the programme'),
-        said('media', 'Played audio', 2_000, 'thank you for having me'),
-        said('media', 'Played audio', 3_000, 'it is a subject I care about'),
-      ],
-    } as never);
-
-  it('names a run once and puts its sentences underneath', async () => {
-    // Otherwise one person saying two sentences reads as two speakers — which
-    // is what 176 consecutive lines of one voice looked like.
-    withARun();
-    const tree = await show(recordingWith('ready'));
-    const text = textOf(tree);
-
-    expect(text).toContain('thank you for having me');
-    expect(text).toContain('it is a subject I care about');
-    expect(text.split('Played audio')).toHaveLength(2);
-    act(() => tree.unmount());
-  });
-
-  it('jumps to the sentence that was tapped, not to the top of its entry', async () => {
-    // The precision grouping would otherwise cost: a run can be a minute
-    // long, and somebody tapping the third paragraph means that paragraph.
-    withARun();
-    const seek = jest.fn();
-    const tree = await show(recordingWith('ready'), seek);
-
-    act(() => findButton(tree, 'it is a subject I care about')!.props.onPress());
-
-    expect(seek).toHaveBeenCalledWith(3_000);
-    act(() => tree.unmount());
-  });
-
-  it('leaves search results ungrouped, since matches are not a conversation', async () => {
-    // Two matching paragraphs minutes apart under one heading would read as
-    // having been said together.
-    withARun();
-    const tree = await show(recordingWith('ready'));
-    const field = tree.root.findAll((n) => n.props?.onChangeText)[0];
-
-    act(() => field.props.onChangeText('subject'));
-
-    const text = textOf(tree);
-    expect(text).toContain('it is a subject I care about');
-    expect(text).not.toContain('thank you for having me');
-    act(() => tree.unmount());
-  });
-
-  it('says who is missing rather than presenting a partial as whole', async () => {
-    const tree = await show(recordingWith('ready', { missing: 1 }));
-    expect(textOf(tree)).toContain(
-      'One person could not be transcribed and is missing from this.'
-    );
-    act(() => tree.unmount());
-  });
-
-  it('asks for no text while the provider is still working', async () => {
-    const tree = await show(recordingWith('pending'));
-    expect(mockGet).not.toHaveBeenCalled();
-    expect(textOf(tree)).toContain('Being transcribed');
-    act(() => tree.unmount());
-  });
-
-  it('says so when it failed, and why', async () => {
-    const tree = await show(recordingWith('failed', { failure: 'audio_too_short' }));
-    expect(textOf(tree)).toContain('Transcribing failed — audio_too_short');
-    act(() => tree.unmount());
-  });
-
-  it('warns that deleting is not free to undo', async () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const tree = await show(recordingWith('ready'));
-
-    act(() => findButton(tree, 'Delete transcript')!.props.onPress());
-
-    const [, body] = alert.mock.calls[0];
-    expect(body).toContain('The recording is kept');
-    expect(body).toContain('costs the same as the first time');
-    act(() => tree.unmount());
-    alert.mockRestore();
-  });
-
-  it('says why deleting is greyed out, beside the greyed-out button', async () => {
-    const tree = await show(recordingWith('ready'), undefined, false);
-    expect(findButton(tree, 'Delete transcript')!.props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Step in to delete this');
-    act(() => tree.unmount());
-  });
-
-  it('says nothing about stepping in where there is nothing to delete', async () => {
-    // The sentence answers a question the screen has raised. A recording that
-    // was never transcribed offers no deleting, so it has raised none.
-    const tree = await show(recordingWith('none'), undefined, false);
-    expect(findButton(tree, 'Delete transcript')).toBeUndefined();
-    expect(textOf(tree)).not.toContain('Step in to delete this');
     act(() => tree.unmount());
   });
 });

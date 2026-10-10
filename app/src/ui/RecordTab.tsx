@@ -63,6 +63,15 @@ import { colors, formatDuration, measure, radius, spacing, type } from './theme'
  * without rendering anything. Before anything is measured (and in a test
  * renderer, where nothing is) nothing is hoisted, and every rule is inline.
  *
+ * **A recording's batch transcript is drawn as live lines are**, since
+ * 2026-10-10: under the recording's own line, each speaker's run under their
+ * name and the time it began, placed on the clock at the recording's start
+ * plus each line's offset. A recording made with Text on is not offered one
+ * — its words are here already — so the two never cover the same stretch.
+ * **The clock is approximate after a pause**: a run's pauses are not kept,
+ * so its later lines read early by however long it was held, in the right
+ * order.
+ *
  * **Fetched when shown, and kept current by the socket.** The transcript comes
  * a page at a time, newest first; lines written while the tab is open arrive
  * as `transcript.line` and are folded in by id. A line outside every room held
@@ -105,6 +114,8 @@ export function RecordTab({
   const [more, setMore] = React.useState(false);
   const [loadingEarlier, setLoadingEarlier] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
+  /** Each recording's batch transcript as lines of the log, by recording id. */
+  const [batch, setBatch] = React.useState<ReadonlyMap<string, LiveLine[]>>(new Map());
   /** Bumped to fetch the rooms again; see the note on the socket above. */
   const [roomsAsked, askRooms] = React.useReducer((n: number) => n + 1, 0);
   const roomsHeld = React.useRef<RoomView[] | null>(null);
@@ -157,6 +168,32 @@ export function RecordTab({
     };
   }, [app.token, channelId, live]);
 
+  // A transcript is fetched once it is ready, and again only if it is made
+  // anew — deleted and asked for again — which moves its state on the way.
+  const ready = recordings.filter((r) => r.transcript?.state === 'ready');
+  const readyKey = ready.map((r) => r.id).join(',');
+  const readyHeld = React.useRef(ready);
+  readyHeld.current = ready;
+  React.useEffect(() => {
+    const token = app.token;
+    if (!token) return;
+    let current = true;
+    const wanted = readyHeld.current;
+    setBatch((held) => new Map([...held].filter(([id]) => wanted.some((r) => r.id === id))));
+    for (const recording of wanted) {
+      batchLines(token, recording)
+        .then((found) => {
+          if (current) setBatch((held) => new Map(held).set(recording.id, found));
+        })
+        .catch((e: unknown) => {
+          if (current) setError(e instanceof Error ? e.message : String(e));
+        });
+    }
+    return () => {
+      current = false;
+    };
+  }, [app.token, readyKey]);
+
   const earlier = async () => {
     if (!app.token || !lines?.length) return;
     setLoadingEarlier(true);
@@ -180,9 +217,10 @@ export function RecordTab({
       intoRooms(
         rooms ?? [],
         held,
-        recordings.filter((r) => r.startedAt >= from)
+        recordings.filter((r) => r.startedAt >= from),
+        batch
       ),
-    [rooms, held, recordings, from]
+    [rooms, held, recordings, from, batch]
   );
   // Earlier pages are worth asking for only while they could still land in a
   // room: anything older than the first one is not drawn.
@@ -297,7 +335,12 @@ export function RecordTab({
               lineHeight.current = event.nativeEvent.layout.height;
             }}
           >
-            <RoomLine channelId={channelId} name={name} room={room} />
+            <RoomLine
+              channelId={channelId}
+              name={name}
+              room={room}
+              recordings={recordings}
+            />
           </View>
           {items.map((item) =>
             item.kind === 'recording' ? (
@@ -349,11 +392,14 @@ export function RoomLine({
   channelId,
   name,
   room,
+  recordings,
 }: {
   channelId: string;
   /** What the shared file is called after, with the room's start. */
   name: string;
   room: RoomView;
+  /** The channel's recordings, whose batch transcripts its text includes. */
+  recordings: readonly RecordingView[];
 }) {
   const t = useText().channel;
   const app = useApp();
@@ -369,7 +415,9 @@ export function RoomLine({
       if (what === 'audio') {
         await shareRoom(app.token, channelId, room.id, name, room.openedAt);
       } else {
-        const handed = await shareText(await roomText(app.token, channelId, room, t));
+        const handed = await shareText(
+          await roomText(app.token, channelId, room, t, recordings)
+        );
         if (handed === 'copied') Alert.alert(t.roomTextCopied());
         if (handed === 'failed') Alert.alert(t.couldNotShareRoom());
       }
@@ -415,11 +463,13 @@ export function HoistedRoom({
   channelId,
   name,
   room,
+  recordings,
   shift,
 }: {
   channelId: string;
   name: string;
   room: RoomView | null;
+  recordings: readonly RecordingView[];
   shift: Animated.Value;
 }) {
   if (!room) return null;
@@ -429,7 +479,7 @@ export function HoistedRoom({
       style={[styles.hoisted, { transform: [{ translateY: shift }] }]}
     >
       <View style={styles.hoistedInner}>
-        <RoomLine channelId={channelId} name={name} room={room} />
+        <RoomLine channelId={channelId} name={name} room={room} recordings={recordings} />
       </View>
     </Animated.View>
   );
@@ -470,23 +520,31 @@ export function chooseWhatToShare(
 }
 
 /**
- * A room's live transcript as plain text, the way the log draws it: its date
- * and hours, then each speaker's run under their name and the time it began.
+ * A room's text as plain text, the way the log draws it: its date and hours,
+ * then each speaker's run under their name and the time it began — its live
+ * transcript and the batch transcripts of its recordings, in one order.
  *
  * **Assembled here from the pages the log already reads**, walking back from
  * the room's end until a page reaches before its start, rather than from a
  * route of its own — so sharing text needs nothing the server does not
- * already serve, and reads only what the member could scroll to.
+ * already serve, and reads only what the member could scroll to. A stand-in
+ * has no live text, for `intoRooms`' reason, so its pages are not read.
  */
 export async function roomText(
   token: string,
   channelId: string,
   room: RoomView,
-  t: Strings['channel']
+  t: Strings['channel'],
+  recordings: readonly RecordingView[] = []
 ): Promise<string> {
+  const ids = new Set(room.recordingIds);
   let lines: LiveLine[] = [];
+  for (const recording of recordings) {
+    if (!ids.has(recording.id) || recording.transcript?.state !== 'ready') continue;
+    lines = merge(lines, await batchLines(token, recording));
+  }
   let before = room.closedAt === null ? undefined : room.closedAt + 1;
-  for (;;) {
+  while (!room.standIn) {
     const page = await api.liveTranscript(token, channelId, before);
     lines = merge(page.lines.filter((line) => holds(room, line.startAt)), lines);
     if (!page.more || page.lines.length === 0 || page.lines[0].startAt < room.openedAt) break;
@@ -725,6 +783,25 @@ export function KeepSwitch({
   );
 }
 
+/**
+ * A recording's batch transcript as lines of the log: on the clock at the
+ * recording's start plus each line's offset, which is exact for a run never
+ * paused and early by the pauses after one. Ids are the recording's, so they
+ * cannot meet a live line's.
+ */
+export async function batchLines(token: string, recording: RecordingView): Promise<LiveLine[]> {
+  const body = await api.transcript(token, recording.id);
+  return body.lines.map((line, i) => ({
+    id: `${recording.id}:${i}`,
+    identity: line.identity,
+    displayName: line.displayName ?? '',
+    startAt: recording.startedAt + line.startMs,
+    endAt: recording.startedAt + line.endMs,
+    text: line.text,
+    confidence: line.confidence,
+  }));
+}
+
 /** Two sets of lines as one, by id, in the order they were said. */
 export function merge(a: readonly LiveLine[], b: readonly LiveLine[]): LiveLine[] {
   const byId = new Map<string, LiveLine>();
@@ -745,27 +822,31 @@ type RoomItem =
 /**
  * Lines and recordings in the order they happened, under the room they
  * happened in; anything in no room is left out. A recording belongs to the
- * room the server named it in, or to an open one it began inside since. A
- * recording that began at the same moment as a line comes first, being where
- * that stretch of the record starts.
+ * room the server named it in, or to an open one it began inside since, and
+ * its batch transcript, from `batch`, goes with it. A recording that began at
+ * the same moment as a line comes first, being where that stretch of the
+ * record starts.
  */
 export function intoRooms(
   rooms: readonly RoomView[],
   lines: readonly LiveLine[],
-  recordings: readonly RecordingView[]
+  recordings: readonly RecordingView[],
+  batch: ReadonlyMap<string, readonly LiveLine[]> = new Map()
 ): Array<{ room: RoomView; items: RoomItem[] }> {
   return rooms
     .map((room) => {
       const ids = new Set(room.recordingIds);
+      const placed = recordings.filter(
+        (r) => ids.has(r.id) || (room.closedAt === null && holds(room, r.startedAt))
+      );
       const events = [
-        ...recordings
-          .filter((r) => ids.has(r.id) || (room.closedAt === null && holds(room, r.startedAt)))
-          .map((recording) => ({ at: recording.startedAt, recording })),
-        // Only into a room that was transcribed, or is open and may yet be:
-        // a recording's stand-in is not, so talk written down before rooms
-        // existed does not attach itself to whichever old recording it
-        // happens to overlap.
-        ...(room.transcribed || room.closedAt === null ? lines : [])
+        ...placed.map((recording) => ({ at: recording.startedAt, recording })),
+        ...placed.flatMap((r) => batch.get(r.id) ?? []).map((line) => ({ at: line.startAt, line })),
+        // Live lines only into a sitting that was transcribed, or is open and
+        // may yet be — never a recording's stand-in, which may be transcribed
+        // by batch, so that talk written down before rooms existed does not
+        // attach itself to whichever old recording it happens to overlap.
+        ...(!room.standIn && (room.transcribed || room.closedAt === null) ? lines : [])
           .filter((l) => holds(room, l.startAt))
           .map((line) => ({ at: line.startAt, line })),
       ].sort((x, y) => x.at - y.at || ('recording' in x ? -1 : 0) - ('recording' in y ? -1 : 0));

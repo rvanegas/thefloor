@@ -40,9 +40,9 @@ export interface RoomRow {
  * Nothing before 2026-10-09 has one, and nothing is reconstructed —
  * `usage_spans` could, and the application does not read it. **A recording
  * that falls in no room stands as one of its own** in what `forChannel`
- * lists: a span exactly as long as the run, recorded and not transcribed,
- * so the recordings made before rooms existed open the log rather than
- * vanishing from it.
+ * lists: a span exactly as long as the run, recorded, and transcribed only
+ * if that recording was by batch — so the recordings made before rooms
+ * existed open the log rather than vanishing from it.
  */
 export class Rooms {
   constructor(private db: Db) {}
@@ -113,13 +113,21 @@ export class Rooms {
     const transcribedIn = this.db.prepare(
       'SELECT 1 FROM live_lines WHERE channel_id = ? AND start_at >= ? AND start_at <= ? LIMIT 1'
     );
+    // A batch transcript is the room's text as much as a live line is, since
+    // 2026-10-10: it is drawn in the log the same way and shared with it.
+    const batchOf = this.db.prepare(
+      `SELECT 1 FROM transcripts
+       WHERE recording_id = ? AND state = 'ready' AND deleted_at IS NULL`
+    );
+    const anyBatch = (ids: readonly string[]) => ids.some((id) => !!batchOf.get(id));
     const rooms: RoomView[] = [];
     for (const row of rows) {
       const until = row.closed_at ?? now;
       const recordingIds = (
         recordingsIn.all(channelId, row.opened_at, until) as Array<{ id: string }>
       ).map((r) => r.id);
-      const transcribed = !!transcribedIn.get(channelId, row.opened_at, until);
+      const transcribed =
+        !!transcribedIn.get(channelId, row.opened_at, until) || anyBatch(recordingIds);
       if (recordingIds.length === 0 && !transcribed) continue;
       rooms.push({
         id: row.id,
@@ -139,7 +147,7 @@ export class Rooms {
         openedAt: stray.started_at,
         closedAt: stray.ended_at,
         recordingIds: [stray.id],
-        transcribed: false,
+        transcribed: anyBatch([stray.id]),
         standIn: true,
       });
     }

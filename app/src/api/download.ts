@@ -108,76 +108,10 @@ async function shareOgg(
 }
 
 /**
- * Fetches a transcript as a file and hands it to the share sheet.
- *
- * The same shape as `shareRecording` above, and deliberately so — the legacy
- * FileSystem entry point for the same reason, since a refusal written to disk
- * and offered as though it were a transcript is the same failure with different
- * bytes.
- *
- * Three formats because they are read by three different things: prose to
- * paste into a message, WebVTT to sit alongside the exported audio in a player,
- * and JSON for anything else.
- */
-export async function shareTranscript(
-  token: string,
-  recordingId: string,
-  name: string,
-  endedAt: number,
-  format: 'txt' | 'vtt' | 'json'
-): Promise<void> {
-  if (!API_URL) throw new ApiError('No server configured.', 0);
-
-  const directory = `${FileSystem.cacheDirectory}exports/`;
-  await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-
-  const safeName = name.replace(/[^\w\- ]/g, '').trim() || 'channel';
-  const target = `${directory}The Floor — ${safeName} — ${stamp(
-    endedAt
-  )}.${format}`;
-
-  let result: FileSystem.FileSystemDownloadResult;
-  try {
-    result = await FileSystem.downloadAsync(
-      `${API_URL}/recordings/${recordingId}/transcript/export?format=${format}`,
-      target,
-      { headers: { authorization: `Bearer ${token}` } }
-    );
-  } catch {
-    throw new ApiError(`Cannot reach the server at ${API_URL}.`, 0);
-  }
-
-  if (result.status !== 200) {
-    if (result.status === 401) reportSignedOut();
-    let message = `Could not download the transcript (${result.status}).`;
-    try {
-      const body = JSON.parse(await FileSystem.readAsStringAsync(result.uri));
-      if (typeof body?.error === 'string') message = body.error;
-    } catch {
-      // Not JSON; the status alone will have to do.
-    }
-    await FileSystem.deleteAsync(result.uri, { idempotent: true });
-    throw new ApiError(message, result.status);
-  }
-
-  if (!(await Sharing.isAvailableAsync())) {
-    throw new ApiError('Sharing is not available on this device.', 0);
-  }
-  await Sharing.shareAsync(result.uri, {
-    // Plain text for all three: a .vtt or .json handed over as its own type is
-    // refused by most of the share sheet, and what a person does with these is
-    // paste them or open them in something that reads text either way.
-    mimeType: 'text/plain',
-    UTI: 'public.plain-text',
-    dialogTitle: `Transcript — ${name}`,
-  });
-}
-
-/**
  * Fetches the channel's current track and hands it to the share sheet.
  *
  * The third of these and the odd one out, because **the file is not ours**.
- * A recording and a transcript are artefacts this project produced, in formats
+ * A recording and a room are artefacts this project produced, in formats
  * it chose; a track is whatever somebody picked on their phone, so the name
  * and the type both have to come back from the server rather than being known
  * here. That is why this downloads to a scratch name and renames afterwards:

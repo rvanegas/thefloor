@@ -104,17 +104,17 @@ caused; the list carries the meaning.
 - **Podcast directory** — Apple's, Spotify's, and the rest: somewhere a *feed* is submitted, reviewed and then findable. Nothing here does it; what needs doing is a person pressing a button. Not the *directory page*, which is this server's own
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
-- **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions — one from before rooms standing as a room of its own —, each room headed by a line with its date, hours and share that is pinned once it scrolls off, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
+- **Record (the tab)** — What was kept of a channel, as a log laid out in *rooms*: the *live transcript* as plain lines under each speaker's name and time, each *recording* a muted line where it began that opens to its actions, with its *transcript* under it drawn the same way — one from before rooms standing as a room of its own —, each room headed by a line with its date, hours and share that is pinned once it scrolls off, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
 - **Audio and Text (the switches)** — What a channel keeps of what is said, as two switches pinned on the *Record* tab, each moving only itself — either, both or neither: *Audio* is a *recording*, *Text* the *live transcript*; the button beside them is the pair's transport — *Start* while nothing is chosen turns on both, as much as this person may; *Pause* holds everything running; *Resume*, while anything is held, restarts everything held. Since 2026-10-09, replacing the Record and Pause buttons and the *Live transcript* setting. `KeepSwitches`
 - **Record automatically** — A channel setting, two switches since 2026-10-10: *Audio*, the room's first recording begins by itself (`autoRecord`), and *Text*, each sitting begins with the *live transcript* on (`autoTranscribe`), moved only by an account on the house. Switching either off on the *Record* tab holds until the room empties and fills again
 - **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off — a Pause between holds it and keeps it one recording, joined without the gap; each one a segment of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
-- **Share** — Handing a copy of a *recording*, a *room*'s recordings back to back or its live transcript as text, a *transcript* or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
+- **Share** — Handing a copy of a *recording*, a *room*'s recordings back to back or its text — live and *transcript* alike — or the channel's track to whatever else is on the device; called *Export* until 2026-09-12
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
-- **Transcript** — Text made from a recording, on request, by a provider; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
+- **Transcript** — Text made from a recording, on request, by a provider — offered only for a recording made with no *live transcript*, and drawn in the *Record* log under it as live lines are, since 2026-10-10, when its own screen went; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
 - **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel`
@@ -645,8 +645,8 @@ The thing on it is a *clip*.
 ## Close
 
 **The way off a screen you opened**, and the word every one of them uses:
-Settings, Channel Settings, Support, Standings, a profile, a transcript, and a
-channel you are no longer present in. It empties the *detail* pane and leaves
+Settings, Channel Settings, Support, Standings, a profile, and a channel you
+are no longer present in — and a transcript, until 2026-10-10. It empties the *detail* pane and leaves
 the *list* beside it alone.
 
 **Deliberately not "Back", which it said until 2026-09-01.** Back means *reveal
@@ -654,9 +654,9 @@ what is underneath*, and above the width breakpoint there is nothing underneath
 — the list is beside rather than under. One word that is true in both layouts
 is what lets the handler be one line with no test of which layout is in force.
 
-**In a browser it is the only way off, and the Back button is not one.** Four
-of these screens have no *address* — a profile, a transcript, a channel's own
-settings, and which channel a channel screen is — so the browser's Back does
+**In a browser it is the only way off, and the Back button is not one.** Three
+of these screens have no *address* — a profile, a channel's own settings, and
+which channel a channel screen is — so the browser's Back does
 not see them: pressing it leaves for the list, or leaves the site. Chosen on
 2026-09-04 rather than overlooked, and the alternative was giving those screens
 addresses, which would have meant putting ids in them. See
@@ -2619,8 +2619,9 @@ year out of date.
 ## Share
 
 Handing a copy of something to whatever else is on the device: a *recording*, a
-*room* — its audio, or since 2026-10-09 its live transcript as text — a
-*transcript*, or the track the channel is listening to. One verb, labelled
+*room* — its audio, or since 2026-10-09 its text, which since 2026-10-10
+includes its recordings' *transcripts* — or the track the channel is listening
+to. One verb, labelled
 `Share` or drawn as the share glyph — and on a phone all of them end at the
 system share sheet. A room's asks first which of the two, in iOS's action
 sheet, with what the room did not keep greyed.
@@ -2638,8 +2639,7 @@ the channel it was made in, and may take a copy of the track while somebody
 else holds the floor and decides what plays. What is greyed out on those cards
 stays a statement about what would change the room.
 
-**A track is the odd one of the three.** A recording and a transcript are
-artefacts this project produced in formats it chose; a track is whatever file
+**A track is the odd one out.** A recording and a room's text are artefacts this project produced in formats it chose; a track is whatever file
 somebody picked on their phone, so its name and its type come back from the
 server rather than being known by the client. See `shareTrack`.
 
@@ -2755,6 +2755,17 @@ one.
 Text made from a recording, on request, by a third-party provider named on the
 screen that asks. Everybody gets one free; asking sends everybody's audio out,
 so who asked is always shown.
+
+**Offered only for a recording made with no text, and read in the log**, since
+2026-10-10. A recording any of which ran while the *live transcript* was on is
+in the log already, so the server refuses one for it and the row offers none.
+A finished transcript is drawn in the *Record* log under its recording's line,
+as the live transcript is — each speaker's run under their name and the time it
+began, on the clock at the recording's start plus each line's offset, which
+reads early after a pause — and is shared as the room's text. Its own screen
+went then, and with it the search across a channel's transcripts, the tap that
+moved playback to a line, and its export as subtitles or data; the routes stay
+for the builds that read them.
 
 A transcript is never edited, and since 2026-10-09 nothing is said about it
 either: each line is named after its *voice*, which is its *stem*, and there

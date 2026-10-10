@@ -701,45 +701,19 @@ export const en = {
     headerKind: () => 'Guest',
   },
   transcript: {
-    title: () => 'Transcript',
-    preparing: () => 'Preparing\u2026',
-    share: () => 'Share',
-    shareTranscript: () => 'Share transcript',
-    whichFormat: () => 'Which format?',
-    cancel: () => 'Cancel',
-    text: () => 'Text',
-    subtitles: () => 'Subtitles',
-    data: () => 'Data',
     deleteTranscript: () => 'Delete transcript',
     deleteThisTranscript: () => 'Delete this transcript?',
     deleteCost: () =>
       'The recording is kept. Transcribing it again costs the same as the first time.',
     deleteConfirm: () => 'Delete',
     couldNotDelete: () => 'Could not delete',
-    beingTranscribed: () =>
-      'Being transcribed. This takes a few minutes; you can leave this screen.',
     transcribingFailedWith: (reason: string) =>
       `Transcribing failed — ${reason}`,
     transcribingFailed: () => 'Transcribing failed.',
-    loading: () => 'Loading\u2026',
     missing: (count: number) =>
       count === 1
         ? 'One person could not be transcribed and is missing from this.'
         : `${count} people could not be transcribed and are missing from this.`,
-    findAWord: () => 'Find a word',
-    searchSeekable: () =>
-      'Searching is yours alone. Tapping a line moves playback for everybody.',
-    searchOnly: () =>
-      'Searching is yours alone. Play this recording to jump to a line.',
-    nothingMatches: () => 'Nothing matches.',
-    nothingWasTranscribed: () => 'Nothing was transcribed.',
-    couldNotShare: () => 'Could not share',
-    someone: () => 'Someone',
-    /** `at` is already formatted — see `formatDuration`. */
-    jumpTo: (at: string, name: string, text: string) =>
-      `Jump to ${at}, ${name}: ${text}`,
-    stepInToDelete: () =>
-      "Step in to delete this. It leaves everybody's screen at once.",
   },
   /**
    * The checklist on Home: seven rungs, each a label, an instruction and a
@@ -1575,14 +1549,7 @@ export const en = {
     loading: () => 'Loading\u2026',
     play: () => 'Play',
     couldNotPlay: () => 'Could not play',
-    searchWhatWasSaid: () => 'Search what was said',
-    searching: () => 'Searching\u2026',
-    nothingMatches: () => 'Nothing matches.',
-    aRecording: () => 'A recording',
-    someone: () => 'Someone',
     transcribingNow: () => 'Transcribing\u2026',
-    transcriptFailed: () => 'Transcript failed',
-    transcript: () => 'Transcript',
     transcribe: () => 'Transcribe',
     starting: () => 'Starting\u2026',
     spendFreeAsk: () => 'Use your one free transcript?',

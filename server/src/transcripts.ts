@@ -220,6 +220,12 @@ export class Transcripts {
     if (!recording) throw new Error(`No such recording: ${recordingId}`);
     if (recording.deleted_at) throw new Error('This recording was deleted.');
 
+    if (this.transcribedLive(recordingId)) {
+      // Its text is already in the log, and a second copy beside it would be
+      // the same conversation twice, paid for twice.
+      throw new Error('This recording was transcribed as it was said.');
+    }
+
     const identities = this.speakersOf(recording);
     if (identities.length === 0) {
       // A run that captured nothing, or one whose only stem is played media.
@@ -868,6 +874,27 @@ export class Transcripts {
     return this.db
       .prepare('SELECT * FROM transcript_jobs WHERE recording_id = ?')
       .all(recordingId) as unknown as JobRow[];
+  }
+
+  /**
+   * Whether any of this recording was transcribed live — a line of the live
+   * transcript written while it ran, between its start and its end.
+   *
+   * **Any line, not the whole run**, since 2026-10-10: a recording that had
+   * Text switched on partway is one somebody chose to keep as text, and it is
+   * not offered for batch, which would draw the overlap twice in the log.
+   * The batch transcript is for recordings made with no text at all.
+   */
+  transcribedLive(recordingId: string): boolean {
+    return !!this.db
+      .prepare(
+        `SELECT 1 FROM recordings r JOIN live_lines l
+           ON l.channel_id = r.channel_id
+          AND l.start_at >= r.started_at
+          AND l.start_at <= COALESCE(r.ended_at, ?)
+         WHERE r.id = ? LIMIT 1`
+      )
+      .get(this.now(), recordingId);
   }
 
   private recording(id: string): RecordingRow | undefined {

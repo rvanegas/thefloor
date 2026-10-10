@@ -269,6 +269,44 @@ describe('asking for one', () => {
   }, 60_000);
 
   /**
+   * Only a recording made with no text is offered one, since 2026-10-10: one
+   * that had Text on for any of its run is in the log already.
+   */
+  it('refuses one for a recording transcribed live, and says why on the wire', async () => {
+    const { alice } = await room();
+    app.db
+      .prepare(
+        `INSERT INTO live_lines (id, channel_id, identity, display_name, start_at, end_at, text)
+         VALUES ('l1', ?, ?, 'Alice', ?, ?, 'hello')`
+      )
+      .run(CHANNEL, alice.account.id, clock + 2_000, clock + 3_000);
+
+    expect(listedFor(alice.account.id).transcript).toMatchObject({
+      state: 'none',
+      live: true,
+      mayRequest: false,
+      requestLimit: expect.stringMatching(/transcribed as it was said/),
+    });
+    const answered = await ask(alice.token);
+    expect(answered.statusCode).toBe(409);
+    expect(answered.json().error).toMatch(/transcribed as it was said/);
+    expect(provider.submitted).toHaveLength(0);
+  }, 60_000);
+
+  it('offers one when the live lines are outside the run', async () => {
+    const { alice } = await room();
+    app.db
+      .prepare(
+        `INSERT INTO live_lines (id, channel_id, identity, display_name, start_at, end_at, text)
+         VALUES ('l1', ?, ?, 'Alice', ?, ?, 'hello')`
+      )
+      .run(CHANNEL, alice.account.id, clock + 6_000, clock + 7_000);
+
+    expect(listedFor(alice.account.id).transcript?.live).toBeUndefined();
+    expect((await ask(alice.token)).statusCode).toBe(200);
+  }, 60_000);
+
+  /**
    * Not behind Labs since 2026-10-09. An account that never turned it on is
    * offered a transcript and may ask for one, the setting having nothing
    * behind it any more. See `labs` in core/settings.ts.

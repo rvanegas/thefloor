@@ -356,6 +356,66 @@ describe('rooms on the Record tab', () => {
         node.props.accessibilityLabel === 'Share this room' && !!node.props.onPress
     )[0];
 
+  /*
+    **A batch transcript is drawn as the live one is, since 2026-10-10**:
+    under its recording's line, each speaker's run under their name and the
+    clock time it began, and shared with the room's text.
+  */
+  it("draws a recording's batch transcript under it, as live lines are", async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l0', ME, 'Me', NOW - 86_400_000 + 5_000, 'said during the old one')],
+      more: false,
+    } as never);
+    const transcript = jest.spyOn(api, 'transcript').mockResolvedValue({
+      state: 'ready',
+      requestedBy: null,
+      missing: [],
+      lines: [
+        { identity: ME, displayName: 'Me', startMs: 1_000, endMs: 2_000, text: 'first in batch', confidence: 0.9 },
+        { identity: ME, displayName: 'Me', startMs: 3_000, endMs: 4_000, text: 'then more', confidence: 0.9 },
+        { identity: THEM, displayName: 'Dana Chu', startMs: 9_000, endMs: 10_000, text: 'and Dana', confidence: 0.9 },
+      ],
+    } as never);
+    const old = {
+      ...segment('rec_old', 'Before rooms', NOW - 86_400_000),
+      transcript: { state: 'ready' as const, provider: 'AssemblyAI', requestedBy: null },
+    };
+    showChannel(transcribed(), [old]);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        {
+          ...room('standin_rec_old', NOW - 86_400_000, NOW - 86_400_000 + 30_000, ['rec_old']),
+          standIn: true,
+        },
+      ],
+    } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    const text = textOf(tree);
+    expect(transcript).toHaveBeenCalledWith(expect.anything(), 'rec_old');
+    expect(text.indexOf('Before rooms')).toBeLessThan(text.indexOf('first in batch'));
+    expect(text.indexOf('first in batch')).toBeLessThan(text.indexOf('and Dana'));
+    // A stand-in carries its recording's text, never live talk it overlaps.
+    expect(text).not.toContain('said during the old one');
+
+    const { ActionSheetIOS, Share } = require('react-native');
+    const sheet = jest
+      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
+      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
+    const handed = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction } as never);
+    await act(async () => shareOf(tree).props.onPress());
+    const message = (handed.mock.calls[0][0] as { message: string }).message;
+    expect(message).toContain('first in batch\nthen more');
+    expect(message).toContain('and Dana');
+    expect(message).not.toContain('said during the old one');
+    sheet.mockRestore();
+    handed.mockRestore();
+    transcript.mockRestore();
+    act(() => tree.unmount());
+  });
+
   it("puts each room's line, with its share, at the head of the room", async () => {
     showChannel(channelOf(), [
       segment('rec_1', 'Planning', NOW + 10_000),

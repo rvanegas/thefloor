@@ -77,7 +77,6 @@ import { learningToStepIn } from '../state/introduction';
 import { AudioDebugPanel } from './AudioDebugPanel';
 import { DriftReadout } from '../watch/DriftReadout';
 import { ChannelSettingsView } from './ChannelSettingsView';
-import { TranscriptView } from './TranscriptView';
 import { ProfileView } from './ProfileView';
 import { isSafeUrl, openUrl } from './links';
 import {
@@ -115,7 +114,6 @@ import {
   Field,
   IconButton,
   RecordingRow,
-  TranscriptSearch,
   Screen,
   SectionLabel,
   Segmented,
@@ -359,15 +357,6 @@ export function ChannelView({
   // that a copy which did not happen is not announced as one.
   const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /**
-   * Which recording's transcript is open, by id rather than by row.
-   *
-   * By id so the screen follows the snapshot: a transcript that lands while it
-   * is open moves from "being transcribed" to the text without anybody tapping
-   * anything, and a recording deleted underneath closes the screen rather than
-   * leaving it showing a conversation that no longer exists.
-   */
-  const [transcriptFor, setTranscriptFor] = useState<string | null>(null);
   /**
    * The room whose line has scrolled off the top of the *Record* log, drawn
    * pinned in its place, and how far the next room's line has pushed it up —
@@ -614,8 +603,8 @@ export function ChannelView({
   /*
     **The screen's three effects, held up here above every early return.**
 
-    This component returns early four times — an ended channel, a profile, the
-    settings screen, a transcript — so a hook written down beside the watch
+    This component returns early three times — an ended channel, a profile,
+    the settings screen — so a hook written down beside the watch
     card it belongs to is a hook that runs on some renders and not others,
     which React ends as "rendered fewer hooks than expected". The values they
     need are read off the channel directly rather than from the derived
@@ -825,8 +814,8 @@ export function ChannelView({
    *   none is announced by anything visible from inside the picture. Falling
    *   out of full screen lands them on the card, where the Stop, the switch
    *   and the refusal in words all are.
-   * - **Nothing else covering the channel.** The settings, a profile and a
-   *   transcript are early returns above this one and would still be showing;
+   * - **Nothing else covering the channel.** The settings and a profile are
+   *   early returns above this one and would still be showing;
    *   expanding underneath them would take the corner player down for a film
    *   nobody could see.
    *
@@ -882,8 +871,7 @@ export function ChannelView({
     screenIsHere &&
     !filmRefused &&
     !settingsOpen &&
-    !viewing &&
-    !transcriptFor;
+    !viewing;
   /*
     **An upright film is not something the phone turns for**, added
     2026-09-29 — a Short on a sideways phone is a tall picture in a wide
@@ -956,12 +944,13 @@ export function ChannelView({
     is an open — `App.tsx` builds this screen with the *Watch* tab asked for.
     From inside the channel it is not: everything that has to move is state
     here, and an open cannot reach it. Asking for the tab already asked for was
-    a request equal to itself, so the tab bar did not move; and the settings, a
-    profile and a transcript are early returns *above* the watch tab, so a tap
-    from any of the three set a tab that stayed underneath them. All of it read
-    as a corner that sometimes did nothing.
+    a request equal to itself, so the tab bar did not move; and the settings
+    and a profile are early returns *above* the watch tab, so a tap from either
+    set a tab that stayed underneath them. All of it read as a corner that
+    sometimes did nothing. (A transcript was a third until 2026-10-10, when its
+    screen went and its lines joined the *Record* log.)
 
-    The three are cleared exactly as the television's arrival clears them a few
+    The two are cleared exactly as the television's arrival clears them a few
     hundred lines above, and for the same reason — they are covers over the
     film, and the tap was a request to see it.
 
@@ -976,7 +965,6 @@ export function ChannelView({
     publishWayIn(channelId, () => {
       setViewing(null);
       setSettingsOpen(false);
-      setTranscriptFor(null);
       choose.current('watch');
     });
     return () => publishWayIn(channelId, null);
@@ -1020,7 +1008,7 @@ export function ChannelView({
 
     **Up here with the other effects, and not beside the render it replaced.**
     Half a dozen early returns stand between this point and there — an ended
-    channel, the settings, a transcript — and a hook after any of them is a
+    channel, the settings, a profile — and a hook after any of them is a
     hook that is sometimes not called. It is the same trap the note on `act`
     describes a few hundred lines above, in its more expensive form: a `const`
     read too early throws where it is used, and a hook skipped takes the whole
@@ -1942,29 +1930,6 @@ export function ChannelView({
   const position = playbackPositionMs(playback, now);
   const mayControlPlayback = canControlPlayback(channel, me);
 
-  // Rendered instead of the channel, like the profile and the settings screens
-  // above — the audio connection lives above this, so reading a transcript
-  // does not hang anybody up. Looked up by id rather than held as a row, so
-  // the screen follows the snapshot rather than a copy taken when it opened.
-  const transcriptRow = recordings.find((r) => r.id === transcriptFor);
-  if (transcriptFor && transcriptRow) {
-    return (
-      <TranscriptView
-        recording={transcriptRow}
-        onBack={() => setTranscriptFor(null)}
-        manageable={presentOrEmptyForMe && !ownersAlone}
-        // Offered only while this recording is what is loaded and the floor is
-        // yours to drive: a line's times are positions in *this* recording, so
-        // they mean nothing against another track, and a seek moves playback
-        // for everybody in the room rather than for whoever tapped.
-        onSeek={
-          track?.recordingId === transcriptRow.id && mayControlPlayback
-            ? (positionMs) => act({ type: 'SEEK', positionMs })
-            : undefined
-        }
-      />
-    );
-  }
   // **One rule since 2026-09-20, where this was two.** Driving what is on and
   // putting something new on both ask presence now — an absent member may no
   // longer play or clear a track on an empty channel, which is what build 261
@@ -3131,6 +3096,7 @@ export function ChannelView({
             channelId={channelId}
             name={channel.name ?? derivedTitle}
             room={hoistedRoom}
+            recordings={recordings}
             shift={hoistShift}
           />
         ) : undefined
@@ -4024,16 +3990,10 @@ export function ChannelView({
           the transcript is the same conversation kept as text, and a channel
           may keep either, both or neither. See `RecordTab`.
 
-          Above the timeline, because the question it answers — which
-          conversation was that in — is one scrolling cannot answer. Only shown
-          once a recording here has been transcribed.
+          A recording's batch transcript is drawn in it as the live one is,
+          since 2026-10-10, which took the transcript's own screen and the
+          search over transcripts that opened it.
         */}
-        {recordings.some((r) => r.transcript?.state === 'ready') ? (
-          <TranscriptSearch
-            channelId={channelId}
-            onOpen={(recordingId) => setTranscriptFor(recordingId)}
-          />
-        ) : null}
         <RecordTab
           channelId={channelId}
           live={offersTranscript}
@@ -4061,7 +4021,6 @@ export function ChannelView({
                     : t.stepInToPlayShort()
               }
               manageable={presentOrEmptyForMe && !ownersAlone}
-              onOpenTranscript={() => setTranscriptFor(r.id)}
             />
           )}
         />

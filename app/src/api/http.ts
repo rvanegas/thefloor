@@ -852,7 +852,10 @@ export const api = {
       token,
     }),
 
-  /** The text itself. Only worth asking for once the state says `ready`. */
+  /**
+   * The text itself, for the *Record* log. Only worth asking for once the
+   * state says `ready`.
+   */
   transcript: (token: string, recordingId: string) =>
     request<{
       state: 'pending' | 'ready' | 'failed';
@@ -869,14 +872,6 @@ export const api = {
       }>;
     }>(`/recordings/${recordingId}/transcript`, { token }),
 
-  /**
-   * Every line in this channel's transcripts matching a query.
-   *
-   * Across every recording in the channel rather than one, which is the
-   * difference between this and the filter on the transcript screen — and the
-   * reason it is a request rather than a local `filter`: the text of a year of
-   * conversation is not something a phone holds.
-   */
   /**
    * A channel's live transcript, a page at a time: the newest page with no
    * `before`, and the one ending just before `before` with it. Oldest first
@@ -905,24 +900,6 @@ export const api = {
     request<{ ok: true; autoTranscribe: boolean }>(
       `/channels/${channelId}/auto-transcribe`,
       { method: 'PUT', token, body: { on } }
-    ),
-
-  searchTranscripts: (token: string, channelId: string, q: string) =>
-    request<{
-      hits: Array<{
-        recordingId: string;
-        recordingName: string | null;
-        identity: string;
-        displayName: string | null;
-        speaker: string | null;
-        startMs: number;
-        endMs: number;
-        text: string;
-        confidence: number | null;
-      }>;
-    }>(
-      `/channels/${channelId}/transcripts/search?q=${encodeURIComponent(q)}`,
-      { token }
     ),
 
   /**

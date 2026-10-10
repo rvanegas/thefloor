@@ -121,21 +121,6 @@ export async function shareRoom(
   );
 }
 
-export async function shareTranscript(
-  token: string,
-  recordingId: string,
-  name: string,
-  endedAt: number,
-  format: 'txt' | 'vtt' | 'json'
-): Promise<void> {
-  await download(
-    token,
-    `${API_URL}/recordings/${recordingId}/transcript/export?format=${format}`,
-    `${fileStem(name, endedAt)}.${format}`,
-    'Could not download the transcript'
-  );
-}
-
 /**
  * Downloads the channel's current track under the name it was uploaded with.
  *
