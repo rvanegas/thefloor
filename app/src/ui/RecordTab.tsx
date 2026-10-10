@@ -688,11 +688,12 @@ function KeepSwitch({
         value={on}
         disabled={refused}
         onValueChange={onChange}
-        // The recording dot's red, for both: to somebody deciding whether to
-        // speak, what they say being kept is one meaning, as audio or as
-        // text — the header's pill says so already.
-        trackColor={{ false: colors.disabled, true: colors.recording }}
+        // Grey either way: the header's pill is what says, in the recording's
+        // red, that what is said is being kept. The switch says only what was
+        // chosen, and colour on it repeated the pill.
+        trackColor={{ false: colors.disabled, true: colors.textMuted }}
         ios_backgroundColor={colors.disabled}
+        style={styles.switch}
       />
     </View>
   );
@@ -758,6 +759,9 @@ export function intoRooms(
     .filter(({ items }) => items.length > 0);
 }
 
+/** How much of the platform's switch the *Record* tab draws, Pause included. */
+const SWITCH_SCALE = 0.8;
+
 const styles = StyleSheet.create({
   body: { gap: spacing(1) },
   room: { gap: spacing(1.5) },
@@ -799,11 +803,19 @@ const styles = StyleSheet.create({
   switches: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
   switchLabel: { color: colors.text, fontSize: 15 },
+  // The platform's switch has one size, 51 by 31 on iOS, so it is drawn
+  // smaller by scaling, and the margins take back the room the scale leaves,
+  // since a transform does not shrink the box it is laid out in.
+  switch: {
+    transform: [{ scale: SWITCH_SCALE }],
+    marginHorizontal: (-51 * (1 - SWITCH_SCALE)) / 2,
+    marginVertical: (-31 * (1 - SWITCH_SCALE)) / 2,
+  },
   switchLabelRefused: { color: colors.textFaint },
   // Pause, as thin as the switches beside it and on no card: a hairline
   // pill the height of a switch, its word at the switches' size.
   hold: {
-    height: 31,
+    height: Math.round(31 * SWITCH_SCALE),
     justifyContent: 'center',
     paddingHorizontal: spacing(1.5),
     borderRadius: radius.pill,

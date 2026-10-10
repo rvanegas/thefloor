@@ -594,11 +594,13 @@ on controls* requires of every disabled control.
 
 Since 2026-10-09, and one place: the *Record* tab's **Audio** and **Text**,
 pinned under the channel's header (`KeepSwitches` in `RecordTab.tsx`). React
-Native's own `Switch`, its word to its left in 15 `text`, the two side by side
-at `spacing(3)` on a pinned bar built as § *The pinned header* says. On is
-`recording` — the dot's red, for both, since to somebody deciding whether to
-speak what they say being kept is one meaning, as audio or as text, which the
-header's pill already says; off is `disabled`. A refused switch is the
+Native's own `Switch`, drawn at 0.8 of its size (`SWITCH_SCALE`, with
+negative margins taking back the room a transform leaves), its word to its
+left in 15 `text`, the two side by side at `spacing(3)` on a pinned bar built
+as § *The pinned header* says. **No colour, since 2026-10-10**: on is
+`textMuted`, off is `disabled`. It was `recording`, the dot's red, and that
+repeated the header's pill, which is what says in red that what is said is
+being kept; the switch says only what was chosen. A refused switch is the
 platform's grey and its word goes to `textFaint`.
 
 **Radio style**: one, the other, or neither, never both — turning one on turns
@@ -612,7 +614,7 @@ not switch it. A held run leaves its switch on: the switch says what is
 chosen, and the pill says whether it is running.
 
 **Pause sits beside them, as thin as they are and on no card**: a hairline
-pill the height of a switch, its word — *Pause*, or *Resume* while anything
+pill the height of a switch as drawn, its word — *Pause*, or *Resume* while anything
 chosen is held — at the switches' 15. It holds whichever is running and
 resumes only what it held. Always drawn and refused while nothing is
 running, rule six's reason. Added back on 2026-10-09, the day the transport
