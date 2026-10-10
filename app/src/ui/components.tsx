@@ -687,7 +687,8 @@ export function Screen({
         <View ref={frame} collapsable={false} style={[styles.screen, styles.clip]}>
         <ScrollView
           ref={scroll}
-          innerViewRef={inner}
+          // Typed as never null, which no ref before mount is.
+          innerViewRef={inner as React.RefObject<View>}
           style={styles.screen}
           // The measure, applied once for every screen in the app. Second, so
           // a screen that needs a narrower column of its own can still say so.
