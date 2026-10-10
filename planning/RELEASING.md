@@ -209,6 +209,9 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   storefront. Decided 2026-10-06 over switching CallKit off by region. It is
   set in App Store Connect, under *Pricing and Availability*, and not in this
   tree, so check it there before pressing Submit. TestFlight is not affected.
+  **Done 2026-10-10, before 1.10.0 was submitted**: 174 of 175 territories,
+  China reading `CANNOT_SELL`. *Available in new territories* is still on,
+  so a territory Apple adds later arrives switched on.
 - **`userInterfaceStyle` is `automatic`.** This said `dark`, and stopped being
   true when `app/src/ui/theme.ts` grew a light palette — the app follows the
   system now, and a screenshot of it in light mode is it working rather than
@@ -648,9 +651,10 @@ and, once, Analytics.
 | Data type | Purpose | What it is, in this codebase |
 | --- | --- | --- |
 | Contact Info → Email Address | App Functionality | `accounts.identifier` is the sign-in address; `pending_invites.identifier` is an address one person typed for another; `donations.email` is what Ko-fi reports |
+| Contact Info → Phone Number | App Functionality | `accounts.im_phone`, `im_whatsapp` and `im_signal`, typed by their owner and shown to their contacts. Declared 2026-10-10 for 1.10.0; it had been owed since the handles arrived on 2026-08-30 |
 | Contact Info → Name | App Functionality | `accounts.display_name`, `guest_sessions.display_name`, `donations.from_name` |
-| User Content → Audio Data | App Functionality | recordings in S3, and the stems sent to the transcription provider when somebody asks |
-| User Content → Other User Content | App Functionality | channel names and descriptions, `transcript_lines`, `donations.message`. `accounts.bio` was here until 2026-08-31, when the column was dropped |
+| User Content → Audio Data | App Functionality | recordings in S3, the stems sent to the transcription provider when somebody asks, and a channel's audio streamed to it while its live transcript is on, which is never stored |
+| User Content → Other User Content | App Functionality | channel names and descriptions, `transcript_lines`, `live_lines`, `donations.message`. `accounts.bio` was here until 2026-08-31, when the column was dropped |
 | Identifiers → User ID | App Functionality | `accounts.id`, and every row that references it |
 | Identifiers → Device ID | App Functionality | the APNs token in `device_tokens`. Apple's category for a push token, even though it names an installation rather than a person |
 | Usage Data → Product Interaction | **Analytics and App Functionality** | two different things under one heading — the meter (`usage_spans`, `usage_bytes`, 30 days, never shown to anyone) is Analytics; `accounts.last_seen_at`, which contacts are shown so they can tell whether it is a reasonable moment to talk, is App Functionality |
@@ -701,8 +705,11 @@ will look wrong to somebody who has not:
 - **Browsing History, Search History, Health, Sensitive Info, Advertising
   Data, Other Data.** Nothing produces any of them.
 
-**When SMS sign-in lands, Contact Info → Phone Number is the answer that
-changes**, and it changes app-level rather than in that version's record.
+**Contact Info → Phone Number was the answer this paragraph said SMS sign-in
+would change**, and the messaging handles changed it first, on 2026-08-30,
+without anybody coming back here: two of the three are phone numbers. It was
+declared on 2026-10-10, when the profile gained a plain phone number. SMS
+sign-in will change nothing on the label.
 
 ### The privacy manifest is a separate file and does not agree
 
