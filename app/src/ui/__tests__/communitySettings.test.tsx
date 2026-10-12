@@ -1,5 +1,5 @@
 import React from 'react';
-import { Linking, TextInput } from 'react-native';
+import { Linking, Share, TextInput } from 'react-native';
 import { act, type ReactTestRenderer } from 'react-test-renderer';
 import { ChannelSettingsView } from '../ChannelSettingsView';
 import { createChannel, reduce } from '../../../../core/channel';
@@ -169,12 +169,29 @@ it('says why a podcast cannot become one', async () => {
   expect(findButton(tree, 'Make channel into a community')).toBeUndefined();
 });
 
-it('opens the community page outside the app, for its owner', async () => {
-  const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+it('shares the App Store and the link that joins, and no page to open', async () => {
+  const shared = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction });
+  mockApp.updateUrl = 'https://apps.apple.com/app/id0000000000';
   await open(community(ME, THEM));
-  await act(async () => findButton(tree, 'Open page')!.props.onPress());
-  expect(opened).toHaveBeenCalledWith('https://example.com/j/cafe-products-k3x9abcd');
-  opened.mockRestore();
+  expect(findButton(tree, 'Open page')).toBeUndefined();
+  await act(async () => findButton(tree, 'Share link')!.props.onPress());
+  expect(shared).toHaveBeenCalledWith({
+    message:
+      'Join Cafe Products on The Floor.\n\n' +
+      'Get the app: https://apps.apple.com/app/id0000000000\n' +
+      'Then tap to join: https://example.com/j/cafe-products-k3x9abcd',
+  });
+  shared.mockRestore();
+});
+
+it('shares the link alone where there is no App Store to name', async () => {
+  const shared = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction });
+  await open(community(ME, THEM));
+  await act(async () => findButton(tree, 'Share link')!.props.onPress());
+  expect(shared).toHaveBeenCalledWith({
+    message: 'Join Cafe Products on The Floor: https://example.com/j/cafe-products-k3x9abcd',
+  });
+  shared.mockRestore();
 });
 
 it('shows a podcast its page and opens it outside the app', async () => {

@@ -988,7 +988,7 @@ export const en = {
       `A community is a channel anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact; what is said and recorded in it stays with its members. You are alone here, so you can make this one: you would own it, alone invite people, decide what plays and what is recorded, name it, remove people and delete it for everybody, and you could not leave it. It cannot be made an ordinary channel again.`,
     /** Under the field *Make channel into a community* offers an unnamed channel. */
     communityNeedsName: () =>
-      'A community needs a name, since its page and its link are read from it. This becomes the channel\u2019s name.',
+      'A community needs a name, since its link is read from it. This becomes the channel\u2019s name.',
     makeIt: () => 'Make it a community',
     making: () => 'Making\u2026',
     couldNotMakeCommunity: () => 'Could not make it a community.',
@@ -999,9 +999,20 @@ export const en = {
       `Anyone with this link can join, up to ${members} members, and nobody becomes anybody\u2019s contact by it. Resetting it stops the old one working for everybody who has it.`,
     communityLinkOff: () =>
       'Off. Nobody can join, and the old link stays dead even if you turn it back on.',
-    /** Opens the podcast's or the community's page outside the app. */
+    /** Opens the podcast's page outside the app. */
     openPage: () => 'Open page',
     shareLink: () => 'Share link',
+    /**
+     * What *Share link* sends for a community: the App Store, then the link
+     * that joins — in the app where it is installed, in a browser where it is
+     * not — so nobody is sent to a page to read about either. In that order
+     * because it is the order somebody without the app takes them in. Without
+     * an App Store to name, the link alone, which a browser takes up.
+     */
+    communityInvite: (name: string, store: string | null, link: string) =>
+      store
+        ? `Join ${name} on The Floor.\n\nGet the app: ${store}\nThen tap to join: ${link}`
+        : `Join ${name} on The Floor: ${link}`,
     resetLink: () => 'Reset link',
     resetLinkAsk: () => 'Reset the link?',
     resetLinkBody: () =>

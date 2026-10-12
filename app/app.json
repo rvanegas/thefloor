@@ -10,6 +10,9 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "co.rvanegas.thefloor",
+      "associatedDomains": [
+        "applinks:thefloor.rvanegas.co"
+      ],
       "infoPlist": {
         "NSMicrophoneUsageDescription": "The Floor uses your microphone so the other people in a channel can hear you when you have the floor.",
         "UIBackgroundModes": [

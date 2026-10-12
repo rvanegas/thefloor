@@ -11,9 +11,16 @@ When it is built, what survives moves to `decision/` and this file goes. If
 the answer stays no for long enough that nobody is tempted, delete it anyway
 — an unbuilt design nobody is considering is a file that only costs reads.
 
-No universal link exists today: `server/src` serves neither
-`/.well-known/apple-app-site-association` nor `/.well-known/assetlinks.json`,
-and `app.json` has no `ios.associatedDomains`.
+**One path is claimed since 2026-10-11: `/j/*`, community links**, for
+`decision/2026-10-11-a-community-invitation-is-two-links.md`. The server
+answers `/.well-known/apple-app-site-association` from a route
+(`APPLE_APP_SITE_ASSOCIATION` in `server/src/app.ts`), `app.json` carries
+`ios.associatedDomains`, and `useJoinLink.ts` reads the `https://` form. **So
+items 1–4 below are done**, the domain-move reason for waiting was overruled
+at the prompt that day, and what is left here is `/i/*` and `/g/*` — adding
+each is a line in that constant plus a matcher in its hook, and the traps
+below still govern, the AASA being deployed before the build that relies on
+it. `/.well-known/assetlinks.json` is still not served.
 
 **Two things this file said were missing have since been built, and the
 corrections are the reason to read this section rather than skip it.**

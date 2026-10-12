@@ -1,18 +1,21 @@
 /**
- * The page a *community link* opens: `/j/<code>`.
+ * What a *community link* opens, `/j/<code>`, for whoever the app did not
+ * open it for.
  *
- * **Instructional, and it accepts nothing by being opened** — settled at the
- * prompt on 2026-10-04. It describes the community and carries the two ways
- * in: the App Store listing, then the *join link*, `thefloor://j/<code>`, which
- * is what makes whoever follows it a member once they are signed in; and the
- * web app as the alternative, which takes the code up from the tab the way
- * `invite.ts`'s browser line takes an invitation. Membership and nothing
- * else: nobody becomes the owner's contact, or anybody's.
+ * **Not a page anybody is meant to read any more, since 2026-10-11.** It used
+ * to be the invitation itself — the community described, the App Store, then
+ * `thefloor://j/<code>` to tap once the app was installed, then the web app as
+ * the alternative — and it is now a hand-over. The owner shares two links,
+ * the App Store and this one (`communityInvite` in the app's catalogue), and
+ * this one is a universal link: on an iPhone with the app it opens the app and
+ * never reaches this server, and everywhere else it lands here and goes
+ * straight on into the web app with the code. See
+ * `decision/2026-10-11-a-community-invitation-is-two-links.md`.
  *
- * **Built on the invite page's shape on purpose**, since that page already
- * crosses the App Store gap by the return tap, and its module comment carries
- * the argument for the custom scheme and for demoting the browser. Not
- * restated here.
+ * **Accepts nothing by being opened**, which is unchanged: it leaves the code
+ * where the web app looks for it, and the web app spends it once there is a
+ * session — after a sign-in, if that is what comes first. Membership and
+ * nothing else: nobody becomes the owner's contact, or anybody's.
  *
  * **Names no member, the owner included.** A community link is meant to be
  * pasted somewhere public — Substack, to begin with — so this is read by
@@ -21,14 +24,15 @@
  * `publication.test.ts`'s rule, asserted again in `community.test.ts`.
  *
  * **One page for a code that is unknown, revoked, or belongs to a channel that
- * has gone**, so that walking codes teaches nothing about which existed.
+ * has gone**, so that walking codes teaches nothing about which existed. That
+ * page and the full one are still pages, since there is nothing to hand over.
  */
 
 import { CTA_STYLE, MARK, escapeHtml, page, socialCard } from './html';
 
 /**
  * The key the web app takes the code out of. Repeated rather than imported, as
- * `invite.ts` repeats its own: the other end is `takeJoin` in
+ * `invite.ts` repeats its own: the other end is `peekJoin` in
  * `app/src/ui/handover.ts`. `sessionStorage`, for that file's reason — a join
  * belongs to the visit that is making it.
  */
@@ -69,20 +73,6 @@ export interface CommunityPageOptions {
   origin?: string;
   appStoreUrl?: string;
   webAppReady: boolean;
-}
-
-function joinScript(code: string): string {
-  const join = JSON.stringify(JSON.stringify({ code }));
-  return `
-<script>
-(function () {
-  var link = document.getElementById('join');
-  if (!link) return;
-  link.addEventListener('click', function () {
-    try { sessionStorage.setItem(${JSON.stringify(JOIN_KEY)}, ${join}); } catch (e) {}
-  });
-})();
-</script>`;
 }
 
 export function communityPage(options: CommunityPageOptions): string {
@@ -128,25 +118,22 @@ ${about}
     });
   }
 
-  // The store first, and the join link as the step after it, which is the
-  // order somebody without the app has to take them in — see invite.ts for
-  // why the custom scheme is never offered as an alternative to installing.
+  // Somebody with the app never gets here: `/j/*` is a universal link, so
+  // iOS hands the address to the app and this server never sees the request.
+  // What reaches it is everybody else — a phone without the app, a desktop,
+  // anybody who has told iOS to keep this domain in Safari — and for all of
+  // them the one click is the web app, the code going ahead of them in the
+  // tab. The App Store link travels beside this one in the message, so this
+  // page does not repeat it. See handoverPage.
+  if (options.webAppReady) return handoverPage(community.name, options);
+
+  // A box with no web app has nowhere to send anybody but the store, and the
+  // second tap is the link they were sent: a universal link once the app is
+  // on the phone.
   const store = options.appStoreUrl
     ? `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
-<span class="aside">Free. Once it’s on your phone, come back to this page there and tap Join ${name} below.</span></p>
-<p class="app"><a href="thefloor://j/${code}">Join ${name}</a> — in the app on your iPhone, once it’s installed.</p>`
-    : '';
-  const browser = options.webAppReady
-    ? `<p class="${options.appStoreUrl ? 'app' : 'cta'}">${
-        options.appStoreUrl ? 'Not on an iPhone? ' : ''
-      }<a id="join" href="/open">${
-        options.appStoreUrl ? 'Join in this browser' : `Join ${name} in this browser`
-      }</a> — no install; it needs a microphone and nothing else.</p>`
-    : '';
-  const neither =
-    !options.appStoreUrl && !options.webAppReady
-      ? '<p class="app">This server is not handing out the app yet.</p>'
-      : '';
+<span class="aside">Free. Once it’s installed, tap the link you were sent again and you’re in ${name}.</span></p>`
+    : '<p class="app">This server is not handing out the app yet.</p>';
 
   return page({
     title: `${community.name} — The Floor`,
@@ -161,11 +148,50 @@ ${about}
 ${members}</p>
 
 ${store}
-${browser}
-${neither}
 <p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
 how long.</p>
-${options.webAppReady ? joinScript(options.code) : ''}
+`,
+  });
+}
+
+/**
+ * The one click, for somebody without the app: into the web app, with the
+ * code left in the tab for `peekJoin`.
+ *
+ * **A page and not a redirect**, for two readers a 302 would lose. A link
+ * preview's crawler reads the card from it, and a 302 has no card. And the
+ * code has to cross by `sessionStorage`, which only a script can write — the
+ * same hand-over the old page made on a click, made here on arrival.
+ *
+ * **The code stays in the tab until it is spent**, not until it is read, so
+ * the sign-in in between can take as long as it takes: a trip to the mail app
+ * for the code, which is when iOS reloads a backgrounded tab, comes back to a
+ * join still waiting. See `peekJoin`.
+ *
+ * Without JavaScript the link still opens the web app, and arrives without
+ * the join — `invite.ts`'s honest degradation, for its reason.
+ */
+function handoverPage(name: string, options: CommunityPageOptions): string {
+  // Only ever a code this server minted, since the page is drawn only for a
+  // live community; escaped for a script element regardless.
+  const join = JSON.stringify(JSON.stringify({ code: options.code })).replace(
+    /</g,
+    '\\u003c'
+  );
+  return page({
+    title: `${name} — The Floor`,
+    heading: 'The Floor',
+    standfirst: name,
+    social: socialCard(options.origin, CARD),
+    head: `${REFERRER}
+<script>
+try { sessionStorage.setItem(${JSON.stringify(JOIN_KEY)}, ${join}); } catch (e) {}
+location.replace('/open');
+</script>`,
+    style: STYLE,
+    body: `${MARK}
+<p class="lede">Joining ${escapeHtml(name)}…</p>
+<p class="app"><a href="/open">Continue</a> if this page does not move on by itself.</p>
 `,
   });
 }

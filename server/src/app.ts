@@ -375,6 +375,23 @@ export { MAX_TRACK_BYTES } from '../../core/constants';
  * `.ogg` are the same container and are listed separately because both names
  * are in use and the extension is all we have to go on.
  */
+/**
+ * What `/.well-known/apple-app-site-association` answers. The app ID is the
+ * team and the bundle identifier — the team `bin/upload-ios` signs with, and
+ * `co.rvanegas.thefloor`, which is permanent. A wrong one here fails silently
+ * on every phone, so it is asserted in `community.test.ts`.
+ */
+export const APPLE_APP_SITE_ASSOCIATION = {
+  applinks: {
+    details: [
+      {
+        appIDs: ['9946JKHZUJ.co.rvanegas.thefloor'],
+        components: [{ '/': '/j/*', comment: 'Community links' }],
+      },
+    ],
+  },
+};
+
 const TRACK_CONTENT_TYPES: Record<string, string> = {
   '.mp3': 'audio/mpeg',
   '.m4a': 'audio/mp4',
@@ -2452,6 +2469,26 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * The file that lets the app claim `/j/*` as a universal link — Apple's
+   * *apple-app-site-association*, and the domain's half of the agreement
+   * whose other half is `ios.associatedDomains` in `app.json`.
+   *
+   * **A route and not a file in `public/`**, for planning/task/universal-links.md
+   * § *What it would cost here*'s reason: a route cannot be shadowed by a
+   * wildcard or removed by an rsync `--delete`, and a file that goes missing
+   * here is cached as missing by Apple's CDN for days.
+   *
+   * **`/j/*` alone.** Every path it does not list keeps opening in a browser,
+   * which is the scoping — `/i/*` and `/g/*` are the next candidates and that
+   * file says what each would cost. **Deployed before any build claiming the
+   * domain is uploaded**: the association is read at install.
+   */
+  fastify.get('/.well-known/apple-app-site-association', async (_request, reply) => {
+    reply.type('application/json');
+    return APPLE_APP_SITE_ASSOCIATION;
+  });
+
+  /**
    * The page a *community link* opens — see community-page.ts, which owns the
    * prose and the reasoning. Unauthenticated, and one page for every code that
    * opens nothing.
@@ -3837,8 +3874,9 @@ export function buildApp(options: BuildOptions = {}): App {
 
   /**
    * Takes up a *join link*: membership of the community its code opens, and
-   * nothing else. What `thefloor://j/<code>` and the web app's `takeJoin`
-   * both send once there is a session.
+   * nothing else. What the app sends for a community link that opened it,
+   * and the web app for one `peekJoin` found in the tab, once there is a
+   * session.
    *
    * No budget of its own: an unknown code is a 404, and the excess monitor's
    * `onResponse` hook already counts refusals per caller, which is the shape a

@@ -204,14 +204,22 @@ export interface Join {
 }
 
 /**
- * The join code this tab was handed by the community page, taken rather than
- * read — one-shot, on `takeInvite`'s reasoning. Null everywhere but a browser.
+ * The join code this tab was handed by the community page, **read rather than
+ * taken, since 2026-10-11** — the opposite of `takeInvite`, and on purpose.
+ *
+ * It stays in the tab until `forgetJoin` says it was spent, because the
+ * sign-in between arriving and spending can be long: a trip to the mail app
+ * for a code, which is exactly when iOS reloads a backgrounded tab. Taken on
+ * read, a reload there lost the join with nothing to say so. `takeInvite`'s
+ * reason for the other choice does not apply: a join is not single use — a
+ * second spend of the same code opens the channel again rather than failing —
+ * so there is nothing for a reload to spend twice. Null everywhere but a
+ * browser.
  */
-export function takeJoin(): Join | null {
+export function peekJoin(): Join | null {
   let raw: string | null = null;
   try {
     raw = globalThis.sessionStorage?.getItem(JOIN_KEY) ?? null;
-    globalThis.sessionStorage?.removeItem(JOIN_KEY);
   } catch {
     return null;
   }
@@ -222,6 +230,15 @@ export function takeJoin(): Join | null {
     return { code: parsed.code };
   } catch {
     return null;
+  }
+}
+
+/** Drops the join from the tab, once it has been spent. */
+export function forgetJoin(): void {
+  try {
+    globalThis.sessionStorage?.removeItem(JOIN_KEY);
+  } catch {
+    // Storage blocked, so there was nothing to forget.
   }
 }
 

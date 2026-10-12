@@ -24,7 +24,7 @@ import { api, type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
 import { ITUNES_CATEGORIES } from '../../../core/publication';
 import { useText } from '../i18n';
-import { shareLink } from '../share';
+import { shareText } from '../share';
 import { openUrl } from './links';
 import { useApp } from '../state/AppProvider';
 import {
@@ -1277,7 +1277,6 @@ function CommunityLink({
   capacity: number;
 }) {
   const t = useText().channelSettings;
-  const linkWords = useText().links;
   const app = useApp();
   const [url, setUrl] = useState<string | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
@@ -1318,22 +1317,16 @@ function CommunityLink({
       </Text>
       <Text style={type.muted}>{t.communityLinkNote(capacity)}</Text>
       {/*
-        Out of the app to the page itself, which is what somebody given the
-        link will see: a new tab on the web, the system browser on a phone —
-        `Linking.openURL` does both, and `openUrl` says so if the OS refuses.
+        Two links in one message, the App Store and this one, since
+        2026-10-11: the second is a universal link that joins in the app where
+        there is one and in the web app where there is not, so there is no
+        page any more to send anybody to — or to open from here to see. See
+        `communityInvite`.
       */}
-      <View style={styles.choices}>
-        <Button
-          style={styles.choice}
-          label={t.shareLink()}
-          onPress={() => void shareLink(url)}
-        />
-        <Button
-          style={styles.choice}
-          label={t.openPage()}
-          onPress={() => void openUrl(url, linkWords)}
-        />
-      </View>
+      <Button
+        label={t.shareLink()}
+        onPress={() => void shareText(t.communityInvite(name ?? '', app.updateUrl, url))}
+      />
       <View style={styles.choices}>
         <Button
           style={styles.choice}

@@ -1,5 +1,5 @@
 import { joinOfUrl } from '../useJoinLink';
-import { takeJoin } from '../../ui/handover';
+import { forgetJoin, peekJoin } from '../../ui/handover';
 
 /**
  * The matcher that turns the community page's *Join* into a membership this
@@ -16,20 +16,31 @@ describe('joinOfUrl', () => {
     });
   });
 
+  it('reads the community link itself, which iOS hands over as a universal link', () => {
+    expect(joinOfUrl('https://thefloor.rvanegas.co/j/cafe-products-k3x9abcd')).toEqual({
+      code: 'cafe-products-k3x9abcd',
+    });
+  });
+
   it('is not an invite link, and an invite link is not it', () => {
     expect(joinOfUrl('thefloor://i/annak')).toBeNull();
+    expect(joinOfUrl('https://thefloor.rvanegas.co/i/annak')).toBeNull();
   });
 
   it('ignores a query and a fragment, and refuses what it did not write', () => {
     expect(joinOfUrl('thefloor://j/abc?x=1#y')).toEqual({ code: 'abc' });
-    expect(joinOfUrl('https://example.com/j/abc')).toBeNull();
+    expect(joinOfUrl('https://thefloor.rvanegas.co/j/abc?x=1')).toEqual({ code: 'abc' });
+    // The web app's own address, which `getInitialURL` answers on web: a
+    // train path is never a join, whatever follows it.
+    expect(joinOfUrl('https://thefloor.rvanegas.co/beta/j/abc')).toBeNull();
+    expect(joinOfUrl('http://thefloor.rvanegas.co/j/abc')).toBeNull();
     expect(joinOfUrl('thefloor://j/')).toBeNull();
     expect(joinOfUrl('thefloor://j/%E0%A4%A')).toBeNull();
     expect(joinOfUrl(null)).toBeNull();
   });
 });
 
-describe('takeJoin', () => {
+describe('peekJoin', () => {
   const store = new Map<string, string>();
   beforeAll(() => {
     (globalThis as { sessionStorage?: unknown }).sessionStorage = {
@@ -42,16 +53,18 @@ describe('takeJoin', () => {
     delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
   });
 
-  it('takes the code the page left, once', () => {
+  it('keeps the code the page left until it is spent, so a sign-in can reload the tab', () => {
     store.set('thefloor.join', JSON.stringify({ code: 'cafe-products-k3x9abcd' }));
-    expect(takeJoin()).toEqual({ code: 'cafe-products-k3x9abcd' });
-    expect(takeJoin()).toBeNull();
+    expect(peekJoin()).toEqual({ code: 'cafe-products-k3x9abcd' });
+    expect(peekJoin()).toEqual({ code: 'cafe-products-k3x9abcd' });
+    forgetJoin();
+    expect(peekJoin()).toBeNull();
   });
 
   it('answers null to anything else left there', () => {
     store.set('thefloor.join', '{"code":""}');
-    expect(takeJoin()).toBeNull();
+    expect(peekJoin()).toBeNull();
     store.set('thefloor.join', 'not json');
-    expect(takeJoin()).toBeNull();
+    expect(peekJoin()).toBeNull();
   });
 });

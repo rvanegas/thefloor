@@ -780,7 +780,7 @@ export const es: Strings = {
     makeCommunityNote: (members: number) =>
       `Una comunidad es un canal al que cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie; lo que se dice y se graba en ella queda entre sus miembros. No hay nadie m\u00e1s aqu\u00ed, as\u00ed que puedes convertir este: ser\u00edas responsable: solo t\u00fa invitar\u00edas a gente, decidir\u00edas qu\u00e9 suena y qu\u00e9 se graba, le pondr\u00edas nombre, expulsar\u00edas a gente y podr\u00edas borrarla para todos, y no podr\u00edas salir de ella. No se puede volver a hacer un canal corriente.`,
     communityNeedsName: () =>
-      'Una comunidad necesita un nombre, porque su p\u00e1gina y su enlace se leen de \u00e9l. Este pasa a ser el nombre del canal.',
+      'Una comunidad necesita un nombre, porque su enlace se lee de \u00e9l. Este pasa a ser el nombre del canal.',
     makeIt: () => 'Convertirlo',
     making: () => 'Convirtiendo\u2026',
     couldNotMakeCommunity: () => 'No se ha podido convertir en comunidad.',
@@ -792,6 +792,10 @@ export const es: Strings = {
       'Desactivado. Nadie puede unirse, y el enlace anterior no vuelve a funcionar aunque lo actives de nuevo.',
     openPage: () => 'Abrir la p\u00e1gina',
     shareLink: () => 'Compartir enlace',
+    communityInvite: (name: string, store: string | null, link: string) =>
+      store
+        ? `\u00danete a ${name} en The Floor.\n\nDescarga la app: ${store}\nLuego toca para unirte: ${link}`
+        : `\u00danete a ${name} en The Floor: ${link}`,
     resetLink: () => 'Restablecer enlace',
     resetLinkAsk: () => '\u00bfRestablecer el enlace?',
     resetLinkBody: () =>

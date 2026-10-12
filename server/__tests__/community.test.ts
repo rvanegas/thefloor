@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join as joinPath } from 'node:path';
 import { buildApp, type App } from '../src/app';
@@ -32,6 +32,23 @@ let app: App;
 let pusher: MemoryPusher;
 let clock = 1_700_000_000_000;
 let dbPath = ':memory:';
+/**
+ * An empty train root, so that the page is drawn for a box with no web app
+ * unless a test stands one up — see `invite-link.test.ts`'s `withTrain`, which
+ * this is.
+ */
+let trainRoot: string;
+
+async function withTrain<T>(body: () => Promise<T>): Promise<T> {
+  const dir = joinPath(trainRoot, 'beta');
+  await mkdir(dir, { recursive: true });
+  await writeFile(joinPath(dir, 'index.html'), '<!doctype html>');
+  try {
+    return await body();
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
 
 function boot() {
   pusher = new MemoryPusher();
@@ -42,18 +59,21 @@ function boot() {
     pusher,
     roomCloseGraceMs: 0,
     updateUrl: 'https://apps.apple.com/app/id0000000000',
+    trainRoot,
   });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   clock = 1_700_000_000_000;
   dbPath = ':memory:';
+  trainRoot = await mkdtemp(joinPath(tmpdir(), 'thefloor-community-trains-'));
   boot();
 });
 
 afterEach(async () => {
   app.channels.stop();
   await app.fastify.close();
+  await rm(trainRoot, { recursive: true, force: true });
 });
 
 const auth = (token: string) => ({ authorization: `Bearer ${token}` });
@@ -222,21 +242,65 @@ describe('making one', () => {
 });
 
 describe('the community page', () => {
-  it('describes the community and names nobody', async () => {
+  it('hands somebody without the app to the web app with the code', async () => {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const zed = await signIn('zed@example.com', 'Zed Zebedee');
+    const { joinCode } = await start(erta);
+    await join(zed, joinCode);
+
+    const reply = await withTrain(() => page(joinCode));
+    expect(reply.statusCode).toBe(200);
+    expect(reply.headers['cache-control']).toBe('no-store');
+    expect(reply.body).toContain('Cafe Products');
+    expect(reply.body).toContain(
+      `sessionStorage.setItem("thefloor.join", "{\\"code\\":\\"${joinCode}\\"}")`
+    );
+    expect(reply.body).toContain("location.replace('/open')");
+    // A card for the preview, which a redirect could not carry.
+    expect(reply.body).toContain('og:title');
+    // The App Store travels in the message beside this link, and the custom
+    // scheme has nothing left to do: the link is a universal link.
+    expect(reply.body).not.toContain('apps.apple.com');
+    expect(reply.body).not.toContain('thefloor://');
+    for (const name of ['Erta', 'Example', 'Zed', 'Zebedee']) {
+      expect(reply.body).not.toContain(name);
+    }
+  });
+
+  it('sends to the store where there is no web app, and names nobody', async () => {
     const erta = await signIn('erta@example.com', 'Erta Example');
     const zed = await signIn('zed@example.com', 'Zed Zebedee');
     const { joinCode } = await start(erta);
     await join(zed, joinCode);
 
     const reply = await page(joinCode);
-    expect(reply.statusCode).toBe(200);
-    expect(reply.headers['cache-control']).toBe('no-store');
     expect(reply.body).toContain('Cafe Products');
     expect(reply.body).toContain('2 members so far');
-    expect(reply.body).toContain(`thefloor://j/${joinCode}`);
+    expect(reply.body).toContain('https://apps.apple.com/app/id0000000000');
+    expect(reply.body).toContain('tap the link you were sent again');
+    expect(reply.body).not.toContain('sessionStorage');
     for (const name of ['Erta', 'Example', 'Zed', 'Zebedee']) {
       expect(reply.body).not.toContain(name);
     }
+  });
+
+  it('lets the app claim community links and nothing else', async () => {
+    const reply = await app.fastify.inject({
+      method: 'GET',
+      url: '/.well-known/apple-app-site-association',
+    });
+    expect(reply.statusCode).toBe(200);
+    expect(reply.headers['content-type']).toMatch(/^application\/json/);
+    expect(reply.json()).toEqual({
+      applinks: {
+        details: [
+          {
+            appIDs: ['9946JKHZUJ.co.rvanegas.thefloor'],
+            components: [{ '/': '/j/*', comment: 'Community links' }],
+          },
+        ],
+      },
+    });
   });
 
   it('is one page for a code that opens nothing, whatever the reason', async () => {

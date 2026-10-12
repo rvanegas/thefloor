@@ -51,8 +51,9 @@ caused; the list carries the meaning.
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
-- **Community link** — A community's `/j/<code>`, which opens its *community page* and makes nobody anything by being opened; reset by its owner to revoke it, and by any rename, being read from the name
-- **Community page** — What a community link opens: the community's name, description and member count, the App Store, the *join link* and the web app, and no member's name
+- **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared beside the App Store as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
+- **Community invitation** — What *Share link* sends for a community since 2026-10-11: two links, the App Store and then the *community link*, and no page to read. `communityInvite` in the catalogue
+- **Community page** — What a community link shows in a browser only when there is nothing to join into: a code that opens nothing, a full community, or a box with no web app (then the App Store). Otherwise it hands straight on to the web app. Names no member
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
@@ -73,7 +74,7 @@ caused; the list carries the meaning.
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
 - **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time, and the page it opens asks them to install the app
 - **Invite pin** — Six digits that used to end an invite link and made it good once; gone since 2026-09-25, and read now only on links minted before then
-- **Join link** — `thefloor://j/<code>`, drawn on the community page: what makes whoever follows it a member of the community once signed in. Membership only — never a *contact*, unlike an *invite link*
+- **Join link** — `thefloor://j/<code>`, which the community page drew until 2026-10-11 and the app still reads; the *community link* does its job now. Membership only — never a *contact*, unlike an *invite link*
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
 - **Labs** — A per-account gate for the unfinished parts of the app, off by default; **nothing is behind it since 2026-10-09**, when transcripts left, so its switch is not drawn — kept for the next experiment
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
@@ -684,7 +685,7 @@ the act is the only thing true of both.
 Distinct from *Home*, which is the place this one names, and from *Step out*,
 which gives up presence rather than closing anything.
 
-## Community, owner, community link, community page, join link
+## Community, owner, community link, community invitation, community page, join link
 
 **A *community* is a channel with an *owner*, which anybody holding its link
 may join.** Contents private, door open — the other kind of public, beside the
@@ -709,15 +710,21 @@ walk in under; it cannot be undone. **A community is never a *podcast***: its
 contents are its members', and a podcast's are anybody's. Not a *cohort host*, who has no
 powers and is in the channel by configuration.
 
-**Two links, and only the second does anything.** The *community link*,
-`/j/<code>`, is what the owner hands out; it opens the *community page*, which
-describes the community — its name, description and member count, never a
-member's name — and carries the App Store, the *join link* and the web app. The
-*join link*, `thefloor://j/<code>`, makes whoever follows it a member once they
-are signed in. Both are one code, a slug of the name and a random suffix, so
-resetting the link revokes both at once — **and so does renaming the
-community**, which mints a code from the new name rather than leave a link
-carrying one the community no longer has. A link that is off stays off.
+**The community link is the door, and since 2026-10-11 it opens on one
+click.** `/j/<code>` is what the owner hands out, and *Share link* sends it as
+the *community invitation*: the App Store first, then the link. The link is a
+universal link — on an iPhone with the app it opens the app, which joins; in
+any browser it lands on this server, which leaves the code in the tab and goes
+straight on into the web app, which joins once there is a session, after a
+sign-in if one comes first. **The *community page*** is what that browser sees
+only when there is nothing to join into — a code that opens nothing, a full
+community, or a box with no web app, where it offers the App Store — and it
+names no member either way. The *join link*, `thefloor://j/<code>`, was the
+page's second step until that day, and the app still reads it. All of them are
+one code, a slug of the name and a random suffix, so resetting the link
+revokes it — **and so does renaming the community**, which mints a code from
+the new name rather than leave a link carrying one the community no longer
+has. A link that is off stays off.
 
 **Not an *invite link*** — that makes a *contact* and nothing else; this makes a
 *member* and nothing else. **Not a *guest link*** — that opens a room to a
@@ -727,7 +734,8 @@ never expires and is not spent by use.
 See planning/decision/2026-10-04-a-community-is-a-channel-with-an-owner.md
 and planning/decision/2026-10-04-a-community-is-made-from-a-channel-of-one.md,
 and planning/decision/2026-10-05-a-community-has-one-name-and-renaming-revokes-its-link.md,
-and planning/decision/2026-10-05-a-community-s-controls-are-its-owner-s.md.
+and planning/decision/2026-10-05-a-community-s-controls-are-its-owner-s.md,
+and planning/decision/2026-10-11-a-community-invitation-is-two-links.md.
 
 ## Contact
 
