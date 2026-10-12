@@ -35,7 +35,7 @@ import { useApp } from '../state/AppProvider';
 import { shareText } from '../share';
 import { useText, type Strings } from '../i18n';
 import { Button, Empty, IconButton, useScrollPosition } from './components';
-import { PauseIcon, PlayIcon, RecordingsIcon, ShareIcon, StopIcon } from './icons';
+import { PauseIcon, RecordingsIcon, ShareIcon, StopIcon } from './icons';
 import { colors, formatDuration, measure, spacing, type } from './theme';
 
 /**
@@ -701,7 +701,7 @@ export function KeepSwitches({
           ) : (
             <IconButton
               label={keeping === 'paused' ? t.resume() : t.start()}
-              icon={(color) => <PlayIcon color={color} />}
+              icon={(color) => <RecordingsIcon color={color} />}
               disabled={!mayPlay}
               onPress={play}
             />

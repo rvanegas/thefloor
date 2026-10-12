@@ -560,7 +560,8 @@ label — the footer's construction, not a second one. **A caller gives every
 option an icon or none**; a row with a gap in it draws two heights of segment.
 Both tab strips carry icons — the channel screen's six since 2026-09-12
 (*Record*'s is `lucide/scroll-text`, the record dot having gone to the
-Record button when that tab took in *Recordings* on 2026-10-09), Home's
+Record button when that tab took in *Recordings* on 2026-10-09, and to the
+transport's Start since 2026-10-12), Home's
 four since 2026-09-22, when a fourth tab arrived and a strip where one tab
 carried a glyph and three did not would have read as one tab singled out. The
 watch card's `choice` is the one set that still passes none, two halves of one
@@ -617,7 +618,8 @@ is running, so a stopped or held channel leaves its switches as they were.
 *Start* to a screen reader, not *Play*, which a recording's row and the
 shared track say — or *Pause* in the same place while anything runs, then
 *Stop*, each an `IconButton` with the glyphs in `icons.tsx`. Play reads
-*Resume* while held. **Every one is always drawn**, refused in `textFaint`
+*Resume* while held, and **draws the record dot, not a triangle, since
+2026-10-12**: a triangle says play back what was kept, and this keeps. **Every one is always drawn**, refused in `textFaint`
 while it has nothing to do, rule six's reason; Play and Pause share their
 place, as every transport has them. **Refused with a sentence under the
 row**, by § *Words on controls*' rule: `recordingRefusal`'s reasons while

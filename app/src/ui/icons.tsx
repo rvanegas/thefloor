@@ -432,7 +432,9 @@ export function ListenIcon({
  *
  * The record dot, which is the one glyph in this set nobody has to be taught —
  * it has meant this on hardware since before any of it was software. Marks a
- * recording's line in the *Record* log; it was on the Record button for
+ * recording's line in the *Record* log, and since 2026-10-12 is the transport's
+ * Start / Resume, where `lucide/play` stood for a day: a triangle says play
+ * back what was kept, and this button keeps. It was on the Record button for
  * 2026-10-09 alone, before that became the *Audio* switch, and labelled the
  * tab until then, drawn plain whether or not a recording was running.
  */
@@ -646,26 +648,6 @@ export function SupportIcon({
       <Path d="m14.83 14.83 4.24 4.24" />
       <Path d="m9.17 14.83-4.24 4.24" />
       <Circle cx="12" cy="12" r="4" />
-    </Glyph>
-  );
-}
-
-/**
- * Begin, or resume, what the *Record* tab's switches select. `lucide/play`.
- *
- * The transport's triangle. It shares its place with Pause, the way every
- * transport has them, and is the only control there that begins anything.
- */
-export function PlayIcon({
-  color,
-  size = 22,
-}: {
-  color: ColorValue;
-  size?: number;
-}) {
-  return (
-    <Glyph color={color} size={size}>
-      <Path d="M6 3l14 9-14 9V3z" />
     </Glyph>
   );
 }
