@@ -68,8 +68,8 @@ export interface PlayerPort {
  * A press on this device tells this player at once, before the server has
  * heard of it. Drift is published, for a `debug` account's readout, and acted
  * on by nobody; a player is seeked only to be *placed* — arriving at a party,
- * rebuilt, back from an advert, or after the room jumped — and to be rescued
- * on the ladder's third rung.
+ * rebuilt, back from an advert or from stopping by itself, or after the
+ * room jumped — and to be rescued on the ladder's third rung.
  */
 export function useFollow(
   watch: WatchState,
@@ -107,12 +107,17 @@ export function useFollow(
   /**
    * The player that has been seen where the room is, or null.
    *
-   * Cleared when the room's position jumps and when the frame shows an
-   * advert, and set only by observing the player in place (`inPlace`) — never
+   * Cleared when the room's position jumps, when the frame shows an advert
+   * and when the player stops by itself, and set only by observing the player in place (`inPlace`) — never
    * by having sent the seek, since a seek can be lost. A new port is a new
    * player and is unplaced by being a different object.
    */
   const placed = useRef<PlayerPort | null>(null);
+  /**
+   * Whether the player has been seen playing since this follower last told
+   * it to pause, which is what makes a pause it is then found in its own.
+   */
+  const running = useRef(false);
   /**
    * How many times the room's position has jumped, which is half of the
    * ladder's key: a scrub, ±15s or a replay starts the climb again with the
@@ -246,6 +251,30 @@ export function useFollow(
         for, met as a rebuild is, with one seek.
       */
       if (advert) placed.current = null;
+      /*
+        **So is a player that stopped by itself while the room played**, for
+        the same reason. iOS pauses the film when the app goes to the
+        background, and a call does the same. The room's clock runs on, so
+        coming back and being told only `play` resumes the film where it
+        stopped, as far behind as it was away — 85 seconds, on the party that
+        found it. Found paused under a playing room, with no pause said here
+        since it was last seen playing, it is unplaced and owes one seek.
+      */
+      if (reading) {
+        if (running.current && reading.state === 'paused' && want.status === 'playing') {
+          placed.current = null;
+          recordEvent(
+            `watch player stopped by itself at ${(
+              (reading.positionMs ?? 0) / 1000
+            ).toFixed(2)}s, want playing at ${(want.positionMs / 1000).toFixed(2)}s`
+          );
+        }
+        if (reading.state === 'playing') {
+          if (told.current?.status !== 'paused') running.current = true;
+        } else if (reading.state === 'paused') {
+          running.current = false;
+        }
+      }
       if (reading && player && !advert && inPlace(reading, want)) {
         placed.current = player;
       }
@@ -312,7 +341,10 @@ export function useFollow(
         );
         for (const instruction of step.instructions) {
           if (instruction.do === 'play') player.play();
-          else if (instruction.do === 'pause') player.pause();
+          else if (instruction.do === 'pause') {
+            running.current = false;
+            player.pause();
+          }
           else {
             seeks.current += 1;
             player.seek(instruction.positionMs);

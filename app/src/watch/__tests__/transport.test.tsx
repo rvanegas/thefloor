@@ -177,6 +177,15 @@ function laggyPlayer(lag: number) {
       deaf = true;
       pending = null;
     },
+    /**
+     * The player stopped by something outside the room — iOS pausing the
+     * film when the app goes to the background, or a call. Nobody told it.
+     */
+    interrupt() {
+      state = 'paused';
+      want = null;
+      pending = null;
+    },
     /** What a rebuild leaves: a fresh page, cued at nought and listening. */
     rebuild() {
       frozen = false;
@@ -221,7 +230,17 @@ function laggyPlayer(lag: number) {
           to be. A player that dropped the position and played from where it
           was would be a player nothing could move.
         */
-        if (pending?.seeking) return;
+        if (pending?.seeking) {
+          // And a paused one plays once it lands, as `playVideo` after
+          // `seekTo` does — the same chaining `pause` below does.
+          const land = pending.run;
+          pending.run = () => {
+            land();
+            state = 'playing';
+            want = 'playing';
+          };
+          return;
+        }
         if (state === 'playing' || want === 'playing') return;
         want = 'playing';
         state = 'buffering';
@@ -470,6 +489,19 @@ function run(
         });
       }
     },
+    /**
+     * This app in the background: the room and the player go on, and none
+     * of this device's timers fire, which is what iOS does to a suspended
+     * app. `setSystemTime` moves the clock and carries the timers with it.
+     */
+    away(ms: number) {
+      for (let done = 0; done < ms; done += STEP) {
+        const now = Date.now() + STEP;
+        player.step(now, STEP);
+        wire.deliver(roomNow() + STEP);
+        jest.setSystemTime(now);
+      }
+    },
     /** The room's clock, which is what a press is stamped with. */
     now: roomNow,
     /** What the two of them say, side by side. */
@@ -665,6 +697,46 @@ describe('an advert in the frame', () => {
     sim.player.advert(null);
     sim.advance(4_000);
     expect(inStep(sim.where())).toBe(true);
+  });
+});
+
+describe('a player stopped by something outside the room', () => {
+  /*
+    **Golf's 85 seconds**, from a real party: iOS paused the film each time
+    the app went to the background, the room played on, and coming back was
+    told only `play`. The film resumed where it had stopped, and every press
+    after that kept the gap. It is an interruption, as an advert is, and owes
+    one seek.
+  */
+  const seeks = (calls: string[]) => calls.filter((c) => c.startsWith('seek'));
+
+  it('is put back where the room is, with one seek', () => {
+    const sim = run();
+    sim.wire.press(play, sim.now());
+    sim.advance(6_000);
+    sim.player.calls.length = 0;
+
+    sim.player.interrupt();
+    sim.away(80_000);
+    expect(sim.where().channelAt - sim.where().playerAt).toBeGreaterThan(75_000);
+    sim.advance(5_000);
+
+    expect(seeks(sim.player.calls)).toHaveLength(1);
+    expect(inStep(sim.where())).toBe(true);
+  });
+
+  it('is not seeked for a pause somebody pressed', () => {
+    const sim = run();
+    sim.wire.press(play, sim.now());
+    sim.advance(6_000);
+    sim.player.calls.length = 0;
+
+    sim.wire.press(pause, sim.now());
+    sim.advance(3_000);
+    sim.wire.press(play, sim.now());
+    sim.advance(6_000);
+
+    expect(seeks(sim.player.calls)).toEqual([]);
   });
 });
 
