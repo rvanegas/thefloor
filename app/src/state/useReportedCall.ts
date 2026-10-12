@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   addReportedCallEndListener,
+  addReportedCallHeldListener,
   addReportedCallMuteListener,
+  reportedCallIsHeld,
   setReportedCallMuted,
   setReportedCallTitle,
 } from '../../modules/reported-call';
@@ -19,6 +21,8 @@ export interface ReportedCallState {
   muted: boolean;
   /** The card's guard: whether this device may set its own mute right now. */
   canToggle: boolean;
+  /** Whether the room has this account as *on another call* — the server's view. */
+  onAnotherCall: boolean;
 }
 
 /** The module's half, a parameter so the tests can stand in for it. */
@@ -27,6 +31,8 @@ export interface ReportedCallBridge {
   setMuted: (channelId: string, muted: boolean) => void;
   subscribeMute: (handle: (muted: boolean) => void) => () => void;
   subscribeEnd: (handle: () => void) => () => void;
+  isHeld: () => boolean;
+  subscribeHeld: (handle: (held: boolean) => void) => () => void;
 }
 
 /**
@@ -38,6 +44,8 @@ const NATIVE: ReportedCallBridge = {
   setMuted: setReportedCallMuted,
   subscribeMute: addReportedCallMuteListener,
   subscribeEnd: addReportedCallEndListener,
+  isHeld: reportedCallIsHeld,
+  subscribeHeld: addReportedCallHeldListener,
 };
 
 /**
@@ -63,6 +71,13 @@ const NATIVE: ReportedCallBridge = {
  * incoming call ends it too. Each is the card's Out by another road: a bare
  * `STEP_OUT`. An End with no channel is a call already on its way down.
  *
+ * **Being held is said to the room**, as *On another call* on the roster.
+ * *Hold & Accept* holds the call, and the module takes it off hold once the
+ * other call ends. Each change is sent as `ON_ANOTHER_CALL` whenever it differs
+ * from what the room already says, which covers a reconnect's arrival clearing
+ * it too. A server that predates the action refuses it and the roster goes on
+ * saying *Present*; nothing is sent again until one side changes.
+ *
  * Every arrival is read against the state at the moment it arrives, not when
  * it was subscribed.
  */
@@ -70,8 +85,12 @@ export function useReportedCall(
   call: ReportedCallState | null,
   onSetMute: (channelId: string, muted: boolean) => void,
   onStepOut: (channelId: string) => void,
+  onAnotherCall: (channelId: string, onCall: boolean) => void,
   bridge: ReportedCallBridge = NATIVE
 ): void {
+  const [held, setHeld] = useState(bridge.isHeld);
+  const report = useRef(onAnotherCall);
+  report.current = onAnotherCall;
   const latest = useRef(call);
   latest.current = call;
   const mute = useRef(onSetMute);
@@ -82,6 +101,7 @@ export function useReportedCall(
   const channelId = call?.channelId ?? null;
   const title = call?.title ?? null;
   const muted = call?.muted ?? null;
+  const roomSays = call?.onAnotherCall ?? null;
 
   useEffect(() => {
     if (channelId && title) bridge.setTitle(channelId, title);
@@ -107,6 +127,21 @@ export function useReportedCall(
       }),
     [bridge]
   );
+
+  useEffect(
+    () =>
+      bridge.subscribeHeld((value) => {
+        recordEvent(`reported call held=${value}`);
+        setHeld(value);
+      }),
+    [bridge]
+  );
+
+  useEffect(() => {
+    if (channelId && roomSays !== null && roomSays !== held) {
+      report.current(channelId, held);
+    }
+  }, [channelId, roomSays, held]);
 
   useEffect(
     () =>

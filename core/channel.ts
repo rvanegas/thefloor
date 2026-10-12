@@ -144,6 +144,7 @@ export function createChannel(params: {
     // watch. Volatile like `present`, and rebuilt from live sockets rather
     // than restored.
     watchingHere: [],
+    onAnotherCall: [],
     guests: {},
     knocks: [],
     // Nothing is proposed about anybody in a channel that has just opened.
@@ -1989,6 +1990,17 @@ export function anyScreenHere(state: ChannelState): boolean {
 }
 
 /**
+ * Whether `userId` is in the room and on another call — held for a phone
+ * call taken with *Hold & Accept*. What the roster says instead of *Present*.
+ *
+ * Filtered by `isHere`, as `anyScreenHere` is, so no departure path has to
+ * remember to clear `onAnotherCall`.
+ */
+export function isOnAnotherCall(state: ChannelState, userId: UserId): boolean {
+  return isHere(state, userId) && (state.onAnotherCall ?? []).includes(userId);
+}
+
+/**
  * Whether the room's mute may be lifted.
  *
  * Read by the reducer to refuse `SET_WATCH_MUTE` and by the Watch tab to take
@@ -2343,6 +2355,8 @@ export const GUEST_ACTIONS: ReadonlySet<ChannelAction['type']> = new Set([
   'REFUSE_CONTACT',
   'REFUSE_JOIN',
   'SET_GUEST_NAME',
+  // A report about their own device, as for anybody: a guest's phone rings too.
+  'ON_ANOTHER_CALL',
 ]);
 
 // --- Reducer ----------------------------------------------------------------
@@ -2799,6 +2813,10 @@ function reduceAction(
         // the displaced device was the screen, the row it left behind would
         // otherwise go on speaking for a phone that is no longer in the room.
         watchingHere: (state.watchingHere ?? []).filter(
+          (id) => id !== action.userId
+        ),
+        // And none is on another call: that was the displaced device's.
+        onAnotherCall: (state.onAnotherCall ?? []).filter(
           (id) => id !== action.userId
         ),
         everPresent: state.everPresent.includes(action.userId)
@@ -3527,6 +3545,29 @@ function reduceAction(
         watchingHere: action.watching
           ? [...(state.watchingHere ?? []), action.userId]
           : (state.watchingHere ?? []).filter((id) => id !== action.userId),
+      };
+    }
+
+    case 'ON_ANOTHER_CALL': {
+      // A report, as `WATCH_HERE` is, and with its standing: being in the
+      // room and nothing more. Stepping out takes it away by way of
+      // `present`, which is how it is read — see `isOnAnotherCall`.
+      if (!isHere(state, action.userId)) return state;
+      const already = isOnAnotherCall(state, action.userId);
+      if (already === action.onCall) return state;
+      return {
+        ...state,
+        onAnotherCall: action.onCall
+          ? [...(state.onAnotherCall ?? []), action.userId]
+          : (state.onAnotherCall ?? []).filter((id) => id !== action.userId),
+        // **A held call has no microphone**, so a claim held through one
+        // silences the room for a turn nobody is taking — the reasoning
+        // `DISCONNECTED` gives, and the same release. Coming back off hold
+        // does not return it.
+        floor:
+          action.onCall && state.floor.holder === action.userId
+            ? releaseFloor(state.floor, now)
+            : state.floor,
       };
     }
 

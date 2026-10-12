@@ -91,6 +91,7 @@ caused; the list carries the meaning.
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Owner** — Whoever made a channel into a *community*, and the only one in it who holds the controls (`holdsTheControls`): invitations and guests, removal, media and recordings, muting anybody else, the name and description, the link, deleting. Other members mute themselves, claim the floor, use the clipboard and ping. Cannot leave or be moved against. No other channel has one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
+- **On another call** — What the roster says instead of *Present* about somebody whose phone is held for another call, taken with *Hold & Accept*; still in the room, neither hearing nor heard, and back to *Present* when the call is taken off hold (`ChannelState.onAnotherCall`)
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Podcast** — What a *public channel* is called on screen, since 2026-10-04: *This channel is a podcast* on *Channel Settings*, where it was *Public page*. Never a *community* too. `public` in the code
 - **Public channel** — A channel that has given itself a *public page* — a *podcast*, on screen; any member may, a channel must be named first, it cannot be a *community*, and it puts nothing on that page by itself
@@ -2057,6 +2058,26 @@ may be sent, the record is written after it has decided, and nothing in the
 application reads the table. Swept at `USAGE_RETENTION_MS` with the rest of
 the meter, and described on `/privacy`. See
 `decision/2026-09-15-the-funnel-is-instrumented-where-it-leaks.md`.
+
+## On another call
+
+**In the room, with the phone held for another call** — a phone call, FaceTime,
+or another app's, taken with *Hold & Accept* while the *reported call* rings
+through as call waiting. The roster says it where it would say *Present*, since
+2026-10-12: before then it said *Present* about somebody who could neither hear
+nor be heard.
+
+**Still present.** The person has not stepped out; their place in the room,
+their membership and their mute are untouched. Two things change: the word,
+and the floor — a claim they held is released, as a dropped connection's is,
+since a held call has no microphone, and coming back does not return it.
+
+**Ended by the call coming off hold.** iOS does not do that by itself for an
+app's call, so `modules/reported-call` does it once no other call is up. *End
+& Accept* is a step-out instead.
+
+`ChannelState.onAnotherCall`, a subset of `present`, set by `ON_ANOTHER_CALL`
+from the device holding the account's presence. Read through `isOnAnotherCall`.
 
 ## Present
 
@@ -4337,6 +4358,11 @@ set from CarPlay or the Watch is the card's Mute by another road, held to the
 card's guard: one the card would refuse is not acted on, and the flag is put
 back.
 
+**Held, it says so to the room.** *Hold & Accept* on an incoming call holds
+it, and the roster shows *On another call*. iOS leaves an app's held call held
+after the other call ends, so the module takes it off hold itself once no
+other call is up; `didActivate` follows and the engine restarts.
+
 **It is not `CALL`**, the audio session configuration, and not the session
 want `call`. All three are about a phone holding a microphone, and none of
 them is the other. A guest without speech and a device watching here hold a
@@ -4793,6 +4819,7 @@ are settled:
     In / Nearby / Out     Dentro / Cerca / Fuera
     Step in / Step out    Entrar / Salir
     Present               Presente
+    On another call       En otra llamada
     Stepped out           Ha salido
     In the app now        En la app ahora
     Last seen 3 hours ago Visto por última vez hace 3 horas — the one line in

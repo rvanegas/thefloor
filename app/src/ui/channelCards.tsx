@@ -19,6 +19,7 @@ import {
   canInvite,
   capacityOf,
   idleMs,
+  isOnAnotherCall,
   isPresent,
   isWaiting,
   nearbyMs,
@@ -485,6 +486,7 @@ export function ParticipantCard({
   const t = useText().channelCards;
   const here = isPresent(channel, participant.id);
   const reconnecting = channel.disconnectedAt[participant.id] !== undefined;
+  const onAnotherCall = isOnAnotherCall(channel, participant.id);
   const muted = !!channel.selfMuted[participant.id];
   const holdsFloor = channel.floor.holder === participant.id;
   // Somebody who is neither speaking nor able to be heard: the badge would be
@@ -734,11 +736,17 @@ export function ParticipantCard({
       // somebody's name invites watching it rather than pinging them. If they
       // do not come back the row simply keeps the word and gains the number.
       // See planning/decision/2026-09-08-the-grace-is-not-a-presence.md.
+      //
+      // **On another call comes before not receiving you.** A held phone
+      // stops sending, so the media plane may well judge it failing too, and
+      // that would be blaming the connection for a choice the person made.
       reconnecting
       ? t.nearby()
-      : failing
-        ? t.presentNotReceivingYou()
-        : t.present()
+      : onAnotherCall
+        ? t.onAnotherCall()
+        : failing
+          ? t.presentNotReceivingYou()
+          : t.present()
     : isWaiting(channel, participant.id)
       ? // They did not leave; their phone did. Walking into a channel and
         // pocketing the phone suspends the process in under a second, so this

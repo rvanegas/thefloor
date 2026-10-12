@@ -562,6 +562,12 @@ export const en = {
     nearby: () => 'Nearby',
     presentNotReceivingYou: () => 'Present · not receiving you',
     present: () => 'Present',
+    /**
+     * In the room, with the phone held for another call — a phone call or
+     * FaceTime taken with *Hold & Accept*. Neither hears nor is heard until
+     * they come back. `ChannelState.onAnotherCall`.
+     */
+    onAnotherCall: () => 'On another call',
     /** `since` is already a phrase — see `relativeTime.duration`. */
     nearbyFor: (since: string) => `Nearby ${since}`,
     steppedOut: () => 'Stepped out',

@@ -427,6 +427,7 @@ export const es: Strings = {
     nearby: () => 'Cerca',
     presentNotReceivingYou: () => 'Presente · no se te recibe',
     present: () => 'Presente',
+    onAnotherCall: () => 'En otra llamada',
     nearbyFor: (since: string) => `Cerca ${since}`,
     steppedOut: () => 'Ha salido',
     steppedOutAgo: (since: string) => `Sali\u00f3 hace ${since}`,

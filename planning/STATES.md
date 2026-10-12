@@ -1268,6 +1268,18 @@ table above still holds, though `LISTENING` under a call has not been
 measured. See
 `decision/2026-10-08-a-channel-is-an-outgoing-call-and-channel-view-is-its-screen.md`.
 
+**A held call is resumed by the app, because iOS will not.** *Hold & Accept*
+holds the reported call and CallKit deactivates the session; WebRTC takes that
+as an interruption and stops the engine. When the other call ends, an app's
+held call **stays held** — measured 2026-10-12, build 354, no `held false` ever
+came — and the app returning to the foreground restarted the engine against a
+session CallKit still had on hold: `playout frozen`, until a step-out and back.
+So `modules/reported-call` watches every call on the device (`CXCallObserver`)
+and asks for `CXSetHeldCallAction(onHold: false)` once no other call is up.
+CallKit's `didActivate` follows, which `RTCAudioSession` treats as the end of
+the interruption, and the engine restarts on a live session. The room is told
+both ways as `ON_ANOTHER_CALL` — GLOSSARY.md § *On another call*.
+
 **The observer used to be handed a constant, and that cost the route.** It took
 `IDLE` as its playout value on the argument that an unrequested write could then
 only let another app back in and never take one away. That argument is about

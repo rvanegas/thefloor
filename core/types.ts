@@ -977,6 +977,27 @@ export interface ChannelState {
    */
   watchingHere: UserId[];
   /**
+   * Who is in the room and on another call: a phone call, FaceTime, or
+   * another app's, taken with *Hold & Accept* while this one is held. Drawn on
+   * the roster as *On another call* rather than *Present*, which is what the
+   * person is to everybody else and what they were shown as before this
+   * existed — while they could neither hear nor be heard.
+   *
+   * **A subset of `present`, read through it**, as `watchingHere` is: a
+   * departure needs no clause here, since somebody who is not present is not
+   * on another call *in this channel*. An arrival clears it, for the
+   * displaced-device reason `watchingHere` gives.
+   *
+   * A report about a device, sent only by the instance holding this
+   * account's presence — the iOS *reported call* being held and taken off
+   * hold. Optional because a snapshot from a server that predates it carries
+   * none; an absent list is nobody.
+   *
+   * Volatile, like `watchingHere` and for the same reason: a restart drops
+   * every call along with the presence it depended on.
+   */
+  onAnotherCall?: UserId[];
+  /**
    * When each *declared* wait was declared, for those that were.
    *
    * `waiting` holds two kinds of absence that used to be told apart by nothing
@@ -1401,6 +1422,14 @@ export type ChannelAction =
    * its microphone was never the problem.
    */
   | { type: 'WATCH_HERE'; userId: UserId; watching: boolean }
+  /**
+   * This account's device in the room has been put on hold for another call,
+   * or taken off hold. A report, like `WATCH_HERE`: it confers nothing, and
+   * what it changes is the roster's word for the sender — and the floor, if
+   * they held it, since a held call has no microphone. See
+   * `ChannelState.onAnotherCall`.
+   */
+  | { type: 'ON_ANOTHER_CALL'; userId: UserId; onCall: boolean }
   /** Reported, not performed — like PLAYBACK_FAILED: no actor, no guard. */
   | { type: 'WATCH_FAILED'; reason: string }
   /**

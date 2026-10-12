@@ -10,13 +10,15 @@ import { useChannelLink } from '../useChannelLink';
 /**
  * The ways the *reported call* and the app reach each other: its title and its
  * mute, which follow the app; a mute or an End the system asked for, which come
- * back as the card's Mute and Out; and a tap in Recents, which opens the
- * channel and does not step in.
+ * back as the card's Mute and Out; being held for another call, which the
+ * room is told; and a tap in Recents, which opens the channel and does not
+ * step in.
  */
 
-function fakeBridge() {
+function fakeBridge(heldAtStart = false) {
   let mute: (muted: boolean) => void = () => {};
   let end: () => void = () => {};
+  let held: (value: boolean) => void = () => {};
   const bridge: ReportedCallBridge = {
     setTitle: jest.fn(),
     setMuted: jest.fn(),
@@ -32,11 +34,19 @@ function fakeBridge() {
         end = () => {};
       };
     },
+    isHeld: () => heldAtStart,
+    subscribeHeld: (handle) => {
+      held = handle;
+      return () => {
+        held = () => {};
+      };
+    },
   };
   return {
     bridge,
     systemMute: (muted: boolean) => mute(muted),
     systemEnd: () => end(),
+    systemHeld: (value: boolean) => held(value),
   };
 }
 
@@ -45,15 +55,17 @@ const stood = (over: Partial<ReportedCallState> = {}): ReportedCallState => ({
   title: 'Ana and Bea',
   muted: false,
   canToggle: true,
+  onAnotherCall: false,
   ...over,
 });
 
-function mount(call: ReportedCallState | null) {
-  const fake = fakeBridge();
+function mount(call: ReportedCallState | null, heldAtStart = false) {
+  const fake = fakeBridge(heldAtStart);
   const setMute = jest.fn();
   const stepOut = jest.fn();
+  const onAnotherCall = jest.fn();
   function Probe({ state }: { state: ReportedCallState | null }) {
-    useReportedCall(state, setMute, stepOut, fake.bridge);
+    useReportedCall(state, setMute, stepOut, onAnotherCall, fake.bridge);
     return null;
   }
   let tree!: ReactTestRenderer;
@@ -64,7 +76,7 @@ function mount(call: ReportedCallState | null) {
     act(() => {
       tree.update(<Probe state={state} />);
     });
-  return { ...fake, setMute, stepOut, update };
+  return { ...fake, setMute, stepOut, onAnotherCall, update };
 }
 
 describe('an End the app did not ask for', () => {
@@ -145,6 +157,48 @@ describe('the mute, kept in step', () => {
     act(() => systemMute(true));
     expect(setMute).not.toHaveBeenCalled();
     expect(bridge.setMuted).not.toHaveBeenCalled();
+  });
+});
+
+describe('being held for another call', () => {
+  it('tells the room when the call is held, and again when it is not', () => {
+    const { systemHeld, onAnotherCall, update } = mount(stood());
+    expect(onAnotherCall).not.toHaveBeenCalled();
+
+    act(() => systemHeld(true));
+    expect(onAnotherCall).toHaveBeenLastCalledWith('chan-1', true);
+    update(stood({ onAnotherCall: true }));
+
+    act(() => systemHeld(false));
+    expect(onAnotherCall).toHaveBeenLastCalledWith('chan-1', false);
+    update(stood({ onAnotherCall: false }));
+    expect(onAnotherCall).toHaveBeenCalledTimes(2);
+  });
+
+  /**
+   * A reconnect's arrival clears `onAnotherCall` on the server, and a phone
+   * still held must say so again rather than reading as *Present*.
+   */
+  it('says it again when the room forgets', () => {
+    const { systemHeld, onAnotherCall, update } = mount(stood());
+    act(() => systemHeld(true));
+    update(stood({ onAnotherCall: true }));
+    onAnotherCall.mockClear();
+
+    update(stood({ onAnotherCall: false }));
+    expect(onAnotherCall).toHaveBeenCalledWith('chan-1', true);
+  });
+
+  it('starts from what the module already knows', () => {
+    const { onAnotherCall } = mount(stood(), true);
+    expect(onAnotherCall).toHaveBeenCalledWith('chan-1', true);
+  });
+
+  it('sends nothing while the room already agrees, or with no channel', () => {
+    const { onAnotherCall } = mount(stood());
+    expect(onAnotherCall).not.toHaveBeenCalled();
+    const none = mount(null, true);
+    expect(none.onAnotherCall).not.toHaveBeenCalled();
   });
 });
 

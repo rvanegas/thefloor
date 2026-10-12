@@ -21,6 +21,7 @@ interface NativeReportedCall {
   setTitle(channelId: string, title: string): void;
   setMuted(channelId: string, muted: boolean): void;
   holdsSession(): boolean;
+  isHeld(): boolean;
   takePendingChannel(): string | null;
 }
 
@@ -106,6 +107,19 @@ export function reportedCallHoldsSession(): boolean {
   }
 }
 
+/**
+ * Whether the call is held for another one — *Hold & Accept* — right now. What
+ * a listener that arrived late starts from; `addReportedCallHeldListener`
+ * carries every change after.
+ */
+export function reportedCallIsHeld(): boolean {
+  try {
+    return native?.isHeld() ?? false;
+  } catch {
+    return false;
+  }
+}
+
 /** The channel a Recents tap opened before anything was listening, once. */
 export function takeRecentsChannel(): string | null {
   try {
@@ -129,6 +143,15 @@ export const addReportedCallLogListener = (handle: (line: string) => void) =>
 export const addReportedCallMuteListener = (handle: (muted: boolean) => void) =>
   listen<{ muted?: unknown }>('onMute', (event) => {
     if (typeof event?.muted === 'boolean') handle(event.muted);
+  });
+
+/**
+ * The call held for another one, or taken off hold — by the module itself once
+ * the other call has ended, or by the person from the system's call list.
+ */
+export const addReportedCallHeldListener = (handle: (held: boolean) => void) =>
+  listen<{ held?: unknown }>('onHeld', (event) => {
+    if (typeof event?.held === 'boolean') handle(event.held);
   });
 
 /** An End this app did not ask for — CarPlay, the Watch, End & Accept. */

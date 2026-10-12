@@ -1810,6 +1810,15 @@ export type ClientAction =
    * `ChannelAction.WATCH_HERE`.
    */
   | { type: 'WATCH_HERE'; watching: boolean }
+  /**
+   * This account's device in the room is, or is no longer, held for another
+   * call. Sent only by the instance that holds this account's presence. See
+   * `ChannelAction.ON_ANOTHER_CALL`.
+   *
+   * **A server that predates it refuses it and nothing breaks**: the roster
+   * goes on saying *Present*, as it did, which is why this needs no shim.
+   */
+  | { type: 'ON_ANOTHER_CALL'; onCall: boolean }
   | { type: 'PASTE_CLIP'; text: string }
   | { type: 'CLEAR_CLIP' }
   /**

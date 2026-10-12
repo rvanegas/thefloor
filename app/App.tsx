@@ -54,6 +54,7 @@ import {
   microphoneNeeded,
 } from '../core/micNeeded';
 import { describeChannel } from '../core/naming';
+import { isOnAnotherCall } from '../core/channel';
 import { colors } from './src/ui/theme';
 import {
   useLayout,
@@ -440,9 +441,11 @@ function Root() {
       title: callCard.channelName,
       muted: callCard.muted,
       canToggle: callCard.canToggle,
+      onAnotherCall: !!here && isOnAnotherCall(here.channel, me),
     },
     (channelId, muted) => app.act(channelId, { type: 'SET_SELF_MUTE', muted }),
-    (channelId) => app.act(channelId, { type: 'STEP_OUT' })
+    (channelId) => app.act(channelId, { type: 'STEP_OUT' }),
+    (channelId, onCall) => app.act(channelId, { type: 'ON_ANOTHER_CALL', onCall })
   );
   // The server's half of taking the card down: it ends the card itself when it
   // steps this device out, which matters when this app is too suspended to.

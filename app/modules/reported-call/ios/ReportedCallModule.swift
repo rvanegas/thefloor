@@ -80,6 +80,13 @@ public class ReportedCallModule: Module {
   fileprivate var endingFromApp = false
   /** From `didActivate` to `didDeactivate`: the stretch in which the app must not release. */
   fileprivate var holdsSession = false
+  /** Held for another call, from *Hold & Accept* until it is taken off hold. */
+  fileprivate var held = false
+  /**
+   * Every call on the device, this app's and everybody else's — what tells a
+   * held call that the call it was held for has ended. See `resumeIfAlone`.
+   */
+  fileprivate let observer = CXCallObserver()
 
   /** Prefixed, so `idevicesyslog -m "reported call"` and the audio log agree. */
   fileprivate func emit(_ line: String) {
@@ -119,6 +126,39 @@ public class ReportedCallModule: Module {
     }
   }
 
+  /**
+   * Takes the call off hold once no other call is up.
+   *
+   * **iOS does not do this itself.** When the call taken with *Hold & Accept*
+   * ends, a held call from an app stays held, and the person comes back to
+   * The Floor to find it silent: measured 2026-10-12, build 354, where the
+   * held call got no `held false` at all. WebRTC then restarted its engine on
+   * the app's return to the foreground, against a session CallKit still had
+   * on hold, and logged `playout frozen` until the person stepped out and in.
+   * Taking the call off hold here is what brings `didActivate`, and WebRTC
+   * treats that as the end of the interruption and restarts the engine on a
+   * session that is really live.
+   *
+   * Asked as a transaction rather than assumed: CallKit may refuse it, and
+   * then the call stays held and says so.
+   */
+  fileprivate func resumeIfAlone() {
+    guard held, let id = callId else { return }
+    let others = observer.calls.filter { $0.uuid != id && !$0.hasEnded }
+    guard others.isEmpty else { return }
+    emit("resuming, no other call is up")
+    controller.request(CXTransaction(action: CXSetHeldCallAction(call: id, onHold: false))) { error in
+      if let error { self.emit("resume refused: \(error.localizedDescription)") }
+    }
+  }
+
+  /** Sets `held` and tells JavaScript, which tells the room. */
+  fileprivate func setHeld(_ value: Bool) {
+    guard held != value else { return }
+    held = value
+    sendEvent("onHeld", ["held": value])
+  }
+
   private func ensureProvider() -> CXProvider {
     if let provider { return provider }
     let config = CXProviderConfiguration()
@@ -130,6 +170,7 @@ public class ReportedCallModule: Module {
     let provider = CXProvider(configuration: config)
     let delegate = ProviderDelegate(module: self)
     provider.setDelegate(delegate, queue: nil)
+    observer.setDelegate(delegate, queue: nil)
     self.provider = provider
     self.delegate = delegate
     return provider
@@ -138,7 +179,7 @@ public class ReportedCallModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ReportedCall")
 
-    Events("onLog", "onEnd", "onMute", "onOpenChannel")
+    Events("onLog", "onEnd", "onMute", "onHeld", "onOpenChannel")
 
     OnCreate {
       ReportedCallModule.current = self
@@ -166,6 +207,7 @@ public class ReportedCallModule: Module {
         self.callChannel = channelId
         self.callMuted = false
         self.endingFromApp = false
+        self.held = false
         let handle = CXHandle(type: .generic, value: channelId)
         let start = CXStartCallAction(call: id, handle: handle)
         start.isVideo = false
@@ -244,6 +286,9 @@ public class ReportedCallModule: Module {
       }
     }
 
+    /** Whether the call is held for another one, for a JavaScript that started listening late. */
+    Function("isHeld") { () -> Bool in self.held }
+
     /** Whether CallKit holds the audio session, in which case the app must not release it. */
     Function("holdsSession") { () -> Bool in self.holdsSession }
 
@@ -257,7 +302,7 @@ public class ReportedCallModule: Module {
 }
 
 /** CXProviderDelegate has to be an NSObject, which an Expo module is not. */
-private final class ProviderDelegate: NSObject, CXProviderDelegate {
+private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserverDelegate {
   weak var module: ReportedCallModule?
 
   init(module: ReportedCallModule) {
@@ -271,6 +316,7 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate {
     module?.callId = nil
     module?.callChannel = nil
     module?.holdsSession = false
+    module?.setHeld(false)
   }
 
   func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
@@ -286,6 +332,9 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate {
     module.callId = nil
     module.callChannel = nil
     module.endingFromApp = false
+    // Not told to JavaScript: the end is a step-out, and leaving the room is
+    // what takes somebody off `onAnotherCall`.
+    module.held = false
     module.emit("ended fromApp=\(fromApp)")
     // An End this app did not ask for — CarPlay, the Watch, End & Accept — is
     // the person stepping out.
@@ -316,10 +365,27 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate {
     module.sendEvent("onMute", ["muted": action.isMuted])
   }
 
-  /** Hold & Accept. Logged until Phase 3 gives it a meaning. */
+  /**
+   * *Hold & Accept* holds the call, and `resumeIfAlone` — or the person, from
+   * the system's call list — takes it off hold. CallKit deactivates the
+   * session on the first and activates it on the second; the engine follows
+   * from `didActivate`, so all this does is tell the room.
+   */
   func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
-    module?.emit("held \(action.isOnHold)")
+    guard let module else { action.fulfill(); return }
+    module.emit("held \(action.isOnHold)")
     action.fulfill()
+    module.setHeld(action.isOnHold)
+  }
+
+  /**
+   * Any call on the device changed. What is wanted from it is the moment the
+   * call this one was held for ends — see `resumeIfAlone`. Main queue, the
+   * observer's delegate queue being nil.
+   */
+  func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
+    guard let module, call.uuid != module.callId, call.hasEnded else { return }
+    module.resumeIfAlone()
   }
 
   func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) {

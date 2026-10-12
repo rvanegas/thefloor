@@ -194,8 +194,18 @@ mute from CarPlay or the Watch, and see the app follow.
 
 ### Phase 3 — another call arrives
 
-This is what `phone-calls-during-watch.md` asks for, and it needs a word for
-a new state:
+**Built 2026-10-12, after a device test of Hold & Accept on build 354** found
+the call screen offered as expected and two faults: the roster still said
+*Present*, and audio did not come back after the other call. The second was
+iOS leaving the held call held; the module now resumes it once no other call is
+up (STATES.md). The word is *On another call* (GLOSSARY.md), carried as
+`ChannelState.onAnotherCall`; a holder going on hold releases the floor. No
+shim: a server that predates `ON_ANOTHER_CALL` refuses it and the roster says
+*Present*, so **deploy the server before the build reaches anybody** and
+nothing breaks either way. Not yet run on a device, and still open: whether a
+held call pauses a watch party here (`phone-calls-during-watch.md`).
+
+The plan as written:
 
 - **Hold & Accept** sends `CXSetHeldCallAction(onHold: true)`, and CallKit
   deactivates the session. The phone stays stepped in, with the microphone

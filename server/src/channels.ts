@@ -385,6 +385,10 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   // `watchStarted`.
   'WATCH_STARTED',
   'WATCH_HERE',
+  // A report about the sender's own device, like `WATCH_HERE`: the worst a
+  // client can do with it is call itself on another call, and drop a floor
+  // it holds — which it may already do.
+  'ON_ANOTHER_CALL',
   'SET_WATCH_MUTE',
   'PASTE_CLIP',
   'CLEAR_CLIP',
@@ -8127,6 +8131,8 @@ export class ChannelRegistry {
       // it — so the first Play asks the question again, which is where the
       // answer is supposed to come from.
       watchingHere: [],
+      // Nor on another call: every call went with the presence it held.
+      onAnotherCall: [],
       everPresent: durable.everPresent ?? [],
       floor: initialFloorState(),
       selfMuted: Object.fromEntries(participants.map((id) => [id, false])),
