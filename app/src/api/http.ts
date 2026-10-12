@@ -889,15 +889,18 @@ export const api = {
     request<{ rooms: RoomView[] }>(`/channels/${channelId}/rooms`, { token }),
 
   /**
-   * Turns a channel's live transcript on or off, for whoever may — and with
-   * `audio`, Start: the recording begins in the same step, so the segment
-   * kept both ways begins at one instant.
+   * The *Record* tab's switches, both at once: what Play keeps. See
+   * `ChannelState.keep`. Since 2026-10-11.
    */
-  setLiveTranscription: (token: string, channelId: string, on: boolean, audio = false) =>
-    request<{ ok: true; liveTranscription: boolean }>(
-      `/channels/${channelId}/live-transcription`,
-      { method: 'PUT', token, body: audio ? { on, audio } : { on } }
+  setKeep: (token: string, channelId: string, keep: { audio: boolean; text: boolean }) =>
+    request<{ ok: true; keep: { audio: boolean; text: boolean } }>(
+      `/channels/${channelId}/keep`,
+      { method: 'PUT', token, body: keep }
     ),
+
+  /** Play, or Resume: begins what the switches select. Since 2026-10-11. */
+  playKeeping: (token: string, channelId: string) =>
+    request<{ ok: true }>(`/channels/${channelId}/play`, { method: 'POST', token }),
 
   /** *Record automatically*'s Text. See `autoTranscribe`. */
   setAutoTranscribe: (token: string, channelId: string, on: boolean) =>

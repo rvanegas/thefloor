@@ -2162,305 +2162,161 @@ describe('Channel', () => {
 
 
   /*
-    **The two switches, since 2026-10-09**, which took the Record and Pause
-    buttons' place and the *Live transcript* setting's: what the channel
-    keeps, as *Audio*, as *Text*, both or neither. Each moves only itself —
-    radio style for a day, until 2026-10-10. Audio runs on the
-    recording's own rules, so a switch is refused exactly where the button
-    was; Text on the account's, `mayTranscribeLive`.
+    **The transport and its switches, since 2026-10-11.** Play (Resume while
+    held), Pause and Stop as icons; the switches select what Play keeps and
+    change what runs only while something does — both off stops, any other
+    change stops and restarts. Selecting while stopped starts nothing.
+  */
+  const keeping = (keep: { audio: boolean; text: boolean }) => (c: ChannelState) => ({ ...c, keep });
 
-    **Audio off still ends the run**: it sends `STOP_RECORDING`, so the next
-    one on begins a new recording rather than continuing the last.
-  */
-  /*
-    **Pause is one hold over the pair**: it holds everything running, and
-    while anything is held it reads Resume and restarts everything held.
-    **One action, since 2026-10-10**, which core applies to both, so they
-    end and begin together — each a clean break, a new segment. Drawn
-    always, refused while nothing is running.
-  */
-  it('pauses whichever is running, and resumes only what it paused', () => {
-    // Nothing chosen: the button reads Start and turns on as much of the
-    // pair as this person may — both, for somebody who may move the text.
+  it('plays, pauses, resumes and stops what the switches select', () => {
     const { api } = require('../../api/http');
-    const asked = jest
-      .spyOn(api, 'setLiveTranscription')
-      .mockResolvedValue({ ok: true, liveTranscription: true } as never);
-    showChannel(channelOf(), [], { mayTranscribeLive: true });
+    const played = jest.spyOn(api, 'playKeeping').mockResolvedValue({ ok: true } as never);
+
+    // Both selected, stopped: Start begins them, in one request.
+    showChannel(channelOf(keeping({ audio: true, text: true })), [], { mayTranscribeLive: true });
     const idle = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showRecord(idle);
     expect(findButton(idle, 'Pause')).toBeUndefined();
+    expect(findButton(idle, 'Stop')!.props.accessibilityState.disabled).toBe(true);
     act(() => findButton(idle, 'Start')!.props.onPress());
-    // One request that begins both, so the segment begins at one instant.
-    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true, true);
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
+    expect(played).toHaveBeenCalledWith('token', 'sess_1');
+    expect(mockApp.act).not.toHaveBeenCalled();
     act(() => idle.unmount());
 
-    // And only the audio, for somebody who may not.
-    mockApp.act.mockClear();
-    asked.mockClear();
-    showChannel(channelOf());
-    const audioOnly = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    showRecord(audioOnly);
-    act(() => findButton(audioOnly, 'Start')!.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
-    expect(asked).not.toHaveBeenCalled();
-    act(() => audioOnly.unmount());
-    asked.mockRestore();
-
-    // Nothing this person may start — alone and muted, so nothing to
-    // capture, and the text not theirs: drawn, and refused.
-    showChannel(
-      channelOf((c) =>
-        reduce(
-          reduce(c, { type: 'STEP_OUT', userId: THEM }, NOW),
-          { type: 'SET_SELF_MUTE', userId: ME, muted: true },
-          NOW
-        )
-      )
-    );
+    // Nothing selected: Start has nothing to begin.
+    showChannel(channelOf(keeping({ audio: false, text: false })));
     const nothing = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showRecord(nothing);
     expect(findButton(nothing, 'Start')!.props.accessibilityState.disabled).toBe(true);
     act(() => nothing.unmount());
-    mockApp.act.mockClear();
 
-    // Audio running: Pause holds the recording, and nothing else.
+    // Text selected for somebody with no minutes: refused, and says why.
+    showChannel(channelOf(keeping({ audio: true, text: true })));
+    const unpaid = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecord(unpaid);
+    expect(findButton(unpaid, 'Start')!.props.accessibilityState.disabled).toBe(true);
+    expect(textOf(unpaid)).toContain('no free transcription minutes');
+    act(() => unpaid.unmount());
+
+    // Running: Pause and Stop, one action each.
+    mockApp.act.mockClear();
     showChannel(
-      channelOf((c) => reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW))
+      channelOf((c) =>
+        reduce(keeping({ audio: true, text: false })(c), { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)
+      )
     );
-    const audio = render(
+    const running = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecord(audio);
-    act(() => findButton(audio, 'Pause')!.props.onPress());
+    showRecord(running);
+    expect(findButton(running, 'Start')).toBeUndefined();
+    act(() => findButton(running, 'Pause')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PAUSE_RECORDING' });
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'PAUSE_LIVE_TRANSCRIPTION' });
-    act(() => audio.unmount());
+    act(() => findButton(running, 'Stop')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STOP_KEEPING' });
+    act(() => running.unmount());
 
-    // Text running, for anybody present — holding it costs the house nothing.
-    mockApp.act.mockClear();
-    const texting = (held: boolean) =>
-      channelOf((c) => {
-        const on = reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW);
-        return held ? reduce(on, { type: 'PAUSE_LIVE_TRANSCRIPTION', userId: ME }, NOW) : on;
-      });
-    showChannel(texting(false));
-    const text = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    // Held: the play icon reads Resume.
+    played.mockClear();
+    showChannel(
+      channelOf((c) =>
+        reduce(
+          reduce(keeping({ audio: true, text: false })(c), { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW),
+          { type: 'PAUSE_RECORDING', userId: ME },
+          NOW
+        )
+      )
     );
-    showRecord(text);
-    act(() => findButton(text, 'Pause')!.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PAUSE_LIVE_TRANSCRIPTION' });
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'PAUSE_RECORDING' });
-    act(() => text.unmount());
-
-    // Held: Text stays on, the pill says paused, and Resume restarts it.
-    mockApp.act.mockClear();
-    showChannel(texting(true));
     const held = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showRecord(held);
-    expect(findSwitch(held, 'Text')!.props.value).toBe(true);
-    expect(textOf(held)).toContain('Paused');
-    expect(textOf(held)).not.toContain('Transcribing');
     act(() => findButton(held, 'Resume')!.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'RESUME_LIVE_TRANSCRIPTION' });
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'RESUME_RECORDING' });
+    expect(played).toHaveBeenCalledWith('token', 'sess_1');
+    expect(findButton(held, 'Stop')!.props.accessibilityState.disabled).toBe(false);
     act(() => held.unmount());
-
-    // Both running: one Pause, one action, which core applies to both.
-    mockApp.act.mockClear();
-    const both = (c: ChannelState) =>
-      reduce(
-        reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW),
-        { type: 'START_RECORDING', userId: ME, runId: 'rec_1' },
-        NOW
-      );
-    showChannel(channelOf(both));
-    const pair = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    showRecord(pair);
-    act(() => findButton(pair, 'Pause')!.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PAUSE_RECORDING' });
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'PAUSE_LIVE_TRANSCRIPTION' });
-    act(() => pair.unmount());
-
-    // Both held: Resume is one action too.
-    mockApp.act.mockClear();
-    showChannel(
-      channelOf((c) => reduce(both(c), { type: 'PAUSE_RECORDING', userId: ME }, NOW))
-    );
-    const mixed = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    showRecord(mixed);
-    expect(findButton(mixed, 'Pause')).toBeUndefined();
-    act(() => findButton(mixed, 'Resume')!.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'RESUME_RECORDING' });
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'PAUSE_LIVE_TRANSCRIPTION' });
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'RESUME_LIVE_TRANSCRIPTION' });
-    act(() => mixed.unmount());
+    played.mockRestore();
   });
 
-  it('keeps audio, text, both or neither, and turning audio off ends the run', () => {
+  it('selects with the switches, and changes what runs only while it runs', () => {
     const { api } = require('../../api/http');
     const asked = jest
-      .spyOn(api, 'setLiveTranscription')
-      .mockResolvedValue({ ok: true, liveTranscription: false } as never);
+      .spyOn(api, 'setKeep')
+      .mockResolvedValue({ ok: true, keep: { audio: true, text: false } } as never);
     const state = (tree: ReactTestRenderer, label: string) => {
       const control = findSwitch(tree, label);
       expect(control).toBeDefined();
       return { on: control!.props.value as boolean, refused: !!control!.props.disabled };
     };
 
-    // Neither, in a room with somebody in it: audio may start, and text is
-    // the house's, so this reader sees it and cannot move it.
-    showChannel(channelOf());
+    // Stopped: a switch selects, and starts nothing. Text is anybody's to
+    // select; paying for it is Play's question.
+    showChannel(channelOf(keeping({ audio: false, text: false })));
     const idle = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showRecord(idle);
     expect(state(idle, 'Audio')).toEqual({ on: false, refused: false });
-    expect(state(idle, 'Text')).toEqual({ on: false, refused: true });
-    expect(findButton(idle, 'Record')).toBeUndefined();
+    expect(state(idle, 'Text')).toEqual({ on: false, refused: false });
     act(() => findSwitch(idle, 'Audio')!.props.onValueChange(true));
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', { audio: true, text: false });
+    expect(mockApp.act).not.toHaveBeenCalled();
     act(() => idle.unmount());
 
-    // Running: off ends it.
-    showChannel(
-      channelOf((c) => reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW))
-    );
-    const live = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    showRecord(live);
-    expect(state(live, 'Audio')).toEqual({ on: true, refused: false });
-    act(() => findSwitch(live, 'Audio')!.props.onValueChange(false));
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
-    act(() => live.unmount());
-
-    // The house, standing outside the room: Text is the room's to switch,
-    // as Audio is, so it is refused — and Start has nothing to turn on.
-    showChannel(
-      channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW)),
-      [],
-      { mayTranscribeLive: true }
-    );
-    const outside = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    showRecord(outside);
-    expect(state(outside, 'Text')).toEqual({ on: false, refused: true });
-    expect(state(outside, 'Audio')).toEqual({ on: false, refused: true });
-    expect(findButton(outside, 'Start')!.props.accessibilityState.disabled).toBe(true);
-    act(() => outside.unmount());
-
-    // Text on, for somebody who may switch it: audio on leaves text alone.
-    mockApp.act.mockClear();
-    asked.mockClear();
-    showChannel(
-      channelOf((c) => reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW)),
-      [],
-      { mayTranscribeLive: true }
-    );
-    const texting = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    showRecord(texting);
-    expect(state(texting, 'Text')).toEqual({ on: true, refused: false });
-    expect(state(texting, 'Audio')).toEqual({ on: false, refused: false });
-    act(() => findSwitch(texting, 'Audio')!.props.onValueChange(true));
-    expect(asked).not.toHaveBeenCalled();
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'START_RECORDING' });
-    act(() => texting.unmount());
-
-    // The same for somebody who may not move text: audio is theirs all the
-    // same, since adding it takes nothing away from the text.
-    showChannel(channelOf((c) => reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW)));
-    const other = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    showRecord(other);
-    expect(state(other, 'Audio')).toEqual({ on: false, refused: false });
-    expect(state(other, 'Text')).toEqual({ on: true, refused: true });
-    act(() => other.unmount());
-
-    // Recording, for somebody who may switch text: text on leaves the run.
-    mockApp.act.mockClear();
-    asked.mockClear();
-    showChannel(
-      channelOf((c) => reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)),
-      [],
-      { mayTranscribeLive: true }
-    );
-    const recording = render(
-      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-    );
-    showRecord(recording);
-    act(() => findSwitch(recording, 'Text')!.props.onValueChange(true));
-    // The server begins the run anew under it — a clean break — so the app
-    // stops nothing itself.
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
-    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true, false);
-    act(() => recording.unmount());
-
-    // Both on: each switch reads on, and off moves only its own.
-    mockApp.act.mockClear();
+    // Running audio: Text on would begin it now, so it is for somebody who
+    // can pay; off and on of Audio are the route's to make a clean break of.
     asked.mockClear();
     showChannel(
       channelOf((c) =>
-        reduce(
-          reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW),
-          { type: 'START_RECORDING', userId: ME, runId: 'rec_1' },
-          NOW
-        )
+        reduce(keeping({ audio: true, text: false })(c), { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)
+      )
+    );
+    const running = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showRecord(running);
+    expect(state(running, 'Audio')).toEqual({ on: true, refused: false });
+    expect(state(running, 'Text')).toEqual({ on: false, refused: true });
+    act(() => findSwitch(running, 'Audio')!.props.onValueChange(false));
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', { audio: false, text: false });
+    act(() => running.unmount());
+
+    // The same with minutes to spend: Text may join the run.
+    asked.mockClear();
+    showChannel(
+      channelOf((c) =>
+        reduce(keeping({ audio: true, text: false })(c), { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW)
       ),
       [],
       { mayTranscribeLive: true }
     );
-    const pair = render(
+    const paying = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecord(pair);
-    expect(state(pair, 'Audio')).toEqual({ on: true, refused: false });
-    expect(state(pair, 'Text')).toEqual({ on: true, refused: false });
-    act(() => findSwitch(pair, 'Audio')!.props.onValueChange(false));
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
-    expect(asked).not.toHaveBeenCalled();
-    act(() => pair.unmount());
+    showRecord(paying);
+    act(() => findSwitch(paying, 'Text')!.props.onValueChange(true));
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', { audio: true, text: true });
+    act(() => paying.unmount());
 
-
-    // Held, by this build's Pause or an older one's: Audio stays on, since
-    // it is still what the channel keeps, and Resume restarts it.
-    mockApp.act.mockClear();
-    showChannel(
-      channelOf((c) =>
-        reduce(
-          reduce(c, { type: 'START_RECORDING', userId: ME, runId: 'rec_1' }, NOW),
-          { type: 'PAUSE_RECORDING', userId: ME },
-          NOW
-        )
-      )
-    );
-    const paused = render(
+    // Standing outside the room: nothing here is theirs to move.
+    showChannel(channelOf((c) => reduce(c, { type: 'STEP_OUT', userId: ME }, NOW)), [], {
+      mayTranscribeLive: true,
+    });
+    const outside = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showRecord(paused);
-    expect(state(paused, 'Audio')).toEqual({ on: true, refused: false });
-    act(() => findButton(paused, 'Resume')!.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'RESUME_RECORDING' });
-    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'STOP_RECORDING' });
-    act(() => paused.unmount());
+    showRecord(outside);
+    expect(state(outside, 'Audio').refused).toBe(true);
+    expect(state(outside, 'Text').refused).toBe(true);
+    expect(findButton(outside, 'Start')!.props.accessibilityState.disabled).toBe(true);
+    act(() => outside.unmount());
     asked.mockRestore();
   });
 
@@ -3710,12 +3566,13 @@ describe('Channel', () => {
     // planning/decision/2026-09-14-a-room-of-one-is-a-room.md.
     const solo = (mute: boolean) =>
       channelOf((s) => {
-        const left = reduce(s, { type: 'STEP_OUT', userId: THEM }, NOW);
+        const left = reduce({ ...s, keep: { audio: true, text: false } }, { type: 'STEP_OUT', userId: THEM }, NOW);
         return mute
           ? reduce(left, { type: 'SET_SELF_MUTE', userId: ME, muted: true }, NOW)
           : left;
       });
 
+    // Audio selected, so Start is what alone decides, since 2026-10-11.
     showChannel(solo(false));
     const speaking = render(<ChannelView
         channelId="sess_1"
@@ -3724,7 +3581,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(speaking);
-    expect(findSwitch(speaking, 'Audio')!.props.disabled).toBe(false);
+    expect(findButton(speaking, 'Start')!.props.accessibilityState.disabled).toBe(false);
     act(() => speaking.unmount());
 
     showChannel(solo(true));
@@ -3735,7 +3592,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(muted);
-    expect(findSwitch(muted, 'Audio')!.props.disabled).toBe(true);
+    expect(findButton(muted, 'Start')!.props.accessibilityState.disabled).toBe(true);
     act(() => muted.unmount());
   });
 
@@ -3750,7 +3607,7 @@ describe('Channel', () => {
       channelOf((s) =>
         reduce(
           reduce(
-            { ...s, autoRecord: true },
+            { ...s, autoRecord: true, keep: { audio: true, text: false } },
             { type: 'STEP_OUT', userId: THEM },
             NOW
           ),
@@ -3767,7 +3624,7 @@ describe('Channel', () => {
       />);
     showRecord(tree);
     expect(textOf(tree)).not.toContain('records itself');
-    expect(findSwitch(tree, 'Audio')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Start')!.props.accessibilityState.disabled).toBe(true);
     act(() => tree.unmount());
   });
 });

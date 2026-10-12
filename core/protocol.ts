@@ -1727,6 +1727,8 @@ export type ClientAction =
   | { type: 'PAUSE_RECORDING' }
   | { type: 'RESUME_RECORDING' }
   | { type: 'STOP_RECORDING' }
+  /** Stop: ends the recording and the live transcript together, since 2026-10-11. */
+  | { type: 'STOP_KEEPING' }
   /** Since 2026-10-09; a server that predates them refuses them. */
   | { type: 'PAUSE_LIVE_TRANSCRIPTION' }
   | { type: 'RESUME_LIVE_TRANSCRIPTION' }

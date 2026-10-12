@@ -958,7 +958,7 @@ export const en = {
     on: () => 'On',
     off: () => 'Off',
     autoRecordNote: () =>
-      'Each conversation here begins with what is switched on: Audio starts a recording as soon as there is something to record, and Text transcribes what is said — with both on, the two begin together. Everyone sees either running. Off, which is where every channel starts, they are switched on in the Record tab.',
+      'Each conversation here begins with what is switched on: Audio starts a recording as soon as there is something to record, and Text transcribes what is said — with both on, the two begin together. Everyone sees either running. Each conversation also begins with these selected on the Record tab, so with both off, which is where every channel starts, nothing is kept until somebody chooses and presses Start.',
     autoRecordHow: () =>
       'Switching either off in the Record tab lasts until everybody has left the channel and come back.',
     autoRecordStepIn: () =>
@@ -1327,10 +1327,13 @@ export const en = {
     paused: () => 'Paused',
     resume: () => 'Resume',
     /**
-     * The *Record* tab's Pause while nothing is chosen: turns on both Audio
-     * and Text, as much of the pair as this person may. See `KeepSwitches`.
+     * What a screen reader calls the *Record* tab's play icon while nothing
+     * runs: not *Play*, which a recording's own row and the shared track say.
      */
     start: () => 'Start',
+    /** Under the *Record* tab's transport, when Play would begin a text nobody can pay for. */
+    playRefusedText: () =>
+      'Text is on, and you have no free transcription minutes left this week. Switch it off to record audio alone.',
     settings: () => 'Settings',
     home: () => 'Home',
     /**

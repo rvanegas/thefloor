@@ -587,7 +587,8 @@ describe('Channel, watching together', () => {
   });
 
   it('greys Record while a party runs, and gives no reason for it', () => {
-    showChannel(watching());
+    // Audio selected, so the film is what refuses Start, since 2026-10-11.
+    showChannel({ ...watching(), keep: { audio: true, text: false } });
     // On *Recordings*, which is where recording is. The reason used to travel
     // with the button, the party being a tab away; it left on 2026-09-13 with
     // the rest of the prose under the transport, which is now failure and
@@ -595,7 +596,7 @@ describe('Channel, watching together', () => {
     // the glyph saying what is being refused.
     const tree = openOnPeople();
     showRecord(tree);
-    expect(findSwitch(tree, 'Audio')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Start')!.props.accessibilityState.disabled).toBe(true);
     expect(textOf(tree)).not.toContain('Stop the watch party to record');
     act(() => tree.unmount());
   });

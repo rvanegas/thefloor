@@ -269,12 +269,14 @@ describe('the switch', () => {
     expect(textOf(plain)).not.toContain('Live transcript');
     act(() => findButton(plain, 'Close')!.props.onPress());
     showTab(plain, 'Record');
-    expect(findSwitch(plain, 'Text')!.props.disabled).toBe(true);
+    // Selecting it while nothing runs spends nothing, so it is anybody's in
+    // the room since 2026-10-11; paying is Play's question.
+    expect(findSwitch(plain, 'Text')!.props.disabled).toBe(false);
     act(() => plain.unmount());
 
     const asked = jest
-      .spyOn(api, 'setLiveTranscription')
-      .mockResolvedValue({ ok: true, liveTranscription: true } as never);
+      .spyOn(api, 'setKeep')
+      .mockResolvedValue({ ok: true, keep: { audio: false, text: true } } as never);
     showChannel(channelOf(), [], { mayTranscribeLive: true });
     const house = render(screen());
     act(() => findButton(house, 'Settings')!.props.onPress());
@@ -284,7 +286,7 @@ describe('the switch', () => {
     const text = findSwitch(house, 'Text')!;
     expect(text.props.disabled).toBe(false);
     await act(async () => text.props.onValueChange(true));
-    expect(asked).toHaveBeenCalledWith('token', 'sess_1', true, false);
+    expect(asked).toHaveBeenCalledWith('token', 'sess_1', { audio: false, text: true });
     act(() => house.unmount());
   });
 });

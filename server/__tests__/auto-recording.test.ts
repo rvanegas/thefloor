@@ -94,14 +94,32 @@ const ask = (channelId: string, userId: string, autoRecord: boolean) =>
   } as never);
 
 describe('a channel that records itself', () => {
-  it('starts a run for the one person already in the room', async () => {
+  /**
+   * **The setting is how a sitting begins**, since 2026-10-11: each sitting's
+   * selection is set from it, so switching it on mid-sitting starts nothing
+   * until the room has emptied and filled again.
+   */
+  const askAndReopen = (channelId: string, userId: string) => {
+    ask(channelId, userId, true);
+    app.channels.dispatch(channelId, userId, { type: 'STEP_OUT' });
+    clock += 60_000;
+    app.channels.dispatch(channelId, userId, { type: 'ENTER' });
+  };
+
+  it('starts nothing in the sitting in progress when switched on', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    ask(channelId, alice.id, true);
+    expect(channel(channelId).recording.status).toBe('idle');
+  });
+
+  it('starts a run for the one person who opens the next sitting', async () => {
     const { alice, channelId } = await channelOfTwo();
     // **It waited for a second arrival until 2026-09-14** — on the reasoning
     // that one person in a room is not a conversation — and it stopped waiting
     // when `canStartRecording` did, the automatic start being possible in
     // exactly the states the Record button is. Alice is here with an open
-    // microphone, so the setting has what it needs the moment it is asked for.
-    ask(channelId, alice.id, true);
+    // microphone, so the setting has what it needs the moment she arrives.
+    askAndReopen(channelId, alice.id);
     const { recording } = channel(channelId);
     expect(recording.status).toBe('recording');
     expect(recording.runId).not.toBeNull();
@@ -128,7 +146,7 @@ describe('a channel that records itself', () => {
 
   it('does not start a second run when the first is stopped', async () => {
     const { alice, bob, channelId } = await channelOfTwo();
-    ask(channelId, alice.id, true);
+    askAndReopen(channelId, alice.id);
     app.channels.dispatch(channelId, bob.id, { type: 'ENTER' });
     clock += 5_000;
     app.channels.dispatch(channelId, alice.id, { type: 'STOP_RECORDING' });
@@ -146,7 +164,7 @@ describe('a channel that records itself', () => {
 
   it('records the next room, once this one has emptied', async () => {
     const { alice, bob, channelId } = await channelOfTwo();
-    ask(channelId, alice.id, true);
+    askAndReopen(channelId, alice.id);
     app.channels.dispatch(channelId, bob.id, { type: 'ENTER' });
     clock += 5_000;
     app.channels.dispatch(channelId, alice.id, { type: 'STOP_RECORDING' });
@@ -247,5 +265,62 @@ describe('a channel that records and transcribes itself', () => {
     app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
     expect(channel(channelId).liveTranscription).toBe(true);
     expect(channel(channelId).recording.status).toBe('idle');
+  });
+});
+
+/*
+  **The transport, since 2026-10-11**: the switches select, Play begins, and
+  only a change while running stops and restarts. Through the two routes the
+  app uses, which mint the run and ask who pays for the text.
+*/
+describe('the Record transport over its routes', () => {
+  const put = (token: string, channelId: string, audio: boolean, text: boolean) =>
+    app.fastify.inject({
+      method: 'PUT',
+      url: `/channels/${channelId}/keep`,
+      headers: auth(token),
+      payload: { audio, text },
+    });
+  const play = (token: string, channelId: string) =>
+    app.fastify.inject({ method: 'POST', url: `/channels/${channelId}/play`, headers: auth(token) });
+
+  it('selects without starting, plays, and restarts on a change while running', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await befriend(alice, bob, 'bob@example.com');
+    const created = await app.fastify.inject({
+      method: 'POST',
+      url: '/channels',
+      headers: auth(alice.token),
+      payload: { contactId: bob.account.id },
+    });
+    const { channelId } = created.json() as { channelId: string };
+
+    expect((await put(alice.token, channelId, true, false)).statusCode).toBe(200);
+    expect(channel(channelId).recording.status).toBe('idle');
+
+    expect((await play(alice.token, channelId)).statusCode).toBe(200);
+    const first = channel(channelId).recording.runId;
+    expect(channel(channelId).recording.status).toBe('recording');
+    expect(first).not.toBeNull();
+
+    // Play while running is refused, with a sentence.
+    expect((await play(alice.token, channelId)).statusCode).toBe(403);
+
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_RECORDING' });
+    expect(channel(channelId).recording.status).toBe('paused');
+    expect((await play(alice.token, channelId)).statusCode).toBe(200);
+    const second = channel(channelId).recording.runId;
+    expect(second).not.toBe(first);
+
+    clock += 5_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_KEEPING' });
+    expect(channel(channelId).recording.status).toBe('idle');
+    expect(channel(channelId).keep).toEqual({ audio: true, text: false });
+
+    // Both off while stopped selects nothing, and Play has nothing to begin.
+    expect((await put(alice.token, channelId, false, false)).statusCode).toBe(200);
+    expect((await play(alice.token, channelId)).statusCode).toBe(403);
   });
 });

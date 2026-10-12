@@ -11,7 +11,8 @@ import type { ColorValue } from 'react-native';
  * draws instead of the cross between them; then the six of that same screen's
  * tabs, which were words until 2026-09-12. The recording transport's *Pause*
  * and *Stop* were here from 2026-09-13 until the transport became two
- * switches on 2026-10-09, and left with it.
+ * switches on 2026-10-09, and came back with *Play* when Rodrigo restored it,
+ * icons only, on 2026-10-11.
  *
  * Then the four of the home tier's tabs, which were words until 2026-09-22,
  * when a fourth tab arrived and the strip grew glyphs rather than let one tab
@@ -645,6 +646,70 @@ export function SupportIcon({
       <Path d="m14.83 14.83 4.24 4.24" />
       <Path d="m9.17 14.83-4.24 4.24" />
       <Circle cx="12" cy="12" r="4" />
+    </Glyph>
+  );
+}
+
+/**
+ * Begin, or resume, what the *Record* tab's switches select. `lucide/play`.
+ *
+ * The transport's triangle. It shares its place with Pause, the way every
+ * transport has them, and is the only control there that begins anything.
+ */
+export function PlayIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Path d="M6 3l14 9-14 9V3z" />
+    </Glyph>
+  );
+}
+
+/**
+ * Hold what is running. `lucide/pause`.
+ *
+ * The two bars, which mean this on every transport anybody has ever touched.
+ * Drawn outlined rather than filled like the rest of this file — a filled
+ * pause beside an outlined stop would read as one control being on.
+ */
+export function PauseIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Rect x="14" y="3" width="5" height="18" rx="1" />
+      <Rect x="5" y="3" width="5" height="18" rx="1" />
+    </Glyph>
+  );
+}
+
+/**
+ * End what is running. `lucide/square`.
+ *
+ * A square, not a cross: stopping a recording finishes it and keeps it, and a
+ * cross is what this application draws for closing and discarding. The one
+ * that ends a recording for good is the transport square everybody learned
+ * from a tape deck.
+ */
+export function StopIcon({
+  color,
+  size = 22,
+}: {
+  color: ColorValue;
+  size?: number;
+}) {
+  return (
+    <Glyph color={color} size={size}>
+      <Rect x="3" y="3" width="18" height="18" rx="2" />
     </Glyph>
   );
 }

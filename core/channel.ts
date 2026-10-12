@@ -73,6 +73,7 @@ import type {
   ChannelState,
   Guest,
   GuestId,
+  Keep,
   RemovalMotion,
   UserId,
 } from './types';
@@ -1052,6 +1053,198 @@ export function recordingRefusal(
  */
 export function startsTextWithAudio(state: ChannelState): boolean {
   return !!state.autoTranscribe && !!state.autoRecord;
+}
+
+/**
+ * What the *Record* tab's switches select: `keep`, or for a channel stored
+ * before it, whatever is running or held.
+ */
+export function keepOf(state: ChannelState): Keep {
+  return (
+    state.keep ?? {
+      audio: isRecordingActive(state.recording),
+      text: !!state.liveTranscription,
+    }
+  );
+}
+
+/** The selection a sitting begins with: *Record automatically*'s pair. */
+function keepForSitting(state: ChannelState): Keep {
+  return { audio: !!state.autoRecord, text: !!state.autoTranscribe };
+}
+
+/**
+ * Where the transport stands: something running, everything held, or
+ * nothing. A form running beside one held — which only an older build can
+ * leave — counts as running.
+ */
+export type Keeping = 'stopped' | 'running' | 'paused';
+
+export function keepingOf(state: ChannelState): Keeping {
+  if (state.recording.status === 'recording') return 'running';
+  if (state.liveTranscription && !state.liveTranscriptionPaused) return 'running';
+  if (state.recording.status === 'paused') return 'paused';
+  if (state.liveTranscription && state.liveTranscriptionPaused) return 'paused';
+  return 'stopped';
+}
+
+/** Whether the audio could begin now, for whoever is asking. */
+function audioCouldBegin(state: ChannelState, userId: UserId): boolean {
+  return !watchPartyIsOn(state) && isPresent(state, userId) && capturable(state);
+}
+
+/**
+ * Whether `userId` may set the switches to `next`. The room's controls, as
+ * every part of the transport is; switching something off while anything is
+ * kept carries Pause's floor clause, being a cut-off; and adding the audio to
+ * a run in progress needs it to be capturable, as Play would. Whether a text
+ * that would begin now has a payer is the route's.
+ */
+export function canSetKeep(state: ChannelState, userId: UserId, next: Keep): boolean {
+  if (state.status !== 'active') return false;
+  if (!isPresent(state, userId) || !holdsTheControls(state, userId)) return false;
+  const current = keepOf(state);
+  const keeping = keepingOf(state);
+  const cuts = (current.audio && !next.audio) || (current.text && !next.text);
+  if (cuts && keeping !== 'stopped' && !canPauseOrStopRecording(state.floor, userId)) {
+    return false;
+  }
+  if (keeping === 'running' && next.audio && !current.audio && !audioCouldBegin(state, userId)) {
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Whether `userId` may press Play: something selected, nothing running, and
+ * all of what is selected able to begin — the audio capturable with no film
+ * loaded (`recordingRefusal` says which), the text the room's to switch.
+ * **All or nothing**, so that what runs is what the switches show; whether
+ * the text has a payer is the route's.
+ */
+export function canPlay(state: ChannelState, userId: UserId): boolean {
+  if (state.status !== 'active') return false;
+  if (!isPresent(state, userId) || !holdsTheControls(state, userId)) return false;
+  if (keepingOf(state) === 'running') return false;
+  const keep = keepOf(state);
+  if (!keep.audio && !keep.text) return false;
+  if (keep.audio && !audioCouldBegin(state, userId)) return false;
+  return true;
+}
+
+/** Whether `userId` may press Pause: something running, on Pause's rules. */
+export function canPauseKeeping(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    keepingOf(state) === 'running' &&
+    isPresent(state, userId) &&
+    holdsTheControls(state, userId) &&
+    canPauseOrStopRecording(state.floor, userId)
+  );
+}
+
+/** Whether `userId` may press Stop: anything running or held, on Pause's rules. */
+export function canStopKeeping(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    keepingOf(state) !== 'stopped' &&
+    isPresent(state, userId) &&
+    holdsTheControls(state, userId) &&
+    canPauseOrStopRecording(state.floor, userId)
+  );
+}
+
+/** Stop: the recording and the live transcript end together; the selection stays. */
+function stopKeeping(state: ChannelState, now: number): ChannelState {
+  const ended = isRecordingActive(state.recording) ? endRun(state, now) : state;
+  return {
+    ...ended,
+    recording:
+      ended.recording.status === 'paused' ? initialRecordingState() : ended.recording,
+    liveTranscription: false,
+    liveTranscriptionPaused: false,
+    liveTranscriptionPaidBy: undefined,
+  };
+}
+
+/**
+ * Play, or Resume: begins every selected form not already running, ends
+ * whatever is held and no longer selected. A resumed recording is a new run,
+ * marked `automatic` so it does not chime, as `resumeKeeping` explains; a
+ * resumed text keeps its payer, and a newly begun one is `paidBy`'s.
+ */
+function playKeeping(
+  state: ChannelState,
+  runId: string | undefined,
+  paidBy: UserId | undefined,
+  automatic: boolean,
+  now: number
+): ChannelState {
+  const keep = keepOf(state);
+  let next = state;
+  const held = state.recording.status === 'paused';
+  if (keep.audio) {
+    if (runId && (state.recording.status === 'idle' || held)) {
+      next = { ...next, recording: startRecording(next.recording, runId, now, automatic || held) };
+    }
+  } else if (held) {
+    next = { ...next, recording: initialRecordingState() };
+  }
+  if (keep.text) {
+    next = state.liveTranscription
+      ? { ...next, liveTranscriptionPaused: false }
+      : {
+          ...next,
+          liveTranscription: true,
+          liveTranscriptionPaused: false,
+          liveTranscriptionPaidBy: paidBy,
+        };
+  } else if (state.liveTranscription) {
+    next = {
+      ...next,
+      liveTranscription: false,
+      liveTranscriptionPaused: false,
+      liveTranscriptionPaidBy: undefined,
+    };
+  }
+  return next;
+}
+
+/**
+ * A change of the switches while something runs: what is newly selected
+ * begins, what is no longer selected ends. The text changing under a running
+ * recording ends it and begins another, by `restartOnTextChange`, so the
+ * change is a clean break either way.
+ */
+function applyKeep(
+  state: ChannelState,
+  keep: Keep,
+  runId: string | undefined,
+  paidBy: UserId | undefined,
+  now: number
+): ChannelState {
+  let next = state;
+  if (keep.text && !(state.liveTranscription && !state.liveTranscriptionPaused)) {
+    next = {
+      ...next,
+      liveTranscription: true,
+      liveTranscriptionPaused: false,
+      liveTranscriptionPaidBy: state.liveTranscription ? state.liveTranscriptionPaidBy : paidBy,
+    };
+  } else if (!keep.text && state.liveTranscription) {
+    next = {
+      ...next,
+      liveTranscription: false,
+      liveTranscriptionPaused: false,
+      liveTranscriptionPaidBy: undefined,
+    };
+  }
+  if (keep.audio && next.recording.status === 'idle' && runId) {
+    next = { ...next, recording: startRecording(next.recording, runId, now) };
+  } else if (!keep.audio && isRecordingActive(next.recording)) {
+    next = endRun(next, now);
+  }
+  return next;
 }
 
 export function autoRecordStarter(state: ChannelState): UserId | null {
@@ -2301,6 +2494,8 @@ function reduceAction(
           ? state.liveTranscriptionPaidBy
           : action.paidBy,
       ...(starts ? { recording: startRecording(state.recording, action.runId!, now) } : {}),
+      // From a build before the transport: the selection follows.
+      keep: { ...keepOf(state), text: action.on, ...(starts ? { audio: true } : {}) },
     };
   }
 
@@ -2589,6 +2784,7 @@ function reduceAction(
         // live transcript the channel asks for — unless it asks for the audio
         // too, when the text waits to begin with it. See `autoTranscribe` and
         // `startsTextWithAudio`.
+        ...(state.present.length === 0 ? { keep: keepForSitting(state) } : {}),
         ...(state.present.length === 0 && state.autoTranscribe && !startsTextWithAudio(state)
           ? {
               liveTranscription: true,
@@ -3092,6 +3288,13 @@ function reduceAction(
               liveTranscriptionPaidBy: undefined,
             }
           : {}),
+        // The selection follows what began, for a build before the
+        // transport and for the latch, which begins what it selects.
+        keep: {
+          ...keepOf(state),
+          audio: true,
+          ...(action.withText === true ? { text: true } : {}),
+        },
       };
     }
 
@@ -3105,7 +3308,33 @@ function reduceAction(
 
     case 'STOP_RECORDING': {
       if (!canStopRecording(state, action.userId)) return state;
-      return endRun(state, now);
+      const ended = endRun(state, now);
+      // From a build before the transport: stopping the audio while the text
+      // runs leaves the text, so the selection says so.
+      return keepingOf(ended) === 'running'
+        ? { ...ended, keep: { ...keepOf(state), audio: false } }
+        : ended;
+    }
+
+    case 'SET_KEEP': {
+      const keep = { audio: action.audio, text: action.text };
+      if (!canSetKeep(state, action.userId, keep)) return state;
+      if (!keep.audio && !keep.text) return { ...stopKeeping(state, now), keep };
+      if (keepingOf(state) !== 'running') return { ...state, keep };
+      return { ...applyKeep(state, keep, action.runId, action.paidBy, now), keep };
+    }
+
+    case 'PLAY_KEEPING': {
+      if (!canPlay(state, action.userId)) return state;
+      return {
+        ...playKeeping(state, action.runId, action.paidBy, false, now),
+        keep: keepOf(state),
+      };
+    }
+
+    case 'STOP_KEEPING': {
+      if (!canStopKeeping(state, action.userId)) return state;
+      return stopKeeping(state, now);
     }
 
     // Every playback action shares one guard, because they are all the same
@@ -3867,8 +4096,11 @@ function settleEmpty(state: ChannelState, now: number): ChannelState {
           liveTranscriptionPaidBy: undefined,
         }
       : watched;
-  if (!isRecordingActive(settled.recording)) return settled;
-  return endRun(settled, now);
+  // **The next sitting begins with *Record automatically*'s pair selected**,
+  // since 2026-10-11 — both off where neither is set.
+  const reset = { ...settled, keep: keepForSitting(settled) };
+  if (!isRecordingActive(reset.recording)) return reset;
+  return endRun(reset, now);
 }
 
 /**

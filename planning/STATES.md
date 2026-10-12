@@ -704,7 +704,16 @@ one channel possible. **`'paused'` holds no run since 2026-10-10**: a pause
 ends the run and Resume begins another under a fresh id, as does *Text*
 changing while it records (`restartOnTextChange`), because every change of
 what is kept begins a new *segment* (GLOSSARY.md § *Segment*). `paused` is
-only the memory that Resume has something to begin again. Guarded by `canStartRecording`, which requires the actor to
+only the memory that Resume has something to begin again.
+
+**What runs and what is selected are two states since 2026-10-11.**
+`ChannelState.keep` is the *Record* tab's switches — what Play keeps —
+and `keepingOf` says where the transport stands, *stopped*, *running* or
+*paused*, read off `recording` and `liveTranscription`. The two agree
+while running, and only then: a switch moved while stopped or paused
+changes `keep` and nothing else, so *selected* and *running* can differ by
+design. `keepOf` reads a channel stored without `keep` as whatever was
+running. Do not collapse them. Guarded by `canStartRecording`, which requires the actor to
 be **present** and requires the room to be `capturable` — anybody's open
 microphone, or a track playing. **One person alone may record**, as they could
 before 2026-09-07 and could not between then and 2026-09-14; what is refused is

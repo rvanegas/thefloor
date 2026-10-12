@@ -255,6 +255,12 @@ export type RecordingStatus = 'idle' | 'recording' | 'paused';
  */
 export type TranscriptionModel = 'standard' | 'pro';
 
+/** What the *Record* tab's two switches select. See `ChannelState.keep`. */
+export interface Keep {
+  audio: boolean;
+  text: boolean;
+}
+
 export interface RecordingState {
   status: RecordingStatus;
   /**
@@ -873,6 +879,20 @@ export interface ChannelState {
    */
   liveTranscriptionPaidBy?: UserId;
   /**
+   * The *Record* tab's two switches: what Play keeps — as audio, as text, or
+   * both — since 2026-10-11. **A selection, not a state**: what is running is
+   * `recording` and `liveTranscription`, started by Play (`PLAY_KEEPING`) and ended
+   * by Stop (`STOP_KEEPING`). A switch changes what is running only while
+   * something is: both off stops, and any other change stops and restarts,
+   * a new *segment*. While stopped or paused it changes only what Play or
+   * Resume will begin.
+   *
+   * Reset to *Record automatically*'s pair at every sitting's start, by
+   * `settleEmpty` and the first `ENTER`. Absent on a channel stored before
+   * it, and read through `keepOf` as whatever was running.
+   */
+  keep?: Keep;
+  /**
    * The grade of speech model this channel's next transcript is asked for.
    * See `TranscriptionModel`.
    *
@@ -1234,6 +1254,21 @@ export type ChannelAction =
   | { type: 'PAUSE_RECORDING'; userId: UserId }
   | { type: 'RESUME_RECORDING'; userId: UserId; runId?: string }
   | { type: 'STOP_RECORDING'; userId: UserId }
+  /**
+   * The *Record* tab's switches, both at once: see `ChannelState.keep`.
+   * Server-applied through its route, which asks whether a text that would
+   * begin now has anybody to pay for it; `runId` and `paidBy` are minted
+   * there, as they are for `PLAY_KEEPING`.
+   */
+  | { type: 'SET_KEEP'; userId: UserId; audio: boolean; text: boolean; runId?: string; paidBy?: UserId }
+  /**
+   * Play: begins what `keep` selects, or resumes it when held. Refused whole
+   * when any of it cannot begin, so that what runs is what the switches
+   * show. Server-applied for `SET_KEEP`'s reason.
+   */
+  | { type: 'PLAY_KEEPING'; userId: UserId; runId?: string; paidBy?: UserId }
+  /** Stop: ends the recording and the live transcript together. */
+  | { type: 'STOP_KEEPING'; userId: UserId }
   /**
    * Holds and restarts the live transcript, under the recording's own Pause
    * rules — unlike `SET_LIVE_TRANSCRIPTION`, which costs the house money and

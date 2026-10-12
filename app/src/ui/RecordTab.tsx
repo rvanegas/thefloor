@@ -11,13 +11,13 @@ import {
   View,
 } from 'react-native';
 import {
-  canPauseLiveTranscription,
-  canPauseRecording,
-  canResumeLiveTranscription,
-  canSetLiveTranscription,
-  canResumeRecording,
-  canStartRecording,
-  canStopRecording,
+  canPauseKeeping,
+  canPlay,
+  canSetKeep,
+  canStopKeeping,
+  isPresent,
+  keepOf,
+  keepingOf,
   recordingRefusal,
 } from '../../../core/channel';
 import type {
@@ -27,16 +27,16 @@ import type {
   SegmentView,
 } from '../../../core/protocol';
 import { intoBlocks } from '../../../core/transcript';
-import type { ChannelState } from '../../../core/types';
+import type { ChannelState, Keep } from '../../../core/types';
 import { shareRecording } from '../api/download';
 import { api } from '../api/http';
 import { subscribeLiveLines } from '../live/lines';
 import { useApp } from '../state/AppProvider';
 import { shareText } from '../share';
 import { useText, type Strings } from '../i18n';
-import { Button, Empty, useScrollPosition } from './components';
-import { RecordingsIcon, ShareIcon } from './icons';
-import { colors, formatDuration, measure, radius, spacing, type } from './theme';
+import { Button, Empty, IconButton, useScrollPosition } from './components';
+import { PauseIcon, PlayIcon, RecordingsIcon, ShareIcon, StopIcon } from './icons';
+import { colors, formatDuration, measure, spacing, type } from './theme';
 
 /**
  * What a segment's line says and carries, for a recording drawn as one: its
@@ -612,50 +612,32 @@ export function formatSegmentText(
 }
 
 /**
- * What this channel keeps of what is said — its audio, its text, both or
- * neither — and a Pause that holds whatever is running. Pinned under the
- * channel's header on the *Record* tab, since 2026-10-09, where the Record and
- * Pause buttons were and in place of the *Live transcript* setting on *Channel
- * Settings*.
+ * The *Record* tab's transport and its two switches, pinned under the
+ * channel's header: Play (Resume while held), Pause and Stop as icons, then
+ * *Audio* and *Text*. Since 2026-10-11, when Rodrigo restored the transport.
  *
- * **Two independent switches, since 2026-10-10.** Each moves only its own
- * form, so either, both or neither may be on. They were radio style for a
- * day, on a reading of `keep-the-transcript-and-let-the-audio-go` that the
- * task does not make: it asks that text be enough, and that keeping the audio
- * be something somebody chooses — which is adding it, not swapping to it.
+ * **The switches select; the transport runs.** A switch says what Play keeps
+ * — `ChannelState.keep`, set at each sitting's start from *Record
+ * automatically* — and changes what is running only while something is: both
+ * off stops, and any other change stops and restarts, a new segment. While
+ * stopped or paused it changes only what Play or Resume will begin, so
+ * switching one on while stopped starts nothing. Both go through
+ * `PUT /channels/:id/keep`, which asks who pays for a text it begins.
  *
- * **Audio is the recording's own rules**: on is `START_RECORDING`, off is
- * `STOP_RECORDING`, and the switch is refused exactly where the button it
- * replaces was. **Text is the account's and the room's**: `mayTranscribeLive`,
- * since the house pays for it, and `canSetLiveTranscription`, since what is
- * kept is decided by somebody present who holds the controls — in a
- * community, its owner. Everybody else sees its state and cannot move it. A
- * switch says what is *chosen*, so a held run leaves it on.
+ * **Play begins all of what is selected or none of it** (`canPlay`), so what
+ * runs is what the switches show: refused with nothing selected, with Audio
+ * selected while it cannot begin — a film loaded, every microphone shut —
+ * and with Text selected for somebody with no minutes left. The sentence
+ * under the row says which. A text it begins is the presser's to pay for.
  *
- * **Start turns on both in one press, since 2026-10-10.** While nothing is
- * chosen, Pause's button reads Start and switches on as much of the pair as
- * this person may — Audio on the recording's rules, Text if the account pays
- * for it. The button is the transport and stands first, left of the
- * switches, so they read as modifiers on it; they are for choosing one form
- * alone, and the ordinary day is Start, Pause, Resume, and both off.
+ * **Pause holds both and Stop ends both**, on the recording's Pause rules. A
+ * pause is a clean break: Resume begins a new segment. **Every button is
+ * always drawn**, refused while it has nothing to do, so nothing moves under
+ * the thumb — except Play and Pause, which are one place, the way every
+ * transport has them.
  *
- * **Pause is one hold over the pair.** Pause holds everything running; while
- * anything chosen is held it reads Resume, and Resume restarts everything
- * held — so a form switched on during a hold runs, the button still offers
- * Resume, and one press brings the pair back level. **A pause is a clean
- * break, since 2026-10-10**: it ends the recording and the stretch of text,
- * and Resume begins a new segment of each — one action either way, which core
- * applies to both, so they end and begin together. Both on the recording's
- * Pause rules. **The button is always drawn**, refused while there is nothing
- * it may start or hold, so it never moves under the thumb.
- *
- * **So is every switch.** Text switched while the audio records ends that
- * recording and begins another, so a segment is kept one way throughout; and
- * Start, where it includes the text, is one request that begins both.
- *
- * Under the row, as under the buttons it replaces: why Audio is refused when
- * nothing else on the screen says, and a capture that stopped for a reason
- * nobody asked for.
+ * Under the row: why Play is refused when nothing else on the screen says,
+ * and a capture that stopped for a reason nobody asked for.
  */
 export function KeepSwitches({
   channelId,
@@ -670,103 +652,80 @@ export function KeepSwitches({
 }) {
   const t = useText().channel;
   const app = useApp();
-  const audioOn = channel.recording.status !== 'idle';
-  const audioHeld = channel.recording.status === 'paused';
-  const textOn = !!channel.liveTranscription;
-  const textHeld = textOn && !!channel.liveTranscriptionPaused;
-  const mayStop = canStopRecording(channel, me);
+  const keep = keepOf(channel);
+  const keeping = keepingOf(channel);
 
-  const setText = (on: boolean, withAudio = false) => {
+  const setKeep = (next: Keep) => {
     if (!app.token) return;
     api
-      .setLiveTranscription(app.token, channelId, on, withAudio)
+      .setKeep(app.token, channelId, next)
       .catch((e: unknown) =>
         Alert.alert(t.keepText(), e instanceof Error ? e.message : String(e))
       );
   };
-  const switchAudio = (on: boolean) =>
-    app.act(channelId, { type: on ? 'START_RECORDING' : 'STOP_RECORDING' });
+  const play = () => {
+    if (!app.token) return;
+    api
+      .playKeeping(app.token, channelId)
+      .catch((e: unknown) =>
+        Alert.alert(t.start(), e instanceof Error ? e.message : String(e))
+      );
+  };
 
-  // Resume while anything chosen is held, Pause otherwise. **One action
-  // either way, since 2026-10-10**: core holds or restarts everything this
-  // person may with whichever of the pair is sent, so that both end, and
-  // begin again, at one instant — each a clean break, a new segment. The one
-  // sent is whichever this person may move, so the guard is the one asked.
-  const resuming = audioHeld || textHeld;
-  const starting = !audioOn && !textOn;
-  const mayStartAudio = canStartRecording(channel, me);
-  // The account pays for it and the room decides it, as Audio is decided.
-  const mayStartText = mayTranscribeLive && canSetLiveTranscription(channel, me, true);
-  const hold:
-    | { type: 'PAUSE_RECORDING' }
-    | { type: 'RESUME_RECORDING' }
-    | { type: 'PAUSE_LIVE_TRANSCRIPTION' }
-    | { type: 'RESUME_LIVE_TRANSCRIPTION' }
-    | null = resuming
-    ? audioHeld && canResumeRecording(channel, me)
-      ? { type: 'RESUME_RECORDING' }
-      : textHeld && canResumeLiveTranscription(channel, me)
-        ? { type: 'RESUME_LIVE_TRANSCRIPTION' }
-        : null
-    : canPauseRecording(channel, me)
-      ? { type: 'PAUSE_RECORDING' }
-      : canPauseLiveTranscription(channel, me)
-        ? { type: 'PAUSE_LIVE_TRANSCRIPTION' }
-        : null;
-
-  // Start in one request where it includes the text — the route begins the
-  // audio in the same step — so the segment kept both ways begins at once.
-  const start = !starting
-    ? null
-    : mayStartText
-      ? () => setText(true, mayStartAudio)
-      : mayStartAudio
-        ? () => switchAudio(true)
-        : null;
-  const press = starting
-    ? () => start?.()
-    : () => {
-        if (hold) app.act(channelId, hold);
-      };
-  const refusedPress = starting ? start === null : hold === null;
-  const word = starting ? t.start() : resuming ? t.resume() : t.pause();
-
-  const audioRefused = audioOn ? !mayStop : !mayStartAudio;
-  const textRefused = !mayTranscribeLive || !canSetLiveTranscription(channel, me, !textOn);
+  // A text Play would begin is the presser's to pay for; one held resumes on
+  // whoever was paying.
+  const textWanting = keep.text && !channel.liveTranscription && !mayTranscribeLive;
+  const mayPlay = keeping !== 'running' && canPlay(channel, me) && !textWanting;
+  const mayPause = canPauseKeeping(channel, me);
+  const mayStop = canStopKeeping(channel, me);
   const refusal = recordingRefusal(channel, me);
+
+  // A switch the person may not move: not theirs to change, or Text turned
+  // on mid-run by somebody with nothing to pay for it.
+  const textBegins = keeping === 'running' && !keep.text;
+  const audioRefused = !canSetKeep(channel, me, { ...keep, audio: !keep.audio });
+  const textRefused =
+    !canSetKeep(channel, me, { ...keep, text: !keep.text }) || (textBegins && !mayTranscribeLive);
 
   return (
     <View style={styles.bar}>
       <View style={[styles.barInner, styles.keep]}>
         <View style={styles.switches}>
-          {/* First, so the switches read as what it keeps rather than as
-              controls of their own: Start, then what. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={word}
-            accessibilityState={{ disabled: refusedPress }}
-            disabled={refusedPress}
-            onPress={press}
-            style={({ pressed }) => [styles.hold, pressed && styles.pressed]}
-          >
-            <Text style={[styles.holdLabel, refusedPress && styles.switchLabelRefused]}>
-              {word}
-            </Text>
-          </Pressable>
+          {keeping === 'running' ? (
+            <IconButton
+              label={t.pause()}
+              icon={(color) => <PauseIcon color={color} />}
+              disabled={!mayPause}
+              onPress={() => app.act(channelId, { type: 'PAUSE_RECORDING' })}
+            />
+          ) : (
+            <IconButton
+              label={keeping === 'paused' ? t.resume() : t.start()}
+              icon={(color) => <PlayIcon color={color} />}
+              disabled={!mayPlay}
+              onPress={play}
+            />
+          )}
+          <IconButton
+            label={t.stop()}
+            icon={(color) => <StopIcon color={color} />}
+            disabled={!mayStop}
+            onPress={() => app.act(channelId, { type: 'STOP_KEEPING' })}
+          />
           <KeepSwitch
             label={t.audio()}
-            on={audioOn}
+            on={keep.audio}
             refused={audioRefused}
-            onChange={switchAudio}
+            onChange={(audio) => setKeep({ ...keep, audio })}
           />
           <KeepSwitch
             label={t.keepText()}
-            on={textOn}
+            on={keep.text}
             refused={textRefused}
-            onChange={setText}
+            onChange={(text) => setKeep({ ...keep, text })}
           />
         </View>
-        {refusal !== null && !audioOn ? (
+        {keeping !== 'running' && keep.audio && refusal !== null ? (
           <Text style={type.muted}>
             {refusal === 'owner'
               ? t.recordRefusedOwner()
@@ -774,6 +733,8 @@ export function KeepSwitches({
                 ? t.recordRefusedFilm()
                 : t.recordRefusedSilent()}
           </Text>
+        ) : keeping !== 'running' && textWanting && isPresent(channel, me) ? (
+          <Text style={type.muted}>{t.playRefusedText()}</Text>
         ) : null}
         {channel.recording.failure ? (
           // Capture stopping for a reason nobody asked for must not read like
@@ -971,21 +932,6 @@ const styles = StyleSheet.create({
     marginVertical: (-31 * (1 - SWITCH_SCALE)) / 2,
   },
   switchLabelRefused: { color: colors.textFaint },
-  // Pause, as thin as the switches beside it and on no card: a hairline
-  // pill the height of a switch, its word at the switches' size.
-  // Wide enough for its longest word, Spanish *Reanudar*: it stands first,
-  // so a pill that grew from Start to Resume would push both switches along.
-  hold: {
-    height: Math.round(31 * SWITCH_SCALE),
-    minWidth: 92,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: spacing(1.5),
-    borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  holdLabel: { color: colors.text, fontSize: 15 },
   warning: { color: colors.silenced, fontSize: 13 },
   pressed: { opacity: 0.6 },
 });

@@ -106,8 +106,8 @@ caused; the list carries the meaning.
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
 - **Record (the tab)** — What was kept of a channel, as a log of *segments* laid out in *rooms*: each segment a muted line — its hours, what it kept, its share — with its text under it as plain lines under each speaker's name and time, a segment with audio being its *recording*'s line that opens to its actions; each room headed by a line with its date and hours that is pinned once it scrolls off — one recording from before rooms standing as a room of its own —, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
-- **Audio and Text (the switches)** — What a channel keeps of what is said, as two switches pinned on the *Record* tab, each moving only itself — either, both or neither: *Audio* is a *recording*, *Text* the *live transcript*; the button beside them is the pair's transport — *Start* while nothing is chosen turns on both, as much as this person may; *Pause* holds everything running; *Resume*, while anything is held, restarts everything held. Every switch, Pause and Resume included, begins a new *segment* since 2026-10-10. Since 2026-10-09, replacing the Record and Pause buttons and the *Live transcript* setting. `KeepSwitches`
-- **Record automatically** — A channel setting, two switches since 2026-10-10: *Audio*, the room's first recording begins by itself (`autoRecord`), and *Text*, each sitting begins with the *live transcript* on (`autoTranscribe`), moved only by an account on the house. With both on, the text waits to begin with the audio, so the two are one *segment* (`startsTextWithAudio`). Switching either off on the *Record* tab holds until the room empties and fills again
+- **Audio and Text (the switches)** — What Play keeps, as two switches pinned on the *Record* tab beside the transport — Play (*Resume* while held), Pause, Stop, icons only — since 2026-10-11 (`ChannelState.keep`): *Audio* a *recording*, *Text* the *live transcript*. A selection, not a state: both off stops, any other change while running stops and restarts, a new *segment*, and while stopped or paused a switch changes only what Play or Resume will begin. Reset to *Record automatically*'s pair at each sitting. Since 2026-10-09. `KeepSwitches`
+- **Record automatically** — A channel setting, two switches since 2026-10-10: *Audio*, the room's first recording begins by itself (`autoRecord`), and *Text*, each sitting begins with the *live transcript* on (`autoTranscribe`), moved only by an account on the house. Each sitting's *Record* selection is set from it, since 2026-10-11, so switching it mid-sitting takes effect at the next. With both on, the text waits to begin with the audio, so the two are one *segment* (`startsTextWithAudio`). Switching either off on the *Record* tab holds until the room empties and fills again
 - **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off, by a Pause, or by *Text* changing under it, since 2026-10-10 — each one the audio of exactly one *segment* of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
@@ -2441,6 +2441,22 @@ which you step in to and out of. The tab is that conversation written down,
 which is what *Record* says without borrowing the word.
 
 ## Audio and Text (the switches)
+
+**A selection and a transport, since 2026-10-11.** Rodrigo found the logic
+distributed between the controls unnaturally, and restored the transport:
+Play (*Resume* while held), Pause and Stop, icons only, before the switches.
+**The switches now select what Play keeps** — `ChannelState.keep` — and
+change what is running only in a limited way: both off stops; any other
+change while running stops and restarts, a new *segment*; while stopped or
+paused they change only what Play or Resume will begin, so switching one on
+while stopped starts nothing. **Play begins all of what is selected or none
+of it** (`canPlay`): refused with Audio selected while it cannot begin, and
+with Text selected for somebody with no minutes to pay for it — the text
+Play begins is the presser's. Pause holds both and Stop ends both. The
+selection is reset at each sitting to *Record automatically*'s pair, both
+off where neither is set. Selecting Text while nothing runs spends nothing,
+so it is anybody's in the room; Text switched on mid-run is for somebody
+who can pay. What follows is what the switches were before.
 
 **What a channel keeps of what is said, as two switches**, pinned under the
 channel's header on the *Record* tab since 2026-10-09 (`KeepSwitches`).

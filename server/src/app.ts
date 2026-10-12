@@ -18,7 +18,7 @@ import {
   IM_SERVICE_NAMES,
   normaliseImHandle,
 } from '../../core/im';
-import { capacityOf } from '../../core/channel';
+import { capacityOf, keepOf, keepingOf } from '../../core/channel';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { isNavAction, NAV_ACTIONS } from '../../core/navigation';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
@@ -4516,6 +4516,68 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(statusFor(result.code)).send({ error: result.error });
     }
     return { ok: true, autoTranscribe: !!result.channel.autoTranscribe };
+  });
+
+  /**
+   * The *Record* tab's switches, both at once, since 2026-10-11: what Play
+   * keeps. Changing them begins the text now only while something is
+   * running, and only then is there anybody's minutes to ask about.
+   */
+  fastify.put('/channels/:id/keep', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { audio?: unknown; text?: unknown } | undefined;
+    if (typeof body?.audio !== 'boolean' || typeof body?.text !== 'boolean') {
+      return reply.code(400).send({ error: 'audio and text must be true or false.' });
+    }
+    if (body.text && live === null) {
+      return reply.code(404).send({ error: 'No such setting.' });
+    }
+    const channel = channels.get(id);
+    const beginsText =
+      !!channel &&
+      body.text &&
+      keepingOf(channel) === 'running' &&
+      !(channel.liveTranscription && !channel.liveTranscriptionPaused);
+    if (beginsText && !mayTranscribeLive(account.id)) {
+      return reply.code(403).send({ error: freeMinutesSpentMessage() });
+    }
+    const result = channels.setKeep(
+      id,
+      account.id,
+      { audio: body.audio, text: body.text },
+      transcribesFreely(account.id) ? undefined : account.id
+    );
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true, keep: keepOf(result.channel) };
+  });
+
+  /**
+   * Play, or Resume: begins what the switches select, all of it or none.
+   * The text it begins is the presser's to pay for, unless they transcribe
+   * on the house; a held text resumes on whoever was paying.
+   */
+  fastify.post('/channels/:id/play', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const channel = channels.get(id);
+    const beginsText = !!channel && keepOf(channel).text && !channel.liveTranscription;
+    if (beginsText && !mayTranscribeLive(account.id)) {
+      return reply.code(403).send({ error: freeMinutesSpentMessage() });
+    }
+    const result = channels.playKeeping(
+      id,
+      account.id,
+      transcribesFreely(account.id) ? undefined : account.id
+    );
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true };
   });
 
   fastify.put('/channels/:id/live-transcription', async (request, reply) => {

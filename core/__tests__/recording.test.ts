@@ -3,6 +3,7 @@ import { recordedMs } from '../recording';
 import {
   autoRecordStarter,
   canPauseRecording,
+  canPlay,
   canResumeRecording,
   canStartRecording,
   canStopRecording,
@@ -609,5 +610,102 @@ describe('why Record is refused', () => {
   it('says nothing while a run is going', () => {
     const recording = reduce(joined(), start(A), T0);
     expect(recordingRefusal(recording, B)).toBeNull();
+  });
+});
+
+/**
+ * **The transport and the switches, since 2026-10-11.** The switches select
+ * what Play keeps; Play, Pause and Stop run it. A switch changes what is
+ * running only while something is: both off stops, any other change stops
+ * and restarts — a new segment — and while stopped or paused it changes only
+ * what Play or Resume will begin.
+ */
+describe('the transport', () => {
+  const keep = (audio: boolean, text: boolean, runId?: string): ChannelAction =>
+    ({ type: 'SET_KEEP', userId: A, audio, text, ...(runId ? { runId } : {}) }) as ChannelAction;
+  const play = (runId = RUN): ChannelAction => ({ type: 'PLAY_KEEPING', userId: A, runId });
+  const pause: ChannelAction = { type: 'PAUSE_RECORDING', userId: A };
+  const stop: ChannelAction = { type: 'STOP_KEEPING', userId: A };
+
+  it('starts nothing when a switch is turned on while stopped', () => {
+    const s = apply(joined(), [[keep(true, true), T0]]);
+    expect(s.keep).toEqual({ audio: true, text: true });
+    expect(s.recording.status).toBe('idle');
+    expect(s.liveTranscription).toBeFalsy();
+  });
+
+  it('plays what is selected, both at one instant', () => {
+    const s = apply(joined(), [
+      [keep(true, true), T0],
+      [play(), T0 + 1_000],
+    ]);
+    expect(s.recording).toMatchObject({ status: 'recording', runId: RUN, startedAt: T0 + 1_000 });
+    expect(s.liveTranscription).toBe(true);
+    expect(s.liveTranscriptionPaused).toBe(false);
+  });
+
+  it('refuses Play with nothing selected, or with audio that cannot begin', () => {
+    expect(canPlay(joined(), A)).toBe(false);
+    const muted = apply(joined(), [
+      [keep(true, false), T0],
+      [{ type: 'SET_SELF_MUTE', userId: A, muted: true } as ChannelAction, T0],
+      [{ type: 'SET_SELF_MUTE', userId: B, muted: true } as ChannelAction, T0],
+    ]);
+    expect(canPlay(muted, A)).toBe(false);
+  });
+
+  it('stops and restarts on a change while running, and stops when both go off', () => {
+    const both = apply(joined(), [
+      [keep(true, true), T0],
+      [play(), T0],
+    ]);
+    const textOnly = reduce(both, keep(false, true, 'rec_two'), T0 + 10_000);
+    expect(textOnly.recording.status).toBe('idle');
+    expect(textOnly.lastRecording).toMatchObject({ runId: RUN, durationMs: 10_000 });
+    expect(textOnly.liveTranscription).toBe(true);
+
+    const audioOnly = reduce(both, keep(true, false, 'rec_two'), T0 + 10_000);
+    expect(audioOnly.recording).toMatchObject({ status: 'recording', runId: 'rec_two' });
+    expect(audioOnly.liveTranscription).toBe(false);
+
+    const neither = reduce(both, keep(false, false), T0 + 10_000);
+    expect(neither.recording.status).toBe('idle');
+    expect(neither.liveTranscription).toBe(false);
+    expect(neither.keep).toEqual({ audio: false, text: false });
+  });
+
+  it('changes only what Resume begins while paused', () => {
+    const paused = apply(joined(), [
+      [keep(true, true), T0],
+      [play(), T0],
+      [pause, T0 + 5_000],
+      [keep(true, false), T0 + 6_000],
+    ]);
+    expect(paused.recording.status).toBe('paused');
+    expect(paused.liveTranscriptionPaused).toBe(true);
+    const resumed = reduce(paused, play('rec_two'), T0 + 7_000);
+    expect(resumed.recording).toMatchObject({ status: 'recording', runId: 'rec_two', automatic: true });
+    expect(resumed.liveTranscription).toBe(false);
+  });
+
+  it('stops both with Stop, and keeps the selection', () => {
+    const s = apply(joined(), [
+      [keep(true, true), T0],
+      [play(), T0],
+      [stop, T0 + 5_000],
+    ]);
+    expect(s.recording.status).toBe('idle');
+    expect(s.liveTranscription).toBe(false);
+    expect(s.lastRecording).toMatchObject({ runId: RUN, durationMs: 5_000 });
+    expect(s.keep).toEqual({ audio: true, text: true });
+  });
+
+  it('resets the selection to Record automatically at the next sitting', () => {
+    const s = apply(joined(), [
+      [keep(true, true), T0],
+      [{ type: 'STEP_OUT', userId: A }, T0],
+      [{ type: 'STEP_OUT', userId: B }, T0],
+    ]);
+    expect(s.keep).toEqual({ audio: false, text: false });
   });
 });

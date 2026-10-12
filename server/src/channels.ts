@@ -38,6 +38,10 @@ import {
   canEditChannel,
   canSetLiveTranscription,
   canStartRecording,
+  canPlay,
+  canSetKeep,
+  keepOf,
+  recordingRefusal,
   holdsTheControls,
   COMMUNITY_OWNER_ACTIONS,
   GUEST_ACTIONS,
@@ -58,7 +62,7 @@ import {
   reduce,
   subscribeable,
 } from '../../core/channel';
-import { initialFloorState } from '../../core/floor';
+import { initialFloorState, isSilenced } from '../../core/floor';
 import {
   guestsPromised,
   isHere,
@@ -74,6 +78,7 @@ import type {
   ChannelAction,
   ChannelState,
   Guest,
+  Keep,
 } from '../../core/types';
 import type {
   GuestView,
@@ -350,6 +355,9 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'PAUSE_RECORDING',
   'RESUME_RECORDING',
   'STOP_RECORDING',
+  // Stop, since 2026-10-11: ends both, and spends nothing. Play and the
+  // switches go through their routes, which ask who pays for the text.
+  'STOP_KEEPING',
   'PAUSE_LIVE_TRANSCRIPTION',
   'RESUME_LIVE_TRANSCRIPTION',
   'CLEAR_TRACK',
@@ -1234,6 +1242,100 @@ export class ChannelRegistry {
       this.emit([channelId]);
     }
     return { ok: true, channel: this.channels.get(channelId) ?? next };
+  }
+
+  /**
+   * The *Record* tab's switches, both at once — see `ChannelState.keep` —
+   * for somebody the route has found may pay for any text this begins.
+   */
+  setKeep(
+    channelId: string,
+    userId: string,
+    keep: Keep,
+    /** Whose free minutes a text begun now spends; absent, the house's. */
+    paidBy?: string
+  ): { ok: true; channel: ChannelState } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || !channel.participants.includes(userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (channel.status !== 'active') {
+      return { ok: false, error: 'This channel has ended.', code: 'conflict' };
+    }
+    if (!canSetKeep(channel, userId, keep)) {
+      return {
+        ok: false,
+        error: !holdsTheControls(channel, userId)
+          ? 'Only the owner of this community can change what it keeps.'
+          : !isPresent(channel, userId)
+            ? 'Step in to change what this channel keeps.'
+            : isSilenced(channel.floor, userId)
+              ? 'Not while somebody else holds the floor.'
+              : 'There is nothing to record yet.',
+        code: 'forbidden',
+      };
+    }
+    // A run id whether or not one is needed: a change while running is a
+    // clean break, so the audio may begin, or begin again, under it.
+    return this.applyKeeping(channel, userId, {
+      type: 'SET_KEEP',
+      audio: keep.audio,
+      text: keep.text,
+      runId: newId('rec'),
+      ...(paidBy ? { paidBy } : {}),
+    });
+  }
+
+  /** Play, or Resume: see `canPlay`. The route has asked about the payer. */
+  playKeeping(
+    channelId: string,
+    userId: string,
+    paidBy?: string
+  ): { ok: true; channel: ChannelState } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || !channel.participants.includes(userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (channel.status !== 'active') {
+      return { ok: false, error: 'This channel has ended.', code: 'conflict' };
+    }
+    if (!canPlay(channel, userId)) {
+      const refusal = recordingRefusal(channel, userId);
+      return {
+        ok: false,
+        error: !isPresent(channel, userId)
+          ? 'Step in to record.'
+          : refusal === 'owner'
+            ? 'Only the owner of this community can change what it keeps.'
+            : refusal === 'film'
+              ? 'Not while a film is loaded.'
+              : refusal === 'silent'
+                ? 'There is nothing to record yet.'
+                : 'Switch on Audio or Text first.',
+        code: 'forbidden',
+      };
+    }
+    return this.applyKeeping(channel, userId, {
+      type: 'PLAY_KEEPING',
+      runId: newId('rec'),
+      ...(paidBy ? { paidBy } : {}),
+    });
+  }
+
+  private applyKeeping(
+    channel: ChannelState,
+    userId: string,
+    action: { type: 'SET_KEEP' | 'PLAY_KEEPING'; runId?: string; [field: string]: unknown }
+  ): { ok: true; channel: ChannelState } {
+    const next = reduce(channel, { ...action, userId } as unknown as ChannelAction, this.now());
+    if (action.runId && next.recording.runId === action.runId) {
+      this.runInitiator.set(action.runId, userId);
+    }
+    if (next !== channel) {
+      this.commit(channel, next);
+      this.emit([channel.id]);
+    }
+    return { ok: true, channel: this.channels.get(channel.id) ?? next };
   }
 
   /** Every channel whose live transcript somebody's free minutes pay for. */
@@ -4572,6 +4674,10 @@ export class ChannelRegistry {
       return;
     }
     if (this.autoRecorded.has(state.id)) return;
+    // What the sitting began with selected, which somebody may have changed
+    // since: a Record automatically whose Audio was switched off before it
+    // could start starts nothing.
+    if (!keepOf(state).audio) return;
     const starter = autoRecordStarter(state);
     if (starter === null) return;
     this.autoRecorded.add(state.id);
@@ -4584,7 +4690,7 @@ export class ChannelRegistry {
       runId: newId('rec'),
       // The channel asks for text as well, which waited for this so the two
       // begin together. See `startsTextWithAudio` in core.
-      withText: startsTextWithAudio(state),
+      withText: keepOf(state).text && !state.liveTranscription,
     } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
   }
 

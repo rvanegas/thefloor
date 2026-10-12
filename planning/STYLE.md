@@ -606,23 +606,24 @@ repeated the header's pill, which is what says in red that what is said is
 being kept; the switch says only what was chosen. A refused switch is the
 platform's grey and its word goes to `textFaint`.
 
-**Independent**: either, both or neither — each moves only itself, since
-2026-10-10; radio style the day before. It replaced the Record and Pause buttons and
-the *Live transcript* On/Off pair on *Channel Settings*, and § *Checkbox*'s
-line that a switch cannot draw *unticked* is no objection here: what a channel
-keeps is an answer in force, and each of these is always either on or off.
-**Refused with a sentence under the pair**, by § *Words on controls*' rule:
-`recordingRefusal`'s reasons. A held run leaves its switch on: the switch says what is
-chosen, and the pill says whether it is running.
+**A selection, since 2026-10-11**: each says what Play keeps
+(`ChannelState.keep`), either, both or neither, and changes what runs only
+while something does. § *Checkbox*'s line that a switch cannot draw
+*unticked* is no objection here: a selection is an answer in force, always
+either on or off. A switch says what is chosen and the pill says whether it
+is running, so a stopped or held channel leaves its switches as they were.
 
-**Pause stands before them, left of the pair since 2026-10-10, as thin as they are and on no card**: a hairline
-pill the height of a switch as drawn, its word — *Start* while nothing is
-chosen, *Resume* while anything chosen is held, *Pause* otherwise — at the
-switches' 15. It is the pair's transport: Start turns on both, as much as
-this person may, and the switches after it read as modifiers on it, for choosing one alone; Pause holds
-everything running and Resume restarts everything held. Always drawn, and
-refused while there is nothing it may do, rule six's reason. Added back on 2026-10-09, the day the transport
-it came from went.
+**The transport stands before them, icons only, since 2026-10-11**: Play —
+*Start* to a screen reader, not *Play*, which a recording's row and the
+shared track say — or *Pause* in the same place while anything runs, then
+*Stop*, each an `IconButton` with the glyphs in `icons.tsx`. Play reads
+*Resume* while held. **Every one is always drawn**, refused in `textFaint`
+while it has nothing to do, rule six's reason; Play and Pause share their
+place, as every transport has them. **Refused with a sentence under the
+row**, by § *Words on controls*' rule: `recordingRefusal`'s reasons while
+Audio is selected and cannot begin, or Text selected for somebody with no
+minutes to pay for it. The text button it replaced, *Start* / *Pause* /
+*Resume* in a hairline pill, stood there 2026-10-09 to 2026-10-10.
 
 ### FooterAction
 
