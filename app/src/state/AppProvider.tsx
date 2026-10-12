@@ -1724,6 +1724,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const { invite, clearInvite } = useInviteLink();
 
   /**
+   * The session an arriving link's answer is still owed to, read when that
+   * answer comes back.
+   *
+   * **Not the effect's own cleanup, which is what both effects below used to
+   * use.** Each clears its link before the request goes out, and the link is
+   * one of its own dependencies — so clearing it re-runs the effect, the
+   * cleanup ran, and every answer was dropped. The membership or the contact
+   * was made on the server and nobody was taken to the channel; for somebody
+   * already in the community nothing visible happened at all. Only a change of
+   * session should make an answer stale, so that is all this tracks.
+   */
+  const linkSession = useRef(state.token);
+  linkSession.current = state.token;
+
+  /**
    * Spends the invitation somebody arrived on, once there is a session to
    * spend it with.
    *
@@ -1765,15 +1780,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // and the second attempt would tell this person their own acceptance had
     // already been used. `clearInvite` owns that reasoning.
     clearInvite();
-    let cancelled = false;
+    const stale = () => linkSession.current !== token;
     void api
       .acceptInvite(token, invite.username, invite.pin)
       .then(async ({ channelId }) => {
-        if (cancelled) return;
+        if (stale()) return;
         // Absent rather than an error: a server too old to name the channel
         // leaves this person on Home, which is exactly where they used to land.
         const home = await api.home(token).catch(() => null);
-        if (cancelled) return;
+        if (stale()) return;
         setState((s) => ({
           ...s,
           ...(home ? { home } : {}),
@@ -1781,15 +1796,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }));
       })
       .catch((error: unknown) => {
-        if (cancelled) return;
+        if (stale()) return;
         setState((s) => ({
           ...s,
           lastError: inviteRefusalMessage(error, words),
         }));
       });
-    return () => {
-      cancelled = true;
-    };
   }, [state.token, invite]);
 
   /**
@@ -1804,6 +1816,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
    * the snapshot fetched before the id is published, and `landedChannel`
    * opening it without stepping in.
    *
+   * **Opened whether or not this person was already a member.** The server
+   * answers a member with `already` and the same id, and opening the
+   * community is the whole of what the tap asked for.
+   *
    * **Not a contact.** This is the second of the community page's two links,
    * and it asks for membership and nothing else; it never touches the invite
    * route, so nobody becomes the owner's contact by it.
@@ -1812,14 +1828,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!state.token || !join) return;
     const token = state.token;
     clearJoin();
-    let cancelled = false;
+    const stale = () => linkSession.current !== token;
     void api
       .joinCommunity(token, join.code)
       .then(async ({ channelId }) => {
-        if (cancelled) return;
+        if (stale()) return;
         realtime.watchChannel(channelId);
         const home = await api.home(token).catch(() => null);
-        if (cancelled) return;
+        if (stale()) return;
         setState((s) => ({
           ...s,
           ...(home ? { home } : {}),
@@ -1827,15 +1843,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }));
       })
       .catch((error: unknown) => {
-        if (cancelled) return;
+        if (stale()) return;
         setState((s) => ({
           ...s,
           lastError: error instanceof Error ? error.message : String(error),
         }));
       });
-    return () => {
-      cancelled = true;
-    };
   }, [state.token, join]);
 
   /**

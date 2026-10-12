@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join as joinPath } from 'node:path';
 import { buildApp, type App } from '../src/app';
+import { MAX_COMMUNITY_MEMBERS } from '../../core/constants';
 import { mintJoinCode } from '../src/channels';
 import { MemoryMailer } from '../src/mail';
 import { MemoryPusher } from '../src/push';
@@ -265,6 +266,32 @@ describe('the community page', () => {
     for (const name of ['Erta', 'Example', 'Zed', 'Zebedee']) {
       expect(reply.body).not.toContain(name);
     }
+  });
+
+  it('hands over a full community too, since only the app can tell a member', async () => {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const { channelId, joinCode } = await start(erta);
+    const members: User[] = [];
+    for (let i = 1; i < MAX_COMMUNITY_MEMBERS; i++) {
+      const member = await signIn(`m${i}@example.com`, `Member ${i}`);
+      expect((await join(member, joinCode)).statusCode).toBe(200);
+      members.push(member);
+    }
+    expect(app.channels.get(channelId)?.participants).toHaveLength(MAX_COMMUNITY_MEMBERS);
+
+    const reply = await withTrain(() => page(joinCode));
+    expect(reply.body).toContain("location.replace('/open')");
+    expect(reply.body).not.toContain('full for now');
+
+    // What the web app then asks: a member is given the community again…
+    const again = await join(members[0], joinCode);
+    expect(again.statusCode).toBe(200);
+    expect(again.json()).toMatchObject({ channelId, already: true });
+    // …and somebody who is not one is told, by the server, in the app.
+    const stranger = await signIn('late@example.com', 'Late Comer');
+    const refused = await join(stranger, joinCode);
+    expect(refused.statusCode).toBe(409);
+    expect(refused.json().error).toBe('Cafe Products is full.');
   });
 
   it('sends to the store where there is no web app, and names nobody', async () => {

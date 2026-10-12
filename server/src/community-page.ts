@@ -25,7 +25,13 @@
  *
  * **One page for a code that is unknown, revoked, or belongs to a channel that
  * has gone**, so that walking codes teaches nothing about which existed. That
- * page and the full one are still pages, since there is nothing to hand over.
+ * page is still a page, since there is nothing to hand over.
+ *
+ * **A full community is handed over like any other where there is a web app.**
+ * This page cannot tell who is reading it, and a member already in a full
+ * community is owed the community, not a refusal: the link opens it whether or
+ * not they had joined. The signed-in app can tell, so it asks, and somebody
+ * who is not a member hears the server's *is full* there instead.
  */
 
 import { CTA_STYLE, MARK, escapeHtml, page, socialCard } from './html';
@@ -103,6 +109,16 @@ the current one.</p>
     ? `<p class="about">${escapeHtml(community.description)}</p>`
     : '';
 
+  // Somebody with the app never gets here: `/j/*` is a universal link, so
+  // iOS hands the address to the app and this server never sees the request.
+  // What reaches it is everybody else — a phone without the app, a desktop,
+  // anybody who has told iOS to keep this domain in Safari — and for all of
+  // them the one click is the web app, the code going ahead of them in the
+  // tab. The App Store link travels beside this one in the message, so this
+  // page does not repeat it. See handoverPage. Ahead of the full page, not
+  // after it: see the header.
+  if (options.webAppReady) return handoverPage(community.name, options);
+
   if (community.full) {
     return page({
       title: `${community.name} — The Floor`,
@@ -117,15 +133,6 @@ ${about}
 `,
     });
   }
-
-  // Somebody with the app never gets here: `/j/*` is a universal link, so
-  // iOS hands the address to the app and this server never sees the request.
-  // What reaches it is everybody else — a phone without the app, a desktop,
-  // anybody who has told iOS to keep this domain in Safari — and for all of
-  // them the one click is the web app, the code going ahead of them in the
-  // tab. The App Store link travels beside this one in the message, so this
-  // page does not repeat it. See handoverPage.
-  if (options.webAppReady) return handoverPage(community.name, options);
 
   // A box with no web app has nowhere to send anybody but the store, and the
   // second tap is the link they were sent: a universal link once the app is
