@@ -14,61 +14,26 @@
  * address is the better answer, and `NAME_LIMIT` for what a name from a URL
  * costs.
  *
- * **Server-rendered, like `landing.ts`, and for a second reason on top of its
- * one.** The bundle is the wrong thing to send somebody who may not be a user
- * — that argument is landing.ts's — and here the page also has both halves of
- * the answer in its own URL, so there is nothing to fetch before it can speak.
- * A reader with no JavaScript gets the whole page and every fact on it.
+ * **Since 2026-10-12 it is a hand-over, not a page anybody reads** — the
+ * community link's arrangement, applied here, and
+ * `decision/2026-10-12-a-contact-invitation-is-two-links.md` has the account.
+ * The app shares two links, the App Store and this one (`contactInvite` in its
+ * catalogue), and `/i/*` is a universal link: on an iPhone with the app, iOS
+ * opens the app and this server never sees the request. Everybody else lands
+ * here, and with a web app on the box is sent straight on into it with the
+ * username left in the tab, to be accepted once there is a session — after a
+ * sign-in, if that comes first. See `handoverPage`.
  *
- * **One call to action, and it is the install. Reversed on 2026-09-25.** This
- * page led with the browser from 2026-09-06, and from 2026-09-22 it named and
- * costed both routes under two headings — some three hundred and fifty words
- * asking somebody who had been invited *by name* to first choose between a
- * browser and an install. Both of those are gone and the reasoning with them.
- * The page a person opens after being asked for should ask them for one thing.
+ * **What it replaced was the return tap**: one call to action, the install,
+ * then *come back to this link and press Open in the app*, which handed over
+ * `thefloor://i/<username>` — two taps, written into the copy because no
+ * script could detect an install (`decision/2026-09-25-the-invitation-asks-
+ * for-one-thing.md`). The universal link is what that decision was waiting
+ * for, and the copy it needed went with it.
  *
- * **What the old arrangement actually cost was a second sign-in, which is why
- * it went.** Its advice was to accept here and install afterwards; anybody who
- * took it and then ended up where this application wants them — on a phone,
- * where they can be reached — typed their email address and a mailed code
- * twice. That is the defect. The five headings were what dressed it up as a
- * choice, and the choice was never even: a browser cannot be notified, so
- * somebody who stops at one is barely in the application at all.
- *
- * **The install keeps the invitation now, by way of the return tap.** A trip
- * through the App Store does not carry the address, so this used to be the
- * route that arrived with no relationship — the warning at the foot of the old
- * page. The answer is to come back to this link and press *Open in the app*:
- * the link travels over `thefloor://i/<username>`, the app holds it across the
- * one sign-in and takes it up after, and the inviter is a contact with a
- * channel before the first screen is drawn. See `useInviteLink.ts`.
- *
- * **It is two taps and the copy says so rather than hiding it.** A universal
- * link would make the return land in the app on its own; that is deferred, and
- * planning/task/universal-links.md now carries the domain move as the reason it
- * stays deferred. So the second tap is the mechanism rather than a fallback,
- * and is written as the second step of the one call to action.
- *
- * **Nothing here may detect an install, and the copy is what stands in for
- * it.** `thefloor://` fails ugly on a phone without the app — Safari answers
- * that the address is invalid — and no script on this page can find out in
- * advance whether it would. So *Open in the app* is never offered as an
- * alternative to installing: somebody reading these blocks in order has either
- * just installed or already had it. A `localStorage` marker set by a click on
- * the store button was the alternative, and it buys emphasis rather than
- * correctness — it is absent in a private window and on a return through
- * another browser, so the copy has to stand alone regardless. The guest page's
- * button carries the same custom-scheme argument at greater length; see
- * `server/web/guest.ts`, and do not restate it here.
- *
- * **The browser is demoted and not removed, and the route still works.** One
- * quiet line, and it is load-bearing for four populations this page cannot tell
- * apart: a desktop visitor, an Android phone (never built — see
- * `planning/task/bring-android-level-with-ios.md`), a box with no
- * `APP_STORE_URL`, and anybody who has told iOS to keep this domain in Safari,
- * which it remembers. Accepting that way is unchanged: `acceptScript` hands the
- * pin to the tab and the app spends it after the sign-in, the same walk by the
- * other road.
+ * **A box with no web app still draws a page**: the store, and the line that
+ * says to tap the link again once the app is installed, which by then opens
+ * the app. A box with neither says so.
  *
  * **The prose budget is one sentence on each body, and it is a rule rather than
  * a result.** This page has accreted twice. The sentence is the promotional
@@ -112,7 +77,7 @@ import type { InviteRefusal } from './accounts';
  * Repeated here rather than imported, exactly as `landing.ts` repeats
  * `thefloor.token`: nothing in this server may import from `app/`, so a
  * comment naming the other end is the only link the two can have. The other
- * end is `takeInvite` in `app/src/ui/handover.ts`.
+ * end is `peekInvite` in `app/src/ui/handover.ts`.
  *
  * `sessionStorage` rather than `localStorage`, which is `handover.ts`'s own
  * rule and right for the same reason: an invitation belongs to the visit that
@@ -237,73 +202,7 @@ export function inviteRefusalText(refusal: InviteRefusal): string {
   return `${refusalText(refusal)}.`;
 }
 
-/**
- * Accepting in the browser, which is a link that upgrades itself.
- *
- * The anchor points at `/open` on its own, so a reader with no JavaScript still
- * gets into the app — they simply arrive without the invitation, which is the
- * honest degradation: nothing is silently half-done, and they can be added the
- * ordinary way. With JavaScript the click stores the invitation first and the
- * app takes it up as soon as there is a session.
- *
- * **The username alone, since 2026-09-25.** What crosses to the tab used to be
- * a username and a pin; it is the username now, and `handover.ts` reads the
- * pin as optional so that a tab handed one by an older page still works.
- *
- * `/open` rather than a train, which is the rule `open.ts` owns and the mistake
- * that produced two 503s in two days.
- */
-function acceptScript(username: string): string {
-  // JSON.stringify, not the escaper above: this is a JavaScript string
-  // literal rather than markup, and the two are escaped differently. The
-  // value is already narrow — a username is letters, digits and underscores —
-  // so this is belt and braces.
-  const invite = JSON.stringify(JSON.stringify({ username }));
-  return `
-<script>
-(function () {
-  var link = document.getElementById('accept');
-  if (!link) return;
-  link.addEventListener('click', function () {
-    try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${invite}); } catch (e) {}
-  });
-})();
-</script>`;
-}
-
-/**
- * The store button, or the browser standing in for it.
- *
- * **Never rendered dead**, which is the rule `landing.ts` and `supportPage`
- * already follow for the same setting: a box with no `APP_STORE_URL` is a
- * local checkout or a fresh one, and an `href=""` is worse than an absence.
- * So the single call to action is the install where there is one to offer and
- * the browser where there is not — one button either way, which is the whole
- * point of the page and has to survive a box that cannot make the first
- * choice.
- *
- * Returns the empty string only where there is neither, which is a guard
- * rather than a route anybody takes; the caller says what to do instead.
- */
-function callToAction(options: InvitePageOptions, aside: string): string {
-  if (options.appStoreUrl) {
-    return `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
-<span class="aside">${aside}</span></p>`;
-  }
-  if (options.webAppReady) {
-    return `<p class="cta"><a id="accept" href="/open">Accept in this browser</a>
-<span class="aside">Free. It needs a microphone and nothing else.</span></p>`;
-  }
-  return '';
-}
-
 export function invitePage(options: InvitePageOptions): string {
-  // Whether anything on this page writes the invitation into the tab. True
-  // exactly when an anchor with this id was drawn — the promoted button above
-  // or the demoted line below — so that the script and its target cannot fall
-  // out of step. See acceptScript.
-  const accepting = options.webAppReady;
-
   // **Capped here, escaped where it is used, and only once.** The cap is about
   // a heading somebody else chose the length of. The escaping is deliberately
   // not done here: `page()` escapes `title` and `standfirst` itself, so a value
@@ -315,46 +214,20 @@ export function invitePage(options: InvitePageOptions): string {
   // For the body, which this file interpolates into markup itself.
   const name = escapeHtml(raw);
 
-  // The second step of the one call to action, and on this page it is what the
-  // install buys — but only by way of the return tap, since a trip through the
-  // App Store drops the address. So the aside says to come back, and the line
-  // below is what the app takes the invitation up from, holding it across the
-  // sign-in (`useInviteLink.ts`). A box with no store link says the same about
-  // the browser — see callToAction.
-  const aside = `Free. Once it’s on your phone, come back to this link there and tap Open in the app below: ${name} is in your contacts as soon as you sign in.`;
+  // Somebody with the app never gets here — see the module comment — so with
+  // a web app to go to, everybody who does is handed straight on to it.
+  if (options.webAppReady) return handoverPage(raw, options);
 
-  // The return tap. Drawn only beside the store button: a box with no store
-  // link has no installs to open, and the aside above is what points here.
-  // `thefloor://` rather than an `https://` link, permanently — a universal
-  // link does not fire from a page on its own domain, so it would only reload
-  // this tab; planning/task/universal-links.md § *The button is a custom
-  // scheme*. Somebody who taps it before installing gets Safari's error and the
-  // store button above it, which is why it says *once it is installed*. And it
-  // names the phone, because a desktop with no handler for the scheme does
-  // nothing at all on the click — the browser line below is that reader's.
-  const openInApp = options.appStoreUrl
-    ? `<p class="app"><a href="thefloor://i/${escapeHtml(options.username)}">Open in the app</a>
-— on your iPhone, once it’s installed.</p>`
-    : '';
-
-  // Offered only where there is something to open, the way `landing.ts`
-  // withholds its browser link: a box can quite normally be serving no web app
-  // at all, and sending somebody mid-acceptance to a 503 is worse than telling
-  // them to use their phone. Withheld too where it has already been promoted
-  // into the button above, or the page would offer it twice.
-  const browser =
-    options.webAppReady && options.appStoreUrl
-      ? `<p class="browser">Not on an iPhone? <a id="accept" href="/open">Accept in this
-browser</a> — no install; it needs a microphone and nothing else.</p>`
-      : '';
-
-  // A box serving neither train nor store. Nothing in this branch should read
-  // as the ordinary way in, because there is not one.
-  const neither =
-    !options.appStoreUrl && !options.webAppReady
-      ? `<p class="browser">This server is not handing out the app yet. Tell ${name}
-you are here.</p>`
-      : '';
+  // A box with no web app has nowhere to send anybody but the store, and the
+  // second tap is the link they were sent: a universal link once the app is
+  // on the phone. **Never rendered dead**, which is `landing.ts`'s rule about
+  // the same setting: a box with neither says so rather than drawing an
+  // `href=""`.
+  const store = options.appStoreUrl
+    ? `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
+<span class="aside">Free. Once it’s installed, tap the link you were sent again: ${name} is in your contacts as soon as you sign in.</span></p>`
+    : `<p class="browser">This server is not handing out the app yet. Tell ${name}
+you are here.</p>`;
 
   return page({
     title: `${raw} invited you to The Floor`,
@@ -373,13 +246,55 @@ you are here.</p>`
 <p class="lede">It’s a group chat, but voice. A channel is a place you drop
 into: you arrive when it suits you, and whoever is there is there.</p>
 
-${callToAction(options, aside)}
-${openInApp}
-${browser}
-${neither}
+${store}
 <p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
 how long.</p>
-${accepting ? acceptScript(options.username) : ''}
+`,
+  });
+}
+
+/**
+ * The one click, for somebody without the app: into the web app, with the
+ * username left in the tab for `peekInvite`.
+ *
+ * **A page and not a redirect**, for `community-page.ts`'s two reasons: a link
+ * preview's crawler reads the card from it, and only a script can write the
+ * tab's `sessionStorage`.
+ *
+ * **The username alone, whichever address was asked for.** A link minted
+ * before 2026-09-25 carries a pin, and the pin is not passed on: taking a link
+ * up by username accepts for any account and is never refused as used, which
+ * a spent pin would be. And it stays in the tab until it is spent, not until
+ * it is read, so a reload during the sign-in — iOS reloading a tab left for
+ * the mail app — keeps it. See `peekInvite`.
+ *
+ * Without JavaScript the link still opens the web app, and arrives without
+ * the invitation: nothing is silently half-done, and they can be added the
+ * ordinary way. `/open` rather than a train, which is the rule `open.ts` owns.
+ */
+function handoverPage(name: string, options: InvitePageOptions): string {
+  // JSON.stringify, not the escaper: this is a JavaScript string literal
+  // rather than markup. A username is letters, digits and underscores, but the
+  // address is somebody else's text, so `<` is escaped for the script element
+  // regardless.
+  const invite = JSON.stringify(JSON.stringify({ username: options.username })).replace(
+    /</g,
+    '\\u003c'
+  );
+  return page({
+    title: `${name} invited you to The Floor`,
+    heading: 'The Floor',
+    standfirst: `${name} invited you`,
+    social: socialCard(options.origin, CARD),
+    head: `${REFERRER}
+<script>
+try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${invite}); } catch (e) {}
+location.replace('/open');
+</script>`,
+    style: STYLE,
+    body: `${MARK}
+<p class="lede">Opening The Floor…</p>
+<p class="app"><a href="/open">Continue</a> if this page does not move on by itself.</p>
 `,
   });
 }

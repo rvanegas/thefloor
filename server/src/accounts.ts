@@ -933,8 +933,9 @@ export class Accounts {
    * sends it, and the recipient installs from the App Store instead of
    * accepting in the browser: the pin is never redeemed, no `pending_invites`
    * row was ever written, and the most plainly invited person in the database
-   * arrives owing nobody. `invite.ts` has warned about that route on the page
-   * itself for as long as the page has existed, and people take it anyway.
+   * arrives owing nobody. The page warned about that route, then asked for a
+   * return tap, and since 2026-10-12 the link opens the app after an install —
+   * but only for somebody who taps it again, which nothing can make them do.
    *
    * **Three conditions, and each one rules out a different wrong answer.**
    *

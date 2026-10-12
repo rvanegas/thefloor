@@ -1,34 +1,24 @@
 import { useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 
-import { takeInvite, type Invite } from '../ui/handover';
+import { forgetInvite, peekInvite, type Invite } from '../ui/handover';
 
 /**
  * The invitation somebody arrived on, by either of the two roads it can take.
  *
  * **One hook for both, because the thing that spends them is one effect.** A
  * browser leaves the invitation in `sessionStorage` for the tab it hands to —
- * `takeInvite` in `app/src/ui/handover.ts`, written by the invite page itself —
- * and a phone gets it as a URL. Those arrive by different mechanisms and mean
- * exactly the same thing, so they are read here and answered once, in
- * `AppProvider`.
+ * `peekInvite` in `app/src/ui/handover.ts`, written by the server's hand-over
+ * page — and a phone gets it as a URL. Those arrive by different mechanisms
+ * and mean exactly the same thing, so they are read here and answered once,
+ * in `AppProvider`.
  *
- * **The URL road exists because the install used to lose the invitation.** A
- * trip through the App Store does not carry the address, so somebody who
- * installed rather than accepting in the browser arrived with no relationship
- * and nothing to show for having been asked; the old page's answer was to tell
- * them to accept first, which cost anybody who did both a second sign-in. The
- * page now leads with the install and asks them to come back to the link and
- * press *Open in the app*. This is the other end of that.
- *
- * **`thefloor://i/<username>`, with an optional trailing pin, and no `https://`
- * form.** A universal link
- * would let the return tap land here without the second press, and is deferred
- * — planning/task/universal-links.md, where a domain change is now the reason
- * it stays deferred. Until one exists, nothing can deliver an `https://`
- * address to this app, so matching one would be answering a string that never
- * arrives. Do not add it speculatively; add it in the commit that claims the
- * domain.
+ * **The URL is the invite link itself since 2026-10-12**:
+ * `https://<host>/i/<username>`, which iOS hands to the app as a universal
+ * link, so somebody with the app is a contact on one tap and somebody who
+ * installs first taps the same link again after. `thefloor://i/<username>`,
+ * which the invite page's *Open in the app* sent until that day, is still
+ * read, since a page already open in somebody's browser may still offer it.
  */
 
 /**
@@ -48,6 +38,20 @@ import { takeInvite, type Invite } from '../ui/handover';
  */
 export function inviteOfUrl(url: string | null): Invite | null {
   if (!url) return null;
+  // The universal link, from any host for `joinOfUrl`'s reason: iOS delivers
+  // only addresses on a domain the build claims. **A pin in it is dropped.**
+  // Taking a link up by username accepts for any account and is never
+  // refused as used, which a spent pin would be, and the invite page has not
+  // passed a pin on since it stopped asking for one.
+  const web = /^https:\/\/[^/?#]+\/i\/([^/?#]+)/.exec(url);
+  if (web) {
+    try {
+      const username = decodeURIComponent(web[1]);
+      return username ? { username } : null;
+    } catch {
+      return null;
+    }
+  }
   const match = /^thefloor:\/\/i\/([^/?#]+)(?:\/([^/?#]+))?/.exec(url);
   if (!match) return null;
   try {
@@ -70,7 +74,7 @@ export function inviteOfUrl(url: string | null): Invite | null {
  *
  * **State rather than a variable somebody reads, and that is the whole design
  * question here.** The obvious alternative was to give `handover.ts` a
- * module-level hold so that one `takeInvite` answered both roads — one
+ * module-level hold so that one `peekInvite` answered both roads — one
  * function, one shape. It does not work, because a module variable cannot tell
  * React that something arrived, so the effect that spends an invitation would
  * only find it if it happened to re-run. Two ordinary arrivals never do:
@@ -108,11 +112,10 @@ export function useInviteLink(): {
   useEffect(() => {
     let cancelled = false;
 
-    // The browser's road. Taken here rather than where it is spent so that
-    // there is one holder — and `takeInvite` is one-shot, so the `prev ??`
-    // matters even for this call: a second invocation returns null and must
-    // not be allowed to wipe what the first one took.
-    setInvite((prev) => prev ?? takeInvite());
+    // The browser's road. Read here rather than where it is spent so that
+    // there is one holder; `prev ??` so a later read cannot replace what an
+    // earlier one found.
+    setInvite((prev) => prev ?? peekInvite());
 
     void Linking.getInitialURL()
       .then((url) => {
@@ -138,11 +141,13 @@ export function useInviteLink(): {
 
   return {
     invite,
-    // Cleared *before* the request goes out, which is `takeInvite`'s own rule:
-    // what this opens is single use, so an invitation still held while a
-    // request is in flight is one a re-render can spend twice — and the second
-    // attempt reports that the invitation was already used, to the very person
-    // who just used it.
-    clearInvite: () => setInvite(null),
+    // Cleared *before* the request goes out, from state and from the tab: a
+    // pinned invitation is single use, so one still held while a request is in
+    // flight is one a re-render can spend twice. A pin-less one would survive
+    // that, but spending it once is the point.
+    clearInvite: () => {
+      forgetInvite();
+      setInvite(null);
+    },
   };
 }

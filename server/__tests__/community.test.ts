@@ -284,7 +284,7 @@ describe('the community page', () => {
     }
   });
 
-  it('lets the app claim community links and nothing else', async () => {
+  it('lets the app claim community links and invite links, and nothing else', async () => {
     const reply = await app.fastify.inject({
       method: 'GET',
       url: '/.well-known/apple-app-site-association',
@@ -296,7 +296,10 @@ describe('the community page', () => {
         details: [
           {
             appIDs: ['9946JKHZUJ.co.rvanegas.thefloor'],
-            components: [{ '/': '/j/*', comment: 'Community links' }],
+            components: [
+              { '/': '/j/*', comment: 'Community links' },
+              { '/': '/i/*', comment: 'Invite links' },
+            ],
           },
         ],
       },

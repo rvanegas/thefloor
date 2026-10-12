@@ -177,7 +177,7 @@ What goes, on that date:
 - the `body.pin` branch in `POST /contacts/invite/accept`
 - `used` and `expired` from `InviteRefusal` and from `refusalText`
 - `Invite.pin` on the client, the second segment in `inviteOfUrl`, the pin
-  read in `takeInvite`, and the optional argument on `api.acceptInvite`
+  read in `peekInvite`, and the optional argument on `api.acceptInvite`
 
 **What must not be deleted alongside it**, and this is the part that is not
 reconstructable:

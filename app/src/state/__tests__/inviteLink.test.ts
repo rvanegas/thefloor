@@ -62,16 +62,27 @@ describe('inviteOfUrl', () => {
   });
 
   /**
-   * **Not a universal link, deliberately.** No AASA claims this domain, so
-   * nothing can deliver an `https://` address to this app; matching one would
-   * be answering a string that never arrives. planning/task/universal-links.md
-   * is why, and the commit that claims the domain is where this changes.
+   * **The universal link, since 2026-10-12**, when the AASA began claiming
+   * `/i/*`. A pin in it is dropped rather than passed on: taking a link up by
+   * username is never refused as used, which a spent pin would be.
    */
-  it('does not answer the https form of the same address', () => {
-    expect(inviteOfUrl('https://thefloor.rvanegas.co/i/annak')).toBeNull();
-    expect(
-      inviteOfUrl('https://thefloor.rvanegas.co/i/annak/042317')
-    ).toBeNull();
+  it('reads the invite link itself, which iOS hands over as a universal link', () => {
+    expect(inviteOfUrl('https://thefloor.rvanegas.co/i/annak')).toEqual({
+      username: 'annak',
+    });
+    expect(inviteOfUrl('https://thefloor.rvanegas.co/i/annak?name=Anna%20K')).toEqual({
+      username: 'annak',
+    });
+    expect(inviteOfUrl('https://thefloor.rvanegas.co/i/annak/042317')).toEqual({
+      username: 'annak',
+    });
+  });
+
+  it('is not a community link, and a train path is never an invitation', () => {
+    expect(inviteOfUrl('https://thefloor.rvanegas.co/j/cafe-products-k3x9abcd')).toBeNull();
+    expect(inviteOfUrl('https://thefloor.rvanegas.co/beta/i/annak')).toBeNull();
+    expect(inviteOfUrl('http://thefloor.rvanegas.co/i/annak')).toBeNull();
+    expect(inviteOfUrl('https://thefloor.rvanegas.co/i/')).toBeNull();
   });
 
   it('refuses a malformed escape rather than throwing', () => {

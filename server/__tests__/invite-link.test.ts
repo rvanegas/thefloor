@@ -598,50 +598,63 @@ describe('the page', () => {
   });
 
   /**
-   * **Under a train, explicitly.** The script that writes the key is drawn only
-   * where there is somewhere for the anchor to go — `accepting` in `invite.ts`
-   * is `options.webAppReady` — so the train is the precondition of the
-   * assertion and is stood up rather than inherited. See `trainRoot` above for
-   * what inheriting it cost.
+   * **Under a train, explicitly**, since the hand-over is drawn only where
+   * there is a web app to hand over to — so the train is the precondition of
+   * the assertion and is stood up rather than inherited. See `trainRoot` above
+   * for what inheriting it cost.
    */
-  it('hands the tab a username and no pin', async () => {
+  it('hands somebody without the app to the web app with the username', async () => {
     await withTrain('stable', async () => {
-      const body = (await open('/i/alice_k')).body;
-      expect(body).toContain('thefloor.invite');
-      expect(body).toContain('{\\"username\\":\\"alice_k\\"}');
+      const body = (await open('/i/alice_k?name=Alice')).body;
+      expect(body).toContain(
+        'sessionStorage.setItem("thefloor.invite", "{\\"username\\":\\"alice_k\\"}")'
+      );
+      expect(body).toContain("location.replace('/open')");
+      expect(body).toContain('Alice invited you');
+      // A card for the preview, which a redirect could not carry.
+      expect(body).toContain('og:title');
+      // The App Store travels in the message beside this link, and the custom
+      // scheme has nothing left to do: the link is a universal link.
+      expect(body).not.toContain('thefloor://');
+      expect(body).toContain('<meta name="referrer" content="no-referrer">');
     });
   });
 
   /**
-   * The other direction, which is what would have caught the original defect:
-   * a box serving no train writes nothing into the tab, because there is no
-   * anchor to hang the click on. It is the ordinary state of a fresh box, and
-   * of every other test in this file.
-   *
-   * Asserted here as well as in § *the call to action* below, and the
-   * difference is the seam: that one calls `invitePage` with `webAppReady`
-   * passed in, and this one goes through the route, where the value comes from
-   * the disk. Both halves have been wrong at once.
+   * The shim, through the hand-over: an address minted before the pin went
+   * hands over the username alone, since taking a link up by username is
+   * never refused as used and a spent pin would be.
    */
-  it('writes nothing into the tab where there is no train to accept in', async () => {
+  it('hands over no pin, even from a link that carries one', async () => {
+    await withTrain('stable', async () => {
+      const body = (await open('/i/alice_k/042317')).body;
+      expect(body).toContain('{\\"username\\":\\"alice_k\\"}');
+      expect(body).not.toContain('042317');
+    });
+  });
+
+  /**
+   * The other direction: a box serving no train writes nothing into the tab,
+   * because there is nowhere to send the reader. It is the ordinary state of a
+   * fresh box, and of every other test in this file.
+   */
+  it('writes nothing into the tab where there is no web app', async () => {
     const body = (await open('/i/alice_k')).body;
     expect(body).not.toContain('thefloor.invite');
-    expect(body).not.toContain('id="accept"');
+    expect(body).not.toContain('location.replace');
     expect(body).toContain('not handing out the app yet');
   });
 });
 
 /**
- * The one call to action, and the three boxes that cannot make the usual one.
+ * A box with no web app, which is the one that still draws a page.
  *
  * Unit calls rather than requests, because the route always passes
  * `options.updateUrl` and there is no way to reach the absent case through it.
- * What is being checked is a rule rather than a paragraph: **the button is
- * never dead.** An `href=""` is worse than an absence, and on a page whose
- * whole design is one call to action, a box that cannot offer the install has
- * to offer the other thing rather than nothing.
+ * **The rule is that nothing is drawn dead**: an `href=""` is worse than an
+ * absence.
  */
-describe('the call to action, on a box that cannot make the usual one', () => {
+describe('the page, on a box with no web app', () => {
   const STORE = 'https://apps.apple.com/app/id123456789';
   const drawn = (extra: Partial<Parameters<typeof invitePage>[0]>) =>
     invitePage({
@@ -651,62 +664,27 @@ describe('the call to action, on a box that cannot make the usual one', () => {
       ...extra,
     });
 
-  it('leads with the install where there is one', () => {
-    const body = drawn({ appStoreUrl: STORE, webAppReady: true });
-    expect(body).toContain(`<p class="cta"><a href="${STORE}"`);
-    expect(body).toContain('class="browser"');
-    expect(body).toContain('id="accept"');
-  });
-
-  it('promotes the browser into the button where there is no store link', () => {
-    const body = drawn({ webAppReady: true });
-    expect(body).toContain('<p class="cta"><a id="accept" href="/open">');
-    expect(body.match(/id="accept"/g)).toHaveLength(1);
-    expect(body).not.toContain('class="browser"');
-  });
-
-  it('offers no browser at all where no train is deployed', () => {
+  it('sends to the store, and says to tap the link again once installed', () => {
     const body = drawn({ appStoreUrl: STORE });
-    expect(body).toContain(STORE);
-    expect(body).not.toContain('id="accept"');
+    expect(body).toContain(`<p class="cta"><a href="${STORE}"`);
+    expect(body).toContain('tap the link you were sent again');
+    expect(body).not.toContain('thefloor://');
     expect(body).not.toContain('thefloor.invite');
   });
 
-  it('draws no button at all rather than a dead one', () => {
+  it('says the server has nothing to hand out rather than drawing a dead button', () => {
     const body = drawn({});
     expect(body).not.toContain('class="cta"');
-    expect(body).not.toContain('href=""');
+    expect(body).toContain('not handing out the app yet');
     expect(body).toContain('Alice');
   });
 
-  /**
-   * The return tap, which is how an install keeps the invitation: the App
-   * Store drops the address, so the page asks the reader to come back and
-   * open the app from it. Only beside the store button — a box with no store
-   * link has no installs to open.
-   */
-  it('offers the return tap into the app beside the install', () => {
-    const body = drawn({ appStoreUrl: STORE });
-    expect(body).toContain('<a href="thefloor://i/alice_k">Open in the app</a>');
-    expect(body).toContain('come back to this link there and tap Open in the app');
-  });
-
-  it('offers no return tap where there is no install to return from', () => {
-    for (const extra of [{ webAppReady: true }, {}]) {
-      expect(drawn(extra)).not.toContain('thefloor://');
+  it('hands over, and draws no store, wherever there is a web app', () => {
+    for (const extra of [{ webAppReady: true, appStoreUrl: STORE }, { webAppReady: true }]) {
+      const body = drawn(extra);
+      expect(body).toContain("location.replace('/open')");
+      expect(body).not.toContain(STORE);
     }
-  });
-
-  it('still says it in a few sentences with the return tap drawn', () => {
-    const body = drawn({ appStoreUrl: STORE, webAppReady: true });
-    const prose = body
-      .slice(body.indexOf('<body>'))
-      .replace(/<script[\s\S]*?<\/script>/g, ' ')
-      .replace(/<svg[\s\S]*?<\/svg>/g, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    expect(prose.split(' ').length).toBeLessThan(120);
   });
 
   it('never writes an empty href in any of the four', () => {

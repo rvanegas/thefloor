@@ -253,8 +253,11 @@ export const es: Strings = {
     makingALink: () => 'Creando un enlace\u2026',
     shareInviteLink: () => 'Compartir el enlace de invitaci\u00f3n',
     copyInviteLink: () => 'Copiar el enlace de invitaci\u00f3n',
-    linkCopied: () =>
-      'Enlace copiado. Sirve una sola vez, para la primera persona que lo abra.',
+    contactInvite: (store: string | null, link: string) =>
+      store
+        ? `Hablemos en The Floor.\n\nDescarga la app: ${store}\nLuego toca para a\u00f1adirme: ${link}`
+        : `Hablemos en The Floor: ${link}`,
+    linkCopied: () => 'Invitaci\u00f3n copiada.',
     clipboardRefused: () => 'El portapapeles lo ha rechazado. Int\u00e9ntalo otra vez.',
   },
   channels: {

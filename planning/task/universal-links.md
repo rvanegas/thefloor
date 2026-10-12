@@ -16,11 +16,12 @@ the answer stays no for long enough that nobody is tempted, delete it anyway
 answers `/.well-known/apple-app-site-association` from a route
 (`APPLE_APP_SITE_ASSOCIATION` in `server/src/app.ts`), `app.json` carries
 `ios.associatedDomains`, and `useJoinLink.ts` reads the `https://` form. **So
-items 1–4 below are done**, the domain-move reason for waiting was overruled
-at the prompt that day, and what is left here is `/i/*` and `/g/*` — adding
-each is a line in that constant plus a matcher in its hook, and the traps
-below still govern, the AASA being deployed before the build that relies on
-it. `/.well-known/assetlinks.json` is still not served.
+items 1–4 below are done**, and the domain-move reason for waiting was
+overruled at the prompt that day. **`/i/*`, invite links, followed on
+2026-10-12** (`decision/2026-10-12-a-contact-invitation-is-two-links.md`), so
+what is left here is `/g/*` — a line in that constant plus a matcher in its
+hook, and the traps below still govern, the AASA being deployed before the
+build that relies on it. `/.well-known/assetlinks.json` is still not served.
 
 **Two things this file said were missing have since been built, and the
 corrections are the reason to read this section rather than skip it.**

@@ -72,7 +72,8 @@ caused; the list carries the meaning.
 - **In the app now** — What a *contact*'s row says about somebody who is there: holding a socket, and attended within fifteen minutes. The line under a name, and *Last seen 3 hours ago* is the same line when they are not — one clock, so the two can never disagree. A socket alone until 2026-09-25, which said it for hours about a desktop client nobody was sitting at
 - **Invitation** — An ask to join something. Two distinct things can be asked to: the app, as somebody's *contact*, by an *invite link* or an *invitation email*; and a *channel*, by a member — see *guest invitation* for the third, a *seat*
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
-- **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time, and the page it opens asks them to install the app
+- **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time. Since 2026-10-12 a universal link — the app where it is installed, the web app where it is not — shared beside the App Store as the *contact invitation*
+- **Contact invitation** — What *Share Invite Link* sends since 2026-10-12: two links, the App Store and then the *invite link*, and no page to read. `contactInvite` in the catalogue
 - **Invite pin** — Six digits that used to end an invite link and made it good once; gone since 2026-09-25, and read now only on links minted before then
 - **Join link** — `thefloor://j/<code>`, which the community page drew until 2026-10-11 and the app still reads; the *community link* does its job now. Membership only — never a *contact*, unlike an *invite link*
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
@@ -1277,16 +1278,17 @@ signs up, exactly as a link is taken up by being followed. Before that the
 email's two halves disagreed — clicking the link made a contact, ignoring it
 and signing up left a request to answer.
 
-**The page it opens asks for one thing, and since 2026-09-25 that thing is the
-install.** It used to lead with accepting in the browser, which cost anybody who
-later installed a second sign-in — the same address and the same mailed code,
-twice. So the page is now a sentence and one button, and the link is spent by
-whichever road the person took: from a browser it rides `sessionStorage` to the
-tab the page hands over to, and from a phone it comes back over
-`thefloor://i/<username>` when they press *Open in the app* after
-installing. Either way the pin is redeemed once there is a session, and the
+**Since 2026-10-12 it opens nothing to read.** *Share Invite Link* sends the
+*contact invitation* — the App Store, then the link — and the link is a
+universal link: on an iPhone with the app it opens the app, which accepts; in
+any browser the server leaves the username in the tab and goes straight on
+into the web app, which accepts once there is a session, after a sign-in if
+one comes first. A page is drawn only by a box with no web app, offering the
+App Store and saying to tap the link again. It replaced the page of
+2026-09-25, whose one call to action was the install followed by a return tap
+on *Open in the app* (`thefloor://i/<username>`, still read). Either way the
 inviter is a *contact* with a *channel* before the first screen is drawn. See
-planning/decision/2026-09-25-the-invitation-asks-for-one-thing.md.
+planning/decision/2026-10-12-a-contact-invitation-is-two-links.md.
 
 ## Invite pin
 

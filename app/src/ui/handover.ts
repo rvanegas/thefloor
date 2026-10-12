@@ -43,10 +43,9 @@ const SEAT_CHANNEL_KEY = 'thefloor.seat.channel';
  * invite page in `server/src/invite.ts`, which repeats this key with a comment
  * pointing back here, exactly as the guest page repeats the two above.
  *
- * One-shot, like `HANDOVER_KEY` and for a sharper reason: it is spent against
- * the server, and a pin that fired twice would be the second attempt reporting
- * that the invitation had already been used — to the very person who had just
- * used it.
+ * **Kept until spent rather than one-shot, since 2026-10-12** — see
+ * `peekInvite`, which says why that became safe and what is still taken on
+ * read.
  *
  * It waits for a session rather than being acted on at boot, which is the one
  * thing that makes it different from the others: the walk it completes has a
@@ -176,22 +175,6 @@ export function leaveHandover(handover: Handover): void {
 }
 
 /**
- * The invitation this visit arrived on, taken rather than read.
- *
- * Taken *before* it is known to be redeemable, deliberately: what it opens is
- * single use, so an invitation left in storage while a request is in flight is
- * one a reload can spend twice. Losing it to a failed request costs somebody a
- * link they can be sent again; spending it twice tells them their own
- * acceptance had already been used.
- *
- * Null on native, where `sessionStorage` does not exist — this is the browser's
- * road and a phone has its own. **Since 2026-09-25 that other road exists**:
- * `useInviteLink.ts` reads `thefloor://i/<username>` from a tap on the
- * invite page's *Open in the app*, and calls this on mount so that one holder
- * answers for both. Which is why nothing was added here — a native hold in this
- * module could not tell React it had arrived; the argument is in that file.
- */
-/**
  * The key the community page leaves a join code under — `JOIN_KEY` in
  * `server/src/community-page.ts`, repeated rather than imported for the reason
  * `INVITE_KEY` is.
@@ -205,16 +188,15 @@ export interface Join {
 
 /**
  * The join code this tab was handed by the community page, **read rather than
- * taken, since 2026-10-11** — the opposite of `takeInvite`, and on purpose.
+ * taken, since 2026-10-11** — and `peekInvite` followed it a day later.
  *
  * It stays in the tab until `forgetJoin` says it was spent, because the
  * sign-in between arriving and spending can be long: a trip to the mail app
  * for a code, which is exactly when iOS reloads a backgrounded tab. Taken on
- * read, a reload there lost the join with nothing to say so. `takeInvite`'s
- * reason for the other choice does not apply: a join is not single use — a
- * second spend of the same code opens the channel again rather than failing —
- * so there is nothing for a reload to spend twice. Null everywhere but a
- * browser.
+ * read, a reload there lost the join with nothing to say so. Nothing can be
+ * spent twice by leaving it: a join is not single use — a second spend of the
+ * same code opens the channel again rather than failing. Null everywhere but
+ * a browser.
  */
 export function peekJoin(): Join | null {
   let raw: string | null = null;
@@ -242,26 +224,56 @@ export function forgetJoin(): void {
   }
 }
 
-export function takeInvite(): Invite | null {
+/**
+ * The invitation this visit arrived on, **read rather than taken since
+ * 2026-10-12**, on `peekJoin`'s reasoning: it stays in the tab until
+ * `forgetInvite` says it was spent, so the sign-in in between — and a reload
+ * of a tab left for the mail app — cannot lose it.
+ *
+ * **Leaving it is safe because the invitation is not single use any more.**
+ * Taking up a link by username finds the pair already contacts the second
+ * time and changes nothing (`acceptInviteLink`), which is why this used to be
+ * taken before it was known to be redeemable and no longer is. **A pin is the
+ * exception**, and is still taken on read: one written by an invite page from
+ * before 2026-09-25 is single use, and a reload that spent it twice would tell
+ * somebody their own acceptance had already been used. The server stopped
+ * writing pins here entirely on 2026-10-12, so that branch is for a tab that
+ * outlived a deploy.
+ *
+ * Null on native, where `sessionStorage` does not exist; a phone's road is
+ * the link itself, read by `useInviteLink.ts`, which calls this on mount so
+ * that one holder answers for both.
+ */
+export function peekInvite(): Invite | null {
   let raw: string | null = null;
   try {
     raw = globalThis.sessionStorage?.getItem(INVITE_KEY) ?? null;
-    globalThis.sessionStorage?.removeItem(INVITE_KEY);
   } catch {
     return null;
   }
   if (!raw) return null;
   try {
     const parsed = JSON.parse(raw) as Partial<Invite>;
-    // Both halves or nothing, on the same reasoning as `takeHandover`: this
-    // crossed a document boundary, so a version skew is ordinary.
-    if (typeof parsed?.username !== 'string' || !parsed.username) return null;
-    // The pin is taken when it is there and not required: an older invite page
-    // writes one, this one does not, and both are a usable invitation.
+    // Crossed a document boundary, so a version skew is ordinary.
+    if (typeof parsed?.username !== 'string' || !parsed.username) {
+      forgetInvite();
+      return null;
+    }
     const pin = typeof parsed?.pin === 'string' && parsed.pin ? parsed.pin : undefined;
+    if (pin) forgetInvite();
     return { username: parsed.username, ...(pin ? { pin } : {}) };
   } catch {
+    forgetInvite();
     return null;
+  }
+}
+
+/** Drops the invitation from the tab, once it has been spent. */
+export function forgetInvite(): void {
+  try {
+    globalThis.sessionStorage?.removeItem(INVITE_KEY);
+  } catch {
+    // Storage blocked, so there was nothing to forget.
   }
 }
 

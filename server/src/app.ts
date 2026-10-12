@@ -386,7 +386,10 @@ export const APPLE_APP_SITE_ASSOCIATION = {
     details: [
       {
         appIDs: ['9946JKHZUJ.co.rvanegas.thefloor'],
-        components: [{ '/': '/j/*', comment: 'Community links' }],
+        components: [
+          { '/': '/j/*', comment: 'Community links' },
+          { '/': '/i/*', comment: 'Invite links' },
+        ],
       },
     ],
   },
@@ -2478,9 +2481,10 @@ export function buildApp(options: BuildOptions = {}): App {
    * wildcard or removed by an rsync `--delete`, and a file that goes missing
    * here is cached as missing by Apple's CDN for days.
    *
-   * **`/j/*` alone.** Every path it does not list keeps opening in a browser,
-   * which is the scoping — `/i/*` and `/g/*` are the next candidates and that
-   * file says what each would cost. **Deployed before any build claiming the
+   * **`/j/*` and `/i/*`, community links and invite links, since 2026-10-11
+   * and -12.** Every path it does not list keeps opening in a browser, which
+   * is the scoping — `/g/*` is the one candidate left, and that file says
+   * what it would cost. **Deployed before any build claiming the
    * domain is uploaded**: the association is read at install.
    */
   fastify.get('/.well-known/apple-app-site-association', async (_request, reply) => {

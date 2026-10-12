@@ -18,3 +18,10 @@ guest page, which have the same problem and a wider audience.
 
 Noticed 2026-09-25 while cutting the page to one call to action, which made it
 shorter to translate than it has ever been.
+
+**Smaller since 2026-10-12.** The invite page is a hand-over into the web app
+now — two words, *Opening The Floor…*, and a *Continue* link — and the words
+an invitee actually reads are the share message, which is in the sender's
+catalogue. What is still English is that hand-over and the page a box with no
+web app draws. The sender's language is not necessarily the reader's, which is
+the same question in a new place.

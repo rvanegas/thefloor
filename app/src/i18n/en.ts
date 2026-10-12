@@ -319,8 +319,19 @@ export const en = {
     makingALink: () => 'Making a link\u2026',
     shareInviteLink: () => 'Share Invite Link',
     copyInviteLink: () => 'Copy Invite Link',
-    linkCopied: () =>
-      'Link copied. It works once, for the first person who opens it.',
+    /**
+     * What *Share Invite Link* sends: the App Store, then the link that makes
+     * the reader your contact — in the app where it is installed, in a browser
+     * where it is not — so nobody is sent to a page to read about either. In
+     * that order because it is the order somebody without the app takes them
+     * in. Without an App Store to name, the link alone.
+     */
+    contactInvite: (store: string | null, link: string) =>
+      store
+        ? `Join me on The Floor.\n\nGet the app: ${store}\nThen tap to add me: ${link}`
+        : `Join me on The Floor: ${link}`,
+    /** Since 2026-09-25 a link is not spent by use, so this says nothing about once. */
+    linkCopied: () => 'Invitation copied.',
     clipboardRefused: () => 'The clipboard refused. Try again.',
   },
   channels: {

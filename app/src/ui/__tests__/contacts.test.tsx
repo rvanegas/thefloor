@@ -456,15 +456,17 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
-  it('shares a fresh link, and mints a new one for the next person', async () => {
+  it('shares the App Store and the link, asking for the link again on the press', async () => {
     withContacts([]);
     const share = jest
       .spyOn(Share, 'share')
       .mockResolvedValue({ action: 'sharedAction' } as never);
+    mockApp.updateUrl = 'https://apps.apple.com/app/id0000000000';
+    // Asked again on the press, to pick up a username or name changed since
+    // the card opened; the answer is otherwise the same address every time.
     mockApp.inviteLink
-      .mockResolvedValueOnce('https://thefloor.example/i/dana_c/111111')
-      .mockResolvedValueOnce('https://thefloor.example/i/dana_c/222222')
-      .mockResolvedValueOnce('https://thefloor.example/i/dana_c/333333');
+      .mockResolvedValueOnce('https://thefloor.example/i/dana_c')
+      .mockResolvedValueOnce('https://thefloor.example/i/dana_c2');
     const tree = open();
     await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
 
@@ -473,34 +475,27 @@ describe('Contacts', () => {
       findButton(tree, 'Share Invite Link')!.props.onPress()
     );
     expect(share).toHaveBeenCalledWith({
-      message: 'https://thefloor.example/i/dana_c/222222',
-    });
-
-    // A second press hands over a *different* link, because each is good for
-    // one person and two people must not be sent the same one.
-    await act(async () =>
-      findButton(tree, 'Share Invite Link')!.props.onPress()
-    );
-    expect(share).toHaveBeenLastCalledWith({
-      message: 'https://thefloor.example/i/dana_c/333333',
+      message:
+        'Join me on The Floor.\n\n' +
+        'Get the app: https://apps.apple.com/app/id0000000000\n' +
+        'Then tap to add me: https://thefloor.example/i/dana_c2',
     });
     act(() => tree.unmount());
     share.mockRestore();
   });
 
   /**
-   * The web with no Web Share API, where `shareLink` falls back to the
+   * The web with no Web Share API, where `shareText` falls back to the
    * clipboard — a copy that happened silently looks like a tap that did
-   * nothing, so the card says where the link went.
+   * nothing, so the card says where the invitation went. And with no App
+   * Store to name, the link alone.
    */
   it('copies when there is nowhere to share to, and says so', async () => {
     withContacts([]);
     const share = jest
       .spyOn(Share, 'share')
       .mockRejectedValue(new Error('Share is not supported in this browser'));
-    mockApp.inviteLink.mockResolvedValue(
-      'https://thefloor.example/i/dana_c/111111'
-    );
+    mockApp.inviteLink.mockResolvedValue('https://thefloor.example/i/dana_c');
     const tree = open();
     await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
     await act(async () =>
@@ -508,9 +503,10 @@ describe('Contacts', () => {
     );
 
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
-      'https://thefloor.example/i/dana_c/111111'
+      'Join me on The Floor: https://thefloor.example/i/dana_c'
     );
-    expect(textOf(tree)).toContain('Link copied');
+    expect(textOf(tree)).toContain('Invitation copied.');
+    expect(textOf(tree)).not.toContain('works once');
     act(() => tree.unmount());
     share.mockRestore();
   });

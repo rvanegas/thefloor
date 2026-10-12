@@ -5,7 +5,7 @@ import type {
   HomeView as HomeViewData,
 } from '../../../core/protocol';
 import { useText } from '../i18n';
-import { canShare, shareLink } from '../share';
+import { canShare, shareText } from '../share';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
 import {
@@ -657,7 +657,10 @@ function InviteLink({
       const fresh = (await app.inviteLink()) ?? url;
       if (!fresh) return;
       setUrl(fresh);
-      const handoff = await shareLink(fresh);
+      // Two links, the App Store and this one, since 2026-10-12 — see
+      // `contactInvite`. The link is a universal link, so nobody is sent to a
+      // page to read about either.
+      const handoff = await shareText(t.contactInvite(app.updateUrl, fresh));
       setCopied(
         handoff === 'copied' ? 'done' : handoff === 'failed' ? 'failed' : 'idle'
       );

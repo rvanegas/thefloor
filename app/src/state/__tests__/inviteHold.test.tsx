@@ -57,7 +57,7 @@ beforeEach(() => {
   mockRemovals.count = 0;
   seen = null;
   // The browser road is absent on native, and absent here unless a test says
-  // otherwise. `takeInvite` reads `globalThis.sessionStorage`.
+  // otherwise. `peekInvite` reads `globalThis.sessionStorage`.
   delete (globalThis as { sessionStorage?: unknown }).sessionStorage;
 });
 
@@ -90,7 +90,7 @@ it('holds one that arrives while the app is already running and signed in', asyn
   expect(seen).toEqual({ username: 'annak', pin: '042317' });
 });
 
-it('takes the browser’s invitation out of storage on mount', async () => {
+it('takes a pinned invitation out of storage on mount', async () => {
   const store = new Map([
     ['thefloor.invite', JSON.stringify({ username: 'beth', pin: '112233' })],
   ]);
@@ -102,8 +102,43 @@ it('takes the browser’s invitation out of storage on mount', async () => {
 
   await mount();
   expect(seen).toEqual({ username: 'beth', pin: '112233' });
-  // One-shot: it is gone from storage, so a reload cannot spend it twice.
+  // A pin is single use, so it is gone from storage and a reload cannot
+  // spend it twice.
   expect(store.has('thefloor.invite')).toBe(false);
+});
+
+it('keeps a pin-less invitation in storage until it is spent', async () => {
+  // The sign-in between arriving and spending can reload the tab — iOS does,
+  // to one left for the mail app — and a pin-less invitation cannot be spent
+  // twice, so it waits there rather than being lost to the reload.
+  const store = new Map([['thefloor.invite', JSON.stringify({ username: 'beth' })]]);
+  (globalThis as { sessionStorage?: unknown }).sessionStorage = {
+    getItem: (k: string) => store.get(k) ?? null,
+    removeItem: (k: string) => store.delete(k),
+    setItem: (k: string, v: string) => store.set(k, v),
+  };
+
+  const first = await mount();
+  expect(seen).toEqual({ username: 'beth' });
+  expect(store.has('thefloor.invite')).toBe(true);
+
+  // A reload: a new mount finds it again.
+  await act(async () => first.unmount());
+  seen = null;
+  await mount();
+  expect(seen).toEqual({ username: 'beth' });
+
+  await act(async () => {
+    clear();
+  });
+  expect(seen).toBeNull();
+  expect(store.has('thefloor.invite')).toBe(false);
+});
+
+it('takes a universal link up by username, dropping any pin', async () => {
+  mockInitialUrl = 'https://thefloor.rvanegas.co/i/annak/042317';
+  await mount();
+  expect(seen).toEqual({ username: 'annak' });
 });
 
 it('keeps the first arrival when two roads answer at once', async () => {
