@@ -48,8 +48,8 @@ describe('The floating picture rests in a corner', () => {
     });
   });
 
-  it('starts top-right, over the header and clear of the footer', () => {
-    expect(HOME_CORNER).toBe('top-right');
+  it('starts bottom-right', () => {
+    expect(HOME_CORNER).toBe('bottom-right');
   });
 
   it('pins it to the top-left in a box too small to hold it', () => {

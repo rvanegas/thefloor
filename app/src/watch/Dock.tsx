@@ -35,7 +35,7 @@ export type Place = 'docked' | 'floating' | 'full';
 export type Corner = 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
 
 /** Where the picture starts, and where it goes back to if it is let go. */
-export const HOME_CORNER: Corner = 'top-right';
+export const HOME_CORNER: Corner = 'bottom-right';
 
 /** How wide the floating picture is, and the height follows from 16:9. */
 export const PIP_WIDTH = 168;
@@ -376,12 +376,9 @@ const styles = StyleSheet.create({
   /**
    * The rectangle itself, resting in one of the four corners.
    *
-   * It starts top-right, since 2026-10-09, over the pinned header and clear of
-   * the footer, where the controls a thumb is on its way to are. It started
-   * bottom-right until then, on the argument that a thumb covers that corner
-   * least on its way to the footer; a picture sitting over the footer's last
-   * slot was the cost of that, and a film handed to a second device now lands
-   * in this corner over whatever is open.
+   * It starts bottom-right, the corner a thumb covers least on its way to the
+   * footer. It started top-right from 2026-10-09 to 2026-10-13, over the
+   * pinned header and clear of the footer's last slot, before going back.
    * Being wrong about that costs a drag rather than a tab: the other three are
    * reachable, they are over the pinned header and footer as readily as over
    * the body, and where it is left is where it stays for the life of the

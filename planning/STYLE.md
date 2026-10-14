@@ -1200,9 +1200,9 @@ anything from up there, the hole is what does.
   because a dark scene over a dark card has no edge otherwise, and a shadow. It
   **rests in one of the four corners of the application** — over the pinned
   header and footer as readily as over a body, which is what makes it reachable
-  on a screen that has neither — starting top-right since 2026-10-09, over
-  the header and clear of the footer's controls; it started bottom-right
-  before, on the argument that a thumb covers that corner least. Dragged, it snaps to whichever corner's quadrant it was let go in. A
+  on a screen that has neither — starting bottom-right, the corner a thumb
+  covers least on the way to the footer; it started top-right from
+  2026-10-09 to 2026-10-13, over the header. Dragged, it snaps to whichever corner's quadrant it was let go in. A
   tap opens the *Watch* tab, the rectangle being far too small to carry a
   transport. **Only while the film is playing**, as of 2026-09-20: the corner
   exists so that a film goes on running where somebody can see it while they
