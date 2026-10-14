@@ -14,26 +14,33 @@
  * address is the better answer, and `NAME_LIMIT` for what a name from a URL
  * costs.
  *
- * **Since 2026-10-12 it is a hand-over, not a page anybody reads** — the
- * community link's arrangement, applied here, and
- * `decision/2026-10-12-a-contact-invitation-is-two-links.md` has the account.
- * The app shares two links, the App Store and this one (`contactInvite` in its
- * catalogue), and `/i/*` is a universal link: on an iPhone with the app, iOS
- * opens the app and this server never sees the request. Everybody else lands
- * here, and with a web app on the box is sent straight on into it with the
- * username left in the tab, to be accepted once there is a session — after a
- * sign-in, if that comes first. See `handoverPage`.
+ * **Since 2026-10-13 it is Telegram's page**, which is what a `t.me` profile
+ * link draws for somebody without Telegram: who it is, the install, and a
+ * banner Safari offers on its own (`smartAppBanner`). The app shares this one
+ * link and nothing beside it (`contactInvite`), and `/i/*` is a universal
+ * link, so on an iPhone with the app iOS opens the app and this server never
+ * sees the request. Everybody else lands here. See
+ * `decision/2026-10-13-an-invitation-is-one-link-and-a-page.md`.
  *
- * **What it replaced was the return tap**: one call to action, the install,
- * then *come back to this link and press Open in the app*, which handed over
- * `thefloor://i/<username>` — two taps, written into the copy because no
- * script could detect an install (`decision/2026-09-25-the-invitation-asks-
- * for-one-thing.md`). The universal link is what that decision was waiting
- * for, and the copy it needed went with it.
+ * **Telegram's two failures are left out.** Its page fires its own scheme on
+ * load and from its button, which without the app is an *Allow* prompt that
+ * errors, or Safari calling the address invalid. Nothing here fires
+ * `thefloor://`: anybody reading this page almost certainly has no app, since
+ * the universal link would have taken them past it, and the banner covers the
+ * one who does. And where Telegram has no way on but the install, this page
+ * offers the web app, as the quieter of two choices — Erta's point that on
+ * an iPhone the native app leads.
  *
- * **A box with no web app still draws a page**: the store, and the line that
- * says to tap the link again once the app is installed, which by then opens
- * the app. A box with neither says so.
+ * **The username is left in the tab on arrival** where there is a web app, so
+ * *Continue in the browser* is a plain link to `/open` and the web app takes
+ * the invitation up once there is a session, after a sign-in if that comes
+ * first. Leaving it costs nothing to somebody who goes to the store instead:
+ * the tab is the only place it is, and nothing spends it but the web app.
+ *
+ * **Only a box with a web app and no App Store hands straight over**, as
+ * every box did from 2026-10-12 — there is nothing to lead with but the web
+ * app, so a page asking which would be asking nothing. See `handoverPage`.
+ * A box with neither says so.
  *
  * **The prose budget is one sentence on each body, and it is a rule rather than
  * a result.** This page has accreted twice. The sentence is the promotional
@@ -45,7 +52,7 @@
  * web app.
  */
 
-import { CTA_STYLE, MARK, escapeHtml, page, socialCard } from './html';
+import { CTA_STYLE, MARK, escapeHtml, page, smartAppBanner, socialCard } from './html';
 import type { InviteRefusal } from './accounts';
 
 /**
@@ -214,20 +221,26 @@ export function invitePage(options: InvitePageOptions): string {
   // For the body, which this file interpolates into markup itself.
   const name = escapeHtml(raw);
 
-  // Somebody with the app never gets here — see the module comment — so with
-  // a web app to go to, everybody who does is handed straight on to it.
-  if (options.webAppReady) return handoverPage(raw, options);
+  // Nothing to lead with but the web app, so no page asks which.
+  if (options.webAppReady && !options.appStoreUrl) return handoverPage(raw, options);
 
-  // A box with no web app has nowhere to send anybody but the store, and the
-  // second tap is the link they were sent: a universal link once the app is
-  // on the phone. **Never rendered dead**, which is `landing.ts`'s rule about
-  // the same setting: a box with neither says so rather than drawing an
-  // `href=""`.
+  // The store leads and the browser follows, Telegram's page with the way on
+  // it lacks. **Never rendered dead**, which is `landing.ts`'s rule about the
+  // same setting: a box with neither says so rather than drawing an `href=""`.
   const store = options.appStoreUrl
     ? `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
 <span class="aside">Free. Once it’s installed, tap the link you were sent again: ${name} is in your contacts as soon as you sign in.</span></p>`
     : `<p class="browser">This server is not handing out the app yet. Tell ${name}
 you are here.</p>`;
+  const browser = options.webAppReady
+    ? '<p class="app">Or <a href="/open">continue in the browser</a>.</p>'
+    : '';
+  // The page's own address, without a name or a pin: what the app is handed
+  // if somebody who has it takes the banner's *Open*.
+  const banner = smartAppBanner(
+    options.appStoreUrl,
+    options.origin && `${options.origin}/i/${encodeURIComponent(options.username)}`
+  );
 
   return page({
     title: `${raw} invited you to The Floor`,
@@ -235,7 +248,9 @@ you are here.</p>`;
     standfirst: `${raw} invited you`,
     // Names nobody, unlike the title above it — see CARD.
     social: socialCard(options.origin, CARD),
-    head: REFERRER,
+    head: [REFERRER, banner, options.webAppReady ? stash(options.username) : '']
+      .filter(Boolean)
+      .join('\n'),
     style: STYLE,
     // One sentence, and it is planning/task/apply-the-app-store-listing.md's
     // promotional text. Change it there first: it is the field the store
@@ -247,6 +262,7 @@ you are here.</p>`;
 into: you arrive when it suits you, and whoever is there is there.</p>
 
 ${store}
+${browser}
 <p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
 how long.</p>
 `,
@@ -254,12 +270,8 @@ how long.</p>
 }
 
 /**
- * The one click, for somebody without the app: into the web app, with the
- * username left in the tab for `peekInvite`.
- *
- * **A page and not a redirect**, for `community-page.ts`'s two reasons: a link
- * preview's crawler reads the card from it, and only a script can write the
- * tab's `sessionStorage`.
+ * Leaves the username in the tab for `peekInvite`, which is the whole of what
+ * carries an invitation from this page into the web app.
  *
  * **The username alone, whichever address was asked for.** A link minted
  * before 2026-09-25 carries a pin, and the pin is not passed on: taking a link
@@ -268,29 +280,37 @@ how long.</p>
  * it is read, so a reload during the sign-in — iOS reloading a tab left for
  * the mail app — keeps it. See `peekInvite`.
  *
- * Without JavaScript the link still opens the web app, and arrives without
- * the invitation: nothing is silently half-done, and they can be added the
- * ordinary way. `/open` rather than a train, which is the rule `open.ts` owns.
+ * Without JavaScript the web app still opens, and arrives without the
+ * invitation: nothing is silently half-done, and they can be added the
+ * ordinary way.
  */
-function handoverPage(name: string, options: InvitePageOptions): string {
+function stash(username: string, then = ''): string {
   // JSON.stringify, not the escaper: this is a JavaScript string literal
   // rather than markup. A username is letters, digits and underscores, but the
   // address is somebody else's text, so `<` is escaped for the script element
   // regardless.
-  const invite = JSON.stringify(JSON.stringify({ username: options.username })).replace(
-    /</g,
-    '\\u003c'
-  );
+  const invite = JSON.stringify(JSON.stringify({ username })).replace(/</g, '\\u003c');
+  return `<script>
+try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${invite}); } catch (e) {}${then}
+</script>`;
+}
+
+/**
+ * Straight into the web app, for a box with no App Store to lead with.
+ *
+ * **A page and not a redirect**, for `community-page.ts`'s two reasons: a link
+ * preview's crawler reads the card from it, and only a script can write the
+ * tab's `sessionStorage`. `/open` rather than a train, which is the rule
+ * `open.ts` owns.
+ */
+function handoverPage(name: string, options: InvitePageOptions): string {
   return page({
     title: `${name} invited you to The Floor`,
     heading: 'The Floor',
     standfirst: `${name} invited you`,
     social: socialCard(options.origin, CARD),
     head: `${REFERRER}
-<script>
-try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${invite}); } catch (e) {}
-location.replace('/open');
-</script>`,
+${stash(options.username, "\nlocation.replace('/open');")}`,
     style: STYLE,
     body: `${MARK}
 <p class="lede">Opening The Floor…</p>

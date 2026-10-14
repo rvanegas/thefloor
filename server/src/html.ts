@@ -162,6 +162,30 @@ export const MARK = `<svg class="mark" viewBox="0 0 1024 1024" xmlns="http://www
 </svg>`;
 
 /**
+ * Safari's Smart App Banner, for a page whose address the app also claims.
+ *
+ * Telegram's arrangement, adopted 2026-10-13: the strip Safari draws across
+ * the top of a page carrying `apple-itunes-app`, which offers the install
+ * where the app is missing and *Open* where it is not — and on *Open* hands
+ * the app `app-argument`, which is why that is the page's own address. That
+ * second half is what it is here for. Somebody with the app reaches one of
+ * these pages only after telling iOS to keep this domain in Safari, which iOS
+ * then remembers, and the banner is their way back into the app.
+ *
+ * **Safari's alone**: Chrome on an iPhone renders with the same engine and
+ * ignores the tag, since the banner is Safari's interface rather than
+ * WebKit's. So it never replaces the page's own store button, only sits above
+ * it. Nothing is drawn without an App Store id to name, and the argument is
+ * left out without an origin to build it from.
+ */
+export function smartAppBanner(appStoreUrl?: string, argument?: string): string {
+  const id = appStoreUrl ? /\/id(\d+)/.exec(appStoreUrl)?.[1] : undefined;
+  if (!id) return '';
+  const content = argument ? `app-id=${id}, app-argument=${argument}` : `app-id=${id}`;
+  return `<meta name="apple-itunes-app" content="${escapeHtml(content)}">`;
+}
+
+/**
  * The furniture a page with a call to action needs, for the `style` hook below.
  *
  * Two pages have one now — the landing page and the invitation — and this is

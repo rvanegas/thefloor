@@ -1317,15 +1317,13 @@ function CommunityLink({
       </Text>
       <Text style={type.muted}>{t.communityLinkNote(capacity)}</Text>
       {/*
-        Two links in one message, the App Store and this one, since
-        2026-10-11: the second is a universal link that joins in the app where
-        there is one and in the web app where there is not, so there is no
-        page any more to send anybody to — or to open from here to see. See
-        `communityInvite`.
+        The link alone, since 2026-10-13: a universal link that joins in the
+        app where there is one, and a page offering the App Store and then the
+        browser where there is not. See `communityInvite`.
       */}
       <Button
         label={t.shareLink()}
-        onPress={() => void shareText(t.communityInvite(name ?? '', app.updateUrl, url))}
+        onPress={() => void shareText(t.communityInvite(name ?? '', url))}
       />
       <View style={styles.choices}>
         <Button

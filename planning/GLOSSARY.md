@@ -51,9 +51,9 @@ caused; the list carries the meaning.
 - **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
-- **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared beside the App Store as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
-- **Community invitation** — What *Share link* sends for a community since 2026-10-11: two links, the App Store and then the *community link*, and no page to read. `communityInvite` in the catalogue
-- **Community page** — What a community link shows in a browser only when there is nothing to join into: a code that opens nothing, a full community, or a box with no web app (then the App Store). Otherwise it hands straight on to the web app. Names no member
+- **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared alone as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
+- **Community invitation** — What *Share link* sends for a community: since 2026-10-13 the *community link* alone, whose page offers the App Store (two links, the store first, from 2026-10-11). `communityInvite` in the catalogue
+- **Community page** — What a community link shows in a browser, since 2026-10-13 Telegram's shape: the community, *Get The Floor for iPhone*, *continue in the browser* beneath it, and Safari's Smart App Banner. Hands straight on to the web app only on a box with no App Store. Names no member
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
@@ -72,8 +72,9 @@ caused; the list carries the meaning.
 - **In the app now** — What a *contact*'s row says about somebody who is there: holding a socket, and attended within fifteen minutes. The line under a name, and *Last seen 3 hours ago* is the same line when they are not — one clock, so the two can never disagree. A socket alone until 2026-09-25, which said it for hours about a desktop client nobody was sitting at
 - **Invitation** — An ask to join something. Two distinct things can be asked to: the app, as somebody's *contact*, by an *invite link* or an *invitation email*; and a *channel*, by a member — see *guest invitation* for the third, a *seat*
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
-- **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time. Since 2026-10-12 a universal link — the app where it is installed, the web app where it is not — shared beside the App Store as the *contact invitation*
-- **Contact invitation** — What *Share Invite Link* sends since 2026-10-12: two links, the App Store and then the *invite link*, and no page to read. `contactInvite` in the catalogue
+- **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time. Since 2026-10-12 a universal link — the app where it is installed, the *invite page* where it is not — shared alone as the *contact invitation* since 2026-10-13
+- **Contact invitation** — What *Share Invite Link* sends: since 2026-10-13 the *invite link* alone, whose page offers the App Store (two links, the store first, on 2026-10-12). `contactInvite` in the catalogue
+- **Invite page** — What an *invite link* shows in a browser, since 2026-10-13 Telegram's shape: who invited you, *Get The Floor for iPhone*, *continue in the browser* beneath it, and Safari's Smart App Banner. Reads nothing; hands straight on to the web app only on a box with no App Store
 - **Invite pin** — Six digits that used to end an invite link and made it good once; gone since 2026-09-25, and read now only on links minted before then
 - **Join link** — `thefloor://j/<code>`, which the community page drew until 2026-10-11 and the app still reads; the *community link* does its job now. Membership only — never a *contact*, unlike an *invite link*
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
@@ -713,15 +714,16 @@ contents are its members', and a podcast's are anybody's. Not a *cohort host*, w
 powers and is in the channel by configuration.
 
 **The community link is the door, and since 2026-10-11 it opens on one
-click.** `/j/<code>` is what the owner hands out, and *Share link* sends it as
-the *community invitation*: the App Store first, then the link. The link is a
-universal link — on an iPhone with the app it opens the app, which joins; in
-any browser it lands on this server, which leaves the code in the tab and goes
-straight on into the web app, which joins once there is a session, after a
-sign-in if one comes first. **The *community page*** is what that browser sees
-only when there is nothing to join into — a code that opens nothing, a full
-community, or a box with no web app, where it offers the App Store — and it
-names no member either way. The *join link*, `thefloor://j/<code>`, was the
+click.** `/j/<code>` is what the owner hands out, and *Share link* sends it, alone, as
+the *community invitation*. The link is a universal link — on an iPhone with
+the app it opens the app, which joins; in any browser it lands on **the
+*community page***, which since 2026-10-13 is Telegram's shape: the community,
+the App Store first, *continue in the browser* beneath it, and Safari's Smart
+App Banner above. The page leaves the code in the tab, so the web app joins
+once there is a session, after a sign-in if one comes first. It names no
+member, and it hands straight on to the web app only on a box with no App
+Store. From 2026-10-11 to then the message carried the store as a second link
+and the page handed every browser straight over. The *join link*, `thefloor://j/<code>`, was the
 page's second step until that day, and the app still reads it. All of them are
 one code, a slug of the name and a random suffix, so resetting the link
 revokes it — **and so does renaming the community**, which mints a code from
@@ -1279,17 +1281,19 @@ signs up, exactly as a link is taken up by being followed. Before that the
 email's two halves disagreed — clicking the link made a contact, ignoring it
 and signing up left a request to answer.
 
-**Since 2026-10-12 it opens nothing to read.** *Share Invite Link* sends the
-*contact invitation* — the App Store, then the link — and the link is a
-universal link: on an iPhone with the app it opens the app, which accepts; in
-any browser the server leaves the username in the tab and goes straight on
-into the web app, which accepts once there is a session, after a sign-in if
-one comes first. A page is drawn only by a box with no web app, offering the
-App Store and saying to tap the link again. It replaced the page of
+**Since 2026-10-13 it is one link and Telegram's page.** *Share Invite Link*
+sends the *contact invitation*, the link alone, and the link is a universal
+link: on an iPhone with the app it opens the app, which accepts; in any
+browser it draws the invite page — who invited you, the App Store first,
+*continue in the browser* beneath it, Safari's Smart App Banner above — with
+the username left in the tab, so the web app accepts once there is a session,
+after a sign-in if one comes first. Only a box with no App Store hands straight
+on. On 2026-10-12 the message carried the store as a second link and every
+browser was handed straight over. It replaced the page of
 2026-09-25, whose one call to action was the install followed by a return tap
 on *Open in the app* (`thefloor://i/<username>`, still read). Either way the
 inviter is a *contact* with a *channel* before the first screen is drawn. See
-planning/decision/2026-10-12-a-contact-invitation-is-two-links.md.
+planning/decision/2026-10-13-an-invitation-is-one-link-and-a-page.md.
 
 ## Invite pin
 

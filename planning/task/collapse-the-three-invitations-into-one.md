@@ -18,7 +18,9 @@ works and which nobody does. Ideas from the call, none decided:
 
 - In the app on first launch: *if somebody sent you a link, tap it again and
   everything is done for you* — or carry on registering here.
-- Send two links: one to install, one to complete the invitation.
+- Send two links: one to install, one to complete the invitation. Built on 2026-10-11/12 and replaced on
+  2026-10-13 by one link whose page offers the install, Telegram's shape —
+  `decision/2026-10-13-an-invitation-is-one-link-and-a-page.md`.
 - Carry the invited email or phone number in the link and **prefill** the
   sign-in field with it, editable. Rodrigo: save steps, but not so many that it
   gets smarmy; be conventional.

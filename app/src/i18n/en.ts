@@ -320,16 +320,12 @@ export const en = {
     shareInviteLink: () => 'Share Invite Link',
     copyInviteLink: () => 'Copy Invite Link',
     /**
-     * What *Share Invite Link* sends: the App Store, then the link that makes
-     * the reader your contact — in the app where it is installed, in a browser
-     * where it is not — so nobody is sent to a page to read about either. In
-     * that order because it is the order somebody without the app takes them
-     * in. Without an App Store to name, the link alone.
+     * What *Share Invite Link* sends: the link alone, as Telegram sends a
+     * `t.me` link, since 2026-10-13. It opens the app where it is installed,
+     * and everywhere else a page offering the App Store first and the browser
+     * second — so the store is the page's to offer, not the message's.
      */
-    contactInvite: (store: string | null, link: string) =>
-      store
-        ? `Join me on The Floor.\n\nGet the app: ${store}\nThen tap to add me: ${link}`
-        : `Join me on The Floor: ${link}`,
+    contactInvite: (link: string) => `Join me on The Floor: ${link}`,
     /** Since 2026-09-25 a link is not spent by use, so this says nothing about once. */
     linkCopied: () => 'Invitation copied.',
     clipboardRefused: () => 'The clipboard refused. Try again.',
@@ -1019,17 +1015,8 @@ export const en = {
     /** Opens the podcast's page outside the app. */
     openPage: () => 'Open page',
     shareLink: () => 'Share link',
-    /**
-     * What *Share link* sends for a community: the App Store, then the link
-     * that joins — in the app where it is installed, in a browser where it is
-     * not — so nobody is sent to a page to read about either. In that order
-     * because it is the order somebody without the app takes them in. Without
-     * an App Store to name, the link alone, which a browser takes up.
-     */
-    communityInvite: (name: string, store: string | null, link: string) =>
-      store
-        ? `Join ${name} on The Floor.\n\nGet the app: ${store}\nThen tap to join: ${link}`
-        : `Join ${name} on The Floor: ${link}`,
+    /** The link alone, since 2026-10-13, for `contactInvite`'s reason. */
+    communityInvite: (name: string, link: string) => `Join ${name} on The Floor: ${link}`,
     resetLink: () => 'Reset link',
     resetLinkAsk: () => 'Reset the link?',
     resetLinkBody: () =>

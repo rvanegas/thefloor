@@ -456,7 +456,7 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
-  it('shares the App Store and the link, asking for the link again on the press', async () => {
+  it('shares the link alone, asking for it again on the press', async () => {
     withContacts([]);
     const share = jest
       .spyOn(Share, 'share')
@@ -475,10 +475,9 @@ describe('Contacts', () => {
       findButton(tree, 'Share Invite Link')!.props.onPress()
     );
     expect(share).toHaveBeenCalledWith({
-      message:
-        'Join me on The Floor.\n\n' +
-        'Get the app: https://apps.apple.com/app/id0000000000\n' +
-        'Then tap to add me: https://thefloor.example/i/dana_c2',
+      // No App Store beside it, though there is one to name: the page the
+      // link opens offers it, since 2026-10-13.
+      message: 'Join me on The Floor: https://thefloor.example/i/dana_c2',
     });
     act(() => tree.unmount());
     share.mockRestore();
@@ -487,8 +486,7 @@ describe('Contacts', () => {
   /**
    * The web with no Web Share API, where `shareText` falls back to the
    * clipboard — a copy that happened silently looks like a tap that did
-   * nothing, so the card says where the invitation went. And with no App
-   * Store to name, the link alone.
+   * nothing, so the card says where the invitation went.
    */
   it('copies when there is nowhere to share to, and says so', async () => {
     withContacts([]);

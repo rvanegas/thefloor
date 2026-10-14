@@ -2,15 +2,15 @@
  * What a *community link* opens, `/j/<code>`, for whoever the app did not
  * open it for.
  *
- * **Not a page anybody is meant to read any more, since 2026-10-11.** It used
- * to be the invitation itself — the community described, the App Store, then
- * `thefloor://j/<code>` to tap once the app was installed, then the web app as
- * the alternative — and it is now a hand-over. The owner shares two links,
- * the App Store and this one (`communityInvite` in the app's catalogue), and
- * this one is a universal link: on an iPhone with the app it opens the app and
- * never reaches this server, and everywhere else it lands here and goes
- * straight on into the web app with the code. See
- * `decision/2026-10-11-a-community-invitation-is-two-links.md`.
+ * **Telegram's page since 2026-10-13**, as `invite.ts` is: the community, the
+ * App Store, and *continue in the browser* as the quieter alternative, under
+ * Safari's Smart App Banner. The owner shares this one link and nothing
+ * beside it (`communityInvite` in the app's catalogue), and it is a universal
+ * link, so on an iPhone with the app it opens the app and never reaches this
+ * server. `invite.ts`'s header has the reasoning, and what of Telegram's page
+ * was left out; `decision/2026-10-13-an-invitation-is-one-link-and-a-page.md`
+ * the account. Only a box with a web app and no App Store hands straight
+ * over, as every box did from 2026-10-11.
  *
  * **Accepts nothing by being opened**, which is unchanged: it leaves the code
  * where the web app looks for it, and the web app spends it once there is a
@@ -27,14 +27,14 @@
  * has gone**, so that walking codes teaches nothing about which existed. That
  * page is still a page, since there is nothing to hand over.
  *
- * **A full community is handed over like any other where there is a web app.**
- * This page cannot tell who is reading it, and a member already in a full
+ * **A full community is drawn like any other where there is a web app.** This
+ * page cannot tell who is reading it, and a member already in a full
  * community is owed the community, not a refusal: the link opens it whether or
  * not they had joined. The signed-in app can tell, so it asks, and somebody
  * who is not a member hears the server's *is full* there instead.
  */
 
-import { CTA_STYLE, MARK, escapeHtml, page, socialCard } from './html';
+import { CTA_STYLE, MARK, escapeHtml, page, smartAppBanner, socialCard } from './html';
 
 /**
  * The key the web app takes the code out of. Repeated rather than imported, as
@@ -109,17 +109,11 @@ the current one.</p>
     ? `<p class="about">${escapeHtml(community.description)}</p>`
     : '';
 
-  // Somebody with the app never gets here: `/j/*` is a universal link, so
-  // iOS hands the address to the app and this server never sees the request.
-  // What reaches it is everybody else — a phone without the app, a desktop,
-  // anybody who has told iOS to keep this domain in Safari — and for all of
-  // them the one click is the web app, the code going ahead of them in the
-  // tab. The App Store link travels beside this one in the message, so this
-  // page does not repeat it. See handoverPage. Ahead of the full page, not
-  // after it: see the header.
-  if (options.webAppReady) return handoverPage(community.name, options);
+  // Nothing to lead with but the web app, so no page asks which. Ahead of the
+  // full page, not after it: see the header.
+  if (options.webAppReady && !options.appStoreUrl) return handoverPage(community.name, options);
 
-  if (community.full) {
+  if (community.full && !options.webAppReady) {
     return page({
       title: `${community.name} — The Floor`,
       heading: 'The Floor',
@@ -134,20 +128,27 @@ ${about}
     });
   }
 
-  // A box with no web app has nowhere to send anybody but the store, and the
-  // second tap is the link they were sent: a universal link once the app is
-  // on the phone.
+  // The store leads and the browser follows, as on `invite.ts`'s page.
   const store = options.appStoreUrl
     ? `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
 <span class="aside">Free. Once it’s installed, tap the link you were sent again and you’re in ${name}.</span></p>`
     : '<p class="app">This server is not handing out the app yet.</p>';
+  const browser = options.webAppReady
+    ? '<p class="app">Or <a href="/open">continue in the browser</a>.</p>'
+    : '';
+  const banner = smartAppBanner(
+    options.appStoreUrl,
+    options.origin && `${options.origin}/j/${code}`
+  );
 
   return page({
     title: `${community.name} — The Floor`,
     heading: 'The Floor',
     standfirst: community.name,
     social: socialCard(options.origin, CARD),
-    head: REFERRER,
+    head: [REFERRER, banner, options.webAppReady ? stash(options.code) : '']
+      .filter(Boolean)
+      .join('\n'),
     style: STYLE,
     body: `${MARK}
 ${about}
@@ -155,6 +156,7 @@ ${about}
 ${members}</p>
 
 ${store}
+${browser}
 <p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
 how long.</p>
 `,
@@ -162,39 +164,41 @@ how long.</p>
 }
 
 /**
- * The one click, for somebody without the app: into the web app, with the
- * code left in the tab for `peekJoin`.
- *
- * **A page and not a redirect**, for two readers a 302 would lose. A link
- * preview's crawler reads the card from it, and a 302 has no card. And the
- * code has to cross by `sessionStorage`, which only a script can write — the
- * same hand-over the old page made on a click, made here on arrival.
+ * Leaves the code in the tab for `peekJoin`, which is the whole of what
+ * carries a join from this page into the web app.
  *
  * **The code stays in the tab until it is spent**, not until it is read, so
  * the sign-in in between can take as long as it takes: a trip to the mail app
  * for the code, which is when iOS reloads a backgrounded tab, comes back to a
  * join still waiting. See `peekJoin`.
  *
- * Without JavaScript the link still opens the web app, and arrives without
- * the join — `invite.ts`'s honest degradation, for its reason.
+ * Without JavaScript the web app still opens, and arrives without the join —
+ * `invite.ts`'s honest degradation, for its reason.
  */
-function handoverPage(name: string, options: CommunityPageOptions): string {
+function stash(code: string, then = ''): string {
   // Only ever a code this server minted, since the page is drawn only for a
   // live community; escaped for a script element regardless.
-  const join = JSON.stringify(JSON.stringify({ code: options.code })).replace(
-    /</g,
-    '\\u003c'
-  );
+  const join = JSON.stringify(JSON.stringify({ code })).replace(/</g, '\\u003c');
+  return `<script>
+try { sessionStorage.setItem(${JSON.stringify(JOIN_KEY)}, ${join}); } catch (e) {}${then}
+</script>`;
+}
+
+/**
+ * Straight into the web app, for a box with no App Store to lead with.
+ *
+ * **A page and not a redirect**, for two readers a 302 would lose. A link
+ * preview's crawler reads the card from it, and a 302 has no card. And the
+ * code has to cross by `sessionStorage`, which only a script can write.
+ */
+function handoverPage(name: string, options: CommunityPageOptions): string {
   return page({
     title: `${name} — The Floor`,
     heading: 'The Floor',
     standfirst: name,
     social: socialCard(options.origin, CARD),
     head: `${REFERRER}
-<script>
-try { sessionStorage.setItem(${JSON.stringify(JOIN_KEY)}, ${join}); } catch (e) {}
-location.replace('/open');
-</script>`,
+${stash(options.code, "\nlocation.replace('/open');")}`,
     style: STYLE,
     body: `${MARK}
 <p class="lede">Joining ${escapeHtml(name)}…</p>

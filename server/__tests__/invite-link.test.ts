@@ -70,6 +70,7 @@ beforeEach(async () => {
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
     now: () => clock,
+    updateUrl: 'https://apps.apple.com/app/id0000000000',
     trainRoot,
   });
 });
@@ -603,18 +604,26 @@ describe('the page', () => {
    * the assertion and is stood up rather than inherited. See `trainRoot` above
    * for what inheriting it cost.
    */
-  it('hands somebody without the app to the web app with the username', async () => {
+  it('leads with the store, offers the browser, and leaves the username in the tab', async () => {
     await withTrain('stable', async () => {
       const body = (await open('/i/alice_k?name=Alice')).body;
       expect(body).toContain(
         'sessionStorage.setItem("thefloor.invite", "{\\"username\\":\\"alice_k\\"}")'
       );
-      expect(body).toContain("location.replace('/open')");
+      // Telegram's page: the store first, the browser second, and no move
+      // made for the reader.
+      expect(body).not.toContain('location.replace');
+      expect(body).toContain('Get The Floor for iPhone');
+      expect(body).toContain('<a href="/open">continue in the browser</a>');
       expect(body).toContain('Alice invited you');
-      // A card for the preview, which a redirect could not carry.
+      // Safari's banner, handing the app this address — no name, no pin —
+      // on *Open*.
+      expect(body).toMatch(
+        /<meta name="apple-itunes-app" content="app-id=\d+, app-argument=https?:\/\/[^/"]+\/i\/alice_k">/
+      );
       expect(body).toContain('og:title');
-      // The App Store travels in the message beside this link, and the custom
-      // scheme has nothing left to do: the link is a universal link.
+      // Telegram's failure, left out: no custom scheme fired at somebody who
+      // almost certainly has no app to receive it.
       expect(body).not.toContain('thefloor://');
       expect(body).toContain('<meta name="referrer" content="no-referrer">');
     });
@@ -642,7 +651,8 @@ describe('the page', () => {
     const body = (await open('/i/alice_k')).body;
     expect(body).not.toContain('thefloor.invite');
     expect(body).not.toContain('location.replace');
-    expect(body).toContain('not handing out the app yet');
+    expect(body).not.toContain('continue in the browser');
+    expect(body).toContain('Get The Floor for iPhone');
   });
 });
 
@@ -679,12 +689,25 @@ describe('the page, on a box with no web app', () => {
     expect(body).toContain('Alice');
   });
 
-  it('hands over, and draws no store, wherever there is a web app', () => {
-    for (const extra of [{ webAppReady: true, appStoreUrl: STORE }, { webAppReady: true }]) {
-      const body = drawn(extra);
-      expect(body).toContain("location.replace('/open')");
-      expect(body).not.toContain(STORE);
-    }
+  it('hands straight over only where there is a web app and no store', () => {
+    const body = drawn({ webAppReady: true });
+    expect(body).toContain("location.replace('/open')");
+    expect(body).not.toContain('apple-itunes-app');
+
+    const both = drawn({ webAppReady: true, appStoreUrl: STORE });
+    expect(both).not.toContain('location.replace');
+    expect(both).toContain(`<p class="cta"><a href="${STORE}"`);
+    expect(both).toContain('continue in the browser');
+  });
+
+  it('draws the banner wherever there is a store, and only then', () => {
+    expect(drawn({ appStoreUrl: STORE, origin: 'https://example.test' })).toContain(
+      '<meta name="apple-itunes-app" content="app-id=123456789, app-argument=https://example.test/i/alice_k">'
+    );
+    expect(drawn({ appStoreUrl: STORE })).toContain(
+      '<meta name="apple-itunes-app" content="app-id=123456789">'
+    );
+    expect(drawn({})).not.toContain('apple-itunes-app');
   });
 
   it('never writes an empty href in any of the four', () => {

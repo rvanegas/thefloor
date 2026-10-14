@@ -657,10 +657,8 @@ function InviteLink({
       const fresh = (await app.inviteLink()) ?? url;
       if (!fresh) return;
       setUrl(fresh);
-      // Two links, the App Store and this one, since 2026-10-12 — see
-      // `contactInvite`. The link is a universal link, so nobody is sent to a
-      // page to read about either.
-      const handoff = await shareText(t.contactInvite(app.updateUrl, fresh));
+      // The link alone, since 2026-10-13 — see `contactInvite`.
+      const handoff = await shareText(t.contactInvite(fresh));
       setCopied(
         handoff === 'copied' ? 'done' : handoff === 'failed' ? 'failed' : 'idle'
       );

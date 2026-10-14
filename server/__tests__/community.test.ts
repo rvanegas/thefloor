@@ -243,7 +243,7 @@ describe('making one', () => {
 });
 
 describe('the community page', () => {
-  it('hands somebody without the app to the web app with the code', async () => {
+  it('leads with the store, offers the browser, and leaves the code in the tab', async () => {
     const erta = await signIn('erta@example.com', 'Erta Example');
     const zed = await signIn('zed@example.com', 'Zed Zebedee');
     const { joinCode } = await start(erta);
@@ -256,19 +256,25 @@ describe('the community page', () => {
     expect(reply.body).toContain(
       `sessionStorage.setItem("thefloor.join", "{\\"code\\":\\"${joinCode}\\"}")`
     );
-    expect(reply.body).toContain("location.replace('/open')");
-    // A card for the preview, which a redirect could not carry.
+    // Telegram's page: the store first, the browser second, and no move made
+    // for the reader.
+    expect(reply.body).not.toContain('location.replace');
+    expect(reply.body).toContain('https://apps.apple.com/app/id0000000000');
+    expect(reply.body).toContain('<a href="/open">continue in the browser</a>');
+    // Safari's banner, handing the app this address on *Open*.
+    expect(reply.body).toMatch(
+      new RegExp(`<meta name="apple-itunes-app" content="app-id=0000000000, app-argument=https?://[^/"]+/j/${joinCode}">`)
+    );
     expect(reply.body).toContain('og:title');
-    // The App Store travels in the message beside this link, and the custom
-    // scheme has nothing left to do: the link is a universal link.
-    expect(reply.body).not.toContain('apps.apple.com');
+    // Telegram's failure, left out: no custom scheme fired at somebody who
+    // almost certainly has no app to receive it.
     expect(reply.body).not.toContain('thefloor://');
     for (const name of ['Erta', 'Example', 'Zed', 'Zebedee']) {
       expect(reply.body).not.toContain(name);
     }
   });
 
-  it('hands over a full community too, since only the app can tell a member', async () => {
+  it('draws a full community too, since only the app can tell a member', async () => {
     const erta = await signIn('erta@example.com', 'Erta Example');
     const { channelId, joinCode } = await start(erta);
     const members: User[] = [];
@@ -280,7 +286,8 @@ describe('the community page', () => {
     expect(app.channels.get(channelId)?.participants).toHaveLength(MAX_COMMUNITY_MEMBERS);
 
     const reply = await withTrain(() => page(joinCode));
-    expect(reply.body).toContain("location.replace('/open')");
+    expect(reply.body).toContain('sessionStorage.setItem("thefloor.join"');
+    expect(reply.body).toContain('continue in the browser');
     expect(reply.body).not.toContain('full for now');
 
     // What the web app then asks: a member is given the community again…
