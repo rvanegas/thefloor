@@ -3,6 +3,7 @@ import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import { useSessionAudio } from '../useSessionAudio';
 import {
   endReportedCall,
+  recoverReportedCallInterruption,
   reportedCallHoldsSession,
   startReportedCall,
 } from '../../../modules/reported-call';
@@ -18,6 +19,10 @@ import { releaseSession } from '../../../modules/audio-route';
  * session: the app's own fails under a call (`-12988`), and on a reconnect it
  * would be letting go of a session the call means to keep.
  *
+ * And becoming a call asks the module to end an interruption iOS began and
+ * never ended — 480 seconds into a film, while the call is up — which is what
+ * otherwise leaves the engine down through the pause until a step-out.
+ *
  * `modules/reported-call` is a no-op off iOS and under jest; mocked so the
  * calls can be counted.
  */
@@ -26,6 +31,7 @@ jest.mock('../../../modules/reported-call', () => ({
   startReportedCall: jest.fn(async () => true),
   endReportedCall: jest.fn(),
   reportedCallHoldsSession: jest.fn(() => false),
+  recoverReportedCallInterruption: jest.fn(async () => false),
   addReportedCallLogListener: jest.fn(() => () => {}),
 }));
 
@@ -105,8 +111,14 @@ jest.mock('../../api/http', () => ({
   },
 }));
 
-function Probe({ room }: { room: string | null }) {
-  useSessionAudio(room, 'chan-1', 'auth-token', false, true, true);
+function Probe({
+  room,
+  micNeeded = true,
+}: {
+  room: string | null;
+  micNeeded?: boolean;
+}) {
+  useSessionAudio(room, 'chan-1', 'auth-token', false, micNeeded, true);
   return null;
 }
 
@@ -120,6 +132,7 @@ const started = startReportedCall as jest.Mock;
 const ended = endReportedCall as jest.Mock;
 const holds = reportedCallHoldsSession as jest.Mock;
 const released = releaseSession as jest.Mock;
+const recovered = recoverReportedCallInterruption as jest.Mock;
 
 describe('the reported call', () => {
   beforeEach(() => {
@@ -127,6 +140,7 @@ describe('the reported call', () => {
     started.mockClear();
     ended.mockClear();
     released.mockClear();
+    recovered.mockClear();
     holds.mockReturnValue(false);
     jest.useFakeTimers();
   });
@@ -225,5 +239,34 @@ describe('the reported call', () => {
     });
 
     expect(released).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks for an unended interruption to be ended when the session becomes a call', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe room="room-1" />);
+    });
+    await settle();
+
+    expect(recovered).toHaveBeenCalled();
+
+    await act(async () => {
+      tree.unmount();
+    });
+  });
+
+  /** A film's release is where the interruption comes from, not where it is ended. */
+  it('does not ask while the session only listens', async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<Probe room="room-1" micNeeded={false} />);
+    });
+    await settle();
+
+    expect(recovered).not.toHaveBeenCalled();
+
+    await act(async () => {
+      tree.unmount();
+    });
   });
 });

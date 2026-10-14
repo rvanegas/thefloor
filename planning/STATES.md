@@ -1264,8 +1264,7 @@ first, and CallKit's `didActivate` follows about 190ms later on the same
 `CALL` configuration — `playAndRecord`, `videoChat`, loudspeaker — with no
 conflict measured. `modules/reported-call` passes `didActivate` and
 `didDeactivate` to `RTCAudioSession` natively. It writes no category, so the
-table above still holds, though `LISTENING` under a call has not been
-measured. See
+table above still holds, and `LISTENING` under a call has a cost, below. See
 `decision/2026-10-08-a-channel-is-an-outgoing-call-and-channel-view-is-its-screen.md`.
 
 **A held call is resumed by the app, because iOS will not.** *Hold & Accept*
@@ -1279,6 +1278,16 @@ and asks for `CXSetHeldCallAction(onHold: false)` once no other call is up.
 CallKit's `didActivate` follows, which `RTCAudioSession` treats as the end of
 the interruption, and the engine restarts on a live session. The room is told
 both ways as `ON_ANOTHER_CALL` — GLOSSARY.md § *On another call*.
+
+**`LISTENING` under a call is interrupted at 480 seconds, and the app ends
+it.** With the reported call up, iOS interrupts the session exactly eight
+minutes after the film's release — 15 of 15 from build 346 to 358 — and never
+sends the `ended`. WebRTC stops the engine on the `began` and waits, so the
+pause's `capturing CALL` publishes a track with nothing behind it: the other
+phone logs `playout frozen` until a step-out and back. Becoming a call now
+asks `modules/reported-call` to end it, with the deactivate-and-activate pair
+a hold sends; `reported call interruption ended by the app` is the line. See
+`decision/2026-10-13-the-call-s-unended-interruption-is-ended-by-the-app.md`.
 
 **The observer used to be handed a constant, and that cost the route.** It took
 `IDLE` as its playout value on the argument that an unrequested write could then

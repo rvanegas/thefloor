@@ -83,6 +83,13 @@ public class ReportedCallModule: Module {
   /** Held for another call, from *Hold & Accept* until it is taken off hold. */
   fileprivate var held = false
   /**
+   * An interruption that began while the call was up and has not ended — see
+   * `recoverInterruption`. Cleared by its `ended`, by CallKit activating the
+   * session, and by the call going.
+   */
+  fileprivate var interrupted = false
+  fileprivate var interruptionObserver: NSObjectProtocol?
+  /**
    * Every call on the device, this app's and everybody else's — what tells a
    * held call that the call it was held for has ended. See `resumeIfAlone`.
    */
@@ -152,6 +159,65 @@ public class ReportedCallModule: Module {
     }
   }
 
+  /**
+   * Ends, for WebRTC, an interruption iOS began and never ended, by telling it
+   * the session was deactivated and activated again — the pair CallKit sends
+   * across a hold, which `resumeIfAlone` relies on already.
+   *
+   * **iOS interrupts the session 480 seconds after the film takes it**, while a
+   * reported call is up: fifteen times in fifteen from build 346 to 358, at
+   * 480.0 to 480.6s after `released LISTENING`, on two phones at once when
+   * they started together, and never before the call shipped. No `ended`
+   * follows. WebRTC stops its engine on the `began` and will not start it
+   * again until it hears the interruption is over, so the pause's retake of
+   * `CALL` publishes a track with no engine behind it — `playout frozen` on the
+   * other phone, both pause chimes dropped, until somebody steps out and in,
+   * whose new call's `didActivate` is the end WebRTC was waiting for. See
+   * `planning/decision/2026-10-13-the-call-s-unended-interruption-is-ended-by-the-app.md`.
+   *
+   * The app's foreground is not enough: build 351 came back to the front
+   * inside one and the pause after it was still dead.
+   *
+   * **The pair rather than `didActivate` alone**, so WebRTC's activation count
+   * stays where CallKit's own calls leave it. A held call is left alone:
+   * CallKit deactivated that session deliberately, and taking the call off
+   * hold is what brings it back.
+   */
+  fileprivate func recoverInterruption() -> Bool {
+    guard interrupted, callId != nil, !held else { return false }
+    interrupted = false
+    let session = AVAudioSession.sharedInstance()
+    do {
+      try session.setActive(true)
+    } catch {
+      emit("interruption not recovered: \(error.localizedDescription)")
+      return false
+    }
+    let rtc = RTCAudioSession.sharedInstance()
+    rtc.audioSessionDidDeactivate(session)
+    rtc.audioSessionDidActivate(session)
+    emit("interruption ended by the app \(session.category.rawValue)/\(session.mode.rawValue)")
+    return true
+  }
+
+  /** Watches for the interruption `recoverInterruption` ends. Main queue. */
+  fileprivate func observeInterruptions() {
+    guard interruptionObserver == nil else { return }
+    interruptionObserver = NotificationCenter.default.addObserver(
+      forName: AVAudioSession.interruptionNotification,
+      object: nil,
+      queue: .main
+    ) { [weak self] notification in
+      guard let self, self.callId != nil else { return }
+      let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+      if raw == AVAudioSession.InterruptionType.began.rawValue {
+        self.interrupted = true
+      } else if raw == AVAudioSession.InterruptionType.ended.rawValue {
+        self.interrupted = false
+      }
+    }
+  }
+
   /** Sets `held` and tells JavaScript, which tells the room. */
   fileprivate func setHeld(_ value: Bool) {
     guard held != value else { return }
@@ -183,10 +249,14 @@ public class ReportedCallModule: Module {
 
     OnCreate {
       ReportedCallModule.current = self
+      DispatchQueue.main.async { self.observeInterruptions() }
     }
 
     OnDestroy {
       if ReportedCallModule.current === self { ReportedCallModule.current = nil }
+      if let observer = self.interruptionObserver {
+        NotificationCenter.default.removeObserver(observer)
+      }
     }
 
     /**
@@ -208,6 +278,7 @@ public class ReportedCallModule: Module {
         self.callMuted = false
         self.endingFromApp = false
         self.held = false
+        self.interrupted = false
         let handle = CXHandle(type: .generic, value: channelId)
         let start = CXStartCallAction(call: id, handle: handle)
         start.isVideo = false
@@ -286,6 +357,14 @@ public class ReportedCallModule: Module {
       }
     }
 
+    /**
+     * Ends an interruption that began during the call and never ended — see
+     * `recoverInterruption`. `false`, having done nothing, when there is none.
+     */
+    AsyncFunction("recoverInterruption") { (promise: Promise) in
+      DispatchQueue.main.async { promise.resolve(self.recoverInterruption()) }
+    }
+
     /** Whether the call is held for another one, for a JavaScript that started listening late. */
     Function("isHeld") { () -> Bool in self.held }
 
@@ -316,6 +395,7 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     module?.callId = nil
     module?.callChannel = nil
     module?.holdsSession = false
+    module?.interrupted = false
     module?.setHeld(false)
   }
 
@@ -332,6 +412,7 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     module.callId = nil
     module.callChannel = nil
     module.endingFromApp = false
+    module.interrupted = false
     // Not told to JavaScript: the end is a step-out, and leaving the room is
     // what takes somebody off `onAnotherCall`.
     module.held = false
@@ -395,6 +476,7 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
   func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
     RTCAudioSession.sharedInstance().audioSessionDidActivate(audioSession)
     module?.holdsSession = true
+    module?.interrupted = false
     module?.emit("activated \(audioSession.category.rawValue)/\(audioSession.mode.rawValue)")
   }
 

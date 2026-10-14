@@ -25,6 +25,7 @@ import { startCallService, stopCallService } from '../../modules/call-service';
 import {
   addReportedCallLogListener,
   endReportedCall,
+  recoverReportedCallInterruption,
   reportedCallHoldsSession,
   startReportedCall,
 } from '../../modules/reported-call';
@@ -738,6 +739,14 @@ async function applyFor(want: SessionWant): Promise<void> {
   // the one thing the two platforms genuinely share, so the development log
   // line reads the same on both.
   await applyAndroidConfiguration(want);
+  // **Becoming a call is where an unended interruption has to be ended**, since
+  // nothing else will: iOS interrupts the session 480 seconds into a film while
+  // the reported call is up and never says it is over, and WebRTC's engine
+  // then stays down through the pause's retake — the other phone's
+  // `playout frozen`, cured only by stepping out and in. After the
+  // configuration, so the session it activates is already the call's. A no-op
+  // without one, and everywhere but iOS.
+  if (want === 'call') await recoverReportedCallInterruption();
 }
 
 /**

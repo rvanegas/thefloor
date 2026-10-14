@@ -21,6 +21,7 @@ interface NativeReportedCall {
   setTitle(channelId: string, title: string): void;
   setMuted(channelId: string, muted: boolean): void;
   holdsSession(): boolean;
+  recoverInterruption(): Promise<boolean>;
   isHeld(): boolean;
   takePendingChannel(): string | null;
 }
@@ -115,6 +116,22 @@ export function reportedCallHoldsSession(): boolean {
 export function reportedCallIsHeld(): boolean {
   try {
     return native?.isHeld() ?? false;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Ends an interruption iOS began during the call and never ended, which leaves
+ * WebRTC's engine stopped until it is told otherwise — iOS does this 480
+ * seconds after a film takes the session. `true` when there was one and it was
+ * ended; `false`, having done nothing, otherwise. See `recoverInterruption` in
+ * `ios/ReportedCallModule.swift`.
+ */
+export async function recoverReportedCallInterruption(): Promise<boolean> {
+  if (!native) return false;
+  try {
+    return await native.recoverInterruption();
   } catch {
     return false;
   }
