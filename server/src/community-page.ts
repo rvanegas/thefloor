@@ -138,7 +138,7 @@ ${about}
     : '';
   const banner = smartAppBanner(
     options.appStoreUrl,
-    options.origin && `${options.origin}/j/${code}`
+    `thefloor://j/${code}`
   );
 
   return page({

@@ -616,15 +616,17 @@ describe('the page', () => {
       expect(body).toContain('Get The Floor for iPhone');
       expect(body).toContain('<a href="/open">continue in the browser</a>');
       expect(body).toContain('Alice invited you');
-      // Safari's banner, handing the app this address — no name, no pin —
-      // on *Open*.
+      // Safari's banner, handing the app the scheme form — no name, no pin —
+      // on *Open*, since the released build reads no other.
       expect(body).toMatch(
-        /<meta name="apple-itunes-app" content="app-id=\d+, app-argument=https?:\/\/[^/"]+\/i\/alice_k">/
+        /<meta name="apple-itunes-app" content="app-id=\d+, app-argument=thefloor:\/\/i\/alice_k">/
       );
       expect(body).toContain('og:title');
       // Telegram's failure, left out: no custom scheme fired at somebody who
-      // almost certainly has no app to receive it.
-      expect(body).not.toContain('thefloor://');
+      // almost certainly has no app to receive it. The banner's argument is
+      // not fired; Safari uses it only where the app is installed.
+      expect(body).not.toContain('href="thefloor://');
+      expect(body).not.toMatch(/location[^;]*thefloor:/);
       expect(body).toContain('<meta name="referrer" content="no-referrer">');
     });
   });
@@ -678,7 +680,7 @@ describe('the page, on a box with no web app', () => {
     const body = drawn({ appStoreUrl: STORE });
     expect(body).toContain(`<p class="cta"><a href="${STORE}"`);
     expect(body).toContain('tap the link you were sent again');
-    expect(body).not.toContain('thefloor://');
+    expect(body).not.toContain('href="thefloor://');
     expect(body).not.toContain('thefloor.invite');
   });
 
@@ -702,10 +704,11 @@ describe('the page, on a box with no web app', () => {
 
   it('draws the banner wherever there is a store, and only then', () => {
     expect(drawn({ appStoreUrl: STORE, origin: 'https://example.test' })).toContain(
-      '<meta name="apple-itunes-app" content="app-id=123456789, app-argument=https://example.test/i/alice_k">'
+      '<meta name="apple-itunes-app" content="app-id=123456789, app-argument=thefloor://i/alice_k">'
     );
+    // The scheme form needs no origin to build it.
     expect(drawn({ appStoreUrl: STORE })).toContain(
-      '<meta name="apple-itunes-app" content="app-id=123456789">'
+      '<meta name="apple-itunes-app" content="app-id=123456789, app-argument=thefloor://i/alice_k">'
     );
     expect(drawn({})).not.toContain('apple-itunes-app');
   });

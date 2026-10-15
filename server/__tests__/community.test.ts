@@ -261,14 +261,17 @@ describe('the community page', () => {
     expect(reply.body).not.toContain('location.replace');
     expect(reply.body).toContain('https://apps.apple.com/app/id0000000000');
     expect(reply.body).toContain('<a href="/open">continue in the browser</a>');
-    // Safari's banner, handing the app this address on *Open*.
-    expect(reply.body).toMatch(
-      new RegExp(`<meta name="apple-itunes-app" content="app-id=0000000000, app-argument=https?://[^/"]+/j/${joinCode}">`)
+    // Safari's banner, handing the app the scheme form on *Open*, since the
+    // released build reads no other.
+    expect(reply.body).toContain(
+      `<meta name="apple-itunes-app" content="app-id=0000000000, app-argument=thefloor://j/${joinCode}">`
     );
     expect(reply.body).toContain('og:title');
     // Telegram's failure, left out: no custom scheme fired at somebody who
-    // almost certainly has no app to receive it.
-    expect(reply.body).not.toContain('thefloor://');
+    // almost certainly has no app to receive it. The banner's argument is
+    // not fired; Safari uses it only where the app is installed.
+    expect(reply.body).not.toContain('href="thefloor://');
+    expect(reply.body).not.toMatch(/location[^;]*thefloor:/);
     for (const name of ['Erta', 'Example', 'Zed', 'Zebedee']) {
       expect(reply.body).not.toContain(name);
     }

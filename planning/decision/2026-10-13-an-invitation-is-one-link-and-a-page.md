@@ -31,9 +31,18 @@ app was exactly that.
 **The Smart App Banner** (`smartAppBanner` in `server/src/html.ts`), with
 `app-argument` set to the page's own address without name or pin. Somebody
 with the app reaches the page only after telling iOS to keep the domain in
-Safari, which iOS remembers; the banner's *Open* is their way back, and the
-app reads the `https` form already. Safari only: Chrome on iOS ignores the
-tag, which is why the page keeps its own store button.
+Safari, which iOS remembers; the banner's *Open* is their way back. Safari
+only: Chrome on iOS ignores the tag, which is why the page keeps its own
+store button.
+
+**Corrected 2026-10-14: the argument is `thefloor://i/<username>` and
+`thefloor://j/<code>`, not the page's address.** "The app reads the `https`
+form already" was true of master and false of the released build 351, which
+claims no domain and reads only the scheme. On 351 every invited arrival
+reaches this page, and *Open* launched the app holding an address it ignored —
+seen in production as an invitee who had to add the inviter by hand. Every
+build reads the scheme form, so it is the one argument that works for all of
+them.
 
 ## What was deliberately not taken
 

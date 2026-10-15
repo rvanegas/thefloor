@@ -235,11 +235,12 @@ you are here.</p>`;
   const browser = options.webAppReady
     ? '<p class="app">Or <a href="/open">continue in the browser</a>.</p>'
     : '';
-  // The page's own address, without a name or a pin: what the app is handed
-  // if somebody who has it takes the banner's *Open*.
+  // What the app is handed if somebody who has it takes the banner's *Open*:
+  // the scheme form, without a pin, which every build since 288 reads —
+  // `smartAppBanner` says why not this page's own address.
   const banner = smartAppBanner(
     options.appStoreUrl,
-    options.origin && `${options.origin}/i/${encodeURIComponent(options.username)}`
+    `thefloor://i/${encodeURIComponent(options.username)}`
   );
 
   return page({
