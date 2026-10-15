@@ -498,7 +498,7 @@ function AddContact({
             <Text style={styles.addMarkGlyph}>+</Text>
           </View>
           <Text style={styles.addLabel}>
-            {minting ? t.makingALink() : t.addAContact()}
+            {t.addAContact()}
           </Text>
         </Card>
       </Pressable>

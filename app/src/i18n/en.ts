@@ -310,7 +310,6 @@ export const en = {
     cancel: () => 'Cancel',
     toGenerateAnInviteLink: () => 'To generate an invite link,',
     chooseAUsername: () => 'Choose a Username',
-    makingALink: () => 'Making a link\u2026',
     shareInviteLink: () => 'Share Invite Link',
     copyInviteLink: () => 'Copy Invite Link',
     /**

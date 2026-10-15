@@ -244,7 +244,6 @@ export const es: Strings = {
     cancel: () => 'Cancelar',
     toGenerateAnInviteLink: () => 'Para generar un enlace de invitaci\u00f3n,',
     chooseAUsername: () => 'Elige un nombre de usuario',
-    makingALink: () => 'Creando un enlace\u2026',
     shareInviteLink: () => 'Compartir el enlace de invitaci\u00f3n',
     copyInviteLink: () => 'Copiar el enlace de invitaci\u00f3n',
     contactInvite: (link: string) => `Hablemos en The Floor: ${link}`,
