@@ -52,6 +52,10 @@ error, or Safari calling the address invalid. Nothing here fires
 `thefloor://`: a reader of this page almost certainly has no app, since the
 universal link would have taken them past it.
 
+**Corrected 2026-10-15, on the invite page only: on load still never, on a
+tap on iOS now yes.** *Accept invite* hands the app the scheme once the page
+has said to install first — `2026-10-15-the-invite-page-asks-for-one-thing.md`.
+
 **Telegram's dead end.** It offers nothing but the install; this page offers
 the web app, and leaves the username or code in the tab on arrival, so
 *continue in the browser* is a plain link to `/open`. Leaving it costs

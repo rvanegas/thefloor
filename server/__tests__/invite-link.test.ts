@@ -624,15 +624,19 @@ describe('the page', () => {
    * assertion and is stood up rather than inherited. See `trainRoot` above
    * for what inheriting it cost.
    */
-  it('offers the store and the browser as two buttons, and writes the pin into the tab on the click', async () => {
+  it('asks for one thing, with the install as the prerequisite in the bar', async () => {
     await withTrain('stable', async () => {
       const alice = await named('alice@example.com', 'Alice', 'alice_k');
       const url = await link(alice);
       const { pin } = halves(url);
       const body = (await open(path(url))).body;
-      expect(body).toContain('Alice invited you');
-      expect(body).toContain('Get The Floor for iPhone</a>');
-      expect(body).toContain('<a id="accept" class="second" href="/open">Accept invite</a>');
+      expect(body).toContain('<h1>Alice invited you</h1>');
+      expect(body).toContain('<a class="get" href="');
+      expect(body).toContain('Install The Floor on this iPhone first');
+      // One button: the store is not a second call to action any more.
+      expect(body).toContain('<a id="accept" href="/open">Accept invite</a>');
+      expect(body.match(/<p class="cta">/g)).toHaveLength(1);
+      expect(body).not.toContain('Get The Floor for iPhone');
       // On the click, not on arrival: a pin is one seat, and a tab that only
       // looked has not taken it.
       expect(body).toContain("addEventListener('click'");
@@ -643,10 +647,13 @@ describe('the page', () => {
       // Safari's banner hands the app the scheme form, pin and all, since
       // every build since 288 reads it.
       expect(body).toContain(`app-argument=thefloor://i/alice_k/${pin}"`);
-      // Nothing fires a custom scheme at somebody who almost certainly has no
-      // app to receive it; the banner's argument is used only where it is.
+      // On iOS a tap on Accept hands the app the same form — on the tap and
+      // only there, never on load and never as a bare anchor.
+      expect(body).toContain(`location.href = "thefloor://i/alice_k/${pin}"`);
       expect(body).not.toContain('href="thefloor://');
-      expect(body).not.toMatch(/location[^;]*thefloor:/);
+      const beforeClick = body.slice(0, body.indexOf("addEventListener('click'"));
+      expect(beforeClick).not.toMatch(/location[^;]*thefloor:/);
+      expect(body).not.toContain('link you were sent');
       expect(body).toContain('og:title');
     });
   });
@@ -678,12 +685,11 @@ describe('the page', () => {
    * The other direction: a box serving no train draws no accept button and
    * writes nothing into the tab, because there is nowhere to send the reader.
    */
-  it('draws no accept button where there is no web app', async () => {
+  it('sends Accept to the store rather than a dead web app where there is none', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const body = (await open(path(await link(alice)))).body;
-    expect(body).not.toContain('thefloor.invite');
-    expect(body).not.toContain('Accept invite');
-    expect(body).toContain('Get The Floor for iPhone');
+    expect(body).toMatch(/<a id="accept" href="https:\/\/apps\.apple\.com[^"]*">Accept invite<\/a>/);
+    expect(body).not.toContain('href="/open"');
   });
 });
 
@@ -706,12 +712,12 @@ describe('the page, box by box', () => {
       ...extra,
     });
 
-  it('sends to the store, and says to tap the link again once installed', () => {
+  it('puts the store in the bar and never sends anybody back to the link', () => {
     const body = drawn({ appStoreUrl: STORE });
-    expect(body).toContain(`<p class="cta"><a href="${STORE}"`);
-    expect(body).toContain('tap the link you were sent again');
+    expect(body).toContain(`<a class="get" href="${STORE}">Get the app</a>`);
+    expect(body).toContain(`<a id="accept" href="${STORE}">Accept invite</a>`);
+    expect(body).not.toContain('link you were sent');
     expect(body).not.toContain('href="thefloor://');
-    expect(body).not.toContain('thefloor.invite');
   });
 
   it('says the server has nothing to hand out rather than drawing a dead button', () => {
@@ -729,8 +735,8 @@ describe('the page, box by box', () => {
 
     const both = drawn({ webAppReady: true, appStoreUrl: STORE });
     expect(both).not.toContain('location.replace');
-    expect(both).toContain(`<p class="cta"><a href="${STORE}"`);
-    expect(both).toContain('Accept invite');
+    expect(both).toContain(`<a class="get" href="${STORE}"`);
+    expect(both).toContain('<a id="accept" href="/open">Accept invite</a>');
   });
 
   it('draws the banner wherever there is a store, and only then', () => {

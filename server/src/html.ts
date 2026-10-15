@@ -314,6 +314,13 @@ export function page(options: {
    * as the referrer. Nothing interpolated by a caller reaches it.
    */
   head?: string;
+  /**
+   * A strip above the heading, verbatim. Added 2026-10-15 for the invitation,
+   * whose install moved out of the body into a bar across the top as
+   * Telegram's `t.me` page has it, so that the page's one button is the
+   * acceptance. Verbatim, so the caller escapes whatever it interpolates.
+   */
+  bar?: string;
 }): string {
   const social = options.social ? socialTags(options.social) : '';
 
@@ -340,9 +347,9 @@ ${options.style ?? ''}
 </style>
 </head>
 <body>
-
+${options.bar ?? ''}
 <h1>${escapeHtml(options.heading)}</h1>
-<p class="updated">${escapeHtml(options.standfirst)}</p>
+${options.standfirst ? `<p class="updated">${escapeHtml(options.standfirst)}</p>` : ''}
 ${options.body}
 </body>
 </html>
