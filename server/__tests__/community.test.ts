@@ -243,7 +243,7 @@ describe('making one', () => {
 });
 
 describe('the community page', () => {
-  it('leads with the store, offers the browser, and leaves the code in the tab', async () => {
+  it('asks for one thing, with the install as the prerequisite in the bar', async () => {
     const erta = await signIn('erta@example.com', 'Erta Example');
     const zed = await signIn('zed@example.com', 'Zed Zebedee');
     const { joinCode } = await start(erta);
@@ -256,22 +256,27 @@ describe('the community page', () => {
     expect(reply.body).toContain(
       `sessionStorage.setItem("thefloor.join", "{\\"code\\":\\"${joinCode}\\"}")`
     );
-    // Telegram's page: the store first, the browser second, and no move made
-    // for the reader.
+    // One button, the install in the bar, and no move made for the reader.
     expect(reply.body).not.toContain('location.replace');
-    expect(reply.body).toContain('https://apps.apple.com/app/id0000000000');
-    expect(reply.body).toContain('<a href="/open">continue in the browser</a>');
+    expect(reply.body).toContain('<h1>Cafe Products</h1>');
+    expect(reply.body).toContain('<a class="get" href="https://apps.apple.com/app/id0000000000">Get the app</a>');
+    expect(reply.body).toContain('Install The Floor on this iPhone first');
+    expect(reply.body).toContain('<a id="accept" href="/open">Join community</a>');
+    expect(reply.body.match(/<p class="cta">/g)).toHaveLength(1);
+    expect(reply.body).not.toContain('continue in the browser');
+    expect(reply.body).not.toContain('link you were sent');
     // Safari's banner, handing the app the scheme form on *Open*, since the
     // released build reads no other.
     expect(reply.body).toContain(
       `<meta name="apple-itunes-app" content="app-id=0000000000, app-argument=thefloor://j/${joinCode}">`
     );
     expect(reply.body).toContain('og:title');
-    // Telegram's failure, left out: no custom scheme fired at somebody who
-    // almost certainly has no app to receive it. The banner's argument is
-    // not fired; Safari uses it only where the app is installed.
+    // On iOS a tap on Join hands the app the same form — on the tap and only
+    // there, never on load and never as a bare anchor.
+    expect(reply.body).toContain(`location.href = "thefloor://j/${joinCode}"`);
     expect(reply.body).not.toContain('href="thefloor://');
-    expect(reply.body).not.toMatch(/location[^;]*thefloor:/);
+    const beforeClick = reply.body.slice(0, reply.body.indexOf("addEventListener('click'"));
+    expect(beforeClick).not.toMatch(/location[^;]*thefloor:/);
     for (const name of ['Erta', 'Example', 'Zed', 'Zebedee']) {
       expect(reply.body).not.toContain(name);
     }
@@ -290,7 +295,7 @@ describe('the community page', () => {
 
     const reply = await withTrain(() => page(joinCode));
     expect(reply.body).toContain('sessionStorage.setItem("thefloor.join"');
-    expect(reply.body).toContain('continue in the browser');
+    expect(reply.body).toContain('Join community');
     expect(reply.body).not.toContain('full for now');
 
     // What the web app then asks: a member is given the community again…
@@ -304,7 +309,7 @@ describe('the community page', () => {
     expect(refused.json().error).toBe('Cafe Products is full.');
   });
 
-  it('sends to the store where there is no web app, and names nobody', async () => {
+  it('sends Join to the store where there is no web app, and names nobody', async () => {
     const erta = await signIn('erta@example.com', 'Erta Example');
     const zed = await signIn('zed@example.com', 'Zed Zebedee');
     const { joinCode } = await start(erta);
@@ -313,8 +318,10 @@ describe('the community page', () => {
     const reply = await page(joinCode);
     expect(reply.body).toContain('Cafe Products');
     expect(reply.body).toContain('2 members so far');
-    expect(reply.body).toContain('https://apps.apple.com/app/id0000000000');
-    expect(reply.body).toContain('tap the link you were sent again');
+    expect(reply.body).toContain(
+      '<a id="accept" href="https://apps.apple.com/app/id0000000000">Join community</a>'
+    );
+    expect(reply.body).not.toContain('link you were sent');
     expect(reply.body).not.toContain('sessionStorage');
     for (const name of ['Erta', 'Example', 'Zed', 'Zebedee']) {
       expect(reply.body).not.toContain(name);

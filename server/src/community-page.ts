@@ -2,15 +2,14 @@
  * What a *community link* opens, `/j/<code>`, for whoever the app did not
  * open it for.
  *
- * **Telegram's page since 2026-10-13**, as `invite.ts` is: the community, the
- * App Store, and *continue in the browser* as the quieter alternative, under
- * Safari's Smart App Banner. The owner shares this one link and nothing
- * beside it (`communityInvite` in the app's catalogue), and it is a universal
- * link, so on an iPhone with the app it opens the app and never reaches this
- * server. `invite.ts`'s header has the reasoning, and what of Telegram's page
- * was left out; `decision/2026-10-13-an-invitation-is-one-link-and-a-page.md`
- * the account. Only a box with a web app and no App Store hands straight
- * over, as every box did from 2026-10-11.
+ * **One button since 2026-10-15, *Join community***, with the install as its
+ * prerequisite in a bar across the top — `invite.ts`'s shape, and `accept.ts`
+ * has the reasoning. On iOS the button hands the app `thefloor://j/<code>`,
+ * the Smart App Banner's own argument; everywhere else it opens the web app.
+ * The owner shares this one link and nothing beside it (`communityInvite` in
+ * the app's catalogue), and it is a universal link, so on an iPhone with the
+ * app it opens the app and never reaches this server. Only a box with a web
+ * app and no App Store hands straight over, as every box did from 2026-10-11.
  *
  * **Accepts nothing by being opened**, which is unchanged: it leaves the code
  * where the web app looks for it, and the web app spends it once there is a
@@ -34,7 +33,8 @@
  * who is not a member hears the server's *is full* there instead.
  */
 
-import { CTA_STYLE, MARK, escapeHtml, page, smartAppBanner, socialCard } from './html';
+import { ACCEPT_STYLE, PLATFORM, acceptBlock, acceptScript, appBar } from './accept';
+import { MARK, escapeHtml, page, smartAppBanner, socialCard } from './html';
 
 /**
  * The key the web app takes the code out of. Repeated rather than imported, as
@@ -44,8 +44,7 @@ import { CTA_STYLE, MARK, escapeHtml, page, smartAppBanner, socialCard } from '.
  */
 const JOIN_KEY = 'thefloor.join';
 
-const STYLE = `${CTA_STYLE}
-  .ends { font-size: 0.9rem; opacity: 0.7; margin: 2rem 0 0; }
+const STYLE = `${ACCEPT_STYLE}
   .app { font-size: 0.9rem; opacity: 0.7; margin: 1rem 0 0; }
   .about { white-space: pre-wrap; }
 `;
@@ -128,37 +127,46 @@ ${about}
     });
   }
 
-  // The store leads and the browser follows, as on `invite.ts`'s page.
-  const store = options.appStoreUrl
-    ? `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
-<span class="aside">Free. Once it’s installed, tap the link you were sent again and you’re in ${name}.</span></p>`
+  // One button, the install its prerequisite in the bar, as on `invite.ts`'s
+  // page. Never rendered dead: without script it goes to the web app where
+  // there is one and to the store where there is not.
+  const store = options.appStoreUrl ? escapeHtml(options.appStoreUrl) : '';
+  const fallback = options.webAppReady ? '/open' : store;
+  const join = fallback
+    ? acceptBlock({
+        href: fallback,
+        label: 'Join community',
+        verb: 'join',
+        store,
+        aside: 'You’ll be a member as soon as you sign in.',
+      })
     : '<p class="app">This server is not handing out the app yet.</p>';
-  const browser = options.webAppReady
-    ? '<p class="app">Or <a href="/open">continue in the browser</a>.</p>'
-    : '';
-  const banner = smartAppBanner(
-    options.appStoreUrl,
-    `thefloor://j/${code}`
-  );
+  // The banner's argument, and what *Join* hands the app on iOS — the form
+  // every build reads; build 351 reads no other.
+  const scheme = `thefloor://j/${code}`;
+  const banner = smartAppBanner(options.appStoreUrl, scheme);
 
   return page({
     title: `${community.name} — The Floor`,
-    heading: 'The Floor',
-    standfirst: community.name,
+    heading: community.name,
+    standfirst: '',
     social: socialCard(options.origin, CARD),
-    head: [REFERRER, banner, options.webAppReady ? stash(options.code) : '']
+    // The code is left in the tab on arrival rather than on the click, unlike
+    // the invite page's pin: it is not a seat, and the web app spends it only
+    // once there is a session.
+    head: [REFERRER, banner, PLATFORM, options.webAppReady ? stash(options.code) : '']
       .filter(Boolean)
       .join('\n'),
     style: STYLE,
-    body: `${MARK}
-${about}
+    bar: appBar(store),
+    body: `${about}
 <p class="lede">A community on The Floor, which is a group chat, but voice.
 ${members}</p>
 
-${store}
-${browser}
+${join}
 <p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
 how long.</p>
+${fallback ? acceptScript({ scheme }) : ''}
 `,
   });
 }

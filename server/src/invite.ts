@@ -15,32 +15,18 @@
  * from those three weeks still renders, naming nobody, and is still taken up
  * by username — a shim, in planning/SHIMS.md.
  *
- * **One button since 2026-10-15, and it is *Accept invite*.** The install is
- * the prerequisite rather than a rival: a small *Get the app* in a bar across
- * the top, as Telegram's `t.me` page carries its *Download*, and on iOS one
- * line above the button saying to install first and come back. See
- * `decision/2026-10-15-the-invite-page-asks-for-one-thing.md`.
+ * **One button since 2026-10-15, and it is *Accept invite*,** with the
+ * install as its prerequisite in a bar across the top — the shape the
+ * community page shares, and `accept.ts` has the reasoning. On iOS *Accept*
+ * hands the app `thefloor://i/<username>/<pin>`, the banner's own argument.
+ * Everywhere else it writes the invitation into the tab and opens the web app,
+ * which takes it up once there is a session — a contact, the pair's channel,
+ * and that channel opened.
  *
  * `/i/*` is a universal link, so on an iPhone with the app iOS opens the app
  * and this server never sees the request; everybody who lands here either has
  * no app yet or has told iOS to keep this domain in Safari, which the Smart
  * App Banner (`smartAppBanner`) is for.
- *
- * **What *Accept* does depends on the platform**, decided in the browser
- * because iPadOS presents itself as a Mac to the server. On iOS it hands the
- * app `thefloor://i/<username>/<pin>`, the banner's own argument. Everywhere
- * else there is no app, so it writes the invitation into the tab and opens the
- * web app, which takes it up once there is a session — a contact, the pair's
- * channel, and that channel opened.
- *
- * **The scheme is fired on a tap, never on load**, which is the half of
- * Telegram's page that was not taken. Without the app it is still an *Allow*
- * prompt that errors, or Safari calling the address invalid — but only after
- * the page has said to install first, and the page then points at the install.
- *
- * **The install no longer loses the invitation**: the tab is still open with
- * the pin in its address, so the way back is to return to it and accept. The
- * page never tells anybody to find the link again.
  *
  * **The prose budget is one sentence on each body, and it is a rule rather than
  * a result.** This page has accreted twice. The sentence is the promotional
@@ -49,7 +35,8 @@
  * listing's copy is the one under review.
  */
 
-import { CTA_STYLE, MARK, escapeHtml, page, smartAppBanner, socialCard } from './html';
+import { ACCEPT_STYLE, PLATFORM, acceptBlock, acceptScript, appBar } from './accept';
+import { MARK, escapeHtml, page, smartAppBanner, socialCard } from './html';
 import type { InviteRefusal } from './accounts';
 
 /**
@@ -120,57 +107,8 @@ const CARD = {
   imageAlt: 'The Floor — it’s a group chat, but voice. Nothing rings.',
 };
 
-/**
- * The rules `CTA_STYLE` does not carry, because only this page wants them.
- *
- * `.bar` is the strip across the top and `.get` its install, outlined rather
- * than filled so that *Accept invite* is the one filled thing on the page —
- * until `needs-app`, set when a tap on iOS found no app, fills it. `color:
- * inherit` rather than a colour, for `CTA_STYLE`'s warning — this page is
- * `light dark`, and the text has to be whatever the ground makes legible.
- *
- * `.ios-only` and `.not-ios` follow the class `PLATFORM` puts on `<html>`
- * before first paint. Without script nothing is iOS, which is the browser
- * flow — the one that works everywhere.
- */
-const STYLE = `${CTA_STYLE}
-  .bar {
-    display: flex; align-items: center; gap: 0.6rem;
-    padding-bottom: 0.9rem; border-bottom: 1px solid rgba(127, 127, 127, 0.25);
-  }
-  .bar .mark { width: 1.75rem; height: 1.75rem; border-radius: 0.4rem; }
-  .bar .name { font-weight: 600; flex: 1; }
-  .bar a.get {
-    padding: 0.35rem 0.9rem; border-radius: 999px; font-size: 0.9rem;
-    font-weight: 600; text-decoration: none; color: inherit;
-    box-shadow: inset 0 0 0 1.5px #5B6478;
-  }
-  .needs-app .bar a.get { background: #5B6478; color: #fff; }
-  .prereq { margin: 2rem 0 -1.25rem; }
-  .missing { display: none; font-weight: 600; margin: 0 0 1rem; }
-  .needs-app .missing { display: block; }
-  .ios.needs-app .prereq { display: none; }
-  .ios-only { display: none; }
-  .ios .ios-only { display: block; }
-  .ios .not-ios { display: none; }
-  .ends { font-size: 0.9rem; opacity: 0.7; margin: 2rem 0 0; }
-`;
-
-/**
- * Marks `<html>` as iOS before first paint, so neither copy flashes.
- *
- * In the page rather than from the request's `User-Agent`, because iPadOS
- * Safari asks for desktop pages and calls itself a Mac; a touch screen on a
- * "Mac" is the tell, since no Mac has one.
- */
-const PLATFORM = `<script>
-(function () {
-  var ua = navigator.userAgent || '';
-  if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
-    document.documentElement.classList.add('ios');
-  }
-})();
-</script>`;
+/** `accept.ts`'s rules, which the refusal and the hand-over draw under too. */
+const STYLE = ACCEPT_STYLE;
 
 export interface InvitePageOptions {
   /** The username in the link, exactly as it was typed into the address. */
@@ -317,21 +255,17 @@ ${store}
 
   // The install, out of the body and into the strip across the top: the
   // prerequisite rather than a rival to the acceptance.
-  const bar = `<header class="bar">${MARK}<span class="name">The Floor</span>${
-    store ? `<a class="get" href="${store}">Get the app</a>` : ''
-  }</header>`;
+  const bar = appBar(store);
 
   // **Never rendered dead**, which is `landing.ts`'s rule about the same
   // setting. Without script, *Accept* goes to the web app where there is one
   // and to the store where there is not — a box with neither draws no button.
   // With script on iOS it hands the app the invitation; see `acceptScript`.
   const fallback = options.webAppReady ? '/open' : store;
-  const accept = fallback ? `<a id="accept" href="${fallback}">Accept invite</a>` : '';
+  const accept = !!fallback;
   const contacts = `${who ? name : 'They'} will be in your contacts as soon as you sign in.`;
   const buttons = accept
-    ? `${store ? `<p class="prereq ios-only">Install The Floor on this iPhone first — it’s free — then come back here and accept.</p>
-` : ''}<p class="cta"><span class="missing">The Floor isn’t on this iPhone yet. Get the app, then tap Accept again.</span>${accept}
-<span class="aside">${contacts}</span></p>`
+    ? acceptBlock({ href: fallback, label: 'Accept invite', verb: 'accept', store, aside: contacts })
     : `<p class="browser">This server is not handing out the app yet. Tell ${name}
 you are here.</p>`;
 
@@ -341,6 +275,12 @@ you are here.</p>`;
   const scheme = schemeUrl(invite);
   const banner = smartAppBanner(options.appStoreUrl, scheme);
 
+  // **The invitation is written into the tab on the click, not on arrival**,
+  // since the pin came back: a pin is one seat, and a tab that merely looked
+  // has not taken it. Without JavaScript the anchor still reaches the web app,
+  // arriving without the invitation — the honest degradation. It stays in the
+  // tab until it is spent, so a sign-in's trip to the mail app cannot lose it;
+  // see `peekInvite`. On iOS the click goes to the app instead.
   return page({
     title: who ? `${who} invited you to The Floor` : 'You’re invited to The Floor',
     heading: who ? `${who} invited you` : 'You’ve been invited',
@@ -360,7 +300,7 @@ into: you arrive when it suits you, and whoever is there is there.</p>
 ${buttons}
 <p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
 how long.</p>
-${accept ? acceptScript(invite, scheme) : ''}
+${accept ? acceptScript({ scheme, remember: { key: INVITE_KEY, value: inviteLiteral(invite) } }) : ''}
 `,
   });
 }
@@ -389,48 +329,6 @@ function schemeUrl(invite: Invite): string {
  */
 function inviteLiteral(invite: Invite): string {
   return JSON.stringify(JSON.stringify(invite)).replace(/</g, '\\u003c');
-}
-
-/**
- * Accepting in the browser, which is a link that upgrades itself.
- *
- * **Written on the click, not on arrival**, since the pin came back: a pin is
- * one seat, and a tab that merely looked at the page has not taken it. The
- * anchor points at `/open` on its own, so a reader with no JavaScript still
- * gets into the app — they arrive without the invitation, which is the honest
- * degradation. With JavaScript the click stores it first and the web app takes
- * it up as soon as there is a session, after a sign-in if one comes first; it
- * stays in the tab until it is spent, so the sign-in's trip to the mail app
- * cannot lose it. See `peekInvite`.
- *
- * `/open` rather than a train, which is the rule `open.ts` owns.
- *
- * **On iOS the click goes to the app instead**, by the scheme rather than the
- * anchor. If the page is still in front a moment later, nothing took it, so
- * the page says so and fills *Get the app*; if the page is hidden, the app
- * opened, and a late verdict is withdrawn — Chrome's *Allow* prompt can hold
- * the hand-off for longer than the wait.
- */
-function acceptScript(invite: Invite, scheme: string): string {
-  return `<script>
-(function () {
-  var link = document.getElementById('accept');
-  if (!link) return;
-  var root = document.documentElement;
-  var left = false;
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'hidden') { left = true; root.classList.remove('needs-app'); }
-  });
-  link.addEventListener('click', function (event) {
-    try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${inviteLiteral(invite)}); } catch (e) {}
-    if (!root.classList.contains('ios')) return;
-    event.preventDefault();
-    left = false;
-    location.href = ${JSON.stringify(scheme).replace(/</g, '\\u003c')};
-    setTimeout(function () { if (!left) root.classList.add('needs-app'); }, 1500);
-  });
-})();
-</script>`;
 }
 
 /**

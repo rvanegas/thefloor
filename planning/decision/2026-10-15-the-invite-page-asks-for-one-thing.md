@@ -55,11 +55,24 @@ not taken — and no longer for a tap made after the page has said to install
 first. Its *continue in the browser* line, and the 2026-10-15 pin decision's
 two buttons, are both replaced by the one.
 
+## The community page too
+
+Asked for at the prompt straight after, as "do the same for the community
+page". `/j/<code>` now has the same bar and one button, *Join community* —
+*join* being the glossary's verb for a community — which on iOS hands the app
+`thefloor://j/<code>`, the banner's argument and the only form build 351
+reads, and elsewhere opens the web app. The heading is the community's name.
+The *continue in the browser* line and the aside to tap the link again are
+gone.
+
+**The code is still left in the tab on arrival**, unlike the invite page's
+pin, which waits for the click: a community code is not a seat.
+
+What the two pages share — the bar, the platform marker, the button block and
+its click — is `server/src/accept.ts`, so they cannot drift apart.
+
 ## Not done
 
-**The community page** (`community-page.ts`) still says to tap the link again
-once installed, and still leads with the store. It is the same shape and a
-follow-up, not touched here.
-
-**The refusal bodies** keep the store as their button: there is nothing to
-accept on them.
+**The refusal bodies**, and the community pages for a code that opens nothing
+or a full community on a box with no web app, keep their shape: there is
+nothing to accept on them.

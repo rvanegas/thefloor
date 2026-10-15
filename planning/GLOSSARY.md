@@ -53,7 +53,7 @@ caused; the list carries the meaning.
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
 - **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared alone as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
 - **Community invitation** — What *Share link* sends for a community: since 2026-10-13 the *community link* alone, whose page offers the App Store (two links, the store first, from 2026-10-11). `communityInvite` in the catalogue
-- **Community page** — What a community link shows in a browser, since 2026-10-13 Telegram's shape: the community, *Get The Floor for iPhone*, *continue in the browser* beneath it, and Safari's Smart App Banner. Hands straight on to the web app only on a box with no App Store. Names no member
+- **Community page** — What a community link shows in a browser: since 2026-10-15 the community and one button, *Join community* — the app on iOS, the web app elsewhere — with *Get the app* in a bar across the top as its prerequisite, and Safari's Smart App Banner. Hands straight on to the web app only on a box with no App Store. Names no member
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
@@ -74,9 +74,9 @@ caused; the list carries the meaning.
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
 - **Invite link** — `/i/<username>/<pin>`, minted per press of *Add a contact*, which makes whoever follows it first a *contact* and opens the pair's *channel*; a universal link — the app where it is installed, the *invite page* where it is not. A standing `/i/<username>` from 2026-09-25 to 2026-10-15, still honoured
 - **Contact invitation** — What *Add a contact* sends, since 2026-10-15 its only action: the *invite link* alone, whose page offers the App Store. `contactInvite` in the catalogue
-- **Invite page** — What an *invite link* shows in a browser: who invited you — looked up, and only for a live *invite pin* — then two buttons, *Get The Floor for iPhone* and *Accept invite*, and Safari's Smart App Banner. A spent, expired or wrong pin draws a refusal naming nobody
+- **Invite page** — What an *invite link* shows in a browser: who invited you — looked up, and only for a live *invite pin* — and since 2026-10-15 one button, *Accept invite* — the app on iOS, the web app elsewhere — with *Get the app* in a bar across the top as its prerequisite, and Safari's Smart App Banner. A spent, expired or wrong pin draws a refusal naming nobody
 - **Invite pin** — Six digits ending an *invite link* that make it good once, for thirty days; gone 2026-09-25, back 2026-10-15
-- **Join link** — `thefloor://j/<code>`, which the community page drew until 2026-10-11 and the app still reads; the *community link* does its job now. Membership only — never a *contact*, unlike an *invite link*
+- **Join link** — `thefloor://j/<code>`, which the community page drew until 2026-10-11 and the app still reads; the *community link* does its job now, and since 2026-10-15 the page's *Join community* hands it to the app on iOS. Membership only — never a *contact*, unlike an *invite link*
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
 - **Labs** — A per-account gate for the unfinished parts of the app, off by default; **nothing is behind it since 2026-10-09**, when transcripts left, so its switch is not drawn — kept for the next experiment
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
@@ -717,10 +717,11 @@ powers and is in the channel by configuration.
 click.** `/j/<code>` is what the owner hands out, and *Share link* sends it, alone, as
 the *community invitation*. The link is a universal link — on an iPhone with
 the app it opens the app, which joins; in any browser it lands on **the
-*community page***, which since 2026-10-13 is Telegram's shape: the community,
-the App Store first, *continue in the browser* beneath it, and Safari's Smart
-App Banner above. The page leaves the code in the tab, so the web app joins
-once there is a session, after a sign-in if one comes first. It names no
+*community page***, which since 2026-10-15 asks for one thing: the community,
+then *Join community*, with *Get the app* in a bar across the top as its
+prerequisite and Safari's Smart App Banner above. On iOS *Join* hands the app
+the *join link*; elsewhere the page leaves the code in the tab, so the web app
+joins once there is a session, after a sign-in if one comes first. It names no
 member, and it hands straight on to the web app only on a box with no App
 Store. From 2026-10-11 to then the message carried the store as a second link
 and the page handed every browser straight over. The *join link*, `thefloor://j/<code>`, was the
@@ -1276,8 +1277,10 @@ account. An account with no username has no link, since there is nothing to
 write.
 
 **It is a universal link**: on an iPhone with the app it opens the app, which
-accepts and opens the channel. In any browser it draws the *invite page*. The
-install loses the link, so the page says to tap it again once installed.
+accepts and opens the channel. In any browser it draws the *invite page*,
+whose *Accept invite* on iOS hands the app the same invitation — so somebody
+who installs comes back to the tab and accepts, rather than finding the link
+again.
 
 ## Invite pin
 
