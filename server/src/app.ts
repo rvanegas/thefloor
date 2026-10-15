@@ -1659,9 +1659,15 @@ export function buildApp(options: BuildOptions = {}): App {
       // different things depending on which half of the email was acted on.
       // `resolveInvitesFor` accepts on signup now, so the sender asks once and
       // is answered once.
-      const link = account.username
-        ? inviteLinkUrl(request, account.username, account.display_name)
-        : `${origin(request)}/open`;
+      //
+      // **The link carries a pin again, since 2026-10-15**, minted for this
+      // message: the seat in it is the recipient's, and the address resolving
+      // on signup is the other way the same invitation can be taken up.
+      const pin = account.username ? accounts.mintInvitePin(account.id, now()) : null;
+      const link =
+        account.username && pin
+          ? inviteLinkUrl(request, account.username, pin)
+          : `${origin(request)}/open`;
       try {
         await options.mailer.sendInvite(
           body.identifier,
@@ -1670,10 +1676,10 @@ export function buildApp(options: BuildOptions = {}): App {
         );
       } catch (error) {
         accounts.withdrawRequest(account.id, body.identifier);
-        // Nothing else to undo since 2026-09-25: the link carries no pin, so
-        // there is no minted row that a failed send would otherwise leave
-        // behind. The request itself still goes, for the reason it always
-        // did — an invitation that was not sent must leave nothing behind.
+        // And the pin minted for it: an invitation that was not sent must
+        // leave nothing behind, and a live pin nobody was given is one more
+        // number that opens the same door.
+        if (pin) accounts.forgetInvitePin(account.id, pin);
         request.log.error({ err: error }, 'failed to send an invitation');
         return reply.code(502).send({ error: 'Could not send the invitation.' });
       }
@@ -1705,33 +1711,25 @@ export function buildApp(options: BuildOptions = {}): App {
    * screen asking draws a way to choose a username from exactly this. A status
    * code would make the app read an error to find a state.
    *
-   * **It mints nothing, since 2026-09-25.** A link used to be good for one
-   * person, so every press had to produce a new one and a cap bounded the
-   * accumulation. A link is a standing address now — it is the account's
-   * username, and the name to greet a reader with — so this composes a string
-   * and writes nothing.
+   * **It mints, on every press, again since 2026-10-15.** A link is good for
+   * one person, so sharing twice has to produce two links or the second
+   * person gets one already spent; `INVITE_PINS_PER_ACCOUNT` bounds the
+   * accumulation. Between 2026-09-25 and that day it minted nothing and the
+   * link was a standing `/i/<username>?name=`, whose name was anybody's to
+   * write — see decision/2026-10-15-an-invite-link-carries-a-pin-again.md.
    *
-   * **Still a `POST`**, which is now the wrong verb and the right route.
-   * Renaming it to a `GET` is a wire change that would have to keep answering
-   * the old one, for a tidiness nobody can see; the client has called it this
-   * since there were pins.
+   * A `POST` because it writes.
    */
   fastify.post('/contacts/invite-link', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
 
-    // Nothing is minted any more and nothing is spent: the link is a fact
-    // about the account rather than a row, so this is a read that happens to
-    // be a POST. It stays a POST because the client has called it that since
-    // there were pins, and renaming a route to suit its new verb is a wire
-    // change for no gain.
-    //
     // `null` for an account with no username, which is the one case there is
     // no link to write — the client draws *Choose a username* instead.
-    if (!account.username) return { url: null };
-    return {
-      url: inviteLinkUrl(request, account.username, account.display_name),
-    };
+    // `mintInvitePin` asks the same question, so the two cannot disagree.
+    const pin = accounts.mintInvitePin(account.id, now());
+    if (!account.username || !pin) return { url: null };
+    return { url: inviteLinkUrl(request, account.username, pin) };
   });
 
   /**
@@ -2416,59 +2414,77 @@ export function buildApp(options: BuildOptions = {}): App {
    * The page an invite link opens — see invite.ts, which owns the prose and
    * the reasoning.
    *
-   * **It reads the database for nothing**, since 2026-09-25. It used to hold
-   * both halves of a credential and check them before it would say a name;
-   * there is no credential now, and the name it draws comes out of the address
-   * it was asked for. So this route is a pure function of its own URL, which
-   * is what stops it being a directory: `/i/annak` and `/i/nobodyatall` render
-   * identically, so nothing is learned by asking, and there is nothing to
-   * enumerate.
+   * **It names the inviter only to a request holding a live pin**, since
+   * 2026-10-15 as before 2026-09-25. Both halves of the credential are in the
+   * path, so the server checks them before it renders, and the display name it
+   * draws is the account's own rather than whatever an address said. That is
+   * what stops this being a directory: without the pin beside it a username
+   * gets the same page as any other, so nothing is learned by asking.
    *
    * Unauthenticated, necessarily. What it hands out is a page; taking the link
-   * up happens later, from inside the app, against a session — and that is
-   * where an unknown username is refused, by a route that is deliberately coy
-   * about which usernames exist.
+   * up happens later, against a session, by the route that spends the pin.
    */
-  const invitePageFor = (
-    request: FastifyRequest,
-    reply: FastifyReply,
-    username: string
-  ) => {
+  fastify.get('/i/:username/:pin', async (request, reply) => {
+    const { username, pin } = request.params as {
+      username: string;
+      pin: string;
+    };
     reply.type('text/html; charset=utf-8');
-    // Never cached. The name rides in the query, so two links to one username
-    // are two pages, and a shared cache must not answer one with the other.
+    // Never cached: it says whether an invitation is still there to take, and
+    // that changes the moment somebody takes it.
     reply.header('cache-control', 'no-store');
 
-    const asked = (request.query as { name?: unknown } | undefined)?.name;
+    const webAppReady = (await availableTrains()).length > 0;
+    const owner = accounts.byUsername(username);
+    // A username nobody holds gets the same page as a bad pin, and no attempt
+    // is counted — there is no account to count it against, and inventing one
+    // would be a way of asking whether a username exists.
+    if (!owner) {
+      return invitePage({
+        username,
+        pin,
+        refusal: 'unknown',
+        appStoreUrl: options.updateUrl,
+        webAppReady,
+        origin: origin(request),
+      });
+    }
+
+    const state = accounts.invitePinState(owner.id, pin, now());
     return invitePage({
       username,
-      displayName: typeof asked === 'string' && asked ? asked : undefined,
+      pin,
+      // The disclosure, and the only branch that makes it: a name is drawn
+      // exactly when the pin beside it is live and unspent.
+      ...(state.ok
+        ? { displayName: owner.display_name }
+        : { refusal: state.reason }),
       appStoreUrl: options.updateUrl,
-      webAppReady: availableTrainsCount > 0,
+      webAppReady,
       origin: origin(request),
     });
-  };
-
-  fastify.get('/i/:username', async (request, reply) => {
-    const { username } = request.params as { username: string };
-    availableTrainsCount = (await availableTrains()).length;
-    return invitePageFor(request, reply, username);
   });
 
   /**
-   * The same page for a link minted before the pin went.
+   * The page for a link with no pin, which names nobody.
    *
-   * **A shim, and the one that cannot be skipped**: invite links live in other
-   * people's threads for as long as those threads do, so an address that
-   * stopped resolving would be an invitation that stopped working with nothing
-   * to tell anybody why. The pin is ignored here — the page no longer has
-   * anything to check it against — and is still honoured by the route that
-   * takes a link up, which is where it does any work. See planning/SHIMS.md.
+   * **A shim**: links minted between 2026-09-25 and 2026-10-15 were
+   * `/i/<username>?name=`, and they are in other people's threads. The
+   * `?name=` is ignored, it never having been evidence of anything, and the
+   * page reads nothing — `/i/annak` and `/i/nobody_at_all` render
+   * identically. Taking it up goes through `acceptInviteLink`, the pin-less
+   * path, which planning/SHIMS.md retires along with this branch of the page.
    */
-  fastify.get('/i/:username/:pin', async (request, reply) => {
-    const { username } = request.params as { username: string; pin: string };
-    availableTrainsCount = (await availableTrains()).length;
-    return invitePageFor(request, reply, username);
+  fastify.get('/i/:username', async (request, reply) => {
+    const { username } = request.params as { username: string };
+    reply.type('text/html; charset=utf-8');
+    reply.header('cache-control', 'no-store');
+    return invitePage({
+      username,
+      appStoreUrl: options.updateUrl,
+      webAppReady: (await availableTrains()).length > 0,
+      origin: origin(request),
+    });
   });
 
   /**
@@ -3779,39 +3795,25 @@ export function buildApp(options: BuildOptions = {}): App {
     `${origin(request)}/j/${encodeURIComponent(code)}`;
 
   /**
-   * An invite link: a username, and the name to greet its reader with.
+   * An invite link: a username, and the pin that makes it one seat.
    *
    * Beside the guest link on purpose: they are the two addresses this server
    * mints for somebody to hand to a person, and they share `origin`. What they
    * do not share is what they open — a guest link opens one room to anybody
-   * holding it until the room empties, and this opens one contact, standing.
+   * holding it until the room empties, and this opens one contact, once.
    *
-   * **No pin since 2026-09-25, and it is the same address every time.** It
-   * used to be `/i/<username>/<pin>`, six digits minted per press and spent by
-   * the first taker. What that bought was a seat; what it cost was that the
-   * link could not simply be *somebody's link*. See
-   * `decision/2026-09-25-...`.
-   *
-   * **`name` is a convenience and is not evidence.** The page draws it so that
-   * a reader is greeted by a person rather than by a handle, and it is put in
-   * the address rather than looked up so that this server never answers
-   * "who is @annak" for anybody who asks — which would be the directory
-   * `core/username.ts` says there is not. Anybody may therefore write any name
-   * into any link. What that buys them is one line of prose: the contact the
-   * link makes is the account named by the *username*, and the app draws that
-   * account's real display name from the moment it exists. Escaped and capped
-   * where it is drawn, not here.
+   * **The pin is back since 2026-10-15**, after three weeks of a standing
+   * `/i/<username>?name=`. The name rode in the address because the page had
+   * nothing to check before saying one, so anybody could write any name into
+   * any link; with the pin the page looks the name up, and only for a request
+   * holding a live one. See decision/2026-10-15-an-invite-link-carries-a-pin-
+   * again.md.
    */
   const inviteLinkUrl = (
     request: FastifyRequest,
     username: string,
-    displayName?: string | null
-  ): string => {
-    const base = `${origin(request)}/i/${username}`;
-    return displayName
-      ? `${base}?name=${encodeURIComponent(displayName)}`
-      : base;
-  };
+    pin: string
+  ): string => `${origin(request)}/i/${username}/${pin}`;
 
   /**
    * Mints a link to one channel, for a member to hand to anybody.

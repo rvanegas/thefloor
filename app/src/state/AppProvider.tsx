@@ -553,7 +553,6 @@ interface AppValue extends AppState {
    * no account while the server still has one.
    */
   deleteAccount: () => Promise<void>;
-  requestContact: (identifier: string) => Promise<{ accepted: boolean }>;
   /**
    * A fresh invite link to hand to one person, or null when there is no
    * username to build one out of.
@@ -1777,8 +1776,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     if (!state.token || !invite) return;
     const token = state.token;
     // Cleared before the request goes out, not after: the pin is single use,
-    // and the second attempt would tell this person their own acceptance had
-    // already been used. `clearInvite` owns that reasoning.
+    // so it is spent once. `clearInvite` owns that reasoning.
     clearInvite();
     const stale = () => linkSession.current !== token;
     void api
@@ -2654,14 +2652,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           lastError: null,
           refusals: {},
         });
-      },
-
-      requestContact: async (identifier) => {
-        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        const result = await api.requestContact(state.token, identifier);
-        const home = await api.home(state.token);
-        setState((s) => ({ ...s, home }));
-        return { accepted: result.accepted };
       },
 
       // No `home` refetch, unlike its neighbours: minting a link changes

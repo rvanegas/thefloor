@@ -90,7 +90,7 @@ it('holds one that arrives while the app is already running and signed in', asyn
   expect(seen).toEqual({ username: 'annak', pin: '042317' });
 });
 
-it('takes a pinned invitation out of storage on mount', async () => {
+it('keeps a pinned invitation in storage until it is spent', async () => {
   const store = new Map([
     ['thefloor.invite', JSON.stringify({ username: 'beth', pin: '112233' })],
   ]);
@@ -102,9 +102,10 @@ it('takes a pinned invitation out of storage on mount', async () => {
 
   await mount();
   expect(seen).toEqual({ username: 'beth', pin: '112233' });
-  // A pin is single use, so it is gone from storage and a reload cannot
-  // spend it twice.
-  expect(store.has('thefloor.invite')).toBe(false);
+  // Kept since 2026-10-15, when every link carries a pin again: a reload
+  // during the sign-in would otherwise lose it, and the server answers the
+  // same person spending it twice with the channel rather than a refusal.
+  expect(store.has('thefloor.invite')).toBe(true);
 });
 
 it('keeps a pin-less invitation in storage until it is spent', async () => {
@@ -135,10 +136,10 @@ it('keeps a pin-less invitation in storage until it is spent', async () => {
   expect(store.has('thefloor.invite')).toBe(false);
 });
 
-it('takes a universal link up by username, dropping any pin', async () => {
+it('takes a universal link up with its pin', async () => {
   mockInitialUrl = 'https://thefloor.rvanegas.co/i/annak/042317';
   await mount();
-  expect(seen).toEqual({ username: 'annak' });
+  expect(seen).toEqual({ username: 'annak', pin: '042317' });
 });
 
 it('keeps the first arrival when two roads answer at once', async () => {

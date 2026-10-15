@@ -2,54 +2,42 @@
  * The page an invite link opens: somebody you know, asking you here by name.
  *
  * **The one place in this application where a stranger is told a fact about a
- * user**, and it no longer tells them anything it was not given. The address
- * is `/i/<username>`, optionally carrying `?name=`, and this page **reads
- * nothing**: the name it draws came out of the address it was asked for. So
- * `/i/annak` and `/i/nobody_at_all` render identically, walking usernames
- * teaches a reader exactly what they typed, and there is no directory here —
- * which is what `core/username.ts` says there must not be.
+ * user**, and the whole design is about narrowing that. The address is
+ * `/i/<username>/<pin>`, so the display name is drawn only for a request that
+ * carries a pin which is live, unspent and belongs to that username; every
+ * other request is answered with a page that names nobody. Guessing at the pin
+ * is counted against the account and stops — see `Accounts.invitePinState`.
  *
- * It used to check a pin and disclose a real display name to whoever held one;
- * see `decision/2026-09-25-an-invite-link-is-a-standing-door.md` for why the
- * address is the better answer, and `NAME_LIMIT` for what a name from a URL
- * costs.
+ * **The pin went on 2026-09-25 and came back on 2026-10-15.** In between, the
+ * link was a standing `/i/<username>?name=`, and the page drew whatever name
+ * the address carried, since it had nothing to check before saying a real
+ * one. See `decision/2026-10-15-an-invite-link-carries-a-pin-again.md`. A link
+ * from those three weeks still renders, naming nobody, and is still taken up
+ * by username — a shim, in planning/SHIMS.md.
  *
- * **Since 2026-10-13 it is Telegram's page**, which is what a `t.me` profile
- * link draws for somebody without Telegram: who it is, the install, and a
- * banner Safari offers on its own (`smartAppBanner`). The app shares this one
- * link and nothing beside it (`contactInvite`), and `/i/*` is a universal
- * link, so on an iPhone with the app iOS opens the app and this server never
- * sees the request. Everybody else lands here. See
- * `decision/2026-10-13-an-invitation-is-one-link-and-a-page.md`.
+ * **Two buttons since 2026-10-15: get the app, or accept here.** Telegram's
+ * page of 2026-10-13 led with the store and put the browser on a quiet line
+ * under it. Both are now the page's two calls to action, the store first.
+ * `/i/*` is a universal link, so on an iPhone with the app iOS opens the app
+ * and this server never sees the request; everybody who lands here either has
+ * no app or has told iOS to keep this domain in Safari, which the Smart App
+ * Banner (`smartAppBanner`) is for. *Accept invite* writes the invitation into
+ * the tab and opens the web app, which takes it up once there is a session —
+ * a contact, the pair's channel, and that channel opened.
  *
- * **Telegram's two failures are left out.** Its page fires its own scheme on
- * load and from its button, which without the app is an *Allow* prompt that
- * errors, or Safari calling the address invalid. Nothing here fires
- * `thefloor://`: anybody reading this page almost certainly has no app, since
- * the universal link would have taken them past it, and the banner covers the
- * one who does. And where Telegram has no way on but the install, this page
- * offers the web app, as the quieter of two choices — Erta's point that on
- * an iPhone the native app leads.
+ * **Nothing here fires `thefloor://`.** Without the app that is an *Allow*
+ * prompt that errors, or Safari calling the address invalid, and no script on
+ * this page can find out in advance which it would be.
  *
- * **The username is left in the tab on arrival** where there is a web app, so
- * *Continue in the browser* is a plain link to `/open` and the web app takes
- * the invitation up once there is a session, after a sign-in if that comes
- * first. Leaving it costs nothing to somebody who goes to the store instead:
- * the tab is the only place it is, and nothing spends it but the web app.
- *
- * **Only a box with a web app and no App Store hands straight over**, as
- * every box did from 2026-10-12 — there is nothing to lead with but the web
- * app, so a page asking which would be asking nothing. See `handoverPage`.
- * A box with neither says so.
+ * **The install loses the link**, as it always has: the aside says to tap it
+ * again once installed. Deferred deep linking is not built, for
+ * `decision/2026-09-25-the-invitation-asks-for-one-thing.md`'s reasons.
  *
  * **The prose budget is one sentence on each body, and it is a rule rather than
  * a result.** This page has accreted twice. The sentence is the promotional
  * text, whose source of truth is planning/task/apply-the-app-store-listing.md —
  * change it there first, or this page and the store listing drift and the
- * listing's copy is the one under review. There is now no claim here at all
- * about what a browser cannot do, which is the cheapest possible way to keep
- * landing.ts's rule that any such claim must be checkable against the shipped
- * web app.
+ * listing's copy is the one under review.
  */
 
 import { CTA_STYLE, MARK, escapeHtml, page, smartAppBanner, socialCard } from './html';
@@ -94,7 +82,7 @@ import type { InviteRefusal } from './accounts';
 const INVITE_KEY = 'thefloor.invite';
 
 /**
- * The link preview for both bodies below, and **it deliberately names nobody.**
+ * The link preview for every body below, and **it deliberately names nobody.**
  *
  * This page is the one place in the application where a stranger is told a
  * fact about a user, and the whole design above is about narrowing that to
@@ -109,7 +97,7 @@ const INVITE_KEY = 'thefloor.invite';
  * to `<title>` — so the name has been appearing in chat previews all along.
  * Setting an `og:title` that omits it is what stops that.
  *
- * One card for both bodies, refusal included: a crawler and the person who
+ * One card for every body, refusal included: a crawler and the person who
  * clicks can get different states — a pin spent in between, most obviously —
  * and a preview that announced a refusal the reader will not see is worse than
  * one that says what the address is for.
@@ -126,35 +114,36 @@ const CARD = {
 /**
  * The rules `CTA_STYLE` does not carry, because only this page wants them.
  *
- * `.lede` and the button furniture are shared — see `CTA_STYLE` in html.ts,
- * and the warning there that nothing in it may assume a light ground, which is
- * why this page can use it at all.
+ * `.second` is the second of two buttons: outlined in the first one's colour
+ * rather than filled with it, so the store still reads as the lead. `color:
+ * inherit` rather than a colour, for `CTA_STYLE`'s warning — this page is
+ * `light dark`, and the text has to be whatever the ground makes legible.
  */
 const STYLE = `${CTA_STYLE}
+  .cta a.second {
+    background: transparent; color: inherit;
+    box-shadow: inset 0 0 0 2px #5B6478; margin-left: 0.5rem;
+  }
   .ends { font-size: 0.9rem; opacity: 0.7; margin: 2rem 0 0; }
-  .app { font-size: 0.9rem; opacity: 0.7; margin: 1rem 0 0; }
 `;
 
 export interface InvitePageOptions {
   /** The username in the link, exactly as it was typed into the address. */
   username: string;
   /**
-   * The name to greet the reader with, from the link's own `?name=`.
-   *
-   * **Not looked up, and that is the whole of the design.** Resolving a
-   * username to a display name would make this server answer "who is @annak"
-   * for anybody who asked, which is the directory `core/username.ts` says
-   * there is not. Carrying it in the address instead means the page can say
-   * *Anna Kowalski invited you* while knowing nothing, and a reader who walks
-   * usernames learns exactly what they typed.
-   *
-   * **So it is not evidence, and the page must not dress it as any.** Anybody
-   * may write any name into any link. What it buys them is one line of prose:
-   * the contact is the account named by the *username*, and the app draws that
-   * account's real display name from the moment it exists. Escaped and capped
-   * below — a link is a place somebody else's text arrives from.
+   * The pin in the link. Never shown; carried to the web app and to the
+   * banner's `app-argument`. Absent for a link minted between 2026-09-25 and
+   * 2026-10-15, which had none.
+   */
+  pin?: string;
+  /**
+   * The inviter's display name — given only when the pin checked out, which is
+   * what keeps this page from answering "who is @annak" for anybody who asks.
+   * Looked up by the route, never read from the address.
    */
   displayName?: string;
+  /** Why there is no name, when the pin did not check out. */
+  refusal?: InviteRefusal;
   /** Where this server is reachable, for the link preview. See socialCard. */
   origin?: string;
   /** From APP_STORE_URL. Absent on a box that has not been told. */
@@ -164,94 +153,154 @@ export interface InvitePageOptions {
 }
 
 /**
- * The longest name this page will draw.
- *
- * Forty, which is the cap a display name is stored under, so an honest link is
- * never truncated. It is here because the name arrives in a URL rather than
- * from the database: without it, a link could carry a kilobyte of text and
- * this page would set it as a heading.
- */
-const NAME_LIMIT = 40;
-
-/**
  * What each refusal says, in the second person and without a diagnosis nobody
- * can act on.
+ * can act on — on the page, and as the one sentence a failed acceptance puts
+ * on screen in the app.
  *
- * **None of these is a page any more, since 2026-09-25.** They were, while a
- * link carried a pin: the page checked it and said why it would not name
- * anybody. A link is `/i/<username>` now and the page checks nothing, so every
- * one of these reaches a person through the app instead, as the sentence a
- * failed acceptance puts on screen.
+ * `unknown` and `locked` deliberately give the same sentence. They are
+ * different states — one is a pin that never existed, the other is an account
+ * that has stopped answering after too many wrong ones — and telling them
+ * apart would hand a guesser the one thing worth knowing: whether to keep
+ * going. Somebody with a genuine link reads "check the link" either way and is
+ * not misled, since a locked window passes.
  *
- * `unknown` and `locked` deliberately give the same sentence, and `used` and
- * `expired` survive only for links minted before the pin went — see
- * planning/SHIMS.md.
+ * **`aside` is the next step, and is separate from `body` because it is not
+ * the same sentence for everybody.** `self` is why it cannot be one shared
+ * line: the others are answered by asking the sender again, and `self` *is*
+ * the sender. `too_many` never reaches the page; it is the pin-less door's.
  */
-function refusalText(refusal: InviteRefusal): string {
+function refusalText(refusal: InviteRefusal): {
+  heading: string;
+  body: string;
+  aside: string;
+} {
   switch (refusal) {
     case 'used':
-      return 'This invite link has already been used';
+      // **The one refusal that still asks for the install.** A spent pin means
+      // the relationship cannot be made from this link, and it says nothing at
+      // all about whether this person should be here — anybody may sign up, and
+      // a page that reads as a closed door turns a spent link into a rejection.
+      return {
+        heading: 'This invite link has already been used',
+        body: 'An invite link works once — but go ahead and install anyway. The Floor isn’t invitation-only.',
+        aside:
+          'Free. Ask whoever sent it for a fresh link too, and you will arrive ' +
+          'with them in your contacts.',
+      };
     case 'expired':
-      return 'This invite link has expired';
+      return {
+        heading: 'This invite link has expired',
+        body: 'Invite links last thirty days.',
+        aside: 'Ask whoever sent it for a fresh link — it takes them a moment.',
+      };
     case 'self':
-      return 'This is your own invite link';
+      // Reachable only from the app, which is where a signed-in owner's own
+      // link resolves; the page itself has no idea who is reading it.
+      return {
+        heading: 'This is your own invite link',
+        body: 'Send it to somebody else, and they are in your contacts as soon as they open it.',
+        aside: 'You can make another at any time, under Contacts.',
+      };
     case 'too_many':
-      return 'You have followed as many invite links as you can today';
+      return {
+        heading: 'You have followed as many invite links as you can today',
+        body: 'Try again tomorrow.',
+        aside: '',
+      };
     default:
-      return 'This invite link cannot be opened';
+      return {
+        heading: 'This invite link cannot be opened',
+        body: 'Check that the whole link was copied — the last part of it is what matters.',
+        aside: 'If it keeps failing, ask whoever sent it for another.',
+      };
   }
 }
 
 /**
- * The one-sentence form, for the app, which is now the only reader.
+ * The one-sentence form, for the app rather than for a page.
+ *
+ * The same words as the page's heading, and shared rather than written twice
+ * because they are the same refusal reaching a person by two routes — somebody
+ * who opened the link in a browser, and somebody whose app redeemed it a
+ * moment after they signed in.
  */
 export function inviteRefusalText(refusal: InviteRefusal): string {
-  return `${refusalText(refusal)}.`;
+  return `${refusalText(refusal).heading}.`;
 }
 
 export function invitePage(options: InvitePageOptions): string {
-  // **Capped here, escaped where it is used, and only once.** The cap is about
-  // a heading somebody else chose the length of. The escaping is deliberately
-  // not done here: `page()` escapes `title` and `standfirst` itself, so a value
-  // escaped up front would reach a reader as `&lt;` rather than `<` — the same
-  // double-escape that makes an apostrophe in a name read as `&#39;`.
-  const raw = options.displayName
-    ? options.displayName.slice(0, NAME_LIMIT)
-    : `@${options.username}`;
-  // For the body, which this file interpolates into markup itself.
-  const name = escapeHtml(raw);
+  // A pin that did not check out: an explanation and a way out, naming
+  // nobody, including in the title. No accept button — there is nothing here
+  // to accept.
+  if (options.refusal) {
+    const said = refusalText(options.refusal);
+    const store = options.appStoreUrl
+      ? `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
+<span class="aside">${said.aside}</span></p>`
+      : `<p class="browser">${said.aside}</p>`;
+    // The promotional sentence is deliberately absent. A refusal and a pitch
+    // are two openings, and the refusal is what this reader came for.
+    return page({
+      title: 'The Floor',
+      heading: 'The Floor',
+      standfirst: said.heading,
+      social: socialCard(options.origin, CARD),
+      head: REFERRER,
+      style: STYLE,
+      body: `${MARK}
+
+<p>${said.body}</p>
+
+${store}
+<p class="ends"><a href="/">More about The Floor</a> · <a href="/privacy">Privacy</a></p>
+`,
+    });
+  }
+
+  // **Who, from the database and never from the address.** A pin-less link
+  // names nobody: the route has nothing to check, so it has nothing to say.
+  const who = options.displayName;
+  const invite = { username: options.username, ...(options.pin ? { pin: options.pin } : {}) };
 
   // Nothing to lead with but the web app, so no page asks which.
-  if (options.webAppReady && !options.appStoreUrl) return handoverPage(raw, options);
+  if (options.webAppReady && !options.appStoreUrl) {
+    return handoverPage(who, invite, options);
+  }
 
-  // The store leads and the browser follows, Telegram's page with the way on
-  // it lacks. **Never rendered dead**, which is `landing.ts`'s rule about the
-  // same setting: a box with neither says so rather than drawing an `href=""`.
+  const name = who ? escapeHtml(who) : 'whoever sent it';
   const store = options.appStoreUrl
-    ? `<p class="cta"><a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>
-<span class="aside">Free. Once it’s installed, tap the link you were sent again: ${name} is in your contacts as soon as you sign in.</span></p>`
-    : `<p class="browser">This server is not handing out the app yet. Tell ${name}
-you are here.</p>`;
-  const browser = options.webAppReady
-    ? '<p class="app">Or <a href="/open">continue in the browser</a>.</p>'
+    ? `<a href="${escapeHtml(options.appStoreUrl)}">Get The Floor for iPhone</a>`
     : '';
+  // **Never rendered dead**, which is `landing.ts`'s rule about the same
+  // setting: a box serving no web app draws no accept button rather than one
+  // that leads to a 503.
+  const accept = options.webAppReady
+    ? `<a id="accept"${store ? ' class="second"' : ''} href="/open">Accept invite</a>`
+    : '';
+  const aside = store
+    ? `Free. Once it’s installed, tap the link you were sent again — or accept
+here and carry on in the browser. Either way, ${who ? name : 'they'} will be in your contacts as soon as you sign in.`
+    : `${who ? name : 'They'} will be in your contacts as soon as you sign in.`;
+  const buttons =
+    store || accept
+      ? `<p class="cta">${store}${store && accept ? ' ' : ''}${accept}
+<span class="aside">${aside}</span></p>`
+      : `<p class="browser">This server is not handing out the app yet. Tell ${name}
+you are here.</p>`;
+
   // What the app is handed if somebody who has it takes the banner's *Open*:
-  // the scheme form, without a pin, which every build since 288 reads —
+  // the scheme form, which every build since 288 reads, pin and all —
   // `smartAppBanner` says why not this page's own address.
-  const banner = smartAppBanner(
-    options.appStoreUrl,
-    `thefloor://i/${encodeURIComponent(options.username)}`
-  );
+  const banner = smartAppBanner(options.appStoreUrl, schemeUrl(invite));
+  const standfirst = who ? `${who} invited you` : 'You’ve been invited';
 
   return page({
-    title: `${raw} invited you to The Floor`,
+    title: who ? `${who} invited you to The Floor` : 'You’re invited to The Floor',
     heading: 'The Floor',
-    standfirst: `${raw} invited you`,
+    standfirst,
     // Names nobody, unlike the title above it — see CARD.
     social: socialCard(options.origin, CARD),
-    head: [REFERRER, banner, options.webAppReady ? stash(options.username) : '']
-      .filter(Boolean)
-      .join('\n'),
+    head: [REFERRER, banner].filter(Boolean).join('\n'),
     style: STYLE,
     // One sentence, and it is planning/task/apply-the-app-store-listing.md's
     // promotional text. Change it there first: it is the field the store
@@ -262,37 +311,63 @@ you are here.</p>`;
 <p class="lede">It’s a group chat, but voice. A channel is a place you drop
 into: you arrive when it suits you, and whoever is there is there.</p>
 
-${store}
-${browser}
+${buttons}
 <p class="ends"><a href="/privacy">Privacy</a> — what is stored, why, and for
 how long.</p>
+${accept ? acceptScript(invite) : ''}
 `,
   });
 }
 
+interface Invite {
+  username: string;
+  pin?: string;
+}
+
+/** `thefloor://i/<username>[/<pin>]`, for the banner. */
+function schemeUrl(invite: Invite): string {
+  const path = [invite.username, invite.pin]
+    .filter((part): part is string => !!part)
+    .map(encodeURIComponent)
+    .join('/');
+  return `thefloor://i/${path}`;
+}
+
 /**
- * Leaves the username in the tab for `peekInvite`, which is the whole of what
- * carries an invitation from this page into the web app.
+ * The invitation as a JavaScript string literal holding its JSON, for the tab.
  *
- * **The username alone, whichever address was asked for.** A link minted
- * before 2026-09-25 carries a pin, and the pin is not passed on: taking a link
- * up by username accepts for any account and is never refused as used, which
- * a spent pin would be. And it stays in the tab until it is spent, not until
- * it is read, so a reload during the sign-in — iOS reloading a tab left for
- * the mail app — keeps it. See `peekInvite`.
- *
- * Without JavaScript the web app still opens, and arrives without the
- * invitation: nothing is silently half-done, and they can be added the
- * ordinary way.
+ * JSON.stringify twice, not the escaper: this is a string literal rather than
+ * markup. A username is letters, digits and underscores and a pin is six
+ * digits, but the address is somebody else's text, so `<` is escaped for the
+ * script element regardless.
  */
-function stash(username: string, then = ''): string {
-  // JSON.stringify, not the escaper: this is a JavaScript string literal
-  // rather than markup. A username is letters, digits and underscores, but the
-  // address is somebody else's text, so `<` is escaped for the script element
-  // regardless.
-  const invite = JSON.stringify(JSON.stringify({ username })).replace(/</g, '\\u003c');
+function inviteLiteral(invite: Invite): string {
+  return JSON.stringify(JSON.stringify(invite)).replace(/</g, '\\u003c');
+}
+
+/**
+ * Accepting in the browser, which is a link that upgrades itself.
+ *
+ * **Written on the click, not on arrival**, since the pin came back: a pin is
+ * one seat, and a tab that merely looked at the page has not taken it. The
+ * anchor points at `/open` on its own, so a reader with no JavaScript still
+ * gets into the app — they arrive without the invitation, which is the honest
+ * degradation. With JavaScript the click stores it first and the web app takes
+ * it up as soon as there is a session, after a sign-in if one comes first; it
+ * stays in the tab until it is spent, so the sign-in's trip to the mail app
+ * cannot lose it. See `peekInvite`.
+ *
+ * `/open` rather than a train, which is the rule `open.ts` owns.
+ */
+function acceptScript(invite: Invite): string {
   return `<script>
-try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${invite}); } catch (e) {}${then}
+(function () {
+  var link = document.getElementById('accept');
+  if (!link) return;
+  link.addEventListener('click', function () {
+    try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${inviteLiteral(invite)}); } catch (e) {}
+  });
+})();
 </script>`;
 }
 
@@ -302,20 +377,27 @@ try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${invite}); } catch 
  * **A page and not a redirect**, for `community-page.ts`'s two reasons: a link
  * preview's crawler reads the card from it, and only a script can write the
  * tab's `sessionStorage`. `/open` rather than a train, which is the rule
- * `open.ts` owns.
+ * `open.ts` owns. Written on arrival here, there being no button to wait for.
  */
-function handoverPage(name: string, options: InvitePageOptions): string {
+function handoverPage(
+  who: string | undefined,
+  invite: Invite,
+  options: InvitePageOptions
+): string {
   return page({
-    title: `${name} invited you to The Floor`,
+    title: who ? `${who} invited you to The Floor` : 'You’re invited to The Floor',
     heading: 'The Floor',
-    standfirst: `${name} invited you`,
+    standfirst: who ? `${who} invited you` : 'You’ve been invited',
     social: socialCard(options.origin, CARD),
     head: `${REFERRER}
-${stash(options.username, "\nlocation.replace('/open');")}`,
+<script>
+try { sessionStorage.setItem(${JSON.stringify(INVITE_KEY)}, ${inviteLiteral(invite)}); } catch (e) {}
+location.replace('/open');
+</script>`,
     style: STYLE,
     body: `${MARK}
 <p class="lede">Opening The Floor…</p>
-<p class="app"><a href="/open">Continue</a> if this page does not move on by itself.</p>
+<p class="browser"><a href="/open">Continue</a> if this page does not move on by itself.</p>
 `,
   });
 }

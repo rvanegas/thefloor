@@ -161,6 +161,23 @@ export const WATCH_TOKEN_TTL_MS = 6 * 60 * 60 * 1000;
 export const INVITE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
+ * How many unspent invite links one account may have outstanding.
+ *
+ * A cap rather than a rule about how people should invite: every live pin is
+ * another six-digit number that opens the same door, so an account that has
+ * minted a thousand of them has handed a guesser a thousand chances at one
+ * account instead of one. Ten is comfortably more than anybody hands out at
+ * once and leaves the search space at roughly one in a hundred thousand per
+ * guess, under a throttle that stops long before that.
+ *
+ * The oldest goes rather than the mint being refused. A refusal would be a
+ * screen telling somebody to go and tidy up a list of links they have never
+ * been shown; the oldest unspent link is also the one most likely to have been
+ * sent into a conversation nobody went back to.
+ */
+export const INVITE_PINS_PER_ACCOUNT = 10;
+
+/**
  * Free transcription minutes a week, for an account without the unlimited
  * mark, when `FREE_TRANSCRIPT_MINUTES` does not say otherwise. Shared between
  * recordings and the live transcript. Since 2026-10-10.
@@ -285,14 +302,12 @@ export const INVITE_SEND_WINDOW_MS = 24 * 60 * 60 * 1000;
 /**
  * Why an invite link could not be taken up.
  *
- * **`used` and `expired` are the pin's, and the pin is gone**, 2026-09-25 —
- * a link is `/i/<username>` now and is a standing door, so there is no seat to
- * spend and no thirty days to outlive. They are kept because links minted
- * before that day still carry a pin, are still in the threads they were pasted
- * into, and are still redeemed by the route; see planning/SHIMS.md.
+ * **`used` and `expired` are the pin's**, which went on 2026-09-25 and came
+ * back on 2026-10-15 — a link is `/i/<username>/<pin>` again, one seat for
+ * thirty days. See decision/2026-10-15-an-invite-link-carries-a-pin-again.md.
  *
- * `too_many` is the only new one and belongs to the door rather than the pin:
- * see `spendLinkAccept`.
+ * `too_many` belongs to the pin-less door rather than the pin, and lives only
+ * as long as that door does: see `spendLinkAccept` and planning/SHIMS.md.
  */
 export type InviteRefusal =
   | 'unknown'
@@ -1635,11 +1650,11 @@ export class Accounts {
    *
    * **Only on the account's first sight, and that is deliberate.** Renaming
    * yourself later does not re-derive a username, because by then somebody may
-   * have the old one written down — an invite link is `/i/<username>` —
-   * and a handle that moves under its owner is worse than one that no longer
-   * matches the name above it. **That got sharper on 2026-09-25**: a link is
-   * now a standing address rather than one minted per press, so an old one is
-   * not merely written down somewhere, it is somebody's permanent door.
+   * have the old one written down — an invite link is
+   * `/i/<username>/<pin>`, and one from between 2026-09-25 and 2026-10-15 is
+   * `/i/<username>` alone, a standing door in somebody's thread — and a
+   * handle that moves under its owner is worse than one that no longer
+   * matches the name above it.
    *
    * **`marketingEmail` is a grant and never a withdrawal.** True stamps the
    * consent if none is recorded; false and undefined are the same thing here,
@@ -2517,15 +2532,80 @@ export class Accounts {
 
   // --- Invite links -------------------------------------------------------
 
+  /**
+   * Mints a pin for an account's invite link, or null if it has no username.
+   *
+   * **The username is the check, and there is only one of it.** A link is
+   * `/i/<username>/<pin>` and cannot be written without both halves, so an
+   * account with no username has no link — and asking here rather than at the
+   * route is what keeps that from becoming two rules that can drift apart. The
+   * screen offering to choose a username is reading this null.
+   *
+   * Six digits, `issueCode`'s own line, and viable for the same reasons they
+   * are there: a pin is only ever checked against the account named beside it,
+   * the wrong guesses against that account are counted, and there are never
+   * more than `INVITE_PINS_PER_ACCOUNT` live at once. See db.ts.
+   *
+   * A collision retries rather than surfacing. Nobody typed a pin — any six
+   * digits will do, so a clash is an implementation detail, where a taken
+   * username is an answer somebody needs. `insertWithUniqueKey` is exactly
+   * that loop; its own comment reasons about a 72-bit key, which this is not,
+   * so what makes five attempts enough here is the cap above rather than the
+   * entropy.
+   */
+  mintInvitePin(ownerId: string, now: number): string | null {
+    const owner = this.byId(ownerId);
+    if (!owner?.username) return null;
 
+    // Before the insert, so the cap is a ceiling rather than something the
+    // next mint tidies up after. Unspent only: a used pin is history, and
+    // keeping it is what lets a second visit be told what happened.
+    const surplus = this.db
+      .prepare(
+        `SELECT pin FROM invite_pins
+          WHERE owner_id = ? AND used_at IS NULL
+          ORDER BY created_at DESC, pin DESC
+          LIMIT -1 OFFSET ?`
+      )
+      .all(ownerId, INVITE_PINS_PER_ACCOUNT - 1) as Array<{ pin: string }>;
+    for (const { pin } of surplus) {
+      this.db
+        .prepare('DELETE FROM invite_pins WHERE owner_id = ? AND pin = ?')
+        .run(ownerId, pin);
+    }
+
+    return insertWithUniqueKey(
+      () => String(randomBytes(4).readUInt32BE(0) % 1_000_000).padStart(6, '0'),
+      (pin) => {
+        this.db
+          .prepare(
+            `INSERT INTO invite_pins (owner_id, pin, created_at, used_at, used_by)
+             VALUES (?, ?, ?, NULL, NULL)`
+          )
+          .run(ownerId, pin, now);
+      }
+    );
+  }
+
+  /**
+   * Takes back a pin that was minted for a message which never went.
+   *
+   * The mint and the sending of an invitation are two steps and the second can
+   * fail; `withdrawRequest` already undoes the row for that case, and this is
+   * the same undo for the link that would have been in it. Unspent only, which
+   * cannot matter here — nobody has been given it — and is the right guard for
+   * a method that is one call away from being used somewhere it could.
+   */
+  forgetInvitePin(ownerId: string, pin: string): void {
+    this.db
+      .prepare(
+        'DELETE FROM invite_pins WHERE owner_id = ? AND pin = ? AND used_at IS NULL'
+      )
+      .run(ownerId, pin);
+  }
 
   /**
    * Counts one wrong guess against an account.
-   *
-   * **Nothing mints a pin any more**, 2026-09-25: `mintInvitePin` and
-   * `forgetInvitePin` went with it. Everything left that reads `invite_pins`
-   * serves links minted before that day and still sitting in the threads they
-   * were pasted into, and goes when planning/SHIMS.md says it may.
    *
    * Per owner rather than per pin, for the reason db.ts gives: a wrong guess
    * matches no row, so there is nothing on a row to count. The window is fixed
@@ -2666,7 +2746,8 @@ export class Accounts {
    * How many invite links this account has taken up lately, and whether it may
    * take another.
    *
-   * **The cost of a link having stopped carrying a pin.** A pin made an
+   * **The cost of a link that carries no pin**, and a shim with
+   * `acceptInviteLink` since 2026-10-15, when the pin came back. A pin makes an
    * invitation a thing with one seat: to accept, you had to hold six digits
    * somebody had handed you. `/i/<username>` is a standing door, which is the
    * point — publishing one is the owner's consent and following it is the
@@ -2725,10 +2806,12 @@ export class Accounts {
   /**
    * Takes up an invite link, which makes its owner a contact.
    *
-   * **The pin-less path, and the one every link minted since 2026-09-25
-   * uses.** `redeemInvitePin` below is the same act for a link that still
-   * carries six digits, and exists only for the ones already pasted into other
-   * people's threads; see planning/SHIMS.md.
+   * **The pin-less path, and a shim since 2026-10-15.** Links minted
+   * between 2026-09-25 and that day carried no pin and are still in the
+   * threads they were pasted into, and TestFlight builds 354 to 361 drop the
+   * pin from an `https` link before accepting it. Both arrive here.
+   * `redeemInvitePin` below is the same act for a link with six digits, which
+   * is every link minted now; see planning/SHIMS.md for what retires this.
    *
    * **It accepts outright rather than asking**, which is the rule both halves
    * of *Add a contact* now follow: publishing a link is the owner's half of
@@ -2792,10 +2875,30 @@ export class Accounts {
     if (ownerId === redeemerId) return { ok: false, reason: 'self' };
 
     const state = this.invitePinState(ownerId, pin, now);
-    if (!state.ok) return state;
+    if (!state.ok) {
+      // **Spent by this same person, so it succeeded rather than failed.**
+      // The web app keeps an invitation in the tab until it hears it was
+      // spent, so a reload mid-request, or a second tap on the link in the
+      // thread, arrives here with a seat already taken by its caller. Telling
+      // them their own acceptance had been used would refuse something that
+      // worked; answering it again opens the channel it made.
+      if (state.reason === 'used') {
+        const spent = this.db
+          .prepare('SELECT used_by FROM invite_pins WHERE owner_id = ? AND pin = ?')
+          .get(ownerId, pin.trim()) as { used_by: string | null } | undefined;
+        const owner = spent?.used_by === redeemerId ? this.byId(ownerId) : undefined;
+        if (owner) return { ok: true, owner };
+      }
+      return state;
+    }
 
     const owner = this.byId(ownerId);
     if (!owner) return { ok: false, reason: 'unknown' };
+
+    // Already contacts, so the seat is left for whoever the link was meant
+    // for: this person needed nothing from it, and spending it would refuse
+    // the next one for an acceptance that changed nothing.
+    if (this.areContacts(ownerId, redeemerId)) return { ok: true, owner };
 
     this.db
       .prepare(

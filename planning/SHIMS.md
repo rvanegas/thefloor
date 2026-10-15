@@ -147,51 +147,38 @@ is the account of it.
 
 ---
 
-## Gate 290 — the invite pin, in every layer that still reads one
+## Gate 362 — the invite link with no pin
 
-An invite link was `/i/<username>/<pin>` until 2026-09-25 and is
-`/i/<username>` now — `decision/2026-09-25-...`. Nothing mints a pin any
-more; what is left reads the ones already minted.
+An invite link was `/i/<username>?name=` from 2026-09-25 to 2026-10-15 and
+is `/i/<username>/<pin>` again — `decision/2026-10-15-an-invite-link-carries-a-pin-again.md`. What is left takes up the
+pin-less ones.
 
-**Two populations, and only one of them is a build.** A client below 290 sends
-`pin` on `POST /contacts/invite/accept`, because that is what its copy of the
-page handed it. And a link minted before the change is sitting in whatever
-thread it was pasted into, holding six digits, with nobody to tell.
+**Two populations.** Links minted in those three weeks are in whatever thread
+they were pasted into, with no pin to send. And TestFlight builds 354 to 361
+claim `/i/*` but drop the second segment of an `https` link, so they accept a
+pinned link by username alone — which is why the server keeps accepting it.
+The build is the gate; the threads never expire on their own, so when the
+floor passes 361 the links from those weeks start answering *cannot be
+opened*, which is the trade, and is no worse than any other dead link.
 
-**The second one expires on its own, and that is the real gate.** A pin lasts
-thirty days — `INVITE_TTL_MS` — so **every pin ever minted is dead after
-2026-10-25**, and from that date the pin-reading code can only ever refuse.
-The build number is the *later* of the two conditions in form and the weaker
-one in fact: a client that keeps sending a pin after the branch goes falls
-through to the pin-less path and succeeds, which is better than the refusal it
-would have got. So if the floor is still under 290 when the date passes, this
-may go anyway, and the gate is a formality.
+What goes, once `oldestBuild` has passed 361:
 
-What goes, on that date:
+- `Accounts.acceptInviteLink`, `spendLinkAccept`, `linkAcceptsSpent`, and the
+  constants `LINK_MAX_ACCEPTS`, `LINK_ACCEPT_WINDOW_MS`
+- the `link_accepts` table, and the excess flag that reads it in
+  `POST /contacts/invite/accept`
+- the no-pin branch of that route — a request with no `pin` becomes a 400
+- `too_many` from `InviteRefusal`, `refusalText` and the app's catalogue
+- the pin-less body of `invitePage` (*You've been invited*, naming nobody), and
+  the `pin`-optional `Invite` on the client, `inviteOfUrl`'s optional second
+  segment and `peekInvite`'s
 
-- `Accounts.redeemInvitePin`, `invitePinState`, `countInviteGuess`,
-  `inviteLocked`, and the constants `INVITE_TTL_MS`, `INVITE_MAX_GUESSES`,
-  `INVITE_GUESS_WINDOW_MS` (`INVITE_PINS_PER_ACCOUNT` went with the mint on
-  the day, nothing being able to accumulate pins any more)
-- the `invite_pins` and `invite_guesses` tables, and their sweeps
-- the `body.pin` branch in `POST /contacts/invite/accept`
-- `used` and `expired` from `InviteRefusal` and from `refusalText`
-- `Invite.pin` on the client, the second segment in `inviteOfUrl`, the pin
-  read in `peekInvite`, and the optional argument on `api.acceptInvite`
+**What must not be deleted alongside it:**
 
-**What must not be deleted alongside it**, and this is the part that is not
-reconstructable:
-
-- **`GET /i/:username/:pin` stays, and has no gate at all.** It is not a shim.
-  Invite links live in other people's threads for as long as those threads do,
-  and an address that stopped resolving would be an invitation that silently
-  stopped working years later. The route already ignores the pin and renders
-  the same page as `/i/:username`; that is its permanent form.
-- **`link_accepts` and `spendLinkAccept` stay.** They look like part of the
-  same abuse machinery as `invite_guesses` and are its replacement rather than
-  its sibling: one counts guesses at a pin, the other counts doors walked
-  through, and only the first has anything to do with pins.
-- **`invite_sends` stays.** Nothing to do with pins; it is the daily budget on
+- **`GET /i/:username` stays as a route.** Links from those three weeks live in
+  other people's threads for as long as those threads do; the address should
+  answer with a refusal page rather than a 404.
+- **`invite_sends` stays.** Nothing to do with links; it is the daily budget on
   sending invitation emails.
 
 ---

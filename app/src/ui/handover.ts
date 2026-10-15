@@ -230,15 +230,12 @@ export function forgetJoin(): void {
  * `forgetInvite` says it was spent, so the sign-in in between — and a reload
  * of a tab left for the mail app — cannot lose it.
  *
- * **Leaving it is safe because the invitation is not single use any more.**
- * Taking up a link by username finds the pair already contacts the second
- * time and changes nothing (`acceptInviteLink`), which is why this used to be
- * taken before it was known to be redeemable and no longer is. **A pin is the
- * exception**, and is still taken on read: one written by an invite page from
- * before 2026-09-25 is single use, and a reload that spent it twice would tell
- * somebody their own acceptance had already been used. The server stopped
- * writing pins here entirely on 2026-10-12, so that branch is for a tab that
- * outlived a deploy.
+ * **Leaving it is safe even with a pin in it**, which every invitation has
+ * again since 2026-10-15. A pin is single use, but the server answers the
+ * person who spent it with the channel it made rather than *already used*
+ * (`redeemInvitePin`), so a reload that spends it twice tells nobody their
+ * own acceptance failed. Taking it on read, which is what this did with a pin
+ * until that day, lost it to the sign-in's trip to the mail app.
  *
  * Null on native, where `sessionStorage` does not exist; a phone's road is
  * the link itself, read by `useInviteLink.ts`, which calls this on mount so
@@ -260,7 +257,6 @@ export function peekInvite(): Invite | null {
       return null;
     }
     const pin = typeof parsed?.pin === 'string' && parsed.pin ? parsed.pin : undefined;
-    if (pin) forgetInvite();
     return { username: parsed.username, ...(pin ? { pin } : {}) };
   } catch {
     forgetInvite();

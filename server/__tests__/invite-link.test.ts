@@ -19,6 +19,9 @@ import { invitePage } from '../src/invite';
  * what one pin is worth, what it is worth twice, and what a thousand guesses
  * at one are worth. The relationship it produces is the easy part and is
  * checked first only because everything else is a refusal of it.
+ *
+ * The pin went on 2026-09-25 and came back on 2026-10-15; a link with no pin
+ * is the shim for the three weeks between, and is tested as one below.
  */
 
 let app: App;
@@ -126,16 +129,16 @@ async function link(user: User): Promise<string> {
   return url!;
 }
 
-/** The username out of a link, which is how anybody following one has it. */
-function halves(url: string): { username: string } {
-  const match = /\/i\/([^/?]+)/.exec(url);
+/** The two halves of a link, which is how anybody following one has them. */
+function halves(url: string): { username: string; pin: string } {
+  const match = /\/i\/([^/?]+)\/(\d{6})$/.exec(url);
   expect(match).not.toBeNull();
-  return { username: match![1] };
+  return { username: match![1], pin: match![2] };
 }
 
 /**
- * Takes up a link. The pin is optional, and a test that passes one is testing
- * the shim for links minted before 2026-09-25.
+ * Takes up a link. A test that passes no pin is testing the shim for links
+ * minted between 2026-09-25 and 2026-10-15, which carried none.
  */
 const redeem = (user: User, username: string, pin?: string) =>
   app.fastify.inject({
@@ -145,23 +148,11 @@ const redeem = (user: User, username: string, pin?: string) =>
     payload: pin ? { username, pin } : { username },
   });
 
-/**
- * Writes an `invite_pins` row by hand, which is the only way to get one now:
- * nothing mints them since the pin went. This is how the shim is exercised —
- * a link that was already in somebody's thread on the day it changed.
- */
-function oldLink(
-  owner: User,
-  username: string,
-  pin = '042317'
-): { username: string; pin: string } {
-  app.db
-    .prepare(
-      'INSERT INTO invite_pins (owner_id, pin, created_at) VALUES (?, ?, ?)'
-    )
-    .run(owner.account.id, pin, clock);
-  return { username, pin };
-}
+/** Takes up a whole link, pin and all, which is what the app does. */
+const follow = (user: User, url: string) => {
+  const { username, pin } = halves(url);
+  return redeem(user, username, pin);
+};
 
 /**
  * Read from `Accounts` rather than over HTTP, as the other contact tests do:
@@ -188,41 +179,35 @@ describe('the link itself', () => {
     expect(response.json()).toEqual({ url: null });
   });
 
-  it('builds the link out of the username, and carries the name', async () => {
+  it('builds the link out of the username and a pin, and carries no name', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
-    expect(await link(alice)).toMatch(/\/i\/alice_k\?name=Alice$/);
+    const url = await link(alice);
+    expect(url).toMatch(/\/i\/alice_k\/\d{6}$/);
+    expect(url).not.toContain('name=');
   });
 
   /**
-   * **The change of 2026-09-25 in one assertion.** A link used to be minted per
-   * press and spent by the first taker, so two presses had to differ; it is a
-   * standing door now, so two presses that differ would mean two doors.
+   * **The change of 2026-10-15 in one assertion.** A link is one seat again,
+   * so two presses that gave the same address would give two people one seat.
    */
-  it('is the same address every time', async () => {
+  it('is a fresh link every time', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
-    expect(await link(alice)).toBe(await link(alice));
+    expect(await link(alice)).not.toBe(await link(alice));
   });
 
-  it('follows the name when it changes', async () => {
-    const alice = await named('alice@example.com', 'Alice', 'alice_k');
-    await app.fastify.inject({
-      method: 'POST',
-      url: '/me',
-      headers: auth(alice.token),
-      payload: { displayName: 'Alice Kowalski' },
-    });
-    expect(await link(alice)).toContain('name=Alice%20Kowalski');
-  });
-
-  it('mints nothing, so following one twice is not a refusal', async () => {
+  it('keeps at most ten live, letting the oldest go', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const { username } = halves(await link(alice));
-    expect((await redeem(bob, username)).statusCode).toBe(200);
-    // A standing door has no seat to spend. The second call finds them already
-    // contacts and says so, rather than telling Bob his own acceptance had
-    // already been used.
-    expect((await redeem(bob, username)).statusCode).toBe(200);
+    const first = await link(alice);
+    for (let i = 0; i < 10; i += 1) {
+      clock += 1;
+      await link(alice);
+    }
+    const live = app.db
+      .prepare('SELECT COUNT(*) AS n FROM invite_pins WHERE owner_id = ?')
+      .get(alice.account.id) as { n: number };
+    expect(live.n).toBe(10);
+    expect((await follow(bob, first)).statusCode).toBe(400);
   });
 });
 
@@ -230,9 +215,8 @@ describe('following a link', () => {
   it('makes the pair contacts outright, both ways round', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const { username } = halves(await link(alice));
 
-    expect((await redeem(bob, username)).statusCode).toBe(200);
+    expect((await follow(bob, await link(alice))).statusCode).toBe(200);
     expect(contacts(bob)).toEqual([
       expect.objectContaining({ status: 'accepted' }),
     ]);
@@ -244,8 +228,7 @@ describe('following a link', () => {
   it('gives the pair the channel that is the point of being contacts', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const { username } = halves(await link(alice));
-    await redeem(bob, username);
+    await follow(bob, await link(alice));
 
     const shared = app.channels
       .rejoinableFor(bob.account.id)
@@ -259,9 +242,8 @@ describe('following a link', () => {
   it('names that channel in the reply, so the app can open it', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const { username } = halves(await link(alice));
 
-    const { channelId } = (await redeem(bob, username)).json();
+    const { channelId } = (await follow(bob, await link(alice))).json();
     expect(typeof channelId).toBe('string');
     const shared = app.channels
       .rejoinableFor(bob.account.id)
@@ -273,28 +255,89 @@ describe('following a link', () => {
   it('credits the owner with having brought them here', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const { username } = halves(await link(alice));
-    await redeem(bob, username);
+    await follow(bob, await link(alice));
 
     expect(app.accounts.invitedCount(alice.account.id)).toBe(1);
   });
 
+  it('is spent by the first person to follow it', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    const url = await link(alice);
+
+    expect((await follow(bob, url)).statusCode).toBe(200);
+    const second = await follow(carol, url);
+    expect(second.statusCode).toBe(400);
+    expect((second.json() as { error: string }).error).toContain('already');
+    expect(contacts(carol)).toEqual([]);
+  });
+
+  /**
+   * The web app keeps an invitation in the tab until it hears it was spent,
+   * so the same person arriving twice is ordinary — a reload, or a second tap
+   * on the link in the thread — and must open the channel again rather than
+   * be told their own acceptance was used.
+   */
+  it('answers the person who spent it again, with the same channel', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const url = await link(alice);
+
+    const first = await follow(bob, url);
+    const again = await follow(bob, url);
+    expect(again.statusCode).toBe(200);
+    expect(again.json().channelId).toBe(first.json().channelId);
+  });
+
+  it('leaves the seat alone for somebody who is already a contact', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const carol = await signIn('carol@example.com', 'Carol');
+    await follow(bob, await link(alice));
+
+    const url = await link(alice);
+    expect((await follow(bob, url)).statusCode).toBe(200);
+    expect((await follow(carol, url)).statusCode).toBe(200);
+  });
+
+  it('expires after thirty days', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const url = await link(alice);
+
+    clock += INVITE_TTL_MS + 1;
+    const response = await follow(bob, url);
+    expect(response.statusCode).toBe(400);
+    expect((response.json() as { error: string }).error).toContain('expired');
+  });
+
+  it('stops answering an account after enough wrong pins', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const { username, pin } = halves(await link(alice));
+
+    for (let i = 0; i < INVITE_MAX_GUESSES; i += 1) {
+      await redeem(bob, username, pin === '000000' ? '000001' : '000000');
+    }
+    // Even the right pin, because what is locked is the account being guessed
+    // at rather than any one pin.
+    expect((await redeem(bob, username, pin)).statusCode).toBe(400);
+
+    clock += INVITE_GUESS_WINDOW_MS;
+    expect((await redeem(bob, username, pin)).statusCode).toBe(200);
+  });
+
   it('refuses the owner their own link', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
-    const { username } = halves(await link(alice));
-    const response = await redeem(alice, username);
+    const response = await follow(alice, await link(alice));
     expect(response.statusCode).toBe(400);
     expect((response.json() as { error: string }).error).toContain('your own');
   });
 
-  /**
-   * The one thing the accept route is coy about, and the reason it can be:
-   * the page says nothing, so this is the only place a username's existence
-   * could leak, and it does not.
-   */
   it('answers a username nobody holds the way it answers any other refusal', async () => {
     const bob = await signIn('bob@example.com', 'Bob');
-    const response = await redeem(bob, 'nobody_at_all');
+    const response = await redeem(bob, 'nobody_at_all', '042317');
     expect(response.statusCode).toBe(400);
     expect(contacts(bob)).toEqual([]);
   });
@@ -311,8 +354,7 @@ describe('a refusal names itself', () => {
 
   it('names the owner taking up their own link', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
-    const { username } = halves(await link(alice));
-    expect(refusal(await redeem(alice, username))).toEqual({
+    expect(refusal(await follow(alice, await link(alice)))).toEqual({
       error: 'This is your own invite link.',
       code: 'self',
     });
@@ -338,20 +380,18 @@ describe('a refusal names itself', () => {
     );
   });
 
-  it('names an old link that was used, and one that expired', async () => {
+  it('names a link that was used, and one that expired', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
     const carol = await signIn('carol@example.com', 'Carol');
-    const { username, pin } = oldLink(alice, 'alice_k');
-    await redeem(bob, username, pin);
-    expect(refusal(await redeem(carol, username, pin)).code).toBe('used');
+    const url = await link(alice);
+    await follow(bob, url);
+    expect(refusal(await follow(carol, url)).code).toBe('used');
 
     const dave = await named('dave@example.com', 'Dave', 'dave_d');
-    const stale = oldLink(dave, 'dave_d', '111111');
+    const stale = await link(dave);
     clock += INVITE_TTL_MS + 1;
-    expect(refusal(await redeem(carol, stale.username, stale.pin)).code).toBe(
-      'expired'
-    );
+    expect(refusal(await follow(carol, stale)).code).toBe('expired');
   });
 
   /**
@@ -361,9 +401,9 @@ describe('a refusal names itself', () => {
   it('names a lock exactly as it names a username nobody holds', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const { username, pin } = oldLink(alice, 'alice_k');
+    const { username, pin } = halves(await link(alice));
     for (let i = 0; i < INVITE_MAX_GUESSES; i += 1) {
-      await redeem(bob, username, '000000');
+      await redeem(bob, username, pin === '000000' ? '000001' : '000000');
     }
     expect(refusal(await redeem(bob, username, pin))).toEqual(
       refusal(await redeem(bob, 'nobody_at_all'))
@@ -372,12 +412,12 @@ describe('a refusal names itself', () => {
 });
 
 /**
- * The budget, which is what a standing door costs.
+ * The budget, which is what the pin-less door costs, and a shim with it.
  *
- * A link carries no pin, so the accept route names an owner and nothing else —
- * and an account that never saw a link can walk usernames and accept against
- * each one. Since credit follows the first contact, unlimited accepting would
- * also be unlimited standings.
+ * A link with no pin — one minted between 2026-09-25 and 2026-10-15 — names an
+ * owner and nothing else, so an account that never saw a link can walk
+ * usernames and accept against each one. Since credit follows the first
+ * contact, unlimited accepting would also be unlimited standings.
  */
 describe('taking up more links than anybody honestly would', () => {
   it('stops after the day’s allowance', async () => {
@@ -438,130 +478,120 @@ describe('taking up more links than anybody honestly would', () => {
 });
 
 /**
- * Links minted before 2026-09-25, still sitting in the threads they were
- * pasted into. Nothing makes one any more, so these are written by hand.
- * planning/SHIMS.md says what retires all of this.
+ * Links minted between 2026-09-25 and 2026-10-15, which carried no pin and
+ * are still sitting in the threads they were pasted into — and TestFlight
+ * builds 354 to 361, which drop the pin before accepting. planning/SHIMS.md
+ * says what retires all of this.
  */
-describe('a link that still carries a pin', () => {
+describe('a link with no pin', () => {
   it('is still good, and makes the pair contacts', async () => {
     const alice = await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const { username, pin } = oldLink(alice, 'alice_k');
 
-    expect((await redeem(bob, username, pin)).statusCode).toBe(200);
+    expect((await redeem(bob, 'alice_k')).statusCode).toBe(200);
     expect(contacts(bob)).toEqual([
       expect.objectContaining({ status: 'accepted' }),
     ]);
+    expect(app.accounts.areContacts(alice.account.id, bob.account.id)).toBe(true);
   });
 
-  it('is still spent by the first person to use it', async () => {
-    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+  it('is not a refusal the second time', async () => {
+    await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const carol = await signIn('carol@example.com', 'Carol');
-    const { username, pin } = oldLink(alice, 'alice_k');
-
-    expect((await redeem(bob, username, pin)).statusCode).toBe(200);
-    const second = await redeem(carol, username, pin);
-    expect(second.statusCode).toBe(400);
-    expect((second.json() as { error: string }).error).toContain('already');
-    expect(contacts(carol)).toEqual([]);
-  });
-
-  it('still expires after thirty days', async () => {
-    const alice = await named('alice@example.com', 'Alice', 'alice_k');
-    const bob = await signIn('bob@example.com', 'Bob');
-    const { username, pin } = oldLink(alice, 'alice_k');
-
-    clock += INVITE_TTL_MS + 1;
-    const response = await redeem(bob, username, pin);
-    expect(response.statusCode).toBe(400);
-    expect((response.json() as { error: string }).error).toContain('expired');
-  });
-
-  it('still stops answering an account after enough wrong pins', async () => {
-    const alice = await named('alice@example.com', 'Alice', 'alice_k');
-    const bob = await signIn('bob@example.com', 'Bob');
-    const { username, pin } = oldLink(alice, 'alice_k');
-
-    for (let i = 0; i < INVITE_MAX_GUESSES; i += 1) {
-      await redeem(bob, username, '000000');
-    }
-    // Even the right pin, because what is locked is the account being guessed
-    // at rather than any one pin.
-    expect((await redeem(bob, username, pin)).statusCode).toBe(400);
-
-    clock += INVITE_GUESS_WINDOW_MS;
-    expect((await redeem(bob, username, pin)).statusCode).toBe(200);
+    expect((await redeem(bob, 'alice_k')).statusCode).toBe(200);
+    expect((await redeem(bob, 'alice_k')).statusCode).toBe(200);
   });
 
   /**
-   * The pin-less path is not a way around the lock: the same username, offered
-   * with no pin while the account is locked, must not quietly succeed.
+   * Recorded rather than defended: the lock protects a *pin*, and there is no
+   * pin here to protect. What bounds this road is the day's budget above.
    */
-  it('is not bypassed by dropping the pin', async () => {
-    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+  it('is not stopped by the lock on wrong pins', async () => {
+    await named('alice@example.com', 'Alice', 'alice_k');
     const bob = await signIn('bob@example.com', 'Bob');
-    const { username } = oldLink(alice, 'alice_k');
 
     for (let i = 0; i < INVITE_MAX_GUESSES; i += 1) {
-      await redeem(bob, username, '000000');
+      await redeem(bob, 'alice_k', '000000');
     }
-    // Deliberately recorded: a standing door has nothing to guess at, so this
-    // succeeds. The lock protects a *pin*, and there is no pin here to protect.
-    expect((await redeem(bob, username)).statusCode).toBe(200);
+    expect((await redeem(bob, 'alice_k')).statusCode).toBe(200);
   });
 });
 
 describe('the page', () => {
   const open = (url: string) => app.fastify.inject({ method: 'GET', url });
+  const path = (url: string) => new URL(url).pathname;
 
-  /**
-   * **It reads nothing, which is the whole of the disclosure story now.** The
-   * page used to check a pin before it would say a name. There is no pin, so
-   * instead it draws what the address told it — which means a username nobody
-   * holds renders exactly like one somebody does, and walking usernames
-   * teaches a reader only what they typed.
-   */
-  it('answers a real username and an invented one identically', async () => {
-    await named('alice@example.com', 'Alice', 'alice_k');
-    const real = await open('/i/alice_k');
-    const invented = await open('/i/nobody_at_all');
-    expect(real.statusCode).toBe(200);
-    expect(invented.statusCode).toBe(200);
-    expect(invented.body).toBe(real.body.replace(/alice_k/g, 'nobody_at_all'));
-  });
-
-  it('greets the reader with the name in the address', async () => {
-    const response = await open('/i/alice_k?name=Alice%20Kowalski');
+  it('names the owner to a request holding a live pin', async () => {
+    const alice = await named('alice@example.com', 'Alice Kowalski', 'alice_k');
+    const response = await open(path(await link(alice)));
+    expect(response.statusCode).toBe(200);
     expect(response.body).toContain('Alice Kowalski invited you');
   });
 
-  it('falls back to the username when no name was given', async () => {
-    const response = await open('/i/alice_k');
-    expect(response.body).toContain('@alice_k invited you');
+  /**
+   * **The disclosure, from the other end.** Without a live pin beside it a
+   * username gets a page that names nobody — and a username nobody holds gets
+   * the same one, so walking usernames teaches a reader only what they typed.
+   */
+  it('names nobody for a wrong pin, and the same for a username nobody holds', async () => {
+    await named('alice@example.com', 'Alice Kowalski', 'alice_k');
+    const wrong = await open('/i/alice_k/000000');
+    const invented = await open('/i/nobody_at_all/000000');
+    expect(wrong.body).not.toContain('Alice');
+    expect(wrong.body).toContain('cannot be opened');
+    expect(invented.body).toBe(wrong.body);
+  });
+
+  it('says a spent link was used, and names nobody', async () => {
+    const alice = await named('alice@example.com', 'Alice Kowalski', 'alice_k');
+    const bob = await signIn('bob@example.com', 'Bob');
+    const url = await link(alice);
+    await follow(bob, url);
+    const body = (await open(path(url))).body;
+    expect(body).toContain('already been used');
+    expect(body).not.toContain('Alice');
+    expect(body).not.toContain('Accept invite');
+  });
+
+  it('says an old link expired', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const url = await link(alice);
+    clock += INVITE_TTL_MS + 1;
+    expect((await open(path(url))).body).toContain('expired');
   });
 
   /**
-   * A name arrives in a URL, so it is somebody else's text. Both halves of
-   * handling it matter: what it may do once it is markup, and how much of the
-   * page one caller may occupy.
+   * Looking is throttled exactly as redeeming is, which is the point:
+   * somebody who only ever looked would otherwise have an oracle with no
+   * limit on it.
    */
-  it('escapes the name rather than letting it be markup', async () => {
-    const response = await open(
-      '/i/alice_k?name=%3Cscript%3Ealert(1)%3C%2Fscript%3E'
-    );
-    expect(response.body).not.toContain('<script>alert(1)');
-    expect(response.body).toContain('&lt;script&gt;');
+  it('counts a wrong pin, and stops naming anybody once locked', async () => {
+    await named('alice@example.com', 'Alice', 'alice_k');
+    const alice = app.accounts.byUsername('alice_k')!;
+    const live = app.accounts.mintInvitePin(alice.id, clock)!;
+    for (let i = 0; i < INVITE_MAX_GUESSES; i += 1) {
+      await open(`/i/alice_k/${live === '000000' ? '000001' : '000000'}`);
+    }
+    expect((await open(`/i/alice_k/${live}`)).body).not.toContain('Alice invited you');
   });
 
-  it('caps a name at the length a display name is stored under', async () => {
-    const long = 'A'.repeat(200);
-    const response = await open(`/i/alice_k?name=${long}`);
-    expect(response.body).not.toContain('A'.repeat(41));
+  it('ignores a name in the address', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const body = (await open(`${path(await link(alice))}?name=Mallory`)).body;
+    expect(body).not.toContain('Mallory');
+    expect(body).toContain('Alice invited you');
+  });
+
+  it('escapes the display name rather than letting it be markup', async () => {
+    const alice = await named('alice@example.com', '<b>Alice</b>', 'alice_k');
+    const body = (await open(path(await link(alice)))).body;
+    expect(body).not.toContain('<b>Alice</b>');
+    expect(body).toContain('&lt;b&gt;Alice&lt;/b&gt;');
   });
 
   it('says it in a few sentences and no sections', async () => {
-    const body = (await open('/i/alice_k?name=Alice')).body;
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const body = (await open(path(await link(alice)))).body;
     expect(body).not.toContain('<h2');
 
     const prose = body
@@ -578,99 +608,99 @@ describe('the page', () => {
     expect((await open('/i/alice_k')).body).toContain('<svg class="mark"');
   });
 
-  /**
-   * The address still carries a name somebody chose, and a click on the store
-   * link would otherwise hand it to Apple along with the username.
-   */
+  /** The address is the credential, and a click must not hand it on. */
   it('keeps the address out of the next request’s referrer', async () => {
-    expect((await open('/i/alice_k?name=Alice')).body).toContain(
-      '<meta name="referrer" content="no-referrer">'
-    );
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    for (const url of [path(await link(alice)), '/i/alice_k/000000', '/i/alice_k']) {
+      expect((await open(url)).body).toContain(
+        '<meta name="referrer" content="no-referrer">'
+      );
+    }
   });
 
   /**
-   * The shim, from the page's end: an address pasted into a thread before the
-   * pin went still resolves, and renders the same page.
-   */
-  it('still serves a link that carries a pin', async () => {
-    const response = await open('/i/alice_k/042317?name=Alice');
-    expect(response.statusCode).toBe(200);
-    expect(response.body).toContain('Alice invited you');
-  });
-
-  /**
-   * **Under a train, explicitly**, since the hand-over is drawn only where
-   * there is a web app to hand over to — so the train is the precondition of
-   * the assertion and is stood up rather than inherited. See `trainRoot` above
+   * **Under a train, explicitly**, since *Accept invite* is drawn only where
+   * there is a web app to accept in — so the train is the precondition of the
+   * assertion and is stood up rather than inherited. See `trainRoot` above
    * for what inheriting it cost.
    */
-  it('leads with the store, offers the browser, and leaves the username in the tab', async () => {
+  it('offers the store and the browser as two buttons, and writes the pin into the tab on the click', async () => {
     await withTrain('stable', async () => {
-      const body = (await open('/i/alice_k?name=Alice')).body;
-      expect(body).toContain(
-        'sessionStorage.setItem("thefloor.invite", "{\\"username\\":\\"alice_k\\"}")'
-      );
-      // Telegram's page: the store first, the browser second, and no move
-      // made for the reader.
-      expect(body).not.toContain('location.replace');
-      expect(body).toContain('Get The Floor for iPhone');
-      expect(body).toContain('<a href="/open">continue in the browser</a>');
+      const alice = await named('alice@example.com', 'Alice', 'alice_k');
+      const url = await link(alice);
+      const { pin } = halves(url);
+      const body = (await open(path(url))).body;
       expect(body).toContain('Alice invited you');
-      // Safari's banner, handing the app the scheme form — no name, no pin —
-      // on *Open*, since the released build reads no other.
-      expect(body).toMatch(
-        /<meta name="apple-itunes-app" content="app-id=\d+, app-argument=thefloor:\/\/i\/alice_k">/
+      expect(body).toContain('Get The Floor for iPhone</a>');
+      expect(body).toContain('<a id="accept" class="second" href="/open">Accept invite</a>');
+      // On the click, not on arrival: a pin is one seat, and a tab that only
+      // looked has not taken it.
+      expect(body).toContain("addEventListener('click'");
+      expect(body).toContain(
+        `sessionStorage.setItem("thefloor.invite", "{\\"username\\":\\"alice_k\\",\\"pin\\":\\"${pin}\\"}")`
       );
-      expect(body).toContain('og:title');
-      // Telegram's failure, left out: no custom scheme fired at somebody who
-      // almost certainly has no app to receive it. The banner's argument is
-      // not fired; Safari uses it only where the app is installed.
+      expect(body).not.toContain('location.replace');
+      // Safari's banner hands the app the scheme form, pin and all, since
+      // every build since 288 reads it.
+      expect(body).toContain(`app-argument=thefloor://i/alice_k/${pin}"`);
+      // Nothing fires a custom scheme at somebody who almost certainly has no
+      // app to receive it; the banner's argument is used only where it is.
       expect(body).not.toContain('href="thefloor://');
       expect(body).not.toMatch(/location[^;]*thefloor:/);
-      expect(body).toContain('<meta name="referrer" content="no-referrer">');
+      expect(body).toContain('og:title');
     });
   });
 
   /**
-   * The shim, through the hand-over: an address minted before the pin went
-   * hands over the username alone, since taking a link up by username is
-   * never refused as used and a spent pin would be.
+   * The shim, from the page's end: a link with no pin still resolves, names
+   * nobody whatever its `?name=` says, and renders identically for a real
+   * username and an invented one.
    */
-  it('hands over no pin, even from a link that carries one', async () => {
+  it('names nobody for a link with no pin, real or invented', async () => {
+    await named('alice@example.com', 'Alice', 'alice_k');
+    const real = await open('/i/alice_k?name=Alice');
+    const invented = await open('/i/nobody_at_all');
+    expect(real.statusCode).toBe(200);
+    expect(real.body).not.toContain('Alice');
+    expect(real.body).toContain('You’ve been invited');
+    expect(invented.body).toBe(real.body.replace(/alice_k/g, 'nobody_at_all'));
+  });
+
+  it('hands a link with no pin to the tab as the username alone', async () => {
     await withTrain('stable', async () => {
-      const body = (await open('/i/alice_k/042317')).body;
+      const body = (await open('/i/alice_k')).body;
       expect(body).toContain('{\\"username\\":\\"alice_k\\"}');
-      expect(body).not.toContain('042317');
+      expect(body).toContain('Accept invite');
     });
   });
 
   /**
-   * The other direction: a box serving no train writes nothing into the tab,
-   * because there is nowhere to send the reader. It is the ordinary state of a
-   * fresh box, and of every other test in this file.
+   * The other direction: a box serving no train draws no accept button and
+   * writes nothing into the tab, because there is nowhere to send the reader.
    */
-  it('writes nothing into the tab where there is no web app', async () => {
-    const body = (await open('/i/alice_k')).body;
+  it('draws no accept button where there is no web app', async () => {
+    const alice = await named('alice@example.com', 'Alice', 'alice_k');
+    const body = (await open(path(await link(alice)))).body;
     expect(body).not.toContain('thefloor.invite');
-    expect(body).not.toContain('location.replace');
-    expect(body).not.toContain('continue in the browser');
+    expect(body).not.toContain('Accept invite');
     expect(body).toContain('Get The Floor for iPhone');
   });
 });
 
 /**
- * A box with no web app, which is the one that still draws a page.
+ * The page in each configuration a box can be in.
  *
  * Unit calls rather than requests, because the route always passes
  * `options.updateUrl` and there is no way to reach the absent case through it.
  * **The rule is that nothing is drawn dead**: an `href=""` is worse than an
  * absence.
  */
-describe('the page, on a box with no web app', () => {
+describe('the page, box by box', () => {
   const STORE = 'https://apps.apple.com/app/id123456789';
   const drawn = (extra: Partial<Parameters<typeof invitePage>[0]>) =>
     invitePage({
       username: 'alice_k',
+      pin: '042317',
       displayName: 'Alice',
       webAppReady: false,
       ...extra,
@@ -694,23 +724,31 @@ describe('the page, on a box with no web app', () => {
   it('hands straight over only where there is a web app and no store', () => {
     const body = drawn({ webAppReady: true });
     expect(body).toContain("location.replace('/open')");
+    expect(body).toContain('\\"pin\\":\\"042317\\"');
     expect(body).not.toContain('apple-itunes-app');
 
     const both = drawn({ webAppReady: true, appStoreUrl: STORE });
     expect(both).not.toContain('location.replace');
     expect(both).toContain(`<p class="cta"><a href="${STORE}"`);
-    expect(both).toContain('continue in the browser');
+    expect(both).toContain('Accept invite');
   });
 
   it('draws the banner wherever there is a store, and only then', () => {
-    expect(drawn({ appStoreUrl: STORE, origin: 'https://example.test' })).toContain(
-      '<meta name="apple-itunes-app" content="app-id=123456789, app-argument=thefloor://i/alice_k">'
-    );
-    // The scheme form needs no origin to build it.
     expect(drawn({ appStoreUrl: STORE })).toContain(
-      '<meta name="apple-itunes-app" content="app-id=123456789, app-argument=thefloor://i/alice_k">'
+      '<meta name="apple-itunes-app" content="app-id=123456789, app-argument=thefloor://i/alice_k/042317">'
+    );
+    expect(drawn({ appStoreUrl: STORE, pin: undefined, displayName: undefined })).toContain(
+      'app-argument=thefloor://i/alice_k">'
     );
     expect(drawn({})).not.toContain('apple-itunes-app');
+  });
+
+  it('draws a refusal with the store and no accept button', () => {
+    const body = drawn({ appStoreUrl: STORE, webAppReady: true, refusal: 'used', displayName: undefined });
+    expect(body).toContain('already been used');
+    expect(body).not.toContain('Accept invite');
+    expect(body).not.toContain('thefloor.invite');
+    expect(body).toContain(`<a href="${STORE}"`);
   });
 
   it('never writes an empty href in any of the four', () => {
@@ -721,6 +759,7 @@ describe('the page, on a box with no web app', () => {
       {},
     ]) {
       expect(drawn(extra)).not.toContain('href=""');
+      expect(drawn({ ...extra, refusal: 'expired' as const })).not.toContain('href=""');
     }
   });
 });

@@ -8,14 +8,7 @@ import { useText } from '../i18n';
 import { canShare, shareText } from '../share';
 import { useApp } from '../state/AppProvider';
 import { describeAvailability } from './availability';
-import {
-  Button,
-  Card,
-  Empty,
-  Field,
-  Reveal,
-  SectionLabel,
-} from './components';
+import { Button, Card, Empty, SectionLabel } from './components';
 import { colors, spacing, type } from './theme';
 
 /**
@@ -418,13 +411,32 @@ function RequestRow({
 }
 
 /**
- * Asking somebody to be a contact, folded away until it is wanted.
+ * Adding a contact, which is handing somebody an invite link.
  *
- * It was a permanent field at the foot of Home. At the top of a list of people
- * it would be the first thing on the screen every time, and adding a contact is
- * something you do occasionally where reading the list is what you came for —
- * so it is a line until tapped. The field only exists while it is open, which
- * is also what keeps the keyboard off a screen nobody is typing into.
+ * **One action since 2026-10-15.** It was a card that opened onto an email
+ * field, *Send request*, an *or*, and *Share Invite Link* underneath — two
+ * ways of asking the same question with two different outcomes, a request
+ * somebody had to answer and a link that made a contact outright. The field
+ * went; the row is the button. See
+ * `decision/2026-10-15-an-invite-link-carries-a-pin-again.md`.
+ *
+ * **It mints on every press**, so this asks the server each time rather than
+ * holding a link. A link is good for one person — `/i/<username>/<pin>`,
+ * spent by the first who takes it — so sharing twice has to produce two
+ * links, or the second person gets one already spent. The URL is the
+ * server's to compose, `origin` being something only it knows.
+ *
+ * The share sheet rather than the clipboard, for the reason the channel's
+ * guest link uses it: the destination is a person, and this is how you reach
+ * somebody you already talk to somewhere else. A browser with no Web Share
+ * API falls back to a copy, and says so, since a copy that happened because
+ * there was nowhere to share to looks exactly like a tap that did nothing.
+ * See src/share.ts.
+ *
+ * **It is conditional on a username, and says why when there is none.** A
+ * link cannot be written without one, so the absence is explained and made
+ * actionable rather than hidden — the server answers `null`, and the row
+ * opens onto *Choose a username*.
  */
 function AddContact({
   onChooseUsername,
@@ -434,268 +446,86 @@ function AddContact({
 }) {
   const app = useApp();
   const t = useText().contacts;
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(
-    null
-  );
-  const [busy, setBusy] = useState(false);
+  const [minting, setMinting] = useState(false);
+  const [outcome, setOutcome] = useState<
+    'idle' | 'copied' | 'failed' | 'noUsername'
+  >('idle');
 
-  async function send() {
-    setBusy(true);
+  /** The same fade the profile's copy uses, for the two passing outcomes. */
+  useEffect(() => {
+    if (outcome !== 'copied' && outcome !== 'failed') return;
+    const timer = setTimeout(() => setOutcome('idle'), 2500);
+    return () => clearTimeout(timer);
+  }, [outcome]);
+
+  async function hand() {
+    setMinting(true);
     try {
-      const { accepted } = await app.requestContact(query.trim());
-      setMessage({
-        ok: true,
-        text: accepted ? t.alreadyAsked() : t.requestSent(),
-      });
-      setQuery('');
-    } catch (e) {
-      setMessage({ ok: false, text: e instanceof Error ? e.message : String(e) });
+      const url = await app.inviteLink();
+      if (!url) {
+        setOutcome('noUsername');
+        return;
+      }
+      // The link alone, since 2026-10-13 — see `contactInvite`.
+      const handoff = await shareText(t.contactInvite(url));
+      setOutcome(
+        handoff === 'copied' ? 'copied' : handoff === 'failed' ? 'failed' : 'idle'
+      );
+    } catch {
+      setOutcome('failed');
     } finally {
-      setBusy(false);
+      setMinting(false);
     }
   }
 
-  if (!open) {
-    // Closed, it is the channel list's start-a-channel row: a mark and a
-    // label in the shape of a card rather than of a button, and since
-    // 2026-09-02 in the same position too, above the first section label
-    // rather than at the foot of a list. The two tabs' one affordance for
-    // making something new should not be two different shapes in two
-    // different places, and this is the same kind of thing — available rather
-    // than urgent, which is why only the mark carries the accent.
-    return (
+  // Home's start-a-channel row: a mark and a label in the shape of a card
+  // rather than of a button, above the first section label. The two tabs'
+  // one affordance for making something new should not be two different
+  // shapes in two different places — available rather than urgent, which is
+  // why only the mark carries the accent.
+  return (
+    <View style={styles.add}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={t.addAContact()}
-        onPress={() => setOpen(true)}
+        accessibilityHint={canShare ? t.shareInviteLink() : t.copyInviteLink()}
+        onPress={hand}
+        disabled={minting}
         style={({ pressed }) => pressed && styles.rowPressed}
       >
         <Card style={styles.addRow}>
           <View style={styles.addMark}>
             <Text style={styles.addMarkGlyph}>+</Text>
           </View>
-          <Text style={styles.addLabel}>{t.addAContact()}</Text>
+          <Text style={styles.addLabel}>
+            {minting ? t.makingALink() : t.addAContact()}
+          </Text>
         </Card>
       </Pressable>
-    );
-  }
-
-  /*
-    **Brought into view when the keyboard opens over it, rather than avoided.**
-    The obvious reading is a `KeyboardAvoidingView` around this card, and it is
-    the wrong one: this card is rendered inside a `Screen`, which is the
-    application's one avoider, and a second nested in it counts the keyboard's
-    height twice on iOS and leaves a gap that tall under the card. What the
-    avoider does not do is *scroll*, and this card grows tall enough — a field,
-    two buttons, an outcome line, and the invite link under it — that a
-    shortened viewport can leave its lower half beneath the keyboard, which is
-    where *Send request* is. Same reasoning as Channel Settings' description;
-    see `RevealContext`.
-
-    `when` is the card being open rather than the field having focus: the only
-    keyboard this row of the screen can raise is this field's.
-  */
-  return (
-    <Reveal when={open}>
-    <Card style={styles.addContact}>
-      {/*
-        The title the row above turns into. Closed, this is a mark and the
-        words *Add a contact*; open, the words stay and the mark is spent, so
-        the card is visibly the same offer taken up rather than a new thing
-        that appeared. In the row's own type and colour for that reason, not
-        `SectionLabel`'s — a heading over the card would read as something
-        above it rather than as what it used to be.
-      */}
-      <Text style={styles.addLabel}>{t.addAContact()}</Text>
-      <Field
-        value={query}
-        onChangeText={setQuery}
-        placeholder={t.emailAddress()}
-        keyboardType="email-address"
-        autoFocus
-        onSubmit={query.trim() && !busy ? send : undefined}
-        submitLabel="send"
-      />
-      <View style={styles.addActionsSpread}>
-        <Button
-          label={t.cancel()}
-          onPress={() => {
-            setOpen(false);
-            setQuery('');
-            // The outcome of the last request goes with the form that produced
-            // it — a confirmation left behind would be describing something
-            // nobody can see any more.
-            setMessage(null);
-          }}
-        />
-        <Button
-          label={busy ? t.sending() : t.sendRequest()}
-          onPress={send}
-          disabled={!query.trim() || busy}
-        />
-      </View>
-      {message ? (
-        <Text
-          style={[
-            styles.message,
-            { color: message.ok ? colors.success : colors.danger },
-          ]}
-        >
-          {message.text}
+      {outcome === 'noUsername' ? (
+        <Card style={styles.addContact}>
+          <Text style={type.muted}>{t.toGenerateAnInviteLink()}</Text>
+          <View style={styles.addActions}>
+            <Button label={t.cancel()} onPress={() => setOutcome('idle')} />
+            <Button
+              label={t.chooseAUsername()}
+              // Absent only in the moment before `me` lands, which is why the
+              // button is drawn disabled rather than withheld: a control that
+              // appears a beat after the sentence explaining it is a control
+              // somebody has already given up looking for.
+              onPress={() => {
+                setOutcome('idle');
+                onChooseUsername?.();
+              }}
+              disabled={!onChooseUsername}
+            />
+          </View>
+        </Card>
+      ) : outcome === 'copied' || outcome === 'failed' ? (
+        <Text style={[type.muted, styles.outcome]}>
+          {outcome === 'copied' ? t.linkCopied() : t.clipboardRefused()}
         </Text>
       ) : null}
-
-      <Text style={styles.or}>{t.or()}</Text>
-      <InviteLink onChooseUsername={onChooseUsername} />
-    </Card>
-    </Reveal>
-  );
-}
-
-/**
- * The other way of adding somebody: a link you hand over yourself.
- *
- * **The second half of one card rather than a card of its own**, because the
- * two are one question — *how do I get this person in here* — answered for the
- * two situations somebody is in. The field above needs an address and reaches
- * the person by email; this needs nothing and reaches them however you already
- * talk to them, which is the case the address form cannot serve at all.
- *
- * **It is conditional on a username, and says why when there is none.** A link
- * is `/i/<username>` and there is no link without a username, so the
- * absence is explained and made actionable rather than hidden — hiding it
- * would leave somebody who had heard of invite links looking for a control
- * that is not drawn.
- *
- * Asked on mount rather than held: this component exists only while the card
- * is open, so a fresh answer costs one request per opening and cannot be stale
- * — including just after somebody has been away choosing a username.
- */
-function InviteLink({
-  onChooseUsername,
-}: {
-  onChooseUsername?: () => void;
-}) {
-  const app = useApp();
-  const t = useText().contacts;
-  const [url, setUrl] = useState<string | null | undefined>(undefined);
-  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
-  const [minting, setMinting] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    void app
-      .inviteLink()
-      .then((minted) => {
-        if (!cancelled) setUrl(minted);
-      })
-      // An older server, or one that cannot answer, leaves this undefined and
-      // the section simply is not drawn. Nothing here is worth an error
-      // message on a screen somebody opened to type an address into.
-      .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
-    // Once per opening of the card. `app` changes identity often and refetching
-    // on every one of those would mint a pin a second.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  /** The same three states and the same fade the profile's copy uses. */
-  useEffect(() => {
-    if (copied === 'idle') return;
-    const timer = setTimeout(() => setCopied('idle'), 2500);
-    return () => clearTimeout(timer);
-  }, [copied]);
-
-  if (url === undefined) return null;
-
-  if (url === null) {
-    return (
-      <View style={styles.invite}>
-        <Text style={type.muted}>{t.toGenerateAnInviteLink()}</Text>
-        <View style={styles.addActions}>
-          <Button
-            label={t.chooseAUsername()}
-            // Absent only in the moment before `me` lands, which is why the
-            // button is drawn disabled rather than withheld: a control that
-            // appears a beat after the sentence explaining it is a control
-            // somebody has already given up looking for.
-            onPress={onChooseUsername ?? (() => undefined)}
-            disabled={!onChooseUsername}
-          />
-        </View>
-      </View>
-    );
-  }
-
-  /**
-   * Re-asks on the press rather than handing over what was fetched on mount.
-   *
-   * **It used to mint, and the reason is gone.** A link carried a pin and was
-   * good for one person, so sharing twice had to produce two links or the
-   * second person got one already spent. Since 2026-09-25 a link is
-   * `/i/<username>` and is the same address every time, so this asks again
-   * only to pick up a display name or username changed since the card opened
-   * — the answer is otherwise the one already in hand.
-   *
-   * It stays a round trip rather than becoming a local string: the URL is the
-   * server's to compose, `origin` being something only it knows, and a client
-   * that built its own would be a second place the address is written down.
-   *
-   * The share sheet rather than the clipboard, for the reason the channel's
-   * guest link uses it: the destination is a person, and this is how you
-   * reach somebody you already talk to somewhere else. A browser with no Web
-   * Share API falls back to a copy, which is why the button says which of the
-   * two it is about to do. See src/share.ts.
-   */
-  async function hand() {
-    setMinting(true);
-    try {
-      const fresh = (await app.inviteLink()) ?? url;
-      if (!fresh) return;
-      setUrl(fresh);
-      // The link alone, since 2026-10-13 — see `contactInvite`.
-      const handoff = await shareText(t.contactInvite(fresh));
-      setCopied(
-        handoff === 'copied' ? 'done' : handoff === 'failed' ? 'failed' : 'idle'
-      );
-    } catch {
-      setCopied('failed');
-    } finally {
-      setMinting(false);
-    }
-  }
-
-  return (
-    <View style={styles.invite}>
-      <View style={styles.addActions}>
-        <Button
-          label={
-            minting
-              ? t.makingALink()
-              : canShare
-                ? t.shareInviteLink()
-                : t.copyInviteLink()
-          }
-          onPress={hand}
-          disabled={minting}
-          style={styles.wideButton}
-        />
-      </View>
-      {/*
-        Only an outcome, and only when there is one to report. A copy that
-        happened because there was nowhere to share to looks exactly like a
-        tap that did nothing, so it says where the link went; a share that
-        went to the sheet is its own evidence and says nothing.
-      */}
-      {copied === 'idle' ? null : (
-        <Text style={type.muted}>
-          {copied === 'done' ? t.linkCopied() : t.clipboardRefused()}
-        </Text>
-      )}
     </View>
   );
 }
@@ -725,12 +555,12 @@ const styles = StyleSheet.create({
    * and the card is shorter than a contact's because it has one line where
    * they have two.
    */
+  add: { gap: spacing(1), marginBottom: spacing(1.5) },
   addRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing(1.5),
     paddingVertical: spacing(1.5),
-    marginBottom: spacing(1.5),
   },
   addMark: {
     width: 28,
@@ -747,44 +577,14 @@ const styles = StyleSheet.create({
     lineHeight: 21,
     fontWeight: '500',
   },
-  /**
-   * The row's label, and the open card's title — one style deliberately, so
-   * the words cannot come to be drawn two different ways in the two halves of
-   * one offer.
-   */
   addLabel: { fontSize: 15, fontWeight: '600', color: colors.floor },
-  addContact: { gap: spacing(1), marginBottom: spacing(1.5) },
-  /**
-   * What separates the two ways of adding somebody. A word rather than a rule:
-   * they are alternatives to each other, and a line reads as the end of one
-   * thing and the start of another where "or" says the two are one question
-   * answered twice. Lower case and italic so it is a joint rather than a
-   * heading — a second title inside one card would make it look like two.
-   */
-  or: {
-    ...type.muted,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginVertical: spacing(0.5),
-  },
-  invite: { gap: spacing(0.75) },
+  /** What *Choose a username* sits on, under the row that asked for it. */
+  addContact: { gap: spacing(1) },
   addActions: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: spacing(0.5),
   },
-  /**
-   * The pair that ends the address form, pushed out to the card's two edges
-   * rather than huddled at the right: *Cancel* on the left, *Send request* on
-   * the right, which is where a phone puts a dismissal and a commitment.
-   */
-  addActionsSpread: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: spacing(0.5),
-  },
-  /** A single action that owns its row, drawn the full width of the card. */
-  wideButton: { flex: 1 },
-  message: { fontSize: 13 },
+  /** Under the row, aligned with its label rather than its mark. */
+  outcome: { paddingHorizontal: spacing(1.5) },
 });

@@ -377,64 +377,23 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
-  it('keeps the add-contact field folded away until it is wanted', () => {
+  /**
+   * **One action since 2026-10-15**: the row is the button, and there is no
+   * address to type. It was a card opening onto an email field and *Send
+   * request*, with the link under an *or*.
+   */
+  it('asks for no address: the row is the whole of it', () => {
     withContacts([{ id: 'a', displayName: 'Dana Chu' }]);
     const tree = open();
-    const field = () =>
-      tree.root.findAll(
-        (n) => n.props?.placeholder === 'Email address'
-      )[0];
-
-    // A line, not a form: reading the list is what somebody came for.
-    expect(field()).toBeUndefined();
     expect(findButton(tree, 'Add a contact')).toBeDefined();
-
-    act(() => findButton(tree, 'Add a contact')!.props.onPress());
-    expect(field()).toBeDefined();
-    expect(findButton(tree, 'Send request')).toBeDefined();
-    act(() => tree.unmount());
-  });
-
-  /**
-   * The card keeps the row's words, so the form reads as the offer taken up
-   * rather than as something else that arrived. The row itself is gone —
-   * which is what tells the two apart, the words being identical.
-   */
-  it('titles the open card with the words the row carried', () => {
-    withContacts([]);
-    const tree = open();
-    act(() => findButton(tree, 'Add a contact')!.props.onPress());
-
-    expect(findButton(tree, 'Add a contact')).toBeUndefined();
-    expect(textOf(tree)).toContain('Add a contact');
-    act(() => tree.unmount());
-  });
-
-  it('sends the request, and folds away again on cancel', async () => {
-    withContacts([]);
-    const tree = open();
-    act(() => findButton(tree, 'Add a contact')!.props.onPress());
-    const field = tree.root.findAll(
-      (n) => n.props?.placeholder === 'Email address'
-    )[0];
-    act(() => field.props.onChangeText('someone@example.com'));
-    await act(async () => findButton(tree, 'Send request')!.props.onPress());
-    expect(mockApp.requestContact).toHaveBeenCalledWith('someone@example.com');
-
-    act(() => findButton(tree, 'Cancel')!.props.onPress());
     expect(
-      tree.root.findAll(
-        (n) => n.props?.placeholder === 'Email address'
-      )[0]
-    ).toBeUndefined();
+      tree.root.findAll((n) => n.props?.placeholder === 'Email address')
+    ).toHaveLength(0);
+    expect(findButton(tree, 'Send request')).toBeUndefined();
     act(() => tree.unmount());
   });
 
-  /**
-   * The second way of adding somebody, which is a link you hand over yourself
-   * — and which exists only for an account with a username, a link being
-   * `/i/<username>`.
-   */
+  /** A link is `/i/<username>/<pin>`, so an account with no username has none. */
   it('offers a username when there is no link to be had', async () => {
     withContacts([]);
     mockApp.inviteLink.mockResolvedValue(null);
@@ -456,28 +415,31 @@ describe('Contacts', () => {
     act(() => tree.unmount());
   });
 
-  it('shares the link alone, asking for it again on the press', async () => {
+  /**
+   * A link is one seat, so each press mints: two shares must be two links, or
+   * the second person is handed one already spent.
+   */
+  it('shares a fresh link on every press, and the link alone', async () => {
     withContacts([]);
     const share = jest
       .spyOn(Share, 'share')
       .mockResolvedValue({ action: 'sharedAction' } as never);
     mockApp.updateUrl = 'https://apps.apple.com/app/id0000000000';
-    // Asked again on the press, to pick up a username or name changed since
-    // the card opened; the answer is otherwise the same address every time.
     mockApp.inviteLink
-      .mockResolvedValueOnce('https://thefloor.example/i/dana_c')
-      .mockResolvedValueOnce('https://thefloor.example/i/dana_c2');
+      .mockResolvedValueOnce('https://thefloor.example/i/dana_c/111111')
+      .mockResolvedValueOnce('https://thefloor.example/i/dana_c/222222');
     const tree = open();
+    await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
     await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
 
     expect(textOf(tree)).not.toContain('To generate an invite link');
-    await act(async () =>
-      findButton(tree, 'Share Invite Link')!.props.onPress()
-    );
-    expect(share).toHaveBeenCalledWith({
-      // No App Store beside it, though there is one to name: the page the
-      // link opens offers it, since 2026-10-13.
-      message: 'Join me on The Floor: https://thefloor.example/i/dana_c2',
+    // No App Store beside it, though there is one to name: the page the link
+    // opens offers it, since 2026-10-13.
+    expect(share).toHaveBeenNthCalledWith(1, {
+      message: 'Join me on The Floor: https://thefloor.example/i/dana_c/111111',
+    });
+    expect(share).toHaveBeenNthCalledWith(2, {
+      message: 'Join me on The Floor: https://thefloor.example/i/dana_c/222222',
     });
     act(() => tree.unmount());
     share.mockRestore();
@@ -486,25 +448,23 @@ describe('Contacts', () => {
   /**
    * The web with no Web Share API, where `shareText` falls back to the
    * clipboard — a copy that happened silently looks like a tap that did
-   * nothing, so the card says where the invitation went.
+   * nothing, so the row says where the invitation went, and that it is good
+   * once.
    */
   it('copies when there is nowhere to share to, and says so', async () => {
     withContacts([]);
     const share = jest
       .spyOn(Share, 'share')
       .mockRejectedValue(new Error('Share is not supported in this browser'));
-    mockApp.inviteLink.mockResolvedValue('https://thefloor.example/i/dana_c');
+    mockApp.inviteLink.mockResolvedValue('https://thefloor.example/i/dana_c/111111');
     const tree = open();
     await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
-    await act(async () =>
-      findButton(tree, 'Share Invite Link')!.props.onPress()
-    );
 
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(
-      'Join me on The Floor: https://thefloor.example/i/dana_c'
+      'Join me on The Floor: https://thefloor.example/i/dana_c/111111'
     );
     expect(textOf(tree)).toContain('Invitation copied.');
-    expect(textOf(tree)).not.toContain('works once');
+    expect(textOf(tree)).toContain('works once');
     act(() => tree.unmount());
     share.mockRestore();
   });
@@ -520,9 +480,6 @@ describe('Contacts', () => {
     (Clipboard.setStringAsync as jest.Mock).mockResolvedValueOnce(false);
     const tree = open();
     await act(async () => findButton(tree, 'Add a contact')!.props.onPress());
-    await act(async () =>
-      findButton(tree, 'Share Invite Link')!.props.onPress()
-    );
 
     expect(textOf(tree)).toContain('clipboard refused');
     act(() => tree.unmount());

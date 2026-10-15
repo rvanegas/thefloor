@@ -298,7 +298,7 @@ export const en = {
       `${name}.${availability ? ` ${availability}.` : ''} Open their profile.`,
     yourContacts: () => 'Your contacts',
     nobodyYet: () =>
-      'Nobody yet. Add somebody by the address they signed up with, and they decide.',
+      'Nobody yet. Add a contact to share an invite link with somebody.',
     wantsToBeAContact: () => 'Wants to be a contact',
     pending: () => 'Pending',
     accept: () => 'Accept',
@@ -307,13 +307,7 @@ export const en = {
     withdraw: () => 'Withdraw',
     couldNotWithdraw: () => 'Could not withdraw',
     addAContact: () => 'Add a contact',
-    alreadyAsked: () => 'They had already asked — you are now contacts.',
-    requestSent: () => 'Request sent — awaiting their acceptance.',
-    emailAddress: () => 'Email address',
     cancel: () => 'Cancel',
-    sending: () => 'Sending\u2026',
-    sendRequest: () => 'Send request',
-    or: () => 'or',
     toGenerateAnInviteLink: () => 'To generate an invite link,',
     chooseAUsername: () => 'Choose a Username',
     makingALink: () => 'Making a link\u2026',
@@ -326,8 +320,9 @@ export const en = {
      * second — so the store is the page's to offer, not the message's.
      */
     contactInvite: (link: string) => `Join me on The Floor: ${link}`,
-    /** Since 2026-09-25 a link is not spent by use, so this says nothing about once. */
-    linkCopied: () => 'Invitation copied.',
+    /** A link is one seat again since 2026-10-15, so this says so. */
+    linkCopied: () =>
+      'Invitation copied. It works once, for the first person who opens it.',
     clipboardRefused: () => 'The clipboard refused. Try again.',
   },
   channels: {

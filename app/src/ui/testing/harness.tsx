@@ -249,7 +249,6 @@ export const mockApp = {
   verify: jest.fn(),
   signOut: jest.fn(),
   deleteAccount: jest.fn(async () => {}),
-  requestContact: jest.fn(),
   // Null by default, which is the account with no username: the invite section
   // then draws its *choose a username* half, and every test that is about
   // something else on this card is unaffected by it being there.

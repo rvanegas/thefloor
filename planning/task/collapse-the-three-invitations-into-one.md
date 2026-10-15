@@ -20,7 +20,10 @@ works and which nobody does. Ideas from the call, none decided:
   everything is done for you* — or carry on registering here.
 - Send two links: one to install, one to complete the invitation. Built on 2026-10-11/12 and replaced on
   2026-10-13 by one link whose page offers the install, Telegram's shape —
-  `decision/2026-10-13-an-invitation-is-one-link-and-a-page.md`.
+  `decision/2026-10-13-an-invitation-is-one-link-and-a-page.md`. Since
+  2026-10-15 *Add a contact* is that link and nothing else — no email field —
+  and its page has two buttons, the install and *Accept invite*, which makes
+  the contact and opens the pair's channel: `decision/2026-10-15-an-invite-link-carries-a-pin-again.md`.
 - Carry the invited email or phone number in the link and **prefill** the
   sign-in field with it, editable. Rodrigo: save steps, but not so many that it
   gets smarmy; be conventional.

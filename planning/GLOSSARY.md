@@ -72,10 +72,10 @@ caused; the list carries the meaning.
 - **In the app now** — What a *contact*'s row says about somebody who is there: holding a socket, and attended within fifteen minutes. The line under a name, and *Last seen 3 hours ago* is the same line when they are not — one clock, so the two can never disagree. A socket alone until 2026-09-25, which said it for hours about a desktop client nobody was sitting at
 - **Invitation** — An ask to join something. Two distinct things can be asked to: the app, as somebody's *contact*, by an *invite link* or an *invitation email*; and a *channel*, by a member — see *guest invitation* for the third, a *seat*
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
-- **Invite link** — Somebody's standing link, `/i/<username>`, which makes whoever follows it a *contact* of theirs once they are signed in; the same address every time. Since 2026-10-12 a universal link — the app where it is installed, the *invite page* where it is not — shared alone as the *contact invitation* since 2026-10-13
-- **Contact invitation** — What *Share Invite Link* sends: since 2026-10-13 the *invite link* alone, whose page offers the App Store (two links, the store first, on 2026-10-12). `contactInvite` in the catalogue
-- **Invite page** — What an *invite link* shows in a browser, since 2026-10-13 Telegram's shape: who invited you, *Get The Floor for iPhone*, *continue in the browser* beneath it, and Safari's Smart App Banner. Reads nothing; hands straight on to the web app only on a box with no App Store
-- **Invite pin** — Six digits that used to end an invite link and made it good once; gone since 2026-09-25, and read now only on links minted before then
+- **Invite link** — `/i/<username>/<pin>`, minted per press of *Add a contact*, which makes whoever follows it first a *contact* and opens the pair's *channel*; a universal link — the app where it is installed, the *invite page* where it is not. A standing `/i/<username>` from 2026-09-25 to 2026-10-15, still honoured
+- **Contact invitation** — What *Add a contact* sends, since 2026-10-15 its only action: the *invite link* alone, whose page offers the App Store. `contactInvite` in the catalogue
+- **Invite page** — What an *invite link* shows in a browser: who invited you — looked up, and only for a live *invite pin* — then two buttons, *Get The Floor for iPhone* and *Accept invite*, and Safari's Smart App Banner. A spent, expired or wrong pin draws a refusal naming nobody
+- **Invite pin** — Six digits ending an *invite link* that make it good once, for thirty days; gone 2026-09-25, back 2026-10-15
 - **Join link** — `thefloor://j/<code>`, which the community page drew until 2026-10-11 and the app still reads; the *community link* does its job now. Membership only — never a *contact*, unlike an *invite link*
 - **Knock** — A named person at the door via a *guest link*, settled by one member answering
 - **Labs** — A per-account gate for the unfinished parts of the app, off by default; **nothing is behind it since 2026-10-09**, when transcripts left, so its switch is not drawn — kept for the next experiment
@@ -1252,65 +1252,46 @@ message, costs nothing, and is not counted.
 ## Invite link
 
 **A link that makes whoever follows it a *contact* of whoever sent it**, once
-they are signed in. `/i/<username>`, optionally carrying `?name=` for the page
-to greet its reader by — the username says whose it is and is not secret, and
-the name is drawn from the address rather than looked up, so this server never
-answers who a username belongs to.
+they are signed in, and gives the pair their *channel* — opened, not stepped
+into. `/i/<username>/<pin>`: the username says whose it is and is not secret;
+the *invite pin* makes it good for one person, for thirty days.
 
-**It is a standing door, since 2026-09-25**: the same address every time, never
-spent, never expired. It used to carry an *invite pin* and be good for one
-person; what that bought was a limit rather than a consent, which is the
-argument in
-`decision/2026-09-25-an-invite-link-is-a-standing-door.md`. Following one
-twice, or after somebody else has, is not a refusal — it is the second call
-finding the pair already contacts.
+**Minted on every press of *Add a contact*, since 2026-10-15**, which is the
+whole of that control now — the email field went the same day. Between
+2026-09-25 and then it was a standing door, `/i/<username>?name=`, the same
+address every time, with the name the page drew carried in the address rather
+than looked up; anybody could write any name into any link. The pin came back
+so the page could look the name up, and only for a live one. See
+`decision/2026-10-15-an-invite-link-carries-a-pin-again.md`. Links from those three weeks still work, naming nobody,
+until `planning/SHIMS.md` § *Gate 362* retires them.
 
 Not a *guest link*, and the two are worth keeping apart. A guest link opens one
 *channel* to anybody holding it, without an account, until the room empties; an
 invite link opens a *relationship* and needs an account at the far end. One is a
 door to a room and the other is an introduction.
 
-It is sent two ways: copied from the Contacts tab and handed over however you
-like, or carried in the *invitation email* that goes to an address with no
-account. An account with no username has neither, since there is no link to
+It is shared alone, as the *contact invitation*, and also carried in the
+*invitation email* that an older build can still send to an address with no
+account. An account with no username has no link, since there is nothing to
 write.
 
-**Both ways end in the same relationship**, which they did not until
-2026-09-25: an invitation sent to an address is taken up when that address
-signs up, exactly as a link is taken up by being followed. Before that the
-email's two halves disagreed — clicking the link made a contact, ignoring it
-and signing up left a request to answer.
-
-**Since 2026-10-13 it is one link and Telegram's page.** *Share Invite Link*
-sends the *contact invitation*, the link alone, and the link is a universal
-link: on an iPhone with the app it opens the app, which accepts; in any
-browser it draws the invite page — who invited you, the App Store first,
-*continue in the browser* beneath it, Safari's Smart App Banner above — with
-the username left in the tab, so the web app accepts once there is a session,
-after a sign-in if one comes first. Only a box with no App Store hands straight
-on. On 2026-10-12 the message carried the store as a second link and every
-browser was handed straight over. It replaced the page of
-2026-09-25, whose one call to action was the install followed by a return tap
-on *Open in the app* (`thefloor://i/<username>`, still read). Either way the
-inviter is a *contact* with a *channel* before the first screen is drawn. See
-planning/decision/2026-10-13-an-invitation-is-one-link-and-a-page.md.
+**It is a universal link**: on an iPhone with the app it opens the app, which
+accepts and opens the channel. In any browser it draws the *invite page*. The
+install loses the link, so the page says to tap it again once installed.
 
 ## Invite pin
 
-**Six digits that used to end an invite link**, and made it good for one
-person. Gone since 2026-09-25 —
-`decision/2026-09-25-an-invite-link-is-a-standing-door.md`. Nothing mints one;
-what still reads them serves links minted before that day, and
-`planning/SHIMS.md` § *Gate 290* says when that goes.
+**Six digits that end an invite link** and make it good for one person, for
+thirty days. Minted per press, at most ten live per account, the oldest
+letting go first. Gone between 2026-09-25 and 2026-10-15, and back since —
+`decision/2026-10-15-an-invite-link-carries-a-pin-again.md`.
 
-It was checked only alongside the username beside it, so guessing meant
+It is checked only alongside the username beside it, so guessing means
 guessing at one named account rather than at every outstanding invitation, and
-it expired after thirty days — which is why every pin that was ever minted is
-dead after 2026-10-25.
-
-**What it bought was a limit, not a consent**, which is the sentence the
-decision turns on: publishing a link is the owner's half of the ask whether or
-not the link has a seat in it.
+wrong guesses against that account are counted and stop being answered. **The
+page discloses the inviter's name only to a request holding a live one**, which
+is what keeps it from being a directory. The person who spent a pin may spend
+it again, and is answered with the channel it made rather than *already used*.
 
 ## Knock
 

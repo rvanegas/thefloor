@@ -14,11 +14,11 @@ import { forgetInvite, peekInvite, type Invite } from '../ui/handover';
  * in `AppProvider`.
  *
  * **The URL is the invite link itself since 2026-10-12**:
- * `https://<host>/i/<username>`, which iOS hands to the app as a universal
- * link, so somebody with the app is a contact on one tap and somebody who
- * installs first taps the same link again after. `thefloor://i/<username>`,
- * which the invite page's *Open in the app* sent until that day, is still
- * read, since a page already open in somebody's browser may still offer it.
+ * `https://<host>/i/<username>/<pin>`, which iOS hands to the app as a
+ * universal link, so somebody with the app is a contact on one tap and
+ * somebody who installs first taps the same link again after.
+ * `thefloor://i/<username>/<pin>` is what the page's Smart App Banner hands
+ * over, for somebody who keeps the domain in Safari.
  */
 
 /**
@@ -39,28 +39,19 @@ import { forgetInvite, peekInvite, type Invite } from '../ui/handover';
 export function inviteOfUrl(url: string | null): Invite | null {
   if (!url) return null;
   // The universal link, from any host for `joinOfUrl`'s reason: iOS delivers
-  // only addresses on a domain the build claims. **A pin in it is dropped.**
-  // Taking a link up by username accepts for any account and is never
-  // refused as used, which a spent pin would be, and the invite page has not
-  // passed a pin on since it stopped asking for one.
-  const web = /^https:\/\/[^/?#]+\/i\/([^/?#]+)/.exec(url);
-  if (web) {
-    try {
-      const username = decodeURIComponent(web[1]);
-      return username ? { username } : null;
-    } catch {
-      return null;
-    }
-  }
-  const match = /^thefloor:\/\/i\/([^/?#]+)(?:\/([^/?#]+))?/.exec(url);
+  // only addresses on a domain the build claims; or the scheme form, which
+  // the invite page's Smart App Banner hands over. **Both keep the pin, since
+  // 2026-10-15**, when links started carrying one again — builds 354 to 361
+  // dropped it from the `https` form, which is why the server still takes a
+  // link up by username alone. See planning/SHIMS.md.
+  const match = /^(?:https:\/\/[^/?#]+|thefloor:\/)\/i\/([^/?#]+)(?:\/([^/?#]+))?/.exec(url);
   if (!match) return null;
   try {
     const username = decodeURIComponent(match[1]);
     if (!username) return null;
     // **The pin is optional, and a second segment is the only thing that can
-    // be one.** A link is `/i/<username>` now; one that still carries six
-    // digits was minted before 2026-09-25 and is passed on unchanged, the
-    // server honouring both. See planning/SHIMS.md.
+    // be one.** Every link minted now carries six digits; one minted between
+    // 2026-09-25 and 2026-10-15 carries none, and the server honours both.
     const pin = match[2] ? decodeURIComponent(match[2]) : '';
     return pin ? { username, pin } : { username };
   } catch {
@@ -143,8 +134,9 @@ export function useInviteLink(): {
     invite,
     // Cleared *before* the request goes out, from state and from the tab: a
     // pinned invitation is single use, so one still held while a request is in
-    // flight is one a re-render can spend twice. A pin-less one would survive
-    // that, but spending it once is the point.
+    // flight is one a re-render can spend twice. The server answers the same
+    // person spending it twice with the channel rather than a refusal, so this
+    // is tidiness rather than the only guard.
     clearInvite: () => {
       forgetInvite();
       setInvite(null);

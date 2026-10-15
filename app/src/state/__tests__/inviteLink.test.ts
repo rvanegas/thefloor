@@ -73,8 +73,10 @@ describe('inviteOfUrl', () => {
     expect(inviteOfUrl('https://thefloor.rvanegas.co/i/annak?name=Anna%20K')).toEqual({
       username: 'annak',
     });
+    // The pin is kept since 2026-10-15, when links started carrying one again.
     expect(inviteOfUrl('https://thefloor.rvanegas.co/i/annak/042317')).toEqual({
       username: 'annak',
+      pin: '042317',
     });
   });
 

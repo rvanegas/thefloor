@@ -425,13 +425,6 @@ export const api = {
       token,
     }),
 
-  requestContact: (token: string, identifier: string) =>
-    request<{ ok: true; accepted: boolean }>('/contacts/request', {
-      method: 'POST',
-      body: { identifier },
-      token,
-    }),
-
   withdrawContact: (token: string, identifier: string) =>
     request<{ ok: true }>('/contacts/withdraw', {
       method: 'POST',
