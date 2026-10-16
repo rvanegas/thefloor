@@ -1073,7 +1073,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing(2),
   },
   keep: { gap: spacing(0.5) },
-  switches: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
+  /**
+   * Five things on one line since the paste glyph joined it on 2026-10-16 —
+   * two 44-point icons, two switches with their words, the glyph — and a
+   * 24-point gap, the row's before then, put the glyph past the right edge of
+   * a 393-point phone, where nothing said it was there. 12 fits all five in
+   * the 361 that phone's measure leaves (about 349); **and the row wraps**,
+   * so where it still cannot — a narrower phone, a longer word in another
+   * language — the glyph moves to a line of its own at the right rather than
+   * off the screen. A wrap is a function of the width and fixed at any one
+   * (STYLE.md rule 6).
+   */
+  switches: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: spacing(1.5),
+    rowGap: spacing(0.5),
+  },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
   // Pushed to the far end of the row, whatever its width.
   trailing: { marginLeft: 'auto' },
