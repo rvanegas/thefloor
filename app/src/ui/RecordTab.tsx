@@ -664,11 +664,21 @@ export function KeepSwitches({
   channel,
   me,
   mayTranscribeLive,
+  trailing,
+  note,
 }: {
   channelId: string;
   channel: ChannelState;
   me: string;
   mayTranscribeLive: boolean;
+  /**
+   * At the right end of the row, after *Text*: the paste glyph since
+   * 2026-10-16, which adds an entry to the log rather than changing what is
+   * kept, and so stands apart from the switches rather than among them.
+   */
+  trailing?: React.ReactNode;
+  /** A line under the row about `trailing` — why the last paste did nothing. */
+  note?: React.ReactNode;
 }) {
   const t = useText().channel;
   const app = useApp();
@@ -744,7 +754,9 @@ export function KeepSwitches({
             refused={textRefused}
             onChange={(text) => setKeep({ ...keep, text })}
           />
+          {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
         </View>
+        {note}
         {keeping !== 'running' && keep.audio && refusal !== null ? (
           <Text style={type.muted}>
             {refusal === 'owner'
@@ -1063,6 +1075,8 @@ const styles = StyleSheet.create({
   keep: { gap: spacing(0.5) },
   switches: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
+  // Pushed to the far end of the row, whatever its width.
+  trailing: { marginLeft: 'auto' },
   switchLabel: { color: colors.text, fontSize: 15 },
   // The platform's switch has one size, 51 by 31 on iOS, so it is drawn
   // smaller by scaling, and the margins take back the room the scale leaves,

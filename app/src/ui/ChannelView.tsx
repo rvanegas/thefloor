@@ -3016,6 +3016,25 @@ export function ChannelView({
               channel={channel}
               me={me}
               mayTranscribeLive={view?.mayTranscribeLive ?? false}
+              /*
+                **Pasting, a glyph at the right end of the row, since
+                2026-10-16** — a wide button at the foot of the log the day
+                before, when the *Clipboard* tab went. A paste is an entry in
+                the log at the moment it is made, so the control stays where
+                the moment is, with the transport, and apart from the two
+                switches, it being an act rather than a selection. Its
+                refusals — an empty clipboard, text past the cap — are the line
+                under the row.
+              */
+              trailing={
+                <PasteButton
+                  iconOnly
+                  label={t.pasteMyClipboard()}
+                  disabled={!canPasteClip(channel, me)}
+                  onPaste={pasteClip}
+                />
+              }
+              note={clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
             />
           </>
         ) : (
@@ -3917,27 +3936,6 @@ export function ChannelView({
             />
           )}
         />
-
-        {/*
-          **Pasting, since 2026-10-15**, when the *Clipboard* tab went. A paste
-          is kept in this log as a segment of its own, at the moment it was
-          made, so the control is at the foot, where the log grows — the
-          screen follows the end on this tab — rather than pinned with the
-          transport, which is about what is being kept rather than an entry
-          in it. Nothing replaces anything any more, so there is one label
-          whatever has been pasted before, and no *Clear*: a paste is kept.
-        */}
-        <View style={styles.stack}>
-          {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
-          <PasteButton
-            label={t.pasteMyClipboard()}
-            disabled={!canPasteClip(channel, me)}
-            onPaste={pasteClip}
-          />
-          <Text style={type.muted}>
-            {canPasteClip(channel, me) ? t.pasteGoesInTheRecord() : t.stepInToPaste()}
-          </Text>
-        </View>
 
         {/*
           **No transport here since 2026-10-09.** What the channel keeps —

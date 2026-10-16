@@ -415,8 +415,8 @@ describe('Channel', () => {
     // a disabled cluster with nothing saying why is the shape this codebase
     // does not allow.
     showRecord(tree);
+    // A glyph on the transport row since 2026-10-16, refused like the rest of it.
     expect(disabled('Paste my clipboard')).toEqual(off('Paste my clipboard'));
-    expect(textOf(tree)).toContain('Step in to paste into the record');
 
     showListen(tree);
     expect(disabled('Play something together')).toEqual(
@@ -504,7 +504,6 @@ describe('Channel', () => {
     // **Except pasting, since 2026-10-15**: a paste is kept in a room, and an
     // empty channel has none, so it waits for somebody to step in.
     expect(on('Paste my clipboard')).toEqual({ disabled: true });
-    expect(textOf(tree)).toContain('Step in to paste into the record');
 
     // Still outside, so the things that are about presence for their own
     // reasons are still refused — the rule did not turn into "anything goes

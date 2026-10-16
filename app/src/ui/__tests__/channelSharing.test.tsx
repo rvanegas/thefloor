@@ -2600,8 +2600,7 @@ describe('pasting into the record', () => {
     showChannel(channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
     const tree = await open();
 
-    expect(findButton(tree, 'Paste my clipboard')!.props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Step in to paste into the record');
+    expect(findButton(tree, 'Paste my clipboard')!.props.accessibilityState.disabled).toBe(true);
     // Copying out is not restricted: the content is already on this phone.
     expect(findButton(tree, 'Copy')!.props.disabled).toBeFalsy();
     act(() => tree.unmount());

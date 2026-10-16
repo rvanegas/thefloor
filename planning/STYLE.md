@@ -1318,8 +1318,12 @@ glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*
 as 13-point words in `text` at the end of that line — words and not buttons,
 as the share is a glyph — and the whole text under it in `type.body`. Drawn
 among its segment's lines at its moment, or alone where nothing was being
-kept. *Paste my clipboard* and its sentence sit at the foot of the log, not
-in the pinned bar: they add an entry, and the bar is about what is kept.
+kept. **Pasting is a glyph at the right end of the pinned bar**, after *Text*,
+since 2026-10-16 — the clipboard, or on iOS Apple's own paste control drawn
+icon-only (`displayMode="iconOnly"`), which is what spares the *Allow Paste?*
+sheet. It was a full-width button at the foot of the log for a day. It sits
+apart from the switches because it is an act rather than a selection, and its
+refusals are the bar's line under the row.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 

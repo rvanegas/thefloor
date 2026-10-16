@@ -293,7 +293,10 @@ export function InviteCard({
 }
 
 const styles = StyleSheet.create({
-  wrap: { gap: spacing(1) },
+  // Apart from the people above it: their cards stand 2 points apart, a
+  // column of who is here, and this is not one of them. *Start a channel*'s
+  // gap to the list it sits on, the other way up.
+  wrap: { gap: spacing(1), marginTop: spacing(1.5) },
   // *Start a channel*'s row and *Add a contact*'s, number for number: the same
   // affordance, the same shape, on all three tabs that have one.
   row: {

@@ -1424,10 +1424,6 @@ export const en = {
       'Reconnecting — a dropped connection counts as leaving.',
     open: () => 'Open',
     pasteMyClipboard: () => 'Paste my clipboard',
-    /** Under the paste button: where a paste goes, and that it stays. */
-    pasteGoesInTheRecord: () =>
-      'Goes into the record at this moment, for anyone here to copy. A paste cannot be taken back.',
-    stepInToPaste: () => 'Step in to paste into the record.',
     /** Who pasted a paste in the record; said by a screen reader and in a share. */
     pastedBy: (who: string) => `Pasted by ${who}`,
     back15: () => '\u221215s',

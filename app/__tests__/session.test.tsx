@@ -950,13 +950,17 @@ describe('the swipes', () => {
     pressButton(tree, 'Record');
     // A control *Record* has and the roster does not, since the *Clipboard*
     // tab went into it on 2026-10-15.
-    expect(textOf(tree)).toContain('Paste my clipboard');
+    expect(
+      tree.root.findAll((n) => n.props?.accessibilityRole === 'button' && labelOf(n) === 'Paste my clipboard')
+    ).not.toHaveLength(0);
 
     act(() => swipesOf(tree)!.right!());
     expect(textOf(tree)).toContain('Start a channel');
 
     act(() => swipesOf(tree)!.left!());
-    expect(textOf(tree)).toContain('Paste my clipboard');
+    expect(
+      tree.root.findAll((n) => n.props?.accessibilityRole === 'button' && labelOf(n) === 'Paste my clipboard')
+    ).not.toHaveLength(0);
     act(() => tree.unmount());
   });
 

@@ -2205,7 +2205,7 @@ describe('a channel screen that does not repeat its footer', () => {
     expect(textOf(tree)).toContain('Play something together');
     showRecord(tree);
     expect(findSwitch(tree, 'Audio')).toBeDefined();
-    expect(textOf(tree)).toContain('Paste my clipboard');
+    expect(findButton(tree, 'Paste my clipboard')).toBeDefined();
     // And the tabs themselves are all still offered, and the way in on
     // People. A preference about repetition that quietly removed one would be
     // removing abilities.

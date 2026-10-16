@@ -1144,9 +1144,6 @@ export const es: Strings = {
       'Reconectando: perder la conexi\u00f3n cuenta como salir.',
     open: () => 'Abrir',
     pasteMyClipboard: () => 'Pegar mi portapapeles',
-    pasteGoesInTheRecord: () =>
-      'Queda en Grabado en este momento, para que cualquiera de aqu\u00ed lo copie. Lo pegado no se puede retirar.',
-    stepInToPaste: () => 'Entra para pegar algo en Grabado.',
     pastedBy: (who: string) => `Pegado por ${who}`,
     back15: () => '\u221215 s',
     pause: () => 'Pausa',

@@ -13,7 +13,8 @@ import {
   useClipboardHasPasteable,
 } from '../clipboard';
 import { useText } from '../i18n';
-import { Button } from './components';
+import { Button, IconButton } from './components';
+import { ClipboardIcon } from './icons';
 import { colors, spacing, type } from './theme';
 
 /**
@@ -67,6 +68,7 @@ export function PasteButton({
   onPaste,
   disabled,
   variant = 'default',
+  iconOnly = false,
   style,
 }: {
   /** What the press does, in words. The caption under the system control. */
@@ -77,12 +79,50 @@ export function PasteButton({
   onPaste: (text: string | null) => void;
   disabled?: boolean;
   variant?: 'default' | 'primary';
+  /**
+   * Drawn as a glyph in a row of glyphs rather than as a button, since
+   * 2026-10-16: the *Record* tab's, beside the transport. `label` is then
+   * what a screen reader says, and there is no caption — the system control
+   * draws Apple's paste glyph alone (`displayMode="iconOnly"`), and every
+   * other case is an `IconButton` with the clipboard glyph a paste is marked
+   * by in the log.
+   */
+  iconOnly?: boolean;
   style?: StyleProp<ViewStyle>;
 }) {
   const shared = useText().shared;
   const system = systemPasteAvailable();
   const { pasteable, asked } = useClipboardHasPasteable(system && !disabled);
   const empty = pasteable === false;
+  if (iconOnly && (disabled || !system || empty)) {
+    return (
+      <IconButton
+        label={empty && !disabled ? (emptySublabel ?? shared.copySomethingFirst()) : label}
+        icon={(color) => <ClipboardIcon color={color} />}
+        disabled={disabled || empty}
+        style={style}
+        onPress={() => void pasteText().then(onPaste)}
+      />
+    );
+  }
+  if (iconOnly) {
+    return (
+      <ClipboardPasteButton
+        key={asked}
+        acceptedContentTypes={['plain-text', 'url']}
+        // The bar's own ground and the transport's glyph colour, so it reads
+        // as one of the row's icons rather than a button set into it.
+        backgroundColor={colors.bg as string}
+        foregroundColor={colors.textMuted as string}
+        cornerStyle="capsule"
+        displayMode="iconOnly"
+        style={[styles.iconControl, style]}
+        onPress={(data) =>
+          onPaste(data.type === 'text' && data.text.length > 0 ? data.text : null)
+        }
+      />
+    );
+  }
   if (disabled || !system || empty) {
     return (
       <Button
@@ -134,6 +174,8 @@ const styles = StyleSheet.create({
   // A height and a width are both required: without them the native view
   // lays out at zero and draws nothing. 48 is every filled button's minimum.
   control: { height: 48, alignSelf: 'stretch' },
+  // `IconButton`'s 44, the target a glyph in a row is given.
+  iconControl: { width: 44, height: 44 },
   caption: { ...type.muted, color: colors.text, fontWeight: '600', textAlign: 'center' },
   captionSub: { ...type.muted, textAlign: 'center' },
 });
