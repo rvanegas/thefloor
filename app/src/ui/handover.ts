@@ -264,6 +264,54 @@ export function peekInvite(): Invite | null {
   }
 }
 
+/**
+ * Where the *member link* page leaves its invitation for this tab —
+ * `MEMBER_INVITE_KEY` in `server/src/member-invite.ts`. Since 2026-10-16.
+ */
+const MEMBER_INVITE_KEY = 'thefloor.memberInvite';
+
+/** A member link's two halves, as they cross from its page to this tab. */
+export interface MemberInvite {
+  username: string;
+  pin: string;
+}
+
+/**
+ * The member link this tab was handed, read rather than taken, on
+ * `peekInvite`'s reasoning: it stays until `forgetMemberInvite` says it was
+ * spent, so the sign-in in between cannot lose it, and a second spend by the
+ * same person is answered with the channel rather than *already used*.
+ */
+export function peekMemberInvite(): MemberInvite | null {
+  let raw: string | null = null;
+  try {
+    raw = globalThis.sessionStorage?.getItem(MEMBER_INVITE_KEY) ?? null;
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<MemberInvite>;
+    if (typeof parsed?.username !== 'string' || !parsed.username || typeof parsed.pin !== 'string' || !parsed.pin) {
+      forgetMemberInvite();
+      return null;
+    }
+    return { username: parsed.username, pin: parsed.pin };
+  } catch {
+    forgetMemberInvite();
+    return null;
+  }
+}
+
+/** Drops the member link from the tab, once it has been spent. */
+export function forgetMemberInvite(): void {
+  try {
+    globalThis.sessionStorage?.removeItem(MEMBER_INVITE_KEY);
+  } catch {
+    // Storage blocked, so there was nothing to forget.
+  }
+}
+
 /** Drops the invitation from the tab, once it has been spent. */
 export function forgetInvite(): void {
   try {

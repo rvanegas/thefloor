@@ -34,7 +34,7 @@ import {
   findNamed,
   findTab,
   findExactButton,
-  invitePrompt,
+  contactAction,
   labelOf,
   mockApp,
   render,
@@ -427,19 +427,12 @@ describe('Channel', () => {
     );
 
     showInvites(tree);
-    // The mark, which carries both offers behind one guard: who may open the
-    // room is the room's business whichever way somebody comes in, so there
-    // is nothing to press and no prompt to raise.
-    expect(
-      findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState
-    ).toEqual({ disabled: true, expanded: false });
-    expect(disabled('Share a guest link')).toEqual(off('Share a guest link'));
-    const invites = textOf(tree);
-    expect(invites).toContain('Step in to ask anybody in');
-    expect(invites).toContain('Step in to make a link');
-    // And the list of contacts is still shown rather than emptied by the
-    // filter, which would have claimed every contact was already in here.
-    expect(invites).toContain('Miro Okafor');
+    // Both kinds behind one guard: who may open the room is the room's
+    // business whichever way somebody comes in, so neither step opens, and
+    // the card says why rather than going quiet.
+    expect(disabled('Invite as member')).toEqual(off('Invite as member'));
+    expect(disabled('Invite as guest')).toEqual(off('Invite as guest'));
+    expect(textOf(tree)).toContain('Step in to ask anybody in');
 
     showRecord(tree);
     // The recording row's actions are behind a tap, and two of the three are
@@ -496,10 +489,12 @@ describe('Channel', () => {
     const on = (label: string) =>
       findButton(tree, label)!.props.accessibilityState;
 
+    showInvites(tree, 'member');
+    expect(contactAction(tree, 'Miro Okafor')!.props.accessibilityState).toEqual({ disabled: false });
+    expect(on('Share a member link')).toEqual({ disabled: false });
     showInvites(tree);
-    expect(
-      findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState
-    ).toEqual({ disabled: false, expanded: false });
+    act(() => findButton(tree, 'Back')!.props.onPress());
+    act(() => findButton(tree, 'Invite as guest')!.props.onPress());
     expect(on('Share a guest link')).toEqual({ disabled: false });
 
     showRecord(tree);
@@ -1151,10 +1146,8 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showInvites(tree);
-    const prompt = invitePrompt(tree, 'Miro Okafor');
-    expect(prompt.choices).toEqual(['Guest', 'Member']);
-    await prompt.take('Member');
+    showInvites(tree, 'member');
+    act(() => contactAction(tree, 'Miro Okafor')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'INVITE',
       contactId: 'acct_3',
@@ -1572,7 +1565,6 @@ describe('Channel', () => {
         .props.options.map((option: { label: string }) => option.label)
     ).toEqual([
       'People',
-      'Invite',
       'Record',
       'Listen',
       'Watch',
@@ -1629,13 +1621,12 @@ describe('Channel', () => {
     expect(sections()).toEqual([]);
 
     /*
-      The ways in, which are two sections with no heading over them: the tab
-      is the heading, and *Who gets in* said over it read as a second,
-      narrower claim about the pair. A contact who already has an account
-      first, then a link for somebody who has not.
+      The ways in, since 2026-10-16, are a card on People rather than a tab of
+      two sections: opening it adds no heading, the card's own word being
+      the heading for what it opens.
     */
-    showInvites(tree);
-    expect(sections()).toEqual(['Contacts', 'Guest link']);
+    showInvites(tree, 'guest');
+    expect(sections()).toEqual(['Members', 'Audio']);
     act(() => tree.unmount());
   });
 
@@ -1656,7 +1647,7 @@ describe('Channel', () => {
       />);
     const options = tree.root.findAll((node) => node.type === Segmented)[0]!
       .props.options as Array<{ label: string; icon?: unknown }>;
-    expect(options).toHaveLength(5);
+    expect(options).toHaveLength(4);
     expect(options.every((option) => typeof option.icon === 'function')).toBe(
       true
     );
@@ -1725,12 +1716,12 @@ describe('Channel', () => {
       tree.update(<ChannelView
           channelId="sess_1"
           audio={AUDIO}
-          tab="invites"
+          tab="record"
           onClose={() => {}}
           onExit={() => {}}
         />)
     );
-    expect(shown()).toBe('invites');
+    expect(shown()).toBe('record');
 
     // And the bar wins from there: nothing new is being asked for, so the
     // rerender does not put the screen back.
@@ -1740,7 +1731,7 @@ describe('Channel', () => {
       tree.update(<ChannelView
           channelId="sess_1"
           audio={AUDIO}
-          tab="invites"
+          tab="record"
           onClose={() => {}}
           onExit={() => {}}
         />)
@@ -1841,7 +1832,7 @@ describe('Channel', () => {
     expect(holes()).toHaveLength(1);
 
     // Back out again, and the room is given back.
-    showInvites(tree);
+    showListen(tree);
     expect(holes()).toHaveLength(0);
     act(() => tree.unmount());
   });
@@ -1989,7 +1980,7 @@ describe('Channel', () => {
     tab shows *and* what it hides — because a switch that renders both bodies
     at once would pass every assertion about what is on the screen.
   */
-  it('shows the roster first, and the ways in one tap away', () => {
+  it('shows the roster first, and the ways in on it, behind one card', () => {
     mockApp.home = {
       invites: [],
       rejoinable: [],
@@ -2005,20 +1996,32 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
 
+    // No Invite tab, and the card after the people, closed: nothing it opens
+    // is on the screen until it is pressed.
+    expect(findTab(tree, 'Invite')).toBeUndefined();
     expect(textOf(tree)).toContain('Dana Chu');
+    expect(findNamed(tree, 'Invite')!.props.accessibilityState).toEqual({ expanded: false });
+    expect(findButton(tree, 'Invite as member')).toBeUndefined();
     expect(findButton(tree, 'Share a guest link')).toBeUndefined();
 
+    // Kind first, in place: the roster is still above it.
     showInvites(tree);
+    expect(findButton(tree, 'Invite as member')).toBeDefined();
+    expect(findButton(tree, 'Invite as guest')).toBeDefined();
+    expect(textOf(tree)).toContain('Dana Chu');
+
+    // Then who, and a link at the foot of the contacts.
+    act(() => findButton(tree, 'Invite as guest')!.props.onPress());
+    expect(findButton(tree, 'Invite as member')).toBeUndefined();
+    expect(textOf(tree)).toContain('Miro Okafor');
     expect(findButton(tree, 'Share a guest link')).toBeDefined();
     expect(textOf(tree)).toContain('whoever is in the channel decides');
-    // The roster is not drawn underneath: the tab is the screen, not a band
-    // at the top of it.
-    expect(textOf(tree)).not.toContain('Nobody has the floor');
 
-    // And back, because a tab somebody cannot leave is a screen they are
-    // stuck on.
-    showPeople(tree);
-    expect(textOf(tree)).toContain('Dana Chu');
+    // Back goes up one step, and the mark closes the card from any.
+    act(() => findButton(tree, 'Back')!.props.onPress());
+    expect(findButton(tree, 'Invite as guest')).toBeDefined();
+    act(() => findNamed(tree, 'Invite')!.props.onPress());
+    expect(findButton(tree, 'Invite as guest')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -3395,7 +3398,7 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    for (const show of [showPeople, showInvites]) {
+    for (const show of [showPeople, showListen]) {
       show(tree);
       expect(textOf(tree)).not.toContain('Dune');
     }

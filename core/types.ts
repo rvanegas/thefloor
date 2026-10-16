@@ -45,6 +45,32 @@ export type GuestId = string;
  * if it is taken up — so `GUEST_ENTERED` can convert rather than add, and the
  * ceiling never counts one person twice.
  */
+/**
+ * A *member link* nobody has followed yet: `/m/<username>/<pin>`, which makes
+ * whoever follows it first a member of this channel, and nothing else — not
+ * anybody's contact. Since 2026-10-16.
+ *
+ * **It holds a place**, Rodrigo's choice: an outstanding link counts against
+ * the six exactly as a member does (`membersPromised`), so a channel cannot
+ * hand out more ways in than it has room for and turn people away on
+ * arrival — the mistake `guestInvites` was added to fix for guests. The pin is
+ * not here: this rides in every snapshot, and a pin is the credential.
+ */
+export interface MemberLink {
+  /** The link's own id, minted by the server; not its pin, which is a secret. */
+  id: string;
+  /** The member who made it, for the row that says so and for taking it back. */
+  invitedBy: UserId;
+  invitedAt: number;
+  /**
+   * When it stops holding a place among the members. **Read rather than
+   * swept**, as `InvitedGuest.expiresAt` is: core has no clock, so every count
+   * takes `now`, and a link past this is a place given back without anything
+   * having run.
+   */
+  expiresAt: number;
+}
+
 export interface InvitedGuest {
   id: GuestId;
   /** The account's display name, an invitation only reaching a contact. */
@@ -743,6 +769,14 @@ export interface ChannelState {
    * `guest_sessions` row, and the server projects these back after a restart.
    */
   guestInvites?: Record<GuestId, InvitedGuest>;
+  /**
+   * Member links not yet followed, by id. Optional on the wire, as
+   * `guestInvites` is; volatile in the same way, the `member_pins` rows being
+   * the durable half, which the server projects back after a restart. Not in
+   * `participants`, for the reason invitations are not in `guests`: nobody has
+   * joined.
+   */
+  memberLinks?: Record<string, MemberLink>;
   /**
    * Who is at the door, oldest first. Volatile, and empty almost always.
    */
@@ -1511,6 +1545,22 @@ export type ChannelAction =
    * its seats back without a timer having to fire. See `guestsPromised`.
    */
   | { type: 'GUEST_INVITE_WITHDRAWN'; guestId: GuestId }
+  /**
+   * A member link was made: raised by the server when it writes the pin's
+   * row, as `GUEST_INVITED` is when it writes a seat's, and once per
+   * outstanding link on a revive. The server asks `canMintMemberLink` before
+   * writing the row, so this checks nothing — refusing here would leave a row
+   * nothing in the room knows about.
+   */
+  | { type: 'MEMBER_LINK_MADE'; link: MemberLink }
+  /** A member link is off the table: taken back. Not raised for an expiry. */
+  | { type: 'MEMBER_LINK_WITHDRAWN'; linkId: string }
+  /**
+   * Somebody followed a member link, and is a member: the place it held is
+   * theirs. Raised by the server once the pin checks out; the actor is the
+   * newcomer, who is by definition not a member yet.
+   */
+  | { type: 'JOIN_BY_LINK'; userId: UserId; linkId: string }
   /**
    * A seat turns out to belong to an account, mid-visit. Raised by the server,
    * which is the only thing that can check a token.

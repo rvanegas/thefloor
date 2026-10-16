@@ -2605,7 +2605,10 @@ export class Accounts {
   }
 
   /**
-   * Counts one wrong guess against an account.
+   * Counts one wrong guess against an account. **Shared with member links**
+   * since 2026-10-16 (`MemberLinks.state`): both are six digits beside a
+   * username, so one budget per owner covers both, and a guesser cannot get
+   * twice the attempts by alternating the two doors.
    *
    * Per owner rather than per pin, for the reason db.ts gives: a wrong guess
    * matches no row, so there is nothing on a row to count. The window is fixed
@@ -2613,7 +2616,7 @@ export class Accounts {
    * until it lapses — which is what `otp_codes` does with `created_at`, and is
    * enough for a rate nobody legitimate approaches.
    */
-  private countInviteGuess(ownerId: string, now: number): void {
+  countInviteGuess(ownerId: string, now: number): void {
     const row = this.db
       .prepare('SELECT * FROM invite_guesses WHERE owner_id = ?')
       .get(ownerId) as { attempts: number; window_start: number } | undefined;
@@ -2681,7 +2684,7 @@ export class Accounts {
   }
 
   /** Whether this account is still answering pins at all. */
-  private inviteLocked(ownerId: string, now: number): boolean {
+  inviteLocked(ownerId: string, now: number): boolean {
     const row = this.db
       .prepare('SELECT * FROM invite_guesses WHERE owner_id = ?')
       .get(ownerId) as { attempts: number; window_start: number } | undefined;

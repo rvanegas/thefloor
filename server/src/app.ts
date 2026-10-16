@@ -67,6 +67,7 @@ import { escapeHtml, socialCard, socialTags } from './html';
 import { landingPage } from './landing';
 import { communityPage } from './community-page';
 import { invitePage, inviteRefusalText } from './invite';
+import { memberInvitePage, memberRefusalText } from './member-invite';
 import { openPage } from './open';
 import { privacyPage } from './privacy';
 import { booleanUnderEitherName, settingsForWire } from './settings-wire';
@@ -389,6 +390,7 @@ export const APPLE_APP_SITE_ASSOCIATION = {
         components: [
           { '/': '/j/*', comment: 'Community links' },
           { '/': '/i/*', comment: 'Invite links' },
+          { '/': '/m/*', comment: 'Member links' },
         ],
       },
     ],
@@ -2498,7 +2500,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * here is cached as missing by Apple's CDN for days.
    *
    * **`/j/*` and `/i/*`, community links and invite links, since 2026-10-11
-   * and -12.** Every path it does not list keeps opening in a browser, which
+   * and -12, and `/m/*`, member links, since 2026-10-16.** Every path it does not list keeps opening in a browser, which
    * is the scoping — `/g/*` is the one candidate left, and that file says
    * what it would cost. **Deployed before any build claiming the
    * domain is uploaded**: the association is read at install.
@@ -3814,6 +3816,85 @@ export function buildApp(options: BuildOptions = {}): App {
     username: string,
     pin: string
   ): string => `${origin(request)}/i/${username}/${pin}`;
+
+  /** `/m/<username>/<pin>`, a member link: the invite link's shape. */
+  const memberLinkUrl = (request: FastifyRequest, username: string, pin: string): string =>
+    `${origin(request)}/m/${username}/${pin}`;
+
+  /**
+   * Makes a *member link* for this channel: whoever follows it first becomes a
+   * member, and nobody's contact. *Invite as member*'s link on the People tab,
+   * since 2026-10-16. `url` is null for an account with no username, as on
+   * `POST /contacts/invite-link`; a community is refused, its own link being
+   * the way in. See memberLinks.ts.
+   */
+  fastify.post('/channels/:id/member-links', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const result = channels.mintMemberLink(id, account.id);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error, code: result.code });
+    }
+    return {
+      url: result.username && result.pin ? memberLinkUrl(request, result.username, result.pin) : null,
+    };
+  });
+
+  /** Takes a member link back, which gives its place back. */
+  fastify.delete('/channels/:id/member-links/:linkId', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, linkId } = request.params as { id: string; linkId: string };
+    const result = channels.withdrawMemberLink(id, account.id, linkId);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error, code: result.code });
+    }
+    return { ok: true };
+  });
+
+  /**
+   * Follows a member link: whoever is signed in becomes a member of the
+   * channel it opens. The invite link's acceptance in shape — the link proves
+   * who is inviting, the session who is accepting — and the community join's
+   * in what it makes. Answers with the channel, which the app opens.
+   */
+  fastify.post('/member-links/accept', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const body = request.body as { username?: unknown; pin?: unknown } | undefined;
+    const result = channels.joinByMemberLink(body?.username, body?.pin, account.id);
+    if (!result.ok) {
+      const code = result.reason === 'locked' ? 'unknown' : result.reason;
+      return reply.code(400).send({ error: memberRefusalText(result.reason), code });
+    }
+    homeNotifier.notify([account.id]);
+    return { ok: true, channelId: result.channel.id, already: result.already };
+  });
+
+  /**
+   * The page a member link opens in a browser. Unauthenticated, as the invite
+   * page is; the inviter is named only beside a live pin, and the channel
+   * never. See member-invite.ts.
+   */
+  fastify.get('/m/:username/:pin', async (request, reply) => {
+    const { username, pin } = request.params as { username: string; pin: string };
+    reply.type('text/html; charset=utf-8');
+    reply.header('cache-control', 'no-store');
+    const webAppReady = (await availableTrains()).length > 0;
+    const owner = accounts.byUsername(username);
+    const state = owner ? channels.memberLinks.state(owner.id, pin, now()) : null;
+    return memberInvitePage({
+      username,
+      pin,
+      ...(owner && state?.ok
+        ? { displayName: owner.display_name }
+        : { refusal: state && !state.ok ? state.reason : 'unknown' }),
+      appStoreUrl: options.updateUrl,
+      webAppReady,
+      origin: origin(request),
+    });
+  });
 
   /**
    * Mints a link to one channel, for a member to hand to anybody.

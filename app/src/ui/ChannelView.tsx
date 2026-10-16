@@ -48,7 +48,6 @@ import {
   isWithheld,
   partyMuteRequested,
   canPasteClip,
-  canInviteGuest,
   canAskGuestJoin,
   canManageGuest,
   removalMotion,
@@ -56,6 +55,8 @@ import {
   canMoveToRemove,
   ownerRemoves,
   canWithdrawGuestInvite,
+  canWithdrawMemberLink,
+  pendingMemberLinks,
   presentOrEmpty,
   holdsTheControls,
   isPresent,
@@ -68,7 +69,6 @@ import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
-import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { liveChannelView } from '../state/live';
 import { learningToStepIn } from '../state/introduction';
@@ -81,7 +81,6 @@ import {
   BellIcon,
   FloorIcon,
   HomeIcon,
-  InviteIcon,
   PeopleIcon,
   MicIcon,
   ListenIcon,
@@ -93,7 +92,6 @@ import {
 import {
   FooterAction,
   GuestCard,
-  InviteList,
   MicrophoneSilent,
   ParticipantCard,
   PlaybackBlocked,
@@ -115,6 +113,7 @@ import {
   SectionLabel,
   Segmented,
 } from './components';
+import { InviteCard } from './InviteCard';
 import { PasteButton } from './PasteButton';
 import { ago, duration } from './relativeTime';
 import {
@@ -165,7 +164,6 @@ const SKIP_MS = 15_000;
  */
 export type ChannelTab =
   | 'people'
-  | 'invites'
   | 'record'
   | 'listen'
   | 'watch';
@@ -315,7 +313,7 @@ export function ChannelView({
    * silently sending.
    *
    * `?? []` **fails closed**, deliberately: no home means no ping button,
-   * which is the safe direction and the same reading `InviteList` makes below.
+   * which is the safe direction and the same reading `InviteCard` makes.
    * Home arrives before any screen that can reach this one and is re-pushed on
    * every contact change, so the case is a moment at boot rather than a state
    * anybody sits in.
@@ -460,28 +458,6 @@ export function ChannelView({
   const choose = useRef(chooseTab);
   choose.current = chooseTab;
 
-  /**
-   * What came of asking a contact in as a guest, per contact.
-   *
-   * **Per contact rather than one line under the list**, because the list is
-   * a column of people and an error under all of them answers about none of
-   * them. `'asking'` while the round trip is out, the server's own sentence
-   * when it refused, and the row going quiet — `'asked'` — when it did not.
-   *
-   * Three of the refusals cannot be asked here at all: a dormant seat, an
-   * invitation already outstanding, and the fortieth guest are
-   * `guest_sessions` rows that no `ChannelState` carries. So this is not a
-   * fallback for a guard that should have been drawn — it is the only place
-   * those three can be said.
-   */
-  const [askedIn, setAskedIn] = useState<
-    Record<string, 'asking' | 'asked' | string>
-  >({});
-  /** While a guest link is being minted, which is a round trip. */
-  const [sharing, setSharing] = useState(false);
-  const [shareError, setShareError] = useState<string | null>(null);
-  /** Where a link went when there was no share sheet to hand it to. */
-  const [shareNote, setShareNote] = useState<string | null>(null);
   /**
    * Why the last press of the watch card's paste button did nothing.
    *
@@ -2104,11 +2080,6 @@ export function ChannelView({
       icon: (color) => <PeopleIcon color={color} />,
     },
     {
-      value: 'invites',
-      label: t.tabInvite(),
-      icon: (color) => <InviteIcon color={color} />,
-    },
-    {
       value: 'record',
       label: t.tabRecord(),
       icon: (color) => <TranscriptIcon color={color} />,
@@ -3556,6 +3527,52 @@ export function ChannelView({
             </Card>
           ))}
 
+          {/*
+            **Member links, since 2026-10-16**: a link made on the card below
+            holds one of the six places until it is followed, taken back or
+            expires, so it is drawn with the other invitations — a place
+            promised to nobody yet named. Taken back by any member who may
+            invite (`canWithdrawMemberLink`), as a guest invitation is.
+          */}
+          {pendingGuests(channel, now).length === 0 && pendingMemberLinks(channel, now).length > 0 ? (
+            <SectionLabel>{t.invitations()}</SectionLabel>
+          ) : null}
+          {pendingMemberLinks(channel, now).map((link) => (
+            <Card key={link.id} style={styles.stack}>
+              <View style={styles.inviteRow}>
+                <Text style={[type.body, styles.inviteName]} numberOfLines={1}>
+                  {cardWords.memberLinkRow()}
+                </Text>
+                <Button
+                  label={t.takeBack()}
+                  disabled={!canWithdrawMemberLink(channel, me, link.id, now)}
+                  onPress={() => {
+                    void app.withdrawMemberLink(channel.id, link.id);
+                  }}
+                />
+              </View>
+              <Text style={type.muted}>
+                {link.invitedBy === me
+                  ? cardWords.youMadeTheLink()
+                  : cardWords.theyMadeTheLink(nameOf(link.invitedBy))}
+              </Text>
+            </Card>
+          ))}
+
+          {/*
+            **The way in, since 2026-10-16**, when the *Invite* tab went: a
+            card after the people, in *Add a contact*'s shape, that opens in
+            place to *Invite as member* or *as guest* and then to the contacts
+            and a link. Members only — a guest's screen is not this one. See
+            `InviteCard`.
+          */}
+          <InviteCard
+            channel={channel}
+            me={me}
+            now={now}
+            onInviteMember={(contactId) => act({ type: 'INVITE', contactId })}
+          />
+
           {/* Same delay as Home's: a foreground drops the socket every time,
               and this used to announce it the instant it happened. */}
           {showOffline ? (
@@ -4516,102 +4533,6 @@ export function ChannelView({
           </>
         ) : null}
 
-        {tab === 'invites' ? (
-          <>
-            {/*
-              Two ways in, in the order they are reached for: a contact who
-              already has an account, then a link for somebody who has not.
-              The *Who gets in* heading that used to stand over the pair is
-              gone — the tab above says it, and said twice it reads as two
-              different claims.
-
-              The first of the pair is headed *Contacts* rather than *Invite*
-              as of 2026-09-12, when the tab itself became *Invite*: a heading
-              repeating the tab immediately above it names nothing, where the
-              pair *Contacts* and *Guest link* says which of the two ways in
-              each card is.
-            */}
-        <SectionLabel>{t.contacts()}</SectionLabel>
-        <Card style={styles.stack}>
-          <InviteList
-            channel={channel}
-            me={me}
-            mayInvite={presentOrEmptyForMe && !ownersAlone}
-            ownersAlone={ownersAlone}
-            states={askedIn}
-            onInvite={(contactId) => act({ type: 'INVITE', contactId })}
-            onGuest={async (contactId) => {
-              setAskedIn((prior) => ({ ...prior, [contactId]: 'asking' }));
-              try {
-                await app.askInAsGuest(channel.id, contactId);
-                setAskedIn((prior) => ({ ...prior, [contactId]: 'asked' }));
-              } catch (error) {
-                setAskedIn((prior) => ({
-                  ...prior,
-                  [contactId]:
-                    error instanceof Error ? error.message : t.thatDidNotWork(),
-                }));
-              }
-            }}
-          />
-        </Card>
-
-        {/*
-          Below inviting a contact, and it is the rarer of the two: a guest
-          link is for somebody who is not here at all, has no account, and is
-          not going to get one. Whoever is in the room has to let them in, so
-          sharing the link is the beginning of the process rather than the end
-          of it — which is why this says so rather than reading as "sent".
-        */}
-        <SectionLabel>{t.guestLink()}</SectionLabel>
-        <Card style={styles.stack}>
-          <Text style={type.muted}>{t.guestLinkWhat()}</Text>
-          <Button
-            label={
-              sharing
-                ? t.makingALink()
-                : // What it is about to do, rather than what it would rather
-                  // do: a browser with no share sheet can keep the second
-                  // promise and not the first. See src/share.ts.
-                  canShare
-                  ? t.shareAGuestLink()
-                  : t.copyAGuestLink()
-            }
-            disabled={sharing || !canInviteGuest(channel, me)}
-            onPress={async () => {
-              setSharing(true);
-              setShareError(null);
-              setShareNote(null);
-              try {
-                const url = await app.inviteGuest(channel.id);
-                // After the mint and not before it: the rung claims a guest
-                // link exists, and until this resolves none does.
-                app.markTried('guest');
-                const handoff = await shareLink(url);
-                if (handoff === 'copied') {
-                  setShareNote(t.linkCopied());
-                } else if (handoff === 'failed') {
-                  setShareError(t.linkWouldNotCopy());
-                }
-              } catch (error) {
-                setShareError(
-                  error instanceof Error ? error.message : t.thatDidNotWork()
-                );
-              } finally {
-                setSharing(false);
-              }
-            }}
-          />
-          {canInviteGuest(channel, me) ? null : (
-            <Text style={type.muted}>
-              {ownersAlone ? t.ownerInvites() : t.stepInToMakeALink()}
-            </Text>
-          )}
-          {shareError ? <Text style={styles.warning}>{shareError}</Text> : null}
-          {shareNote ? <Text style={type.muted}>{shareNote}</Text> : null}
-        </Card>
-          </>
-        ) : null}
     </Screen>
   );
 }

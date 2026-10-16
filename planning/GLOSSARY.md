@@ -39,7 +39,7 @@ caused; the list carries the meaning.
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The five views of a channel, one at a time: People, Invite, Record, Listen, Watch — *Clipboard* stood second until 2026-10-15, when pasting went into *Record*; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
+- **Channel tabs** — The four views of a channel, one at a time: People, Record, Listen, Watch — *Clipboard* stood second until 2026-10-15, when pasting went into *Record*, and *Invite* after it until 2026-10-16, when the ways in became the *Invite card* on People; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
 - **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say. On the device *watching here*, and only there, each is ordered against the *audio session*: the play chime is sounded first and the microphone released after it, the pause chime waits for the microphone to come back — a chime is played into the session this app holds, and a run is the length of time it does not hold one
@@ -73,6 +73,8 @@ caused; the list carries the meaning.
 - **Invitation** — An ask to join something. Two distinct things can be asked to: the app, as somebody's *contact*, by an *invite link* or an *invitation email*; and a *channel*, by a member — see *guest invitation* for the third, a *seat*
 - **Invitation email** — The message a *contact request* sends when the address has no account; twenty a day per sender, and the only thing here that spends money on somebody who is not a user
 - **Invite link** — `/i/<username>/<pin>`, minted per press of *Add a contact*, which makes whoever follows it first a *contact* and opens the pair's *channel*; a universal link — the app where it is installed, the *invite page* where it is not. A standing `/i/<username>` from 2026-09-25 to 2026-10-15, still honoured
+- **Member link** — `/m/<username>/<pin>`, made by *Invite as member* on the *Invite card*, which makes whoever follows it first a *member* of that one channel and nobody's *contact*; the invite link's shape and its pin's rules, thirty days, and it **holds one of the six places** until followed, taken back or expired, drawn under *Invitations* meanwhile. Not made for a *community*, whose *community link* is offered instead. Since 2026-10-16
+- **Invite card** — The People tab's way in, after the people cards, since 2026-10-16: *Add a contact*'s shape with the word *Invite*, opening in place — never a dialog — to *Invite as member* or *Invite as guest*, and then to the contacts not in the channel, with that one act on every row, and a link at the foot: a *member link* (or a community's own link) for a member, the *guest link* for a guest. Replaced the *Invite* tab, whose rows each forked into *Member* and *Guest*
 - **Contact invitation** — What *Add a contact* sends, since 2026-10-15 its only action: the *invite link* alone, whose page offers the App Store. `contactInvite` in the catalogue
 - **Invite page** — What an *invite link* shows in a browser: who invited you — looked up, and only for a live *invite pin* — and since 2026-10-15 one button, *Accept invite* — the app on iOS, the web app elsewhere — with *Get the app* in a bar across the top as its prerequisite, and Safari's Smart App Banner. A spent, expired or wrong pin draws a refusal naming nobody
 - **Invite pin** — Six digits ending an *invite link* that make it good once, for thirty days; gone 2026-09-25, back 2026-10-15
@@ -352,18 +354,20 @@ planning/decision/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 
 ## Channel tabs
 
-**The five views of a channel**, one at a time, on the switch a channel screen
-draws: *People*, *Invite*, *Record*, *Listen*, *Watch* — the same five always.
-Six until 2026-10-15, *Clipboard* standing second, when a *paste* began to be
-kept in *Record*. For one day, 2026-10-09, there was a seventh, *Transcript*,
+**The four views of a channel**, one at a time, on the switch a channel screen
+draws: *People*, *Record*, *Listen*, *Watch* — the same four always. Six until
+2026-10-15, *Clipboard* standing second, when a *paste* began to be kept in
+*Record*; five until 2026-10-16, when *Invite* became the *Invite card* at the
+foot of *People*. For one day, 2026-10-09, there was a seventh, *Transcript*,
 offered while a *live transcript* was on; it went into *Conversation*, now *Record*,
 with *Recordings* the same day, and the strip stopped changing length.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
 
-**Who, then what.** The first two are the people — who is here, and how
-somebody who is not here gets in. *Clipboard* stood between them until
+**Who, then what.** The first is the people — who is here and, on its *Invite
+card* since 2026-10-16, how somebody who is not here gets in, which was a tab
+of its own until then. *Clipboard* stood between the two until
 2026-10-15, as what somebody in the channel had just handed everybody else,
 and was *Notepad* before 2026-09-27, holding the *description* above the
 clipboard. The description is a setting again, and a *paste* is kept in
@@ -1243,6 +1247,23 @@ refunded, so withdrawing the request does not buy the quota back. A request to
 an address that *does* have an account is a push notification rather than a
 message, costs nothing, and is not counted.
 
+## Invite card
+
+**The People tab's way in, since 2026-10-16**, when the *Invite* tab went.
+After the people cards, a row in the shape *Add a contact* and *Start a
+channel* have — the `+` in the floor's colour and the word — and it opens in
+place, never as a dialog: first *Invite as member* and *Invite as guest*,
+then, for the one chosen, the contacts not already in the channel with that
+act on every row and a link at the foot for somebody who is not a contact.
+A *member link* for a member, or in a *community* its *community link*; the
+*guest link* for a guest. *Back* goes up a step and the mark, turned to a `×`,
+closes it from any.
+
+**Kind first, then who**, Rodrigo's sequence and the reverse of the tab's,
+where each contact's row forked into *Member* and *Guest*. Every step is
+drawn and refused with its reason rather than withheld: a full channel greys
+*as member*, somebody outside the room is told to step in.
+
 ## Invite link
 
 **A link that makes whoever follows it a *contact* of whoever sent it**, once
@@ -1483,6 +1504,27 @@ clears it along with everything else.
 **Nothing sends this mail yet**, and the withdrawal that exists is the in-app
 switch rather than a link on a message nobody has sent. See
 `planning/backlog/marketing-email-has-no-unsubscribe-link.md`.
+
+## Member link
+
+**A link that makes whoever follows it first a *member* of one channel**, and
+nobody's *contact*: `/m/<username>/<pin>`, made by *Invite as member* on the
+*Invite card* for somebody who is not a contact. Since 2026-10-16.
+
+**The *invite link*'s shape on purpose**: the username says whose it is, six
+digits make it good once, wrong guesses count against that owner in the same
+budget as invite pins, and it lasts thirty days; a universal link, the app
+where it is installed and a page with *Accept invite* where it is not. What
+differs is what it opens — a membership, which is a *community link*'s rule,
+and so the page names who asked and never the channel, whose title may be its
+members' names.
+
+**It holds a place.** An outstanding link counts against the six exactly as a
+member does (`membersPromised`), Rodrigo's answer, so a channel cannot hand
+out more ways in than it has room for; it is drawn under *Invitations* on
+People with *Take back*, and an expired one gives its place back without
+anything having run. **Not made for a *community***, whose own link is
+offered instead, so there is one way in.
 
 ## Member
 
@@ -4811,7 +4853,9 @@ are settled:
     Guests                Invitados
     Invitations           Invitaciones
     Description           Descripción
-    Invite (the tab)      Invitar
+    Invite (the card)     Invitar — *Invitar como miembro*, *Invitar como
+                          invitado* the two steps it opens to
+    Member link           Enlace de miembro
     Record (the tab)      Grabado
     Room                  Sala
     Here                  Aquí

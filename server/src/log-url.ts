@@ -86,6 +86,9 @@ const isCredentialPath = (segments: string[]): boolean => {
   // be named to be logged, so one added later is redacted until somebody says
   // otherwise.
   if (segments.length === 3 && segments[0] === 'i') return true;
+  // `/m/<username>/<pin>`, a member link since 2026-10-16: the invite link's
+  // shape and the same secret in the same place.
+  if (segments.length === 3 && segments[0] === 'm') return true;
   // `/devices/<token>` — a push address rather than a sign-in, but still an
   // addressable secret, and nothing reads it in a log.
   if (segments.length === 2 && segments[0] === 'devices') return true;

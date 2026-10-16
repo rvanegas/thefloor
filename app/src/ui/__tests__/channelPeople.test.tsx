@@ -27,7 +27,7 @@ import {
   findSwitch,
   findNamed,
   findTab,
-  invitePrompt,
+  contactAction,
   knowing,
   labelOf,
   mockApp,
@@ -36,6 +36,7 @@ import {
   showChannel,
   showInvites,
   showListen,
+  showPeople,
   showRecord,
   textOf,
 } from '../testing/harness';
@@ -344,22 +345,15 @@ describe('Channel, with a guest in it', () => {
   });
 
   it('offers a contact two ways in, and they are different offers', async () => {
-    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     /*
-      **Guest and Member, where there was one button called Invite.** They are
-      not two spellings of one act: `Member` writes somebody into the roster
-      and spends one of the six permanently; `Guest` opens the room to them for
-      as long as it lasts and spends one of the forty.
+      **Guest and Member are two acts, not two spellings of one**: a member is
+      written into the roster and spends one of the six; a guest is in the
+      room for as long as it lasts and spends one of the forty.
 
-      **Both were buttons on the row until 2026-09-22 and are now one `+` and
-      an offer that opens under it**, which is not the mode-before-acting shape
-      that was rejected when the contact picker came out: nothing is set in
-      advance, the fork arrives at the press, and each answer is the act. What
-      has to keep being true is that the two remain two — one word offered for
-      both would be the collapse the pair of buttons existed to prevent.
-
-      It was an `Alert` for a few hours of that day. The list is what the
-      choice is about, and a box over it covers the name it names.
+      **Kind first, then who, since 2026-10-16**, when the *Invite* tab went
+      into a card on People. The tab opened each contact's own fork; the card
+      asks the kind once and then lists the contacts with that one act on
+      every row. Each step opens in place, never as a dialog.
     */
     mockApp.home = {
       invites: [],
@@ -373,45 +367,33 @@ describe('Channel, with a guest in it', () => {
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showInvites(tree);
+    expect(textOf(tree)).toContain('A member joins the channel and stays.');
 
-    // One control on the row, and it says whose row it is — a list of eight
+    // As a member: the reducer's `INVITE`, unchanged.
+    act(() => findButton(tree, 'Invite as member')!.props.onPress());
+    // One control on each row, and it says whose row it is — a list of eight
     // buttons all called *Invite* is one nobody can navigate by name.
-    const mark = findNamed(tree, 'Invite Miro Okafor')!;
-    expect(mark.props.accessibilityState.expanded).toBe(false);
-
-    // Both offers, both live, and the sentence that tells them apart.
-    const prompt = invitePrompt(tree, 'Miro Okafor');
-    expect(prompt.choices).toEqual(['Guest', 'Member']);
-    expect(prompt.refused).toEqual([]);
-    expect(prompt.message).toContain('A member joins the channel and stays.');
-    // The mark is what opened it and is what closes it again — the way back
-    // is the way in, rather than a third control for one act.
-    expect(findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState.expanded).toBe(
-      true
-    );
-    act(() => findNamed(tree, 'Invite Miro Okafor')!.props.onPress());
-    expect(findButton(tree, 'Guest')).toBeUndefined();
-
-    // The membership is the reducer's, and unchanged.
-    await invitePrompt(tree, 'Miro Okafor').take('Member');
+    act(() => contactAction(tree, 'Miro Okafor')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'INVITE',
       contactId: 'acct_3',
     });
 
-    // The seat is the server's: no `ChannelState` carries a pending
-    // invitation, so there is no action to dispatch and this is a round trip.
-    await invitePrompt(tree, 'Miro Okafor').take('Guest');
+    // As a guest: a round trip, the seat being the server's.
+    act(() => findButton(tree, 'Back')!.props.onPress());
+    act(() => findButton(tree, 'Invite as guest')!.props.onPress());
+    await act(async () => {
+      contactAction(tree, 'Miro Okafor')!.props.onPress();
+    });
     expect(mockApp.askInAsGuest).toHaveBeenCalledWith('sess_1', 'acct_3');
 
     // And the row goes quiet rather than offering the same thing twice.
     expect(textOf(tree)).toContain('Asked in as a guest');
-    expect(findNamed(tree, 'Invite Miro Okafor')).toBeUndefined();
+    expect(contactAction(tree, 'Miro Okafor')).toBeUndefined();
     act(() => tree.unmount());
   });
 
   it('says what the server refused, on the row it was refused about', async () => {
-    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     /*
       Three refusals cannot be drawn as a disabled button, because the facts
       they rest on are `guest_sessions` rows that no `ChannelState` carries: a
@@ -433,23 +415,23 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showInvites(tree);
-    await invitePrompt(tree, 'Miro Okafor').take('Guest');
+    showInvites(tree, 'guest');
+    await act(async () => {
+      contactAction(tree, 'Miro Okafor')!.props.onPress();
+    });
     expect(textOf(tree)).toContain('They already have a seat here.');
     // And the offer stands, a refusal being an answer about now rather than a
     // door closing.
-    expect(findNamed(tree, 'Invite Miro Okafor')).toBeDefined();
+    expect(contactAction(tree, 'Miro Okafor')).toBeDefined();
     act(() => tree.unmount());
   });
 
   it('keeps the guest offer alive in a channel whose membership is full', () => {
-    jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     /*
-      **The full room is exactly the room that wants a guest.** This list used
-      to be replaced entirely by *Channels hold up to 6 people* — one sentence
-      where the contacts had been, offering no way to ask anybody anything.
-      Six members and forty seats are two ceilings, and hitting one says
-      nothing about the other.
+      **The full room is exactly the room that wants a guest.** Six members and
+      forty seats are two ceilings, and hitting one says nothing about the
+      other — so *as member* is drawn grey with its reason, and *as guest*
+      still opens onto the contacts.
     */
     const full = channelOf((c) =>
       ['acct_3', 'acct_4', 'acct_5', 'acct_6'].reduce(
@@ -469,16 +451,74 @@ describe('Channel, with a guest in it', () => {
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
     showInvites(tree);
-    expect(textOf(tree)).toContain('Miro Okafor');
-    // The mark is live and the membership is drawn and grey, with the reason
-    // in its own sentence. It used to be absent instead: there is no greying
-    // a button inside an alert, which is one of the things drawing the fork
-    // in the row bought back.
-    const prompt = invitePrompt(tree, 'Miro Okafor');
-    expect(prompt.choices).toEqual(['Guest', 'Member']);
-    expect(prompt.refused).toEqual(['Member']);
-    expect(prompt.message).toContain('is full');
+    expect(findButton(tree, 'Invite as member')!.props.disabled).toBe(true);
     expect(textOf(tree)).toContain('is full');
+    act(() => findButton(tree, 'Invite as guest')!.props.onPress());
+    expect(contactAction(tree, 'Miro Okafor')!.props.accessibilityState.disabled).toBe(false);
+    act(() => tree.unmount());
+  });
+
+  it('counts a member link as a place taken, and fills the channel with it', () => {
+    const almost = channelOf((c) =>
+      ['acct_3', 'acct_4', 'acct_5'].reduce(
+        (state, id) => reduce(state, { type: 'INVITE', userId: ME, inviteeId: id }, NOW),
+        reduce(c, { type: 'INVITE', userId: ME, inviteeId: 'acct_2' }, NOW)
+      )
+    );
+    const promised = reduce(
+      almost,
+      {
+        type: 'MEMBER_LINK_MADE',
+        link: { id: 'ml_1', invitedBy: ME, invitedAt: NOW, expiresAt: NOW + 86_400_000 },
+      } as never,
+      NOW
+    );
+    showChannel(promised);
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    // Drawn with the invitations, a place promised to nobody yet named.
+    expect(textOf(tree)).toContain('Invitations');
+    expect(textOf(tree)).toContain('Member link');
+    expect(textOf(tree)).toContain('You made it.');
+    showInvites(tree);
+    expect(findButton(tree, 'Invite as member')!.props.disabled).toBe(true);
+
+    act(() => findButton(tree, 'Take back')!.props.onPress());
+    expect(mockApp.withdrawMemberLink).toHaveBeenCalledWith('sess_1', 'ml_1');
+    act(() => tree.unmount());
+  });
+
+  it('shares a member link for somebody who is not a contact', async () => {
+    const share = jest
+      .spyOn(Share, 'share')
+      .mockResolvedValue({ action: 'sharedAction' } as never);
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showInvites(tree, 'member');
+    expect(textOf(tree)).toContain('joins as a member, and not as your contact');
+    await act(async () => {
+      findButton(tree, 'Share a member link')!.props.onPress();
+    });
+    expect(mockApp.inviteMember).toHaveBeenCalledWith('sess_1');
+    expect(share).toHaveBeenCalledWith({ message: 'https://thefloor.test/m/me/123456' });
+    act(() => tree.unmount());
+    share.mockRestore();
+  });
+
+  it('says a link needs a username, for an account with none', async () => {
+    mockApp.inviteMember.mockResolvedValueOnce(null);
+    showChannel(channelOf());
+    const tree = render(
+      <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
+    );
+    showInvites(tree, 'member');
+    await act(async () => {
+      findButton(tree, 'Share a member link')!.props.onPress();
+    });
+    expect(textOf(tree)).toContain('A link needs a username');
     act(() => tree.unmount());
   });
 
@@ -544,7 +584,7 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showInvites(tree);
+    showInvites(tree, 'guest');
     expect(textOf(tree)).toContain('whoever is in the channel decides');
 
     await act(async () => {
@@ -572,7 +612,7 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showInvites(tree);
+    showInvites(tree, 'guest');
 
     await act(async () => {
       findButton(tree, 'Share a guest link')!.props.onPress();
@@ -597,7 +637,7 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showInvites(tree);
+    showInvites(tree, 'guest');
 
     await act(async () => {
       findButton(tree, 'Share a guest link')!.props.onPress();
@@ -620,7 +660,7 @@ describe('Channel, with a guest in it', () => {
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
-    showInvites(tree);
+    showInvites(tree, 'guest');
 
     await act(async () => {
       findButton(tree, 'Share a guest link')!.props.onPress();
@@ -2166,10 +2206,12 @@ describe('a channel screen that does not repeat its footer', () => {
     showRecord(tree);
     expect(findSwitch(tree, 'Audio')).toBeDefined();
     expect(textOf(tree)).toContain('Paste my clipboard');
-    // And the tabs themselves are all still offered. A preference about
-    // repetition that quietly removed a tab would be removing abilities.
+    // And the tabs themselves are all still offered, and the way in on
+    // People. A preference about repetition that quietly removed one would be
+    // removing abilities.
     expect(findTab(tree, 'Record')).toBeDefined();
-    expect(findTab(tree, 'Invite')).toBeDefined();
+    showPeople(tree);
+    expect(findNamed(tree, 'Invite')).toBeDefined();
     act(() => tree.unmount());
   });
 

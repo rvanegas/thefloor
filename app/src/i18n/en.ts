@@ -654,6 +654,28 @@ export const en = {
     hereAsAGuest: () => 'Here as a guest',
     askedInAsAGuest: () => 'Asked in as a guest',
     asking: () => 'Asking\u2026',
+    /** The People tab's card, after the people, since 2026-10-16. */
+    inviteCard: () => 'Invite',
+    inviteAsMember: () => 'Invite as member',
+    inviteAsGuest: () => 'Invite as guest',
+    /** On a contact's row, once the kind has been chosen. */
+    inviteThem: () => 'Invite',
+    askThemIn: () => 'Ask in',
+    back: () => 'Back',
+    shareAMemberLink: () => 'Share a member link',
+    copyAMemberLink: () => 'Copy a member link',
+    memberLinkWhat: (cap: number) =>
+      `Whoever opens it first joins as a member, and not as your contact. Until then it holds one of the ${cap} places, for thirty days or until it is taken back.`,
+    shareTheCommunityLink: () => 'Share the community link',
+    copyTheCommunityLink: () => 'Copy the community link',
+    communityLinkWhat: () => 'The community\u2019s own link. Anybody holding it can join.',
+    linkNeedsAUsername: () =>
+      'A link needs a username. Choose one in your profile, then come back.',
+    /** A pending member link on the People tab, under *Invitations*. */
+    memberLinkRow: () => 'Member link',
+    youMadeTheLink: () => 'You made it. Whoever opens it first joins as a member.',
+    theyMadeTheLink: (who: string) =>
+      `${who} made it. Whoever opens it first joins as a member.`,
   },
   seat: {
     /**
@@ -767,7 +789,7 @@ export const en = {
     openContacts: () => 'Open Contacts',
     install: () => 'Install',
     openTheChannel: () => 'Open the channel',
-    openInvite: () => 'Open Invite',
+    openInvite: () => 'Open People',
     openListen: () => 'Open Listen',
     doneBrief: (label: string) => `Done: ${label}.`,
     rowLabel: (
@@ -1257,7 +1279,6 @@ export const en = {
       'That is not a YouTube link. Copy one from YouTube, then press this again.',
     aFilmNobodyNamed: () => 'A film nobody named',
     tabPeople: () => 'People',
-    tabInvite: () => 'Invite',
     tabListen: () => 'Listen',
     tabRecord: () => 'Record',
     tabWatch: () => 'Watch',

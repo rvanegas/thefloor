@@ -1,7 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Linking } from 'react-native';
 
-import { forgetInvite, peekInvite, type Invite } from '../ui/handover';
+import {
+  forgetInvite,
+  forgetMemberInvite,
+  peekInvite,
+  peekMemberInvite,
+  type Invite,
+  type MemberInvite,
+} from '../ui/handover';
 
 /**
  * The invitation somebody arrived on, by either of the two roads it can take.
@@ -140,6 +147,69 @@ export function useInviteLink(): {
     clearInvite: () => {
       forgetInvite();
       setInvite(null);
+    },
+  };
+}
+
+/**
+ * A *member link*'s two halves, or null: `https://<host>/m/<username>/<pin>`
+ * as a universal link, or `thefloor://m/<username>/<pin>` from its page's
+ * banner and *Accept invite*. Since 2026-10-16; matched rather than parsed for
+ * `inviteOfUrl`'s reason, and both halves required, there being no pin-less
+ * member link.
+ */
+export function memberInviteOfUrl(url: string | null): MemberInvite | null {
+  if (!url) return null;
+  const match = /^(?:https:\/\/[^/?#]+|thefloor:\/)\/m\/([^/?#]+)\/([^/?#]+)/.exec(url);
+  if (!match) return null;
+  try {
+    const username = decodeURIComponent(match[1]);
+    const pin = decodeURIComponent(match[2]);
+    return username && pin ? { username, pin } : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Holds a member link until there is a session to spend it against —
+ * `useInviteLink` for the other kind of link, by both of the same roads and
+ * for every one of the same reasons, which that hook gives. Its own hook and
+ * its own state rather than a field on that one: the two are spent by
+ * different routes into different things, and one holder for both would have
+ * to say which it was holding.
+ */
+export function useMemberLink(): {
+  memberInvite: MemberInvite | null;
+  clearMemberInvite: () => void;
+} {
+  const [memberInvite, setMemberInvite] = useState<MemberInvite | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setMemberInvite((prev) => prev ?? peekMemberInvite());
+    void Linking.getInitialURL()
+      .then((url) => {
+        if (cancelled) return;
+        const arrived = memberInviteOfUrl(url);
+        if (arrived) setMemberInvite((prev) => prev ?? arrived);
+      })
+      .catch(() => {});
+    const subscription = Linking.addEventListener('url', ({ url }) => {
+      const arrived = memberInviteOfUrl(url);
+      if (arrived) setMemberInvite((prev) => prev ?? arrived);
+    });
+    return () => {
+      cancelled = true;
+      subscription.remove();
+    };
+  }, []);
+
+  return {
+    memberInvite,
+    clearMemberInvite: () => {
+      forgetMemberInvite();
+      setMemberInvite(null);
     },
   };
 }

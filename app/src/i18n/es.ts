@@ -497,6 +497,25 @@ export const es: Strings = {
     hereAsAGuest: () => 'Aqu\u00ed como invitado',
     askedInAsAGuest: () => 'Invitado como invitado',
     asking: () => 'Pidiendo\u2026',
+    inviteCard: () => 'Invitar',
+    inviteAsMember: () => 'Invitar como miembro',
+    inviteAsGuest: () => 'Invitar como invitado',
+    inviteThem: () => 'Invitar',
+    askThemIn: () => 'Pedirle que entre',
+    back: () => 'Atr\u00e1s',
+    shareAMemberLink: () => 'Compartir un enlace de miembro',
+    copyAMemberLink: () => 'Copiar un enlace de miembro',
+    memberLinkWhat: (cap: number) =>
+      `Quien lo abra primero se une como miembro, no como tu contacto. Hasta entonces ocupa uno de los ${cap} sitios, durante treinta d\u00edas o hasta que se retire.`,
+    shareTheCommunityLink: () => 'Compartir el enlace de la comunidad',
+    copyTheCommunityLink: () => 'Copiar el enlace de la comunidad',
+    communityLinkWhat: () => 'El enlace propio de la comunidad. Cualquiera que lo tenga puede unirse.',
+    linkNeedsAUsername: () =>
+      'Un enlace necesita un nombre de usuario. Elige uno en tu perfil y vuelve.',
+    memberLinkRow: () => 'Enlace de miembro',
+    youMadeTheLink: () => 'Lo has creado t\u00fa. Quien lo abra primero se une como miembro.',
+    theyMadeTheLink: (who: string) =>
+      `Lo ha creado ${who}. Quien lo abra primero se une como miembro.`,
   },
   seat: {
     micListening: () => 'Est\u00e1s escuchando. Nadie puede o\u00edrte.',
@@ -589,7 +608,7 @@ export const es: Strings = {
     openContacts: () => 'Abrir Contactos',
     install: () => 'Instalar',
     openTheChannel: () => 'Abrir el canal',
-    openInvite: () => 'Abrir Invitar',
+    openInvite: () => 'Abrir Gente',
     openListen: () => 'Abrir Escuchar',
     doneBrief: (label: string) => `Hecho: ${label}.`,
     rowLabel: (
@@ -1010,7 +1029,6 @@ export const es: Strings = {
       'Eso no es un enlace de YouTube. Copia uno desde YouTube y vuelve a pulsar.',
     aFilmNobodyNamed: () => 'Una pel\u00edcula sin nombre',
     tabPeople: () => 'Gente',
-    tabInvite: () => 'Invitar',
     tabListen: () => 'Escuchar',
     tabRecord: () => 'Grabado',
     tabWatch: () => 'Ver',

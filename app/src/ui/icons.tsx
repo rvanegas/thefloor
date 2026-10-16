@@ -372,36 +372,6 @@ export function ClipboardIcon({
 }
 
 /**
- * The ways somebody who is not here gets in. `lucide/user-plus`.
- *
- * A person gained rather than a chain link, though the tab is called *Invite
- * links*: what both controls on it produce is a new member, and the link is
- * the mechanism. `lucide/link` was the obvious alternative and names the
- * mechanism instead — and this application already spends that shape on
- * sharing a recording.
- *
- * It stands beside `PeopleIcon`, which is two figures to this one's one; that
- * adjacency is deliberate rather than a collision, the two tabs being the same
- * subject at two times — who is here, and who is not here yet.
- */
-export function InviteIcon({
-  color,
-  size = 22,
-}: {
-  color: ColorValue;
-  size?: number;
-}) {
-  return (
-    <Glyph color={color} size={size}>
-      <Path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-      <Circle cx="9" cy="7" r="4" />
-      <Path d="M19 8v6" />
-      <Path d="M22 11h-6" />
-    </Glyph>
-  );
-}
-
-/**
  * What is playing into the room. `lucide/music`.
  *
  * Notes rather than a triangle: a play arrow is a button, and there is a real

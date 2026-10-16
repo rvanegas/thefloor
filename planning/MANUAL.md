@@ -147,6 +147,15 @@ the two separately.
 
 ### Bringing somebody in who is not on the app
 
+Everything below starts from **Invite**, at the foot of a channel's *People*:
+choose *Invite as member* or *Invite as guest*, then a contact, or a link for
+somebody who is not one.
+
+**Share a member link** to have somebody join the channel for good without
+becoming your contact. Whoever opens it first joins; it lasts thirty days, and
+until then it holds one of the channel's six places, so you can take it back
+from *Invitations* to free the place.
+
 **Share a guest link.** Whoever follows it opens the channel in a browser, with
 no account and nothing to install. They **knock**, somebody already in the room
 opens the door, and they are in.

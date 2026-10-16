@@ -537,6 +537,36 @@ export const api = {
     ),
 
   /**
+   * Makes a *member link* for a channel, `/m/<username>/<pin>`: whoever
+   * follows it first becomes a member, and nobody's contact. `url` is null for
+   * an account with no username. Since 2026-10-16.
+   */
+  mintMemberLink: (token: string, channelId: string) =>
+    request<{ url: string | null }>(`/channels/${channelId}/member-links`, {
+      method: 'POST',
+      token,
+    }),
+
+  /** Takes a member link back, which gives its place back. */
+  withdrawMemberLink: (token: string, channelId: string, linkId: string) =>
+    request<{ ok: true }>(`/channels/${channelId}/member-links/${linkId}`, {
+      method: 'DELETE',
+      token,
+    }),
+
+  /**
+   * Follows a member link: membership of the channel it opens. Called by
+   * `AppProvider` once there is a session and a link in hand, as
+   * `acceptInvite` is; nobody taps this.
+   */
+  acceptMemberLink: (token: string, username: string, pin: string) =>
+    request<{ ok: true; channelId: string; already: boolean }>('/member-links/accept', {
+      method: 'POST',
+      body: { username, pin },
+      token,
+    }),
+
+  /**
    * Takes up a *join link*: membership of the community its code opens, and
    * nothing else. `already` is true when the caller was a member before.
    */

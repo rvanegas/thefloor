@@ -107,6 +107,7 @@ function Dab({ style }: { style?: StyleProp<ViewStyle> }) {
  */
 export function Button({
   label,
+  accessibilityLabel,
   onPress,
   disabled,
   variant = 'default',
@@ -117,6 +118,12 @@ export function Button({
 }: {
   /** The word on the button — or, with `icon`, the word a screen reader says. */
   label: string;
+  /**
+   * What a screen reader says instead, for a button whose word is the same on
+   * every row of a list — *Invite* beside each contact — and so names nothing
+   * on its own. The row's subject goes in it. Since 2026-10-16.
+   */
+  accessibilityLabel?: string;
   onPress: () => void;
   disabled?: boolean;
   variant?: 'default' | 'primary' | 'floor' | 'danger' | 'quiet';
@@ -174,11 +181,12 @@ export function Button({
       // deliberately: `label` is the same act said in full, so reading both
       // would be a stutter.
       accessibilityLabel={
-        icon
+        accessibilityLabel ??
+        (icon
           ? label
           : badge
             ? [label, badge, sublabel].filter(Boolean).join(', ')
-            : undefined
+            : undefined)
       }
       accessibilityState={{ disabled: !!disabled }}
       onPress={onPress}

@@ -894,6 +894,31 @@ CREATE TABLE IF NOT EXISTS invite_pins (
   PRIMARY KEY (owner_id, pin)
 );
 
+-- A member link's pin: /m/<owner's username>/<pin>, which makes whoever
+-- follows it first a member of channel_id and nothing else. Since 2026-10-16;
+-- see memberLinks.ts. The invite pin's shape and its rules — six digits
+-- checked only beside the username, wrong guesses counted against the owner in
+-- invite_guesses, good once — with the channel it opens, its own id for the
+-- snapshot (the pin being the secret), and an expiry. Spent rather than
+-- deleted, so a second visit is told it was used; withdrawn_at for a link
+-- taken back.
+CREATE TABLE IF NOT EXISTS member_pins (
+  id            TEXT NOT NULL UNIQUE,
+  owner_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  pin           TEXT NOT NULL,
+  channel_id    TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  created_at    INTEGER NOT NULL,
+  expires_at    INTEGER NOT NULL,
+  used_at       INTEGER,
+  used_by       TEXT,
+  withdrawn_at  INTEGER,
+  -- The pair rather than the id, so a clash of six digits is a primary-key
+  -- collision, which insertWithUniqueKey retries.
+  PRIMARY KEY (owner_id, pin)
+);
+CREATE INDEX IF NOT EXISTS member_pins_channel
+  ON member_pins(channel_id);
+
 -- What stands between six digits and somebody working through them.
 --
 -- **Per owner rather than per pin**, which is the whole reason this is a table

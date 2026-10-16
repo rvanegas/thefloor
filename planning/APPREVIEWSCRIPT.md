@@ -79,7 +79,8 @@ whether the thing works, not for a pitch.
    Rename, Export (into Files or Mail is enough), and Delete.
 9. **Play something together.** An audio file from the phone into the room, and
    the other device hearing it.
-10. **The guest.** Share a guest link from the foot of the channel screen, open
+10. **The guest.** On *People*, open *Invite*, then *Invite as guest*, and share
+    a guest link from the foot of it; open
     it in the laptop browser, type a name, knock. Show the knock arriving on the
     phone, admit it, and let the guest speak. Then show the three withdrawals in
     order: take the guest's microphone away, remove the guest, and revoke the

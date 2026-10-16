@@ -327,6 +327,8 @@ export const mockApp = {
   askInAsGuest: jest.fn(async () => {}),
   enterSeat: jest.fn(async () => ({ guestId: 'guest_1', secret: 'sec_1' })),
   withdrawGuestInvite: jest.fn(async () => {}),
+  inviteMember: jest.fn(async (): Promise<string | null> => 'https://thefloor.test/m/me/123456'),
+  withdrawMemberLink: jest.fn(async () => {}),
   guestLinks: jest.fn(async () => [] as GuestLinkSummary[]),
   // Echoes what it was asked for, as the server does when the level is not the
   // default. A test about the refusal path overrides it.
@@ -627,17 +629,33 @@ export function findTab(
 }
 
 /**
- * Press the channel screen's *Invite* tab, so the invitation controls
- * are rendered.
+ * Opens the *Invite* card on the People tab, and with `kind` takes the step
+ * after it — so a test that names a contact's row or a link is looking at it.
  *
- * The two ways into a channel used to sit at the foot of the same scroll as
- * the roster; they are one tap away now, and a test that names a button there
- * has to take that tap. It throws rather than returning quietly when the tab
- * is missing: a test that went on looking at the members tab would pass for the
- * wrong reason the day a control moved back.
+ * The ways in were a tab of their own until 2026-10-16, and before that the
+ * foot of the roster; they are a card at the foot of it again now, opened in
+ * place. It throws when a step is missing rather than returning quietly, so a
+ * test does not pass looking at the wrong face of the card.
  */
-export function showInvites(tree: ReactTestRenderer): void {
-  showTab(tree, 'Invite');
+export function showInvites(tree: ReactTestRenderer, kind?: 'member' | 'guest'): void {
+  showTab(tree, 'People');
+  const card = findNamed(tree, 'Invite');
+  if (!card) throw new Error('No Invite card on People.');
+  if (!card.props?.accessibilityState?.expanded) act(() => card.props.onPress());
+  if (!kind) return;
+  const label = kind === 'member' ? 'Invite as member' : 'Invite as guest';
+  const step = findButton(tree, label);
+  if (!step) throw new Error(`The Invite card has no ${label}.`);
+  if (step.props.accessibilityState?.disabled) throw new Error(`${label} is refused.`);
+  act(() => step.props.onPress());
+}
+
+/** A contact's row button once a kind is chosen, by the name it carries. */
+export function contactAction(
+  tree: ReactTestRenderer,
+  name: string
+): ReactTestInstance | undefined {
+  return findNamed(tree, `Invite ${name}`);
 }
 
 /** The tab you land on, for a test that has to look at two in one render. */
@@ -710,62 +728,6 @@ export function findNamed(
   return tree.root
     .findAll((n) => n.props?.accessibilityRole === 'button')
     .find((n) => n.props?.accessibilityLabel === label);
-}
-
-/**
- * The offer a contact's `+` opens: its sentence, and the two ways in.
- *
- * Presses the mark for `name` and reads the expansion that appears under the
- * row. **It read back the last `Alert.alert` until 2026-09-22**, which is why
- * the callers still mock one — the fork is drawn in the list now, and nothing
- * here raises an alert at all.
- *
- * `choices` is every offer drawn and `refused` those drawn and unavailable,
- * which is the pair the alert could not express: a full roster used to remove
- * `Member` from the list, there being no greying a button inside an alert,
- * and now greys it. Pressing one is still awaited — the guest half is a round
- * trip to the server.
- */
-export function invitePrompt(
-  tree: ReactTestRenderer,
-  name: string
-): {
-  message: string;
-  choices: string[];
-  refused: string[];
-  /** Awaited always: one of the two offers is a round trip to the server. */
-  take: (label: string) => Promise<void>;
-} {
-  const mark = findNamed(tree, `Invite ${name}`);
-  if (!mark) throw new Error(`No invite mark for ${name}.`);
-  if (!mark.props?.accessibilityState?.expanded) act(() => mark.props.onPress());
-  // By their words rather than by position: `Guest` and `Member` are exact
-  // labels that nothing else on this screen carries, and at most one row's
-  // offer is open at a time. `findNamed` is the wrong finder here — a
-  // `Button` that draws its word sets no `accessibilityLabel`, deliberately,
-  // so that a screen reader reads the word and any `sublabel` under it.
-  const offers = ['Guest', 'Member']
-    .map((label) => ({ label, node: findButton(tree, label) }))
-    .filter((offer) => offer.node);
-  if (offers.length === 0)
-    throw new Error(`The invite mark for ${name} opened nothing.`);
-  return {
-    // The sentence sits between the row and the buttons; the whole screen's
-    // text is what a caller wants to assert against anyway, and `textOf` is
-    // the thing every other test reaches for.
-    message: textOf(tree),
-    choices: offers.map((offer) => offer.label),
-    refused: offers
-      .filter((offer) => offer.node!.props.accessibilityState?.disabled)
-      .map((offer) => offer.label),
-    take: async (label) => {
-      const offer = offers.find((o) => o.label === label);
-      if (!offer) throw new Error(`The offer for ${name} has no ${label}.`);
-      await act(async () => {
-        await offer.node!.props.onPress?.();
-      });
-    },
-  };
 }
 
 export function render(element: React.ReactElement): ReactTestRenderer {

@@ -307,8 +307,10 @@ function actionFor(
     case 'floor':
     case 'nearby':
       return inChannel('people', t.openTheChannel());
+    // To *People*, where the Invite card is since the *Invite* tab went on
+    // 2026-10-16.
     case 'guest':
-      return inChannel('invites', t.openInvite());
+      return inChannel('people', t.openInvite());
     // **The rung is still called `player` and the tab is not**, since
     // 2026-09-18. The tab was renamed to *Listen* to sit beside *Watch*; this
     // id is on the wire — `/me/tried` refuses a name it does not know, and

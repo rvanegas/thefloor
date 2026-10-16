@@ -74,6 +74,7 @@ import type {
   Guest,
   GuestId,
   Keep,
+  MemberLink,
   RemovalMotion,
   UserId,
 } from './types';
@@ -270,6 +271,70 @@ export function canMakeCommunity(state: ChannelState, userId: UserId): boolean {
  */
 export function capacityOf(state: ChannelState): number {
   return state.owner !== undefined ? MAX_COMMUNITY_MEMBERS : MAX_CHANNEL_PARTICIPANTS;
+}
+
+/**
+ * How many places among the members are taken or promised: the members, and
+ * every *member link* still standing. What `capacityOf` is measured against,
+ * since 2026-10-16, when an outstanding link began to hold a place — so a
+ * channel of five with one link out is full, and the link is what fills it.
+ *
+ * **`now` because an expired link is not a promise**: read rather than swept,
+ * as `guestsPromised` reads guest invitations. Left out, every link counts,
+ * which is the cautious answer for a caller with no clock to hand.
+ */
+export function membersPromised(state: ChannelState, now = -Infinity): number {
+  return state.participants.length + pendingMemberLinks(state, now).length;
+}
+
+/** The member links still standing, oldest first. What *Invitations* draws. */
+export function pendingMemberLinks(state: ChannelState, now = -Infinity): MemberLink[] {
+  return Object.values(state.memberLinks ?? {})
+    .filter((link) => link.expiresAt > now)
+    .sort((a, b) => a.invitedAt - b.invitedAt);
+}
+
+/**
+ * Whether `userId` may make a *member link* for this channel: whoever may
+ * invite a contact may hand one out, and there must be a place for it to
+ * hold.
+ *
+ * **Not in a community**, which already has a standing door — the *community
+ * link* — and Rodrigo's answer was that *Invite as member* offers that one, so
+ * there is one way in rather than two.
+ */
+export function canMintMemberLink(state: ChannelState, userId: UserId, now = -Infinity): boolean {
+  return (
+    state.status === 'active' &&
+    state.owner === undefined &&
+    isParticipant(state, userId) &&
+    holdsTheControls(state, userId) &&
+    presentOrEmpty(state, userId) &&
+    membersPromised(state, now) < capacityOf(state)
+  );
+}
+
+/**
+ * Whether `userId` may take back a member link that is still standing. The
+ * guest invitation's rule (`canWithdrawGuestInvite`): any member who may
+ * invite, not only its maker, since taking one back is how a full channel
+ * makes room — and a full channel is exactly the one that needs to.
+ */
+export function canWithdrawMemberLink(
+  state: ChannelState,
+  userId: UserId,
+  linkId: string,
+  now = -Infinity
+): boolean {
+  const link = state.memberLinks?.[linkId];
+  return (
+    state.status === 'active' &&
+    isParticipant(state, userId) &&
+    holdsTheControls(state, userId) &&
+    presentOrEmpty(state, userId) &&
+    !!link &&
+    link.expiresAt > now
+  );
 }
 
 /**
@@ -1463,7 +1528,8 @@ export function ownerRemoves(state: ChannelState, userId: UserId): boolean {
 export function canInvite(
   state: ChannelState,
   userId: UserId,
-  inviteeId: UserId
+  inviteeId: UserId,
+  now = -Infinity
 ): boolean {
   return (
     state.status === 'active' &&
@@ -1471,7 +1537,8 @@ export function canInvite(
     holdsTheControls(state, userId) &&
     presentOrEmpty(state, userId) &&
     !isParticipant(state, inviteeId) &&
-    state.participants.length < capacityOf(state)
+    // A place held by a member link is not free: see `membersPromised`.
+    membersPromised(state, now) < capacityOf(state)
   );
 }
 
@@ -1483,12 +1550,12 @@ export function canInvite(
  * anything, and the door is the owner's standing answer. Whether the code
  * they hold is the live one is the server's to check — core has no codes.
  */
-export function canJoin(state: ChannelState, userId: UserId): boolean {
+export function canJoin(state: ChannelState, userId: UserId, now = -Infinity): boolean {
   return (
     state.status === 'active' &&
     state.owner !== undefined &&
     !isParticipant(state, userId) &&
-    state.participants.length < capacityOf(state)
+    membersPromised(state, now) < capacityOf(state)
   );
 }
 
@@ -2712,11 +2779,51 @@ function reduceAction(
     return guestGone(state, action.userId, now);
   }
 
+  if (action.type === 'MEMBER_LINK_MADE') {
+    // Raised by the server once it has written the pin's row, which is where
+    // `canMintMemberLink` was asked; see the action in types.ts.
+    return {
+      ...state,
+      memberLinks: { ...(state.memberLinks ?? {}), [action.link.id]: action.link },
+    };
+  }
+
+  if (action.type === 'MEMBER_LINK_WITHDRAWN') {
+    return withoutMemberLink(state, action.linkId);
+  }
+
+  // Above the wall, for `JOIN`'s reason: the newcomer is not a member yet.
+  // **No capacity test, because the link is the place**: it was counted in
+  // `membersPromised` from the moment it was made, so taking it up turns a
+  // promise into a member without the count moving. A link that has gone —
+  // taken back, or past its expiry — admits nobody.
+  if (action.type === 'JOIN_BY_LINK') {
+    const link = state.memberLinks?.[action.linkId];
+    if (
+      state.status !== 'active' ||
+      !link ||
+      link.expiresAt <= now ||
+      isGuest(state, action.userId) ||
+      isParticipant(state, action.userId)
+    ) {
+      return state;
+    }
+    return withoutMemberLink(
+      {
+        ...state,
+        participants: [...state.participants, action.userId],
+        invitedBy: { ...state.invitedBy, [action.userId]: link.invitedBy },
+        selfMuted: { ...state.selfMuted, [action.userId]: false },
+      },
+      action.linkId
+    );
+  }
+
   // Above the wall below, because it is the one action whose actor is by
   // definition not a member yet. A guest's id is never an account's, so a seat
   // cannot become a membership this way — that is *add to channel*.
   if (action.type === 'JOIN') {
-    if (isGuest(state, action.userId) || !canJoin(state, action.userId)) {
+    if (isGuest(state, action.userId) || !canJoin(state, action.userId, now)) {
       return state;
     }
     return {
@@ -3087,7 +3194,7 @@ function reduceAction(
     }
 
     case 'INVITE': {
-      if (!canInvite(state, action.userId, action.inviteeId)) return state;
+      if (!canInvite(state, action.userId, action.inviteeId, now)) return state;
 
       // One path, whether or not the channel has a name. An unnamed channel
       // used to refuse to widen and move the conversation elsewhere instead;
@@ -4053,6 +4160,18 @@ function without<T>(map: Record<string, T>, key: string): Record<string, T> {
   if (!(key in map)) return map;
   const { [key]: _dropped, ...rest } = map;
   return rest;
+}
+
+/** The state with one member link gone, the field dropped when it empties. */
+function withoutMemberLink(state: ChannelState, linkId: string): ChannelState {
+  const links = state.memberLinks;
+  if (!links || !(linkId in links)) return state;
+  const rest = without(links, linkId);
+  if (Object.keys(rest).length === 0) {
+    const { memberLinks: _gone, ...bare } = state;
+    return bare;
+  }
+  return { ...state, memberLinks: rest };
 }
 
 /**

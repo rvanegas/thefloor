@@ -10,7 +10,7 @@ import {
   render,
   resetHarness,
   showChannel,
-  showInvites,
+  showListen,
   textOf,
 } from '../testing/harness';
 
@@ -94,9 +94,9 @@ describe('the getting-started card', () => {
     expect(drawn(tree)).toBe(true);
 
     // It sits above the tab content rather than on one tab, so somebody who
-    // lands on Invite and finds four strangers gets the same answer as
+    // lands on Listen and finds four strangers gets the same answer as
     // somebody who lands on the roster.
-    await act(async () => showInvites(tree));
+    await act(async () => showListen(tree));
     expect(drawn(tree)).toBe(true);
   });
 

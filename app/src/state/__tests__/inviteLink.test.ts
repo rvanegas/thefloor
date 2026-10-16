@@ -1,4 +1,4 @@
-import { inviteOfUrl } from '../useInviteLink';
+import { inviteOfUrl, memberInviteOfUrl } from '../useInviteLink';
 
 /**
  * The matcher that turns the invite page's *Open in the app* into an
@@ -90,5 +90,32 @@ describe('inviteOfUrl', () => {
   it('refuses a malformed escape rather than throwing', () => {
     expect(inviteOfUrl('thefloor://i/annak/%ZZ')).toBeNull();
     expect(inviteOfUrl('thefloor://i/%E0%A4%A')).toBeNull();
+  });
+});
+
+/**
+ * A member link, `/m/<username>/<pin>`, since 2026-10-16: the invite link's
+ * shape with a membership at the end of it. Its matcher is strict where the
+ * invite link's is lenient, there being no pin-less member link to honour.
+ */
+describe('memberInviteOfUrl', () => {
+  it('reads both halves of the universal link and of the scheme form', () => {
+    expect(memberInviteOfUrl('https://thefloor.rvanegas.co/m/annak/042317')).toEqual({
+      username: 'annak',
+      pin: '042317',
+    });
+    expect(memberInviteOfUrl('thefloor://m/annak/042317')).toEqual({
+      username: 'annak',
+      pin: '042317',
+    });
+  });
+
+  it('refuses a member link with no pin, and an invite link', () => {
+    expect(memberInviteOfUrl('thefloor://m/annak')).toBeNull();
+    expect(memberInviteOfUrl('https://thefloor.rvanegas.co/i/annak/042317')).toBeNull();
+  });
+
+  it('is not read as an invite link either', () => {
+    expect(inviteOfUrl('https://thefloor.rvanegas.co/m/annak/042317')).toBeNull();
   });
 });

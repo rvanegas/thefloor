@@ -65,7 +65,7 @@ import {
   isPreference,
   type ColorSchemePreference,
 } from '../ui/appearance';
-import { useInviteLink } from './useInviteLink';
+import { useInviteLink, useMemberLink } from './useInviteLink';
 import { useJoinLink } from './useJoinLink';
 import { inviteRefusalMessage } from './inviteRefusal';
 import { useText } from '../i18n';
@@ -659,6 +659,15 @@ interface AppValue extends AppState {
   ) => Promise<{ guestId: string; secret?: string }>;
   /** Takes back an invitation nobody has answered. */
   withdrawGuestInvite: (channelId: string, guestId: string) => Promise<void>;
+  /**
+   * Makes a *member link* for a channel, `/m/<username>/<pin>`, and resolves
+   * to it — or to null for an account with no username, which has none to
+   * write. It holds a place among the members until followed, taken back or
+   * expired. Since 2026-10-16.
+   */
+  inviteMember: (channelId: string) => Promise<string | null>;
+  /** Takes back a member link nobody has followed, giving its place back. */
+  withdrawMemberLink: (channelId: string, linkId: string) => Promise<void>;
   /** Every link this channel has, for settings. */
   guestLinks: (channelId: string) => Promise<GuestLinkSummary[]>;
   /**
@@ -1850,6 +1859,40 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.token, join]);
 
   /**
+   * The *member link* this launch arrived on — see `useMemberLink` — spent on
+   * the join link's walk exactly: membership of the channel it opens, the
+   * snapshot fetched, then the channel opened without stepping in. Not a
+   * contact, which is the difference from an invite link. Since 2026-10-16.
+   */
+  const { memberInvite, clearMemberInvite } = useMemberLink();
+  useEffect(() => {
+    if (!state.token || !memberInvite) return;
+    const token = state.token;
+    clearMemberInvite();
+    const stale = () => linkSession.current !== token;
+    void api
+      .acceptMemberLink(token, memberInvite.username, memberInvite.pin)
+      .then(async ({ channelId }) => {
+        if (stale()) return;
+        realtime.watchChannel(channelId);
+        const home = await api.home(token).catch(() => null);
+        if (stale()) return;
+        setState((s) => ({
+          ...s,
+          ...(home ? { home } : {}),
+          landedChannel: channelId,
+        }));
+      })
+      .catch((error: unknown) => {
+        if (stale()) return;
+        setState((s) => ({
+          ...s,
+          lastError: error instanceof Error ? error.message : String(error),
+        }));
+      });
+  }, [state.token, memberInvite]);
+
+  /**
    * Registered on every sign-in and every restored launch, not once ever: iOS
    * reissues a device token after a restore or a reinstall, so a registry
    * written once slowly fills with addresses that no longer resolve.
@@ -2786,6 +2829,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       withdrawGuestInvite: async (channelId, guestId) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         await api.revokeGuestInvite(state.token, channelId, guestId);
+      },
+
+      inviteMember: async (channelId) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        const { url } = await api.mintMemberLink(state.token, channelId);
+        return url;
+      },
+
+      withdrawMemberLink: async (channelId, linkId) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        await api.withdrawMemberLink(state.token, channelId, linkId);
       },
 
       guestLinks: async (channelId) => {

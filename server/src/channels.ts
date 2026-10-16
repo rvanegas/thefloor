@@ -33,6 +33,9 @@ import {
   canLoadTrack,
   canMakeCommunity,
   capacityOf,
+  canMintMemberLink,
+  canWithdrawMemberLink,
+  membersPromised,
   isOwner,
   presentOrEmpty,
   canEditChannel,
@@ -88,8 +91,9 @@ import type {
   RemovalNoticeView,
   SharedChannelView,
 } from '../../core/protocol';
-import type { Accounts } from './accounts';
+import type { Accounts, InviteRefusal } from './accounts';
 import { Guests, isGuestId, type AdmittedGuest } from './guests';
+import { MemberLinks, type MemberPinRow } from './memberLinks';
 import { ROOM_DEPARTURE_MS, Rooms } from './rooms';
 import { Pastes } from './pastes';
 import { Segments } from './segments';
@@ -831,6 +835,8 @@ export class ChannelRegistry {
   readonly segmentLog: Segments;
   /** What has been pasted, each a segment of the *Record*. See pastes.ts. */
   readonly pastes: Pastes;
+  /** The pins behind member links, `/m/<username>/<pin>`. See memberLinks.ts. */
+  readonly memberLinks: MemberLinks;
   /**
    * The durable projection last written per channel, as its JSON. What makes
    * writing on every commit affordable: a transition that changes only
@@ -1120,6 +1126,7 @@ export class ChannelRegistry {
       mixWaitMs
     );
     this.guests = new Guests(db);
+    this.memberLinks = new MemberLinks(db, accounts);
     this.rooms = new Rooms(db);
     this.segmentLog = new Segments(db);
     this.rooms.segments = this.segmentLog;
@@ -1851,6 +1858,124 @@ export class ChannelRegistry {
   }
 
   /**
+   * Makes a *member link* for `channelId`: `/m/<username>/<pin>`, whose pin
+   * this returns with the username. Null pin for an account with no username,
+   * which has no link to write, as for an invite link — the screen offers to
+   * choose one.
+   *
+   * `canMintMemberLink` is asked here, before the row is written, because the
+   * reducer's `MEMBER_LINK_MADE` checks nothing: it is the room's picture of a
+   * row, and a row nothing in the room knew about would hold no place.
+   */
+  mintMemberLink(
+    channelId: string,
+    userId: string
+  ): { ok: true; username: string | null; pin: string | null } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (channel.owner !== undefined) {
+      return { ok: false, error: 'A community is joined by its own link.', code: 'conflict' };
+    }
+    if (!canMintMemberLink(channel, userId, this.now())) {
+      return membersPromised(channel, this.now()) >= capacityOf(channel)
+        ? {
+            ok: false,
+            error: `Channels hold up to ${capacityOf(channel)} people.`,
+            code: 'conflict',
+          }
+        : { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    const username = this.accounts.byId(userId)?.username ?? null;
+    if (!username) return { ok: true, username: null, pin: null };
+    const row = this.memberLinks.mint(channelId, userId, this.now());
+    this.offerMembership(row);
+    return { ok: true, username, pin: row.pin };
+  }
+
+  /**
+   * Takes back a member link that is still standing, which gives its place
+   * back. `canWithdrawMemberLink` is the rule: any member who may invite.
+   */
+  withdrawMemberLink(channelId: string, userId: string, linkId: string): { ok: true } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
+    if (!canWithdrawMemberLink(channel, userId, linkId, this.now())) {
+      return { ok: false, error: 'That link is not yours to take back.', code: 'forbidden' };
+    }
+    this.memberLinks.withdraw(linkId, this.now());
+    this.apply(channelId, '', {
+      type: 'MEMBER_LINK_WITHDRAWN',
+      linkId,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    return { ok: true };
+  }
+
+  /**
+   * Follows a member link: `userId` becomes a member of the channel it opens,
+   * and nobody's contact. Already being a member is an answer rather than a
+   * refusal, as for a community link — a second tap opens the channel — and
+   * spends nothing. Whoever made the link is told, as an owner is told of a
+   * join.
+   */
+  joinByMemberLink(
+    username: unknown,
+    pin: unknown,
+    userId: string
+  ):
+    | { ok: true; channel: ChannelState; already: boolean }
+    | { ok: false; reason: InviteRefusal | 'ended' } {
+    if (typeof username !== 'string' || typeof pin !== 'string') {
+      return { ok: false, reason: 'unknown' };
+    }
+    const owner = this.accounts.byUsername(username);
+    if (!owner) return { ok: false, reason: 'unknown' };
+    const state = this.memberLinks.state(owner.id, pin, this.now());
+    if (!state.ok) {
+      // The person who already took this one up is answered with the channel,
+      // as `redeemInvitePin` answers its spender: a reload, or a second tap.
+      if (state.reason === 'used') {
+        const spent = this.db
+          .prepare('SELECT * FROM member_pins WHERE owner_id = ? AND pin = ?')
+          .get(owner.id, pin.trim()) as MemberPinRow | undefined;
+        const channel = spent && this.channels.get(spent.channel_id);
+        if (spent?.used_by === userId && channel) return { ok: true, channel, already: true };
+      }
+      return { ok: false, reason: state.reason };
+    }
+    const channel = this.channels.get(state.row.channel_id);
+    if (!channel || channel.status !== 'active') return { ok: false, reason: 'ended' };
+    if (isParticipant(channel, userId)) return { ok: true, channel, already: true };
+    const joined = this.apply(channel.id, userId, {
+      type: 'JOIN_BY_LINK',
+      linkId: state.row.id,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    if (!joined.ok || !isParticipant(joined.channel, userId)) {
+      return { ok: false, reason: 'unknown' };
+    }
+    this.memberLinks.spend(state.row.id, userId, this.now());
+    this.push.notify(
+      [owner.id],
+      notifications.joined(this.displayName(userId), joined.channel.name ?? '', channel.id)
+    );
+    return { ok: true, channel: joined.channel, already: false };
+  }
+
+  /** Puts a member link's row in the room's picture: on a mint, and on a revive. */
+  private offerMembership(row: MemberPinRow): void {
+    this.apply(row.channel_id, '', {
+      type: 'MEMBER_LINK_MADE',
+      link: {
+        id: row.id,
+        invitedBy: row.owner_id,
+        invitedAt: row.created_at,
+        expiresAt: row.expires_at,
+      },
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+  }
+
+  /**
    * The standing one-to-one channel a pair have for being contacts, made if it
    * is not there already.
    *
@@ -2420,7 +2545,8 @@ export class ChannelRegistry {
       if (isParticipant(channel, contactId)) {
         return { ok: false, error: 'Already in this channel.', code: 'conflict' };
       }
-      if (channel.participants.length >= capacityOf(channel)) {
+      // Places held by member links count, as the reducer counts them.
+      if (membersPromised(channel, this.now()) >= capacityOf(channel)) {
         return {
           ok: false,
           error:
@@ -7946,6 +8072,12 @@ export class ChannelRegistry {
       // in memory.
       for (const session of this.guests.pendingIn(channel.id, this.now())) {
         this.offerSeat(channel.id, session);
+      }
+      // The member links, on the same reasoning: volatile in the state, the
+      // `member_pins` rows the durable half, and a revive that skipped them
+      // would give back places the channel has promised.
+      for (const row of this.memberLinks.pendingIn(channel.id, this.now())) {
+        this.offerMembership(row);
       }
       // After the track file, because `durableOf` reads it: writing the
       // baseline without it would make the next commit look like a change and
