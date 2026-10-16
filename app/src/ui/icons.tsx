@@ -344,16 +344,13 @@ export function PeopleIcon({
 }
 
 /**
- * The last thing anybody in the channel handed everybody else.
+ * A paste, where the *Record* log draws one, at 14 before its author's name.
  * `lucide/clipboard-list`.
  *
- * A clipboard because that is what the tab is: one paste, replaced in place by
- * whoever is present. It was `NotepadIcon` and drawn the same until
- * 2026-09-27, when the sheet the tab was named after left for Channel
- * Settings as the channel's *description* — the glyph was already the
- * clipboard's, the name was the one thing that had to change. A pencil would
- * have said "write", which is an act and only part of what the tab is for;
- * most visits to it are reading what somebody else pasted.
+ * It was the *Clipboard* tab's glyph from 2026-09-27 until that tab went into
+ * *Record* on 2026-10-15, and `NotepadIcon` before that, drawn the same. It
+ * stayed with pastes rather than going with the tab because it is what marks
+ * one as somebody handing the room something rather than somebody talking.
  */
 export function ClipboardIcon({
   color,

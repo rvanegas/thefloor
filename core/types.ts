@@ -348,15 +348,18 @@ export interface PlaybackTrack {
 }
 
 /**
- * What one person put on the channel's clipboard for the others to take.
+ * One paste: a piece of text somebody here put into the channel for the
+ * others to take.
  *
- * A channel has *a* clipboard, exactly as a device does: pasting replaces
- * whatever was there. That is the whole of the model, and it is why there is
- * no list, no ordering and nothing to delete individually.
+ * **Kept in the *Record* since 2026-10-15**, where each paste stands as a
+ * segment of its own at the instant it was made (`SegmentView.paste`), and is
+ * never deleted. Until then a channel had *a* clipboard, as a device does,
+ * and pasting replaced whatever was there; `ChannelState.clip` is what is
+ * left of that, the latest paste, for the builds that draw it.
  *
- * The content travels in the state rather than being fetched when somebody
- * copies, which is what MAX_CLIP_LENGTH is sized for. Copying is then a local
- * call that cannot fail for any reason except the device clipboard refusing.
+ * The content travels in full, which is what MAX_CLIP_LENGTH is sized for, so
+ * copying is a local call that cannot fail for any reason except the device
+ * clipboard refusing.
  */
 export interface Clip {
   /**
@@ -918,7 +921,14 @@ export interface ChannelState {
    * loading a track ends the party. See `canStartWatch`.
    */
   watch: WatchState;
-  /** What is on the channel's clipboard, or null when nothing is. */
+  /**
+   * The latest paste, or null before any. Since 2026-10-15 every paste is kept
+   * in the *Record* and this one reads them there; what still reads this is a
+   * guest's page, which has no *Record* and draws it as *Last pasted*, and
+   * builds before 364, which draw it as their *Clipboard* tab and may empty
+   * it with `CLEAR_CLIP` — the shim, in SHIMS.md. Set on every paste, which
+   * is also how the server sees that one happened (`Pastes.follow`).
+   */
   clip: Clip | null;
   /**
    * When each present user's last connection dropped. Absent means connected.
@@ -1452,6 +1462,7 @@ export type ChannelAction =
    */
   | { type: 'PASTE_CLIP'; userId: UserId; clip: Clip }
   /** Empties the channel's clipboard. */
+  /** Empties `clip` and nothing in the *Record*; a shim to 364, SHIMS.md. */
   | { type: 'CLEAR_CLIP'; userId: UserId }
   /**
    * Somebody with a link is at the door. Raised by the server when a knock

@@ -1062,6 +1062,12 @@ export interface LiveLine {
  * which the *Record* tab draws as one line and shares as one thing. Every
  * change of what is kept begins another, so where both are kept they cover
  * the same span. Since 2026-10-10.
+ *
+ * **Or a paste**, since 2026-10-15: an instant, `startedAt === endedAt`, with
+ * no recording and no text, carrying `paste`. It breaks nothing — a paste
+ * made while a segment is being kept falls inside that one, which carries on
+ * — so it is the one segment that may overlap another. A build that predates
+ * the field skips it, as it skips any finished segment with nothing in it.
  */
 export interface SegmentView {
   id: string;
@@ -1076,6 +1082,17 @@ export interface SegmentView {
    * is offered only where this is false, is read from the recording.
    */
   text: boolean;
+  /** What was pasted, when this segment is a paste. */
+  paste?: PasteView;
+}
+
+/** One paste as the *Record* keeps it: who, and what. Since 2026-10-15. */
+export interface PasteView {
+  /** The author's account or guest id. */
+  authorId: string;
+  /** Their name when they pasted it, as a live line keeps its speaker's. */
+  displayName: string;
+  text: string;
 }
 
 /**
@@ -1533,6 +1550,7 @@ export type GuestAction =
   /** Changes what the room calls them. Always available. */
   | { type: 'SET_GUEST_NAME'; name: string }
   | { type: 'PASTE_CLIP'; text: string }
+  /** Empties `clip` and nothing in the *Record*; a shim to 364, SHIMS.md. */
   | { type: 'CLEAR_CLIP' };
 
 /**
@@ -1820,6 +1838,7 @@ export type ClientAction =
    */
   | { type: 'ON_ANOTHER_CALL'; onCall: boolean }
   | { type: 'PASTE_CLIP'; text: string }
+  /** Empties `clip` and nothing in the *Record*; a shim to 364, SHIMS.md. */
   | { type: 'CLEAR_CLIP' }
   /**
    * Answers somebody at the door. Carries the knock rather than a person,

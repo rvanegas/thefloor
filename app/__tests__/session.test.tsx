@@ -373,7 +373,7 @@ describe('a tap on a notification', () => {
     // The channel screen rather than the list. Asserted on a card that only
     // this screen has: the footer says "In" and "Out" in the short forms, so
     // no substring of it tells being there from looking at it.
-    expect(textOf(tree)).toContain('Clipboard');
+    expect(textOf(tree)).toContain('Listen');
     // And nothing was entered. `act` is how every action reaches the server,
     // so an untouched mock is the whole claim: no `ENTER`, and no anything.
     expect(mockApp.act).not.toHaveBeenCalled();
@@ -910,7 +910,7 @@ describe('the swipes', () => {
 
     act(() => swipesOf(tree)!.left!());
     // The channel screen, asserted on a tab only it has.
-    expect(textOf(tree)).toContain('Clipboard');
+    expect(textOf(tree)).toContain('Listen');
 
     // And from a channel it is the other way round.
     expect(swipesOf(tree)?.right).toBeDefined();
@@ -934,7 +934,7 @@ describe('the swipes', () => {
   });
 
   /**
-   * **The way back in lands where you left.** Swiping out of the clipboard and
+   * **The way back in lands where you left.** Swiping out of *Record* and
    * straight back in put you on the roster, which is a gesture undoing rather
    * less than it appears to. Only the swipe remembers: opening the same
    * channel by tapping it still lands on the roster, which `ChannelView` owns
@@ -947,10 +947,9 @@ describe('the swipes', () => {
     });
 
     act(() => swipesOf(tree)!.left!());
-    pressButton(tree, 'Clipboard');
-    // A control the clipboard tab has and the roster does not. The tab's own
-    // section label went with the description on 2026-09-27, the tab being
-    // named after the one card left on it.
+    pressButton(tree, 'Record');
+    // A control *Record* has and the roster does not, since the *Clipboard*
+    // tab went into it on 2026-10-15.
     expect(textOf(tree)).toContain('Paste my clipboard');
 
     act(() => swipesOf(tree)!.right!());

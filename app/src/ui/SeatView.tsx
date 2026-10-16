@@ -293,6 +293,12 @@ export function SeatView({
         </>
       ) : null}
 
+      {/*
+        **The latest paste, since 2026-10-15**, when a paste began to be kept
+        in the *Record* rather than replacing a one-slot clipboard. A guest
+        has no *Record* to read it in, so the page goes on showing the newest
+        one; and no *Clear*, a paste being kept for good.
+      */}
       <SectionLabel>{t.clipboard()}</SectionLabel>
       <Card style={styles.stack}>
         <Text style={view.clip ? type.body : type.muted}>
@@ -311,13 +317,6 @@ export function SeatView({
               act({ type: 'PASTE_CLIP', text });
             }}
           />
-          {view.clip ? (
-            <Button
-              label={t.clear()}
-              style={styles.flexButton}
-              onPress={() => act({ type: 'CLEAR_CLIP' })}
-            />
-          ) : null}
         </View>
       </Card>
 

@@ -91,6 +91,7 @@ import type {
 import type { Accounts } from './accounts';
 import { Guests, isGuestId, type AdmittedGuest } from './guests';
 import { ROOM_DEPARTURE_MS, Rooms } from './rooms';
+import { Pastes } from './pastes';
 import { Segments } from './segments';
 import {
   insertWithUniqueKey,
@@ -391,6 +392,7 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'ON_ANOTHER_CALL',
   'SET_WATCH_MUTE',
   'PASTE_CLIP',
+  // For the *Clipboard* tab of builds up to 363; SHIMS.md, gate 364.
   'CLEAR_CLIP',
   'SET_GUEST_SPEECH',
   'EJECT_GUEST',
@@ -827,6 +829,8 @@ export class ChannelRegistry {
   readonly rooms: Rooms;
   /** What each stretch of a room kept. See segments.ts. */
   readonly segmentLog: Segments;
+  /** What has been pasted, each a segment of the *Record*. See pastes.ts. */
+  readonly pastes: Pastes;
   /**
    * The durable projection last written per channel, as its JSON. What makes
    * writing on every commit affordable: a transition that changes only
@@ -1119,6 +1123,8 @@ export class ChannelRegistry {
     this.rooms = new Rooms(db);
     this.segmentLog = new Segments(db);
     this.rooms.segments = this.segmentLog;
+    this.pastes = new Pastes(db, (id) => this.displayName(id));
+    this.rooms.pastes = this.pastes;
     this.trackRoot =
       trackRoot ??
       join(tmpdir(), `thefloor-tracks-${process.pid}-${++ephemeralRoots}`);
@@ -4495,6 +4501,7 @@ export class ChannelRegistry {
     }
     // After the room, so a segment never opens in a room not yet written.
     this.segmentLog.follow(before, after, this.now());
+    this.pastes.follow(before, after);
     if (before.present.length > 0 && after.present.length === 0) {
       // The rule guest links are given: valid until the channel is emptied of
       // present members. Written here, on the transition, and never asked as a

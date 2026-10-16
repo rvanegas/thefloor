@@ -10,7 +10,7 @@ import {
   render,
   resetHarness,
   showChannel,
-  showClipboard,
+  showInvites,
   textOf,
 } from '../testing/harness';
 
@@ -71,7 +71,7 @@ describe('a refused channel action', () => {
     const { tree } = await show((id) => ({ [id]: SENTENCE }));
     expect(textOf(tree)).toContain('That did not go through');
     expect(textOf(tree)).toContain(SENTENCE);
-    await showClipboard(tree);
+    await showInvites(tree);
     expect(textOf(tree)).toContain(SENTENCE);
   });
 

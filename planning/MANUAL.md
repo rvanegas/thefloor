@@ -187,8 +187,11 @@ corner of the others, where it can be dragged out of the way or tapped to go
 back to the controls. To stop watching, go *nearby* or step *out* — the same
 two rungs that say so to everybody else.
 
-**The clipboard** is one piece of text the channel holds, which anybody in it
-can read, replace or clear. It is silent, so the floor does not govern it.
+**Pasting** puts a piece of text into the channel's *Record*, at the moment
+you paste it, for anybody here to copy — on *Record*, with *Paste my
+clipboard*. It stays there with whatever else the room kept, and nobody can
+take it back. You have to be in the room to paste. It is silent, so the floor
+does not govern it.
 
 ### Notifications, and why we are asking for the permission
 

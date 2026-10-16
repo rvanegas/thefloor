@@ -491,7 +491,8 @@ things that this file keeps apart:
   seen from one: whether what you are looking at is somebody else's
   conversation. Since 2026-08-22 it governs the channel's name and description,
   inviting a contact, minting and revoking a guest link, the shared track, the
-  clipboard, guest management, and — at the two HTTP routes, through
+  clipboard until 2026-10-15 — when pasting began to ask for somebody here, a
+  paste being kept in a room — guest management, and — at the two HTTP routes, through
   `Channels.presentOrEmptyIn` — renaming and deleting a recording. **Membership is
   standing over a channel; it is not standing over an occupation of it.**
 

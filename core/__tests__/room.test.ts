@@ -120,8 +120,6 @@ describe('the room rule', () => {
       ['the name and description', (s) => canEditChannel(s, BOB)],
       ['inviting a contact', (s) => canInvite(s, BOB, CARA)],
       ['minting a guest link', (s) => canInviteGuest(s, BOB)],
-      ['pasting to the clipboard', (s) => canPasteClip(s, BOB)],
-      ['clearing the clipboard', (s) => canClearClip(s, BOB)],
     ];
 
     for (const [what, guard] of cases) {
@@ -131,13 +129,26 @@ describe('the room rule', () => {
   });
 
   /**
+   * **Pasting left this list on 2026-10-15**, when a paste began to be kept
+   * in the *Record* as a segment of its own. The log is laid out in rooms,
+   * and an empty channel has no room for a paste to be kept in.
+   */
+  it('does not govern pasting any more, which asks for somebody here', () => {
+    expect(presentOrEmpty(empty(), BOB)).toBe(true);
+    expect(canPasteClip(empty(), BOB)).toBe(false);
+    expect(canClearClip(empty(), BOB)).toBe(false);
+    expect(canPasteClip(occupied(), ALICE)).toBe(true);
+    expect(canPasteClip(occupied(), BOB)).toBe(false);
+  });
+
+  /**
    * **The shared track left this list on 2026-09-20**, which is worth an
    * assertion rather than a comment: the empty half of the rule let a member
    * who had not stepped in play a track into a channel, and that was reached
    * from the app on build 261 rather than argued about. `canControlPlayback`
    * asks presence now, as the watch party's transport already did. What is
-   * left on the list is the things a conversation can *see* — its name, who
-   * gets in, the clipboard — where an empty channel really is nobody's to
+   * left on the list is the things a conversation can *see* — its name and who
+   * gets in — where an empty channel really is nobody's to
    * interrupt.
    */
   it('does not govern the shared track any more', () => {

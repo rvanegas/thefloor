@@ -696,10 +696,9 @@ export const en = {
     accept: () => 'Accept',
     thatDidNotWork: () => 'That did not work.',
     noThanks: () => 'No thanks',
-    clipboard: () => 'Clipboard',
-    nothingOnTheClipboard: () => 'Nothing on the clipboard.',
+    clipboard: () => 'Last pasted',
+    nothingOnTheClipboard: () => 'Nothing pasted yet.',
     pasteMine: () => 'Paste mine',
-    clear: () => 'Clear',
     yourNameHere: () => 'Your name here',
     whatYouAreCalledHere: () =>
       'What people here call you. It is this conversation only, and nothing about your account.',
@@ -988,7 +987,7 @@ export const en = {
       `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. You own it: only you invite people, decide what plays and what is recorded, name and describe it, hold the link, remove a member, and delete it for everybody. You cannot leave it.`,
     /** What a community is, said to anybody in it but its owner. */
     communityMemberWhat: (members: number) =>
-      `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. Its owner alone invites people, decides what plays and what is recorded, names and describes it, holds the link, removes members and can delete it for everybody. Everybody else can claim the floor, mute themselves, use the clipboard and ping a contact.`,
+      `Anybody with its link can join, up to ${members} members, without becoming anybody\u2019s contact, and what is said and recorded in it stays with its members. Its owner alone invites people, decides what plays and what is recorded, names and describes it, holds the link, removes members and can delete it for everybody. Everybody else can claim the floor, mute themselves, paste into the record and ping a contact.`,
     /** On a channel of one: see `canMakeCommunity`. */
     makeCommunity: () => 'Make channel into a community',
     makeCommunityNote: (members: number) =>
@@ -1258,7 +1257,6 @@ export const en = {
       'That is not a YouTube link. Copy one from YouTube, then press this again.',
     aFilmNobodyNamed: () => 'A film nobody named',
     tabPeople: () => 'People',
-    tabClipboard: () => 'Clipboard',
     tabInvite: () => 'Invite',
     tabListen: () => 'Listen',
     tabRecord: () => 'Record',
@@ -1269,7 +1267,7 @@ export const en = {
     copyFailed: () => '\u2717 copy failed',
     copy: () => 'Copy',
     clipTooLong: (max: number) =>
-      `That is too long to share. The channel clipboard holds ${max} characters.`,
+      `That is too long to paste. A paste holds up to ${max} characters.`,
     couldNotShare: () => 'Could not share',
     recordingPaused: () => 'Recording paused',
     recording: () => 'Recording',
@@ -1404,13 +1402,13 @@ export const en = {
     reconnectingIsLeaving: () =>
       'Reconnecting — a dropped connection counts as leaving.',
     open: () => 'Open',
-    clear: () => 'Clear',
-    nothingOnTheChannelClipboard: () => 'Nothing on the channel clipboard.',
-    replaceWithMyClipboard: () => 'Replace with my clipboard',
     pasteMyClipboard: () => 'Paste my clipboard',
-    oneClipboard: () =>
-      'One clipboard for the channel — pasting replaces what is on it, and anyone here can copy it.',
-    stepInToPaste: () => 'Step in to put something on the channel clipboard.',
+    /** Under the paste button: where a paste goes, and that it stays. */
+    pasteGoesInTheRecord: () =>
+      'Goes into the record at this moment, for anyone here to copy. A paste cannot be taken back.',
+    stepInToPaste: () => 'Step in to paste into the record.',
+    /** Who pasted a paste in the record; said by a screen reader and in a share. */
+    pastedBy: (who: string) => `Pasted by ${who}`,
     back15: () => '\u221215s',
     pause: () => 'Pause',
     play: () => 'Play',

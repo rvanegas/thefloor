@@ -70,9 +70,9 @@ whether the thing works, not for a pitch.
 6. **The floor.** With both accounts present, claim it, and show the other
    phone's microphone going quiet and saying so. This is the app's one mechanic
    and the least self-explanatory thing in it.
-7. **The clipboard.** Paste something; show it appearing on the other device;
-   copy it there. One piece of text per channel, replaced rather than
-   accumulated.
+7. **Pasting.** On *Record*, paste something; show it appearing in the log on
+   the other device, at the moment it was pasted; copy it there. Every paste
+   is kept, in the order made, and none can be taken back.
 8. **Record.** Start, talk on both devices, stop. Show the recording row
    appearing, then **wait** — Play and Export are greyed for a few seconds while
    the mix is made, which the notes call out as looking like a bug. Then Play,

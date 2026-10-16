@@ -209,11 +209,12 @@ describe('the seat screen', () => {
     act(() => tree.unmount());
   });
 
-  it('reads the channel’s clipboard and offers to replace it', () => {
+  it('shows the latest paste, and offers no way to take it back', () => {
+    // Since 2026-10-15 a paste is kept in the *Record*, which a guest has no
+    // view of, so the page shows the newest one — and no *Clear*, a paste
+    // being kept for good.
     const empty = render(<SeatView view={seatOf()} onClose={() => {}} />);
-    expect(textOf(empty)).toContain('Nothing on the clipboard');
-    // Nothing to clear when there is nothing on it.
-    expect(findButton(empty, 'Clear')).toBeUndefined();
+    expect(textOf(empty)).toContain('Nothing pasted yet');
     act(() => empty.unmount());
 
     const withClip = seatOf((v) => ({
@@ -227,11 +228,9 @@ describe('the seat screen', () => {
       },
     }));
     const tree = render(<SeatView view={withClip} onClose={() => {}} />);
+    expect(textOf(tree)).toContain('Last pasted');
     expect(textOf(tree)).toContain('https://example.com');
-    act(() => findButton(tree, 'Clear')!.props.onPress());
-    expect(mockApp.actAsSeat).toHaveBeenCalledWith('sess_1', {
-      type: 'CLEAR_CLIP',
-    });
+    expect(findButton(tree, 'Clear')).toBeUndefined();
     act(() => tree.unmount());
   });
 });

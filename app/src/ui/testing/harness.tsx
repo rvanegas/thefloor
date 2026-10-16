@@ -645,11 +645,6 @@ export function showPeople(tree: ReactTestRenderer): void {
   showTab(tree, 'People');
 }
 
-/** The channel clipboard, which since 2026-09-27 is all this tab holds. */
-export function showClipboard(tree: ReactTestRenderer): void {
-  showTab(tree, 'Clipboard');
-}
-
 /** The shared track and the recording controls. */
 export function showListen(tree: ReactTestRenderer): void {
   showTab(tree, 'Listen');

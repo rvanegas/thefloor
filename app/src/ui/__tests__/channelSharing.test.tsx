@@ -32,7 +32,6 @@ import {
   render,
   resetHarness,
   showChannel,
-  showClipboard,
   showRecord,
   showWatch,
   textOf,
@@ -2393,44 +2392,54 @@ describe('Channel, watching together', () => {
 
 });
 
-describe('the channel clipboard', () => {
-  /**
-   * One slot, and how much of it is on screen is as much the point as what is.
-   *
-   * The preview shows never more than fits on one line — so a short paste
-   * appears whole and a long one is truncated. The bound is the line rather
-   * than any notion of withholding: it keeps the card from becoming a place
-   * long things are read, a channel screen being one that gets left face-up
-   * on tables. `numberOfLines={1}` is what enforces it, asserted rather than
-   * assumed.
-   */
-  const CLIP = {
+/**
+ * Pasting, which since 2026-10-15 is on *Record*: a paste is kept in the log as
+ * a segment of its own, at the moment it was made, and is never deleted. Two
+ * halves — the control at the foot of the tab, and the paste as the log draws
+ * it, from a room the server lists with it among its segments.
+ */
+describe('pasting into the record', () => {
+  const { api } = require('../../api/http');
+
+  const PASTE = {
     id: 'clip_1',
-    authorId: THEM,
-    pastedAt: NOW - 180_000,
-    kind: 'text' as const,
-    text: 'https://example.com/the-thing',
+    startedAt: NOW + 4_000,
+    endedAt: NOW + 4_000,
+    recordingId: null,
+    text: false,
+    paste: { authorId: THEM, displayName: 'Dana Chu', text: 'https://example.com/the-thing' },
   };
 
-  function showClip(clip: Partial<typeof CLIP> = {}) {
-    showChannel(channelOf((s) => ({ ...s, clip: { ...CLIP, ...clip } })));
+  /** A room that kept nothing but pastes, or kept text with them inside it. */
+  function roomWith(segments: unknown[]) {
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        {
+          id: 'room_1',
+          openedAt: NOW,
+          closedAt: NOW + 60_000,
+          recordingIds: [],
+          transcribed: false,
+          segments,
+        },
+      ],
+    } as never);
   }
 
-  /**
-   * The screen, on *Clipboard* — the tab the clipboard has had to itself
-   * since 2026-09-27, the *notepad* it shared it with having gone back to
-   * Channel Settings as the channel's description. One tap from the roster,
-   * taken here rather than in every test because it is not what any of them
-   * is about.
-   */
-  function open() {
+  function withPaste(paste: Partial<typeof PASTE.paste> = {}) {
+    roomWith([{ ...PASTE, paste: { ...PASTE.paste, ...paste } }]);
+  }
+
+  /** The screen, on *Record*, with the rooms fetched. */
+  async function open() {
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
         onClose={() => {}}
         onExit={() => {}}
       />);
-    showClipboard(tree);
+    showRecord(tree);
+    await act(async () => {});
     return tree;
   }
 
@@ -2439,77 +2448,51 @@ describe('the channel clipboard', () => {
     (Clipboard.getStringAsync as jest.Mock).mockImplementation(async () => '');
   });
 
-  /**
-   * The host Text carrying `contains`.
-   *
-   * Identified by its content rather than by `numberOfLines`, which the
-   * channel title higher up the screen also sets — selecting on the property
-   * under test found that one instead and passed for the wrong reason.
-   *
-   * And the content has to be the clip's own: the *notepad* that sat under it
-   * on this tab illustrated links with `example.com`, so a bare host matched
-   * the help text first. Whatever is passed here must be a string only the
-   * clip can carry.
-   */
-  function textNodeWith(
-    tree: ReactTestRenderer,
-    contains: string
-  ): ReactTestInstance | undefined {
-    return tree.root
-      .findAll((n) => n.type === 'Text')
-      .find((n) => labelOf(n).includes(contains));
-  }
-
-  it('says who pasted, how long ago, and shows one line of what', () => {
-    showClip();
-    const tree = open();
-
-    // `textOf` joins adjacent strings with a space, so the interpolated name
-    // arrives with two — matched loosely rather than pinning that detail.
-    expect(textOf(tree)).toMatch(/Pasted by\s+Dana Chu/);
-    expect(textOf(tree)).toContain('3 minutes ago');
-    expect(textOf(tree)).toContain('example.com');
-    act(() => tree.unmount());
-  });
-
-  it('holds the preview to a single truncated line', () => {
-    showClip();
-    const tree = open();
-    // The prop, not the rendered height: the test renderer lays nothing out,
-    // so the truncation is only observable as the instruction to truncate.
-    expect(
-      textNodeWith(tree, 'example.com/the-thing')!.props.numberOfLines
-    ).toBe(1);
-    act(() => tree.unmount());
-  });
-
-  it('collapses whitespace so a leading newline does not preview as blank', () => {
-    // `numberOfLines` counts rendered lines. Text beginning with a newline
-    // would spend the only one on nothing, which reads as a failed paste.
-    showClip({ text: '\n\n  first line\n  second line  ' });
-    const tree = open();
-    expect(labelOf(textNodeWith(tree, 'first line')!)).toBe(
-      'first line second line'
-    );
-    act(() => tree.unmount());
-  });
-
-  it('says the clipboard is empty when nothing has been pasted', () => {
+  it('has no Clipboard tab', async () => {
     showChannel(channelOf());
-    const tree = open();
-
-    expect(textOf(tree)).toContain('Nothing on the channel clipboard');
+    const tree = await open();
+    expect(findTab(tree, 'Clipboard')).toBeUndefined();
     act(() => tree.unmount());
   });
 
-  it('copies the whole text, not the line that was shown', async () => {
+  it('draws a paste whole, under who pasted it and when', async () => {
     const long = `https://example.com/${'x'.repeat(400)}`;
-    showClip({ text: long });
-    const tree = open();
+    withPaste({ text: long });
+    showChannel(channelOf());
+    const tree = await open();
+    expect(textOf(tree)).toContain('Dana Chu');
+    expect(textOf(tree)).toContain(long);
+    act(() => tree.unmount());
+  });
+
+  it('draws a paste made while text was kept among its lines, at its moment', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        { id: 'l1', identity: ME, displayName: 'Me', startAt: NOW + 1_000, endAt: NOW + 2_000, text: 'before the paste', confidence: null },
+        { id: 'l2', identity: ME, displayName: 'Me', startAt: NOW + 9_000, endAt: NOW + 10_000, text: 'after the paste', confidence: null },
+      ],
+      more: false,
+    } as never);
+    roomWith([
+      { id: 'seg_text', startedAt: NOW, endedAt: NOW + 60_000, recordingId: null, text: true },
+      PASTE,
+    ]);
+    showChannel(channelOf((c) => reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW)));
+    const tree = await open();
+    const text = textOf(tree);
+    expect(text.indexOf('before the paste')).toBeLessThan(text.indexOf('example.com/the-thing'));
+    expect(text.indexOf('example.com/the-thing')).toBeLessThan(text.indexOf('after the paste'));
+    act(() => tree.unmount());
+  });
+
+  it('copies the whole of a paste', async () => {
+    const long = `https://example.com/${'x'.repeat(400)}`;
+    withPaste({ text: long });
+    showChannel(channelOf());
+    const tree = await open();
     await act(async () => {
       findButton(tree, 'Copy')!.props.onPress();
     });
-
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(long);
     expect(textOf(tree)).toContain('✓ copied');
     act(() => tree.unmount());
@@ -2517,36 +2500,48 @@ describe('the channel clipboard', () => {
 
   it('says so when the clipboard declines the copy', async () => {
     (Clipboard.setStringAsync as jest.Mock).mockImplementation(async () => false);
-    showClip();
-    const tree = open();
+    withPaste();
+    showChannel(channelOf());
+    const tree = await open();
     await act(async () => {
       findButton(tree, 'Copy')!.props.onPress();
     });
-
     expect(textOf(tree)).toContain('✗ copy failed');
     act(() => tree.unmount());
   });
 
-  it('offers to open what was pasted when the whole of it is a link', () => {
-    showClip();
-    const tree = open();
+  it('offers to open a paste when the whole of it is a link', async () => {
+    withPaste();
+    showChannel(channelOf());
+    const tree = await open();
     expect(findButton(tree, 'Open')).toBeDefined();
     act(() => tree.unmount());
   });
 
-  it('offers no such thing for text that merely contains one', () => {
+  it('offers no such thing for text that merely contains one', async () => {
     // Finding a URL inside longer text would mean guessing which of several
     // somebody meant, and guessing wrong opens the wrong page.
-    showClip({ text: 'have a look at https://example.com when you can' });
-    const tree = open();
+    withPaste({ text: 'have a look at https://example.com when you can' });
+    showChannel(channelOf());
+    const tree = await open();
     expect(findButton(tree, 'Open')).toBeUndefined();
     act(() => tree.unmount());
   });
 
-  it('offers no such thing for a scheme the app will not hand to the OS', () => {
-    showClip({ text: 'javascript:alert(1)' });
-    const tree = open();
+  it('offers no such thing for a scheme the app will not hand to the OS', async () => {
+    withPaste({ text: 'javascript:alert(1)' });
+    showChannel(channelOf());
+    const tree = await open();
     expect(findButton(tree, 'Open')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('offers no way to take a paste back', async () => {
+    withPaste();
+    showChannel(channelOf());
+    const tree = await open();
+    expect(findButton(tree, 'Clear')).toBeUndefined();
+    expect(findButton(tree, 'Delete')).toBeUndefined();
     act(() => tree.unmount());
   });
 
@@ -2555,7 +2550,7 @@ describe('the channel clipboard', () => {
       async () => 'https://example.com/new'
     );
     showChannel(channelOf());
-    const tree = open();
+    const tree = await open();
     await act(async () => {
       findButton(tree, 'Paste my clipboard')!.props.onPress();
     });
@@ -2569,7 +2564,7 @@ describe('the channel clipboard', () => {
 
   it('says so rather than sending nothing when the device clipboard is empty', async () => {
     showChannel(channelOf());
-    const tree = open();
+    const tree = await open();
     await act(async () => {
       findButton(tree, 'Paste my clipboard')!.props.onPress();
     });
@@ -2590,38 +2585,25 @@ describe('the channel clipboard', () => {
       'x'.repeat(MAX_CLIP_LENGTH + 1)
     );
     showChannel(channelOf());
-    const tree = open();
+    const tree = await open();
     await act(async () => {
       findButton(tree, 'Paste my clipboard')!.props.onPress();
     });
 
     expect(mockApp.act).not.toHaveBeenCalled();
-    expect(textOf(tree)).toContain('too long to share');
+    expect(textOf(tree)).toContain('too long to paste');
     act(() => tree.unmount());
   });
 
-  it('will not let somebody who has stepped out paste or clear', () => {
-    showChannel(
-      channelOf((s) => ({
-        ...reduce(s, { type: 'STEP_OUT', userId: ME }, NOW),
-        clip: CLIP,
-      }))
-    );
-    const tree = open();
+  it('will not let somebody who has stepped out paste, and still lets them copy', async () => {
+    withPaste();
+    showChannel(channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
+    const tree = await open();
 
-    expect(findButton(tree, 'with my clipboard')!.props.disabled).toBe(true);
-    expect(findButton(tree, 'Clear')!.props.disabled).toBe(true);
+    expect(findButton(tree, 'Paste my clipboard')!.props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('Step in to paste into the record');
     // Copying out is not restricted: the content is already on this phone.
     expect(findButton(tree, 'Copy')!.props.disabled).toBeFalsy();
-    act(() => tree.unmount());
-  });
-
-  it('empties the slot on Clear', () => {
-    showClip();
-    const tree = open();
-    act(() => findButton(tree, 'Clear')!.props.onPress());
-
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'CLEAR_CLIP' });
     act(() => tree.unmount());
   });
 });

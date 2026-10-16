@@ -6,9 +6,11 @@ import { MemoryMailer } from '../src/mail';
 import { MAX_CLIP_LENGTH } from '../../core/constants';
 
 /**
- * The server's half of the channel clipboard, which is small on purpose: there
- * is no route and no table, only an action whose identifying facts the server
- * refuses to take from the client.
+ * The server's half of pasting. Every paste is kept in the *Record* since
+ * 2026-10-15 (`pastes.ts`, asserted in rooms.test.ts); what is here is the
+ * action, whose identifying facts the server refuses to take from the client,
+ * and `clip`, the latest paste, which builds before 364 draw as their
+ * *Clipboard* tab.
  *
  * Two properties are worth stating. The id, the author and the moment are
  * minted here — a client that sent its own would be naming something nobody

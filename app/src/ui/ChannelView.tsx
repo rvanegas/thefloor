@@ -48,7 +48,6 @@ import {
   isWithheld,
   partyMuteRequested,
   canPasteClip,
-  canClearClip,
   canInviteGuest,
   canAskGuestJoin,
   canManageGuest,
@@ -69,7 +68,6 @@ import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
-import { copyText } from '../clipboard';
 import { canShare, shareLink } from '../share';
 import { useApp } from '../state/AppProvider';
 import { liveChannelView } from '../state/live';
@@ -78,7 +76,7 @@ import { AudioDebugPanel } from './AudioDebugPanel';
 import { DriftReadout } from '../watch/DriftReadout';
 import { ChannelSettingsView } from './ChannelSettingsView';
 import { ProfileView } from './ProfileView';
-import { isSafeUrl, openUrl } from './links';
+import { openUrl } from './links';
 import {
   BellIcon,
   FloorIcon,
@@ -86,7 +84,6 @@ import {
   InviteIcon,
   PeopleIcon,
   MicIcon,
-  ClipboardIcon,
   ListenIcon,
   TranscriptIcon,
   SettingsIcon,
@@ -143,16 +140,19 @@ const SKIP_MS = 15_000;
 /**
  * The tabs of the channel screen, in the order they are drawn.
  *
- * **Who, then what, since 2026-09-12.** The first three are the people —
- * who is here, what one of them has just handed the rest, and how somebody who
- * is not here gets in — and the last three are what the channel is carrying:
- * what was said, the track, the video. The order before this one ran the four
+ * **Who, then what, since 2026-09-12.** The first two are the people — who
+ * is here and how somebody who is not here gets in — and the last three are
+ * what the channel is carrying: what was said, the track, the video. *Clipboard*
+ * stood between the first two until 2026-10-15, as what one of them had just
+ * handed the rest; a paste is kept in *Record* now, as a segment of its own.
+ * The order before this one ran the four
  * carried things together and put the ways in at the end, on the grounds that
  * inviting somebody is the rarest thing done here; rarity is a reason to keep
  * a tab off the one you land on and not a reason to file it away from the
  * subject it belongs to.
  *
- * **Six, always the same six, since 2026-10-09**, when *Recordings* and the
+ * **Always the same ones** — five since the *Clipboard* went on 2026-10-15,
+ * and six from 2026-10-09, when *Recordings* and the
  * live *Transcript* became one tab, *Record*, and it took *Listen*'s
  * place as the first of the carried things. A recording is the conversation
  * kept as audio and a live transcript is the same conversation kept as text;
@@ -165,7 +165,6 @@ const SKIP_MS = 15_000;
  */
 export type ChannelTab =
   | 'people'
-  | 'clipboard'
   | 'invites'
   | 'record'
   | 'listen'
@@ -346,16 +345,11 @@ export function ChannelView({
    * on the server and is at most the two hundred megabytes the upload allowed.
    */
   const [trackSharing, setTrackSharing] = useState(false);
-  // What the clipboard section is saying about itself, if anything. Refusals
-  // this screen makes on its own — an empty device clipboard, text past the
+  // What the paste control on *Record* is saying about itself, if anything.
+  // Refusals this screen makes on its own — an empty device clipboard, text past the
   // cap — because a paste travels as a socket action and a socket refusal is
   // rendered nowhere in a channel.
   const [clipError, setClipError] = useState<string | null>(null);
-  // Whether the last copy landed, and nothing else. Same three states and the
-  // same 2.5s fade as AudioDebugPanel, that being the established way a
-  // clipboard refusal is reported: `copyText` returns a boolean precisely so
-  // that a copy which did not happen is not announced as one.
-  const [copied, setCopied] = useState<'idle' | 'done' | 'failed'>('idle');
   const [settingsOpen, setSettingsOpen] = useState(false);
   /**
    * The room whose line has scrolled off the top of the *Record* log, drawn
@@ -586,12 +580,6 @@ export function ChannelView({
   } | null>(null);
   // Before the early return below, which is where the rules of hooks want it.
   const showOffline = useOfflineNotice(app.status);
-
-  useEffect(() => {
-    if (copied === 'idle') return;
-    const timer = setTimeout(() => setCopied('idle'), 2_500);
-    return () => clearTimeout(timer);
-  }, [copied]);
 
   useEffect(() => {
     app.watchChannel(channelId);
@@ -1937,7 +1925,7 @@ export function ChannelView({
   // of controls separately and a guard that collapses today may part again.
   const mayLoadTrack = canLoadTrack(channel, me);
 
-  // `?? initialWatchState()` for the reason `clip` has its `?? null`: a server
+  // `?? initialWatchState()` for the reason `recordings` has its `?? []`: a server
   // that predates this field sends snapshots without it, which is what this
   // build meets between its release and the deploy that follows.
   const watch = channel.watch ?? initialWatchState();
@@ -2088,7 +2076,7 @@ export function ChannelView({
   const mayUnmuteRoom = canUnmuteEveryone(channel);
 
   /**
-   * The tabs this account is offered, which is six, always the same six.
+   * The tabs this account is offered, which is five, always the same five.
    *
    * *Watch* was the one variable tab while watching together was behind Labs,
    * and it is not any more: a tab bar that gains and loses entries as the
@@ -2114,11 +2102,6 @@ export function ChannelView({
       value: 'people',
       label: t.tabPeople(),
       icon: (color) => <PeopleIcon color={color} />,
-    },
-    {
-      value: 'clipboard',
-      label: t.tabClipboard(),
-      icon: (color) => <ClipboardIcon color={color} />,
     },
     {
       value: 'invites',
@@ -2180,23 +2163,6 @@ export function ChannelView({
   const screenLabel = (screen: ScreenDevice) =>
     screen.name ?? (screen.client === 'web' ? t.aBrowser() : t.anotherPhone());
 
-  // `?? null` for the same reason `recordings` has its `?? []`: a server that
-  // predates this field sends snapshots without it, which is what this build
-  // meets between its release and the deploy that follows.
-  const clip = channel.clip ?? null;
-  // Offered as a link only when the whole of what was pasted is one, and only
-  // for a scheme `isSafeUrl` allows — the same allowlist that governs links in
-  // a description, and for the same reason: this is text one member wrote and
-  // another is being invited to hand to the OS. Finding a URL *inside* longer
-  // text is deliberately not attempted; it would mean guessing which of
-  // several somebody meant, and guessing wrong opens the wrong page.
-  const clipUrl =
-    clip && isSafeUrl(clip.text.trim()) ? clip.text.trim() : null;
-  // Whitespace collapsed before it is shown. `numberOfLines` counts rendered
-  // lines, so text that begins with a newline would spend the only one on
-  // nothing and preview as blank — which reads as a paste that failed.
-  const clipPreview = clip ? clip.text.replace(/\s+/g, ' ').trim() : '';
-
   const pasteClip = (text: string | null) => {
     setClipError(null);
     if (text === null) {
@@ -2212,11 +2178,6 @@ export function ChannelView({
       return;
     }
     act({ type: 'PASTE_CLIP', text });
-  };
-
-  const copyClip = async () => {
-    if (!clip) return;
-    setCopied((await copyText(clip.text)) ? 'done' : 'failed');
   };
 
   const loadTrack = async () => {
@@ -2472,7 +2433,7 @@ export function ChannelView({
         A switch rather than a tab bar at the foot, for the same reason Home's
         is one — the foot of this screen is already spent, on the controls that
         claim the floor and step in and out. It is two rows here rather than
-        one, six words not fitting across a phone; see `Segmented`, which does
+        one, five words not fitting across a phone; see `Segmented`, which does
         the wrapping so that Home's two-way switch and this cannot drift apart.
 
         **Pinned with everything else up here.** They were the first
@@ -3118,8 +3079,8 @@ export function ChannelView({
           Why you are in a room with people you have never met.
 
           **Above the tab content rather than on one tab**, so it is the first
-          thing under the switch whichever of the six is showing. Somebody who
-          lands on *Clipboard* and finds four strangers in a channel they did
+          thing under the switch whichever tab is showing. Somebody who
+          lands on *Record* and finds four strangers in a channel they did
           not open has the same question as somebody who lands on *People*, and
           an explanation filed under one tab is one most of them would never
           reach.
@@ -3205,7 +3166,7 @@ export function ChannelView({
           published, and where the decision that matters is actually taken.
 
           Above the tab content for the *getting-started* card's reason: the
-          question is the same whichever of the six tabs somebody landed on,
+          question is the same whichever tab somebody landed on,
           and an explanation filed under one is one most of them never reach.
           It is a readout with a way to put it away and repeats nothing in the
           footer, so `hideControlCards` has no claim on it either.
@@ -3700,93 +3661,6 @@ export function ChannelView({
           </>
         ) : null}
 
-        {tab === 'clipboard' ? (
-          <>
-        {/*
-          **The last thing somebody in this channel handed everybody else**,
-          and since 2026-09-27 the only thing on this tab.
-
-          It shared the tab with the *notepad* — one sheet of text the channel
-          kept, saying what it was for — on the reading that the two were the
-          same kind of thing at two speeds: text the channel holds rather than
-          a control on the room, one replaced whenever anybody pastes and the
-          other written once and rarely changed. The sheet has gone back to
-          Channel Settings as the channel's *description*, where it is offered
-          only to a channel with a public page, that page being the one place
-          it is read by anybody who was not told it. So the slow half is a
-          setting again and the fast half is this tab, which is why the tab is
-          now called *Clipboard* and not *Notepad*.
-
-          **No label over it**, on the same terms as *Listen*: the tab is
-          called Clipboard and this is the only thing
-          on it, so SHARED CLIPBOARD would be the screen saying its own name
-          twice — and the card's own sentence at the foot of it already says
-          that one channel has one clipboard.
-        */}
-        <Card style={styles.stack}>
-          {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
-
-          {clip ? (
-            <>
-              <Text style={type.heading}>Pasted by {nameOf(clip.authorId)}</Text>
-              {/* One line: never more than fits, and a short paste therefore
-                  shows in full. The bound is the line, not some notion of
-                  withholding — enough to tell which link this is without
-                  turning the card into a place long things are read, a
-                  channel screen being one that gets left face-up on tables.
-                  `numberOfLines` truncates with an ellipsis, so anything
-                  longer says how it begins and stops. */}
-              <Text style={type.body} numberOfLines={1}>
-                {clipPreview}
-              </Text>
-              <Text style={type.muted}>{ago(now - clip.pastedAt)}</Text>
-
-              <View style={styles.buttonRow}>
-                <Button
-                  label={
-                    copied === 'done'
-                      ? t.copied()
-                      : copied === 'failed'
-                        ? t.copyFailed()
-                        : t.copy()
-                  }
-                  variant="primary"
-                  style={styles.flexButton}
-                  onPress={() => void copyClip()}
-                />
-                {clipUrl ? (
-                  <Button
-                    label={t.open()}
-                    style={styles.flexButton}
-                    onPress={() => void openUrl(clipUrl, linkWords)}
-                  />
-                ) : null}
-                <Button
-                  label={t.clear()}
-                  style={styles.flexButton}
-                  disabled={!canClearClip(channel, me)}
-                  onPress={() => act({ type: 'CLEAR_CLIP' })}
-                />
-              </View>
-            </>
-          ) : (
-            <Empty>{t.nothingOnTheChannelClipboard()}</Empty>
-          )}
-
-          <PasteButton
-            label={clip ? t.replaceWithMyClipboard() : t.pasteMyClipboard()}
-            disabled={!canPasteClip(channel, me)}
-            onPaste={pasteClip}
-          />
-
-          <Text style={type.muted}>
-            {canPasteClip(channel, me) ? t.oneClipboard() : t.stepInToPaste()}
-          </Text>
-        </Card>
-
-          </>
-        ) : null}
-
         {tab === 'listen' ? (
           <>
 
@@ -4000,7 +3874,9 @@ export function ChannelView({
           recordings={recordings}
           onHoist={setHoistedRoom}
           hoistShift={hoistShift}
-          keptKey={`${channel.recording.runId}:${isTranscribingLive(channel)}`}
+          // The latest paste's id with them: a paste is a segment of its own,
+          // so one arriving means the rooms are fetched again.
+          keptKey={`${channel.recording.runId}:${isTranscribingLive(channel)}:${channel.clip?.id ?? ''}`}
           renderRecording={(r, head) => (
             <RecordingRow
               key={r.id}
@@ -4024,6 +3900,27 @@ export function ChannelView({
             />
           )}
         />
+
+        {/*
+          **Pasting, since 2026-10-15**, when the *Clipboard* tab went. A paste
+          is kept in this log as a segment of its own, at the moment it was
+          made, so the control is at the foot, where the log grows — the
+          screen follows the end on this tab — rather than pinned with the
+          transport, which is about what is being kept rather than an entry
+          in it. Nothing replaces anything any more, so there is one label
+          whatever has been pasted before, and no *Clear*: a paste is kept.
+        */}
+        <View style={styles.stack}>
+          {clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
+          <PasteButton
+            label={t.pasteMyClipboard()}
+            disabled={!canPasteClip(channel, me)}
+            onPaste={pasteClip}
+          />
+          <Text style={type.muted}>
+            {canPasteClip(channel, me) ? t.pasteGoesInTheRecord() : t.stepInToPaste()}
+          </Text>
+        </View>
 
         {/*
           **No transport here since 2026-10-09.** What the channel keeps —

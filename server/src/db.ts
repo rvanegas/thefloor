@@ -1987,6 +1987,22 @@ CREATE INDEX IF NOT EXISTS segments_channel
 CREATE INDEX IF NOT EXISTS segments_recording
   ON segments(recording_id);
 
+-- A paste: a piece of text somebody here put into the channel, kept in the
+-- Record as a segment of its own at pasted_at, and never deleted. Its
+-- author's name as it was then, as live_lines keeps a speaker's. See
+-- pastes.ts. None exist before 2026-10-15; the clipboard they replace held
+-- one and kept none.
+CREATE TABLE IF NOT EXISTS pastes (
+  id            TEXT PRIMARY KEY,
+  channel_id    TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
+  author_id     TEXT NOT NULL,
+  display_name  TEXT NOT NULL,
+  pasted_at     INTEGER NOT NULL,
+  text          TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pastes_channel
+  ON pastes(channel_id, pasted_at);
+
 -- One streaming session per row: what the live transcript cost. The provider
 -- bills by how long a session is open, which is billed_seconds as its own
 -- Termination reported it — null when it never said, an error or a timeout.

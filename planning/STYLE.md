@@ -558,7 +558,8 @@ what the count rule did.
 An option may carry an `icon`, drawn at 22px in a 24pt box above an 11pt
 label — the footer's construction, not a second one. **A caller gives every
 option an icon or none**; a row with a gap in it draws two heights of segment.
-Both tab strips carry icons — the channel screen's six since 2026-09-12
+Both tab strips carry icons — the channel screen's, five since the
+*Clipboard* went into *Record* on 2026-10-15 and six from 2026-09-12
 (*Record*'s is `lucide/scroll-text`, the record dot having gone to the
 Record button when that tab took in *Recordings* on 2026-10-09, and to the
 transport's Start since 2026-10-12), Home's
@@ -1311,6 +1312,13 @@ moved into the opened row, above its actions. A segment's text — live, or
 its recording's *transcript* — is drawn under its line exactly as the live
 lines were. Each room starts with its line — date and hours, no share — over
 a hairline; see § *The pinned header*.
+**A paste is an entry like a speaker's**, since 2026-10-15: the clipboard
+glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*
+as 13-point words in `text` at the end of that line — words and not buttons,
+as the share is a glyph — and the whole text under it in `type.body`. Drawn
+among its segment's lines at its moment, or alone where nothing was being
+kept. *Paste my clipboard* and its sentence sit at the foot of the log, not
+in the pinned bar: they add an entry, and the bar is about what is kept.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 

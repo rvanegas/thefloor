@@ -41,7 +41,6 @@ import {
   resetHarness,
   showChannel,
   showInvites,
-  showClipboard,
   showListen,
   showRecord,
   showPeople,
@@ -415,11 +414,9 @@ describe('Channel', () => {
     // explaining it is different on each, which is the thing worth checking:
     // a disabled cluster with nothing saying why is the shape this codebase
     // does not allow.
-    showClipboard(tree);
+    showRecord(tree);
     expect(disabled('Paste my clipboard')).toEqual(off('Paste my clipboard'));
-    expect(textOf(tree)).toContain(
-      'Step in to put something on the channel clipboard'
-    );
+    expect(textOf(tree)).toContain('Step in to paste into the record');
 
     showListen(tree);
     expect(disabled('Play something together')).toEqual(
@@ -499,9 +496,6 @@ describe('Channel', () => {
     const on = (label: string) =>
       findButton(tree, label)!.props.accessibilityState;
 
-    showClipboard(tree);
-    expect(on('Paste my clipboard')).toEqual({ disabled: false });
-
     showInvites(tree);
     expect(
       findNamed(tree, 'Invite Miro Okafor')!.props.accessibilityState
@@ -512,6 +506,10 @@ describe('Channel', () => {
     act(() => findRecording(tree, 'Book club')!.props.onPress());
     expect(on('Rename')).toEqual({ disabled: false });
     expect(on('Delete')).toEqual({ disabled: false });
+    // **Except pasting, since 2026-10-15**: a paste is kept in a room, and an
+    // empty channel has none, so it waits for somebody to step in.
+    expect(on('Paste my clipboard')).toEqual({ disabled: true });
+    expect(textOf(tree)).toContain('Step in to paste into the record');
 
     // Still outside, so the things that are about presence for their own
     // reasons are still refused — the rule did not turn into "anything goes
@@ -1561,8 +1559,8 @@ describe('Channel', () => {
       labels are the whole of what somebody chooses between.
 
       People first because it is what the screen is for and what you land on.
-      Then the people: what they have written down, and how somebody who is
-      not here gets in. Then the three things the channel carries: what was
+      Then how somebody who is not here gets in — *Clipboard* stood between
+      the two until 2026-10-15, when a paste went into *Record*. Then the three things the channel carries: what was
       said in it, the track, the film — see the type in ChannelView, which is
       where the whole argument for this order is.
     */
@@ -1574,7 +1572,6 @@ describe('Channel', () => {
         .props.options.map((option: { label: string }) => option.label)
     ).toEqual([
       'People',
-      'Clipboard',
       'Invite',
       'Record',
       'Listen',
@@ -1611,13 +1608,6 @@ describe('Channel', () => {
       be a heading over nothing.
     */
     expect(sections()).toEqual(['Members', 'Audio']);
-
-    // Nothing here either, and for the same reason, since 2026-09-27: the tab
-    // held the clipboard and the *notepad* under a label each, the description
-    // left for Channel Settings, and what remains is one card on a tab called
-    // *Clipboard* whose own sentence says one channel has one clipboard.
-    showClipboard(tree);
-    expect(sections()).toEqual([]);
 
     // Nothing at all, since 2026-09-13: the recording transport moved to
     // *Recordings*, now *Record*, on 2026-09-12, and what was left was one card under a
@@ -1666,7 +1656,7 @@ describe('Channel', () => {
       />);
     const options = tree.root.findAll((node) => node.type === Segmented)[0]!
       .props.options as Array<{ label: string; icon?: unknown }>;
-    expect(options).toHaveLength(6);
+    expect(options).toHaveLength(5);
     expect(options.every((option) => typeof option.icon === 'function')).toBe(
       true
     );
@@ -1851,7 +1841,7 @@ describe('Channel', () => {
     expect(holes()).toHaveLength(1);
 
     // Back out again, and the room is given back.
-    showClipboard(tree);
+    showInvites(tree);
     expect(holes()).toHaveLength(0);
     act(() => tree.unmount());
   });
@@ -3405,14 +3395,10 @@ describe('Channel', () => {
         onClose={() => {}}
         onExit={() => {}}
       />);
-    for (const show of [showPeople, showClipboard, showInvites]) {
+    for (const show of [showPeople, showInvites]) {
       show(tree);
       expect(textOf(tree)).not.toContain('Dune');
     }
-    // And the clipboard's own field is not one either: this tab has no
-    // TextInput at all now.
-    showClipboard(tree);
-    expect(tree.root.findAll((n) => n.type === TextInput)).toEqual([]);
     act(() => tree.unmount());
   });
 

@@ -1,5 +1,6 @@
 import { newId, type Db } from './db';
 import type { RoomView, SegmentView } from '../../core/protocol';
+import { pasteView, type Pastes } from './pastes';
 import type { Segments } from './segments';
 
 /**
@@ -48,6 +49,8 @@ export interface RoomRow {
 export class Rooms {
   /** Where each room's segments are read from; set by the registry. */
   segments?: Segments;
+  /** Where its pastes are, each a segment of its own; set by the registry. */
+  pastes?: Pastes;
 
   constructor(private db: Db) {}
 
@@ -94,9 +97,9 @@ export class Rooms {
   }
 
   /**
-   * A channel's rooms that kept something, oldest first: a finished recording
-   * or a line of live transcript inside its span. A sitting nobody recorded or
-   * transcribed left nothing to show and is not one. A finished recording
+   * A channel's rooms that kept something, oldest first: a finished recording,
+   * a line of live transcript or, since 2026-10-15, a paste inside its span. A
+   * sitting that kept none of those left nothing to show and is not one. A finished recording
    * inside no sitting is listed as a room of its own, `standIn` — see above.
    */
   forChannel(channelId: string, now: number): RoomView[] {
@@ -132,14 +135,25 @@ export class Rooms {
       ).map((r) => r.id);
       const transcribed =
         !!transcribedIn.get(channelId, row.opened_at, until) || anyBatch(recordingIds);
-      if (recordingIds.length === 0 && !transcribed) continue;
+      const pasted = this.pastes?.within(channelId, row.opened_at, until) ?? [];
+      if (recordingIds.length === 0 && !transcribed && pasted.length === 0) continue;
       rooms.push({
         id: row.id,
         openedAt: row.opened_at,
         closedAt: row.closed_at,
         recordingIds,
         transcribed,
-        segments: this.segmentsOf(channelId, row.opened_at, until, recordingIds),
+        segments: withPastes(
+          this.segmentsOf(channelId, row.opened_at, until, recordingIds),
+          pasted.map((paste) => ({
+            id: paste.id,
+            startedAt: paste.pasted_at,
+            endedAt: paste.pasted_at,
+            recordingId: null,
+            text: false,
+            paste: pasteView(paste),
+          }))
+        ),
       });
     }
     const placed = new Set(rooms.flatMap((room) => room.recordingIds));
@@ -248,4 +262,20 @@ export class Rooms {
 /** The id a recording's stand-in room is listed under; see `Rooms`. */
 export function standInId(recordingId: string): string {
   return `standin_${recordingId}`;
+}
+
+/**
+ * A room's segments with its pastes among them, in the order they began. A
+ * paste at the instant a segment began goes after it, so that it reads as
+ * made inside that segment, which it was.
+ */
+function withPastes(segments: SegmentView[], pastes: SegmentView[]): SegmentView[] {
+  if (pastes.length === 0) return segments;
+  const all: SegmentView[] = [];
+  let p = 0;
+  for (const segment of segments) {
+    while (p < pastes.length && pastes[p].startedAt < segment.startedAt) all.push(pastes[p++]);
+    all.push(segment);
+  }
+  return [...all, ...pastes.slice(p)];
 }

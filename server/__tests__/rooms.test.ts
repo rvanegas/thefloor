@@ -340,6 +340,67 @@ describe('rooms', () => {
     ]);
   });
 
+  it('keep a paste as a segment of its own, an instant, without breaking the one it falls in', async () => {
+    const { alice, bob, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    const t0 = clock;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    const run = app.channels.get(channelId)!.recording.runId;
+    clock += 4_000;
+    app.channels.dispatch(channelId, bob.account.id, {
+      type: 'PASTE_CLIP',
+      text: 'https://example.com/a-thing',
+    } as never);
+    clock += 6_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+
+    const [room] = await roomsOf(channelId, alice.token);
+    expect(app.channels.get(channelId)!.recording.runId).toBeNull();
+    expect(room.segments).toEqual([
+      // The recording is whole: the paste changed nothing about what was kept.
+      { id: expect.any(String), startedAt: t0, endedAt: t0 + 10_000, recordingId: run, text: false },
+      {
+        id: expect.stringMatching(/^clip/),
+        startedAt: t0 + 4_000,
+        endedAt: t0 + 4_000,
+        recordingId: null,
+        text: false,
+        paste: { authorId: bob.account.id, displayName: 'Bob', text: 'https://example.com/a-thing' },
+      },
+    ]);
+  });
+
+  it('list a sitting that kept nothing but a paste, and keep the paste when the slot is cleared', async () => {
+    const { alice, bob, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PASTE_CLIP', text: 'kept' } as never);
+    // An old build's Clear empties the slot it draws, and nothing in the record.
+    app.channels.dispatch(channelId, alice.account.id, { type: 'CLEAR_CLIP' });
+    expect(app.channels.get(channelId)!.clip).toBeNull();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+
+    const rooms = await roomsOf(channelId, bob.token);
+    expect(rooms).toHaveLength(1);
+    expect(rooms[0].segments).toEqual([
+      expect.objectContaining({ paste: expect.objectContaining({ text: 'kept', displayName: 'Alice' }) }),
+    ]);
+  });
+
+  it('refuse a paste into a channel nobody is in, and keep nothing', async () => {
+    const { alice, channelId } = await channel();
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PASTE_CLIP', text: 'lost' } as never);
+    expect(app.channels.get(channelId)!.clip).toBeNull();
+    expect(app.db.prepare('SELECT COUNT(*) n FROM pastes').get()).toEqual({ n: 0 });
+  });
+
   it('derive the segments of a room from before them', async () => {
     const { alice, channelId } = await channel();
     clock += 1_000;

@@ -63,6 +63,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 330 | `SharedDrift.withheld`, relayed for the readouts that still draw it | `core/protocol.ts`, `server/src/ws.ts` |
 | 336 | `POST /channels/community`, starting a community from nothing | `server/src/app.ts`, `server/src/channels.ts` |
 | 339 | `myEmailShown` sent as true, and the show/stop email routes | `core/protocol.ts`, `server/src/app.ts` |
+| 364 | `CLEAR_CLIP`, for the *Clipboard* tab | `core/channel.ts`, `core/types.ts`, `core/protocol.ts`, `server/src/channels.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
 already read 80. Everything it freed — `HomeView.recordings`,
@@ -144,6 +145,41 @@ and add one. Check it against `git tag -l 'build/*'` before landing, since
 another worktree may have uploaded in between — this is the mistake
 `FAST_HEARTBEAT_BUILD` already made once, and its comment in `core/constants.ts`
 is the account of it.
+
+---
+
+## Gate 364 — `CLEAR_CLIP`, for the *Clipboard* tab
+
+The *Clipboard* tab went into *Record* on 2026-10-15
+(`decision/2026-10-15-a-paste-is-a-segment-of-the-record.md`): every paste is
+kept in the log as a segment of its own and none can be deleted. Builds up to
+363 still draw the tab, from `ChannelState.clip`, with a *Clear* that sends
+`CLEAR_CLIP`. The server goes on accepting it, and it empties the slot those
+builds draw and touches nothing in the log — so their *Clear* still works on
+their own screen, and the paste stays in everybody's *Record*.
+
+What goes, once `oldestBuild` has passed 363:
+
+- `CLEAR_CLIP` from `ChannelAction` in `core/types.ts`, from both client
+  action unions in `core/protocol.ts`, from `GUEST_ACTIONS`, and its case in
+  the reducer
+- `canClearClip` in `core/channel.ts`, and its assertions in
+  `core/__tests__/clipboard.test.ts`, `room.test.ts` and `community.test.ts`
+- `'CLEAR_CLIP'` from the registry's list of client actions in
+  `server/src/channels.ts`, and the `CLEAR_CLIP` step in `rooms.test.ts`
+
+**What must not be deleted alongside it:**
+
+- **`ChannelState.clip` stays.** A guest's page draws it as *Last pasted*, a
+  guest having no *Record*, and `Pastes.follow` reads its change to a new id
+  as the paste itself — it is how every route in, old builds' included,
+  reaches the log.
+- **`PASTE_CLIP` stays**, under its old name: it is how this build pastes too.
+
+**Not a shim, and so not here:** an old build offers *Paste* in an empty
+channel, which its own core allowed, and the reducer now refuses it silently.
+That is a refusal of something that is no longer permitted rather than a
+shape kept for compatibility, and it goes away by itself as those builds do.
 
 ---
 

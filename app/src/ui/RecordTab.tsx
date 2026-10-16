@@ -26,16 +26,18 @@ import type {
   RoomView,
   SegmentView,
 } from '../../../core/protocol';
-import { intoBlocks } from '../../../core/transcript';
+import { intoBlocks, type TranscriptBlock } from '../../../core/transcript';
 import type { ChannelState, Keep } from '../../../core/types';
 import { shareRecording } from '../api/download';
 import { api } from '../api/http';
+import { copyText } from '../clipboard';
 import { subscribeLiveLines } from '../live/lines';
 import { useApp } from '../state/AppProvider';
 import { shareText } from '../share';
 import { useText, type Strings } from '../i18n';
 import { Button, Empty, IconButton, useScrollPosition } from './components';
-import { PauseIcon, RecordingsIcon, ShareIcon, StopIcon } from './icons';
+import { ClipboardIcon, PauseIcon, RecordingsIcon, ShareIcon, StopIcon } from './icons';
+import { isSafeUrl, openUrl } from './links';
 import { colors, formatDuration, measure, spacing, type } from './theme';
 
 /**
@@ -66,6 +68,13 @@ export interface SegmentHead {
  * kept as audio alone, that recording's batch transcript once there is one,
  * on the clock at the recording's start plus each line's offset — exact, a
  * recording being one unbroken run.
+ *
+ * **A paste is a segment of its own, since 2026-10-15** — an instant, which
+ * breaks nothing. One made while a segment was being kept is drawn inside it,
+ * among its lines at the moment it was made, the segment carrying on around
+ * it; one made while nothing was is its own item in the room. Either way it is
+ * an entry like a speaker's, under its author's name and time, marked by the
+ * clipboard, with a *Copy* of the whole of it. It cannot be deleted.
  *
  * **Laid out in rooms.** A room is a sitting — first step in to last step out,
  * written by the server as it happens (`server/src/rooms.ts`) — holding one
@@ -361,23 +370,25 @@ export function RecordTab({
                 item={item}
                 renderRecording={renderRecording}
               />
-              {intoBlocks(
-                item.lines.map((line) => ({ ...line, startMs: line.startAt, endMs: line.endAt }))
-              ).map((block) => (
-                <View key={block.lines[0].id} style={styles.entry}>
-                  <View style={styles.entryHead}>
-                    <Text style={styles.speaker} numberOfLines={1}>
-                      {block.displayName}
-                    </Text>
-                    <Text style={type.muted}>{t.liveTime(block.startMs)}</Text>
+              {entriesOf(item).map((entry) =>
+                entry.kind === 'paste' ? (
+                  <PasteEntry key={entry.segment.id} segment={entry.segment} />
+                ) : (
+                  <View key={entry.block.lines[0].id} style={styles.entry}>
+                    <View style={styles.entryHead}>
+                      <Text style={styles.speaker} numberOfLines={1}>
+                        {entry.block.displayName}
+                      </Text>
+                      <Text style={type.muted}>{t.liveTime(entry.block.startMs)}</Text>
+                    </View>
+                    {entry.block.lines.map((line) => (
+                      <Text key={line.id} style={type.body}>
+                        {line.text}
+                      </Text>
+                    ))}
                   </View>
-                  {block.lines.map((line) => (
-                    <Text key={line.id} style={type.body}>
-                      {line.text}
-                    </Text>
-                  ))}
-                </View>
-              ))}
+                )
+              )}
             </View>
           ))}
         </View>
@@ -466,8 +477,12 @@ export function SegmentLine({
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
   const { segment, recording } = item;
+  // A paste is an instant, said by its own entry's name and time; there are
+  // no hours to give it and nothing to share but what Copy already takes.
+  if (segment.paste) return null;
   const audio = !!recording && !recording.mixing;
-  const text = item.lines.length > 0;
+  // Pastes count: they are text, and are shared with the lines around them.
+  const text = item.lines.length > 0 || item.pastes.length > 0;
   const available = (audio || text) && !busy;
   const span = t.roomSpan(segment.startedAt, segment.endedAt);
   const kept =
@@ -582,7 +597,7 @@ export async function segmentText(
   t: Strings['channel']
 ): Promise<string> {
   const { segment } = item;
-  if (!segment.text) return formatSegmentText(segment, item.lines, t);
+  if (!segment.text) return formatSegmentText(segment, item.lines, t, item.pastes);
   let lines: LiveLine[] = [];
   let before = segment.endedAt === null ? undefined : segment.endedAt + 1;
   for (;;) {
@@ -591,24 +606,29 @@ export async function segmentText(
     if (!page.more || page.lines.length === 0 || page.lines[0].startAt < segment.startedAt) break;
     before = page.lines[0].startAt;
   }
-  return formatSegmentText(segment, lines, t);
+  return formatSegmentText(segment, lines, t, item.pastes);
 }
 
-/** The text `segmentText` shares, from lines already in hand. */
+/**
+ * The text `segmentText` shares, from lines already in hand, with the pastes
+ * made inside it where they were made.
+ */
 export function formatSegmentText(
   segment: SegmentView,
   lines: readonly LiveLine[],
-  t: Strings['channel']
+  t: Strings['channel'],
+  pastes: readonly SegmentView[] = []
 ): string {
   const head = `${t.liveDay(segment.startedAt)} · ${t.roomSpan(segment.startedAt, segment.endedAt)}`;
-  const blocks = intoBlocks(
-    lines.map((line) => ({ ...line, startMs: line.startAt, endMs: line.endAt }))
-  ).map(
-    (block) =>
-      `${block.displayName} · ${t.liveTime(block.startMs)}\n` +
-      block.lines.map((line) => line.text).join('\n')
+  const entries = entriesOf({ segment, recording: null, lines: [...lines], pastes: [...pastes] }).map(
+    (entry) =>
+      entry.kind === 'paste'
+        ? `${t.pastedBy(entry.segment.paste?.displayName ?? '')} · ${t.liveTime(entry.segment.startedAt)}\n` +
+          (entry.segment.paste?.text ?? '')
+        : `${entry.block.displayName} · ${t.liveTime(entry.block.startMs)}\n` +
+          entry.block.lines.map((line) => line.text).join('\n')
   );
-  return [head, ...blocks].join('\n\n');
+  return [head, ...entries].join('\n\n');
 }
 
 /**
@@ -826,6 +846,44 @@ export interface SegmentItem {
   /** Its audio, once the recording is filed and while it is not deleted. */
   recording: RecordingView | null;
   lines: LiveLine[];
+  /**
+   * The pastes made while it was being kept, oldest first, drawn among its
+   * lines. Empty for a paste that is an item of its own, which is `segment`.
+   */
+  pastes: SegmentView[];
+}
+
+/** What is drawn under a segment's line: a speaker's run, or a paste. */
+export type Entry =
+  | { kind: 'said'; block: TranscriptBlock<LiveLine & { startMs: number; endMs: number }> }
+  | { kind: 'paste'; segment: SegmentView };
+
+/**
+ * A segment's entries in the order they happened: its lines in speakers' runs,
+ * cut wherever a paste was made, with the paste between — so that a paste in
+ * the middle of somebody talking reads as made there, which it was. A paste
+ * that is an item of its own is its only entry.
+ */
+export function entriesOf(item: SegmentItem): Entry[] {
+  if (item.segment.paste) return [{ kind: 'paste', segment: item.segment }];
+  const entries: Entry[] = [];
+  const said = (lines: readonly LiveLine[]) => {
+    for (const block of intoBlocks(
+      lines.map((line) => ({ ...line, startMs: line.startAt, endMs: line.endAt }))
+    )) {
+      entries.push({ kind: 'said', block });
+    }
+  };
+  let from = 0;
+  for (const paste of item.pastes) {
+    let until = from;
+    while (until < item.lines.length && item.lines[until].startAt <= paste.startedAt) until++;
+    said(item.lines.slice(from, until));
+    entries.push({ kind: 'paste', segment: paste });
+    from = until;
+  }
+  said(item.lines.slice(from));
+  return entries;
 }
 
 /**
@@ -837,6 +895,10 @@ export interface SegmentItem {
  * recording is not filed yet is drawn without it. A segment that ended before
  * `from`, the oldest live line loaded, waits for the earlier pages, so that
  * nothing is drawn above talk not loaded yet.
+ *
+ * **A paste goes inside the segment it was made in**, the first drawn one
+ * whose span holds it, and is otherwise an item of its own at its moment —
+ * including inside a segment that is not drawn, whose paste is no less kept.
  */
 export function intoRooms(
   rooms: readonly RoomView[],
@@ -849,8 +911,13 @@ export function intoRooms(
   return rooms
     .map((room) => {
       const items: SegmentItem[] = [];
+      const pastes: SegmentView[] = [];
       for (const segment of room.segments ?? []) {
         if (segment.endedAt !== null && segment.endedAt < from) continue;
+        if (segment.paste) {
+          pastes.push(segment);
+          continue;
+        }
         const recording = segment.recordingId ? (byId.get(segment.recordingId) ?? null) : null;
         if (!recording && !segment.text && segment.endedAt !== null) continue;
         const said = segment.text
@@ -858,11 +925,79 @@ export function intoRooms(
           : recording
             ? [...(batch.get(recording.id) ?? [])]
             : [];
-        items.push({ segment, recording, lines: said });
+        items.push({ segment, recording, lines: said, pastes: [] });
       }
+      for (const paste of pastes) {
+        const home = items.find((item) => covers(item.segment, paste.startedAt));
+        if (home) home.pastes.push(paste);
+        else items.push({ segment: paste, recording: null, lines: [], pastes: [] });
+      }
+      items.sort((a, b) => a.segment.startedAt - b.segment.startedAt);
       return { room, items };
     })
     .filter(({ items }) => items.length > 0);
+}
+
+/**
+ * One paste in the log: the clipboard glyph, its author's name and the time,
+ * then *Copy* — and *Open* when the whole of it is one link, on the allowlist
+ * a description's links are held to — at the end of that line, and the text
+ * under it. **Words at the end of the line rather than buttons under it**, as
+ * a segment's share is a glyph at the end of its: this tab is a log with
+ * nothing around its entries (STYLE.md), and a button row under every paste
+ * would be the loudest thing in it. Finding a link *inside* longer text is deliberately not attempted:
+ * it would mean guessing which of several somebody meant.
+ *
+ * **Drawn whole**, unlike the one line the *Clipboard* tab gave the newest
+ * paste: in a log it is an entry like any other, and a transcript does not
+ * truncate what somebody said. `MAX_CLIP_LENGTH` is what bounds it.
+ */
+export function PasteEntry({ segment }: { segment: SegmentView }) {
+  const t = useText().channel;
+  const linkWords = useText().links;
+  const [copied, setCopied] = React.useState<'idle' | 'done' | 'failed'>('idle');
+  React.useEffect(() => {
+    if (copied === 'idle') return;
+    const timer = setTimeout(() => setCopied('idle'), 2_500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  const paste = segment.paste;
+  if (!paste) return null;
+  const url = isSafeUrl(paste.text.trim()) ? paste.text.trim() : null;
+  const word = (label: string, onPress: () => void) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      hitSlop={spacing(1)}
+      onPress={onPress}
+      style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+    >
+      <Text style={styles.pasteAction}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <View style={styles.entry}>
+      <View style={styles.entryHead}>
+        <View style={styles.pasteMark} accessibilityLabel={t.pastedBy(paste.displayName)}>
+          <ClipboardIcon color={colors.textMuted} size={14} />
+        </View>
+        <Text style={styles.speaker} numberOfLines={1}>
+          {paste.displayName}
+        </Text>
+        <Text style={[type.muted, styles.pasteTime]}>{t.liveTime(segment.startedAt)}</Text>
+        {url ? word(t.open(), () => void openUrl(url, linkWords)) : null}
+        {word(
+          copied === 'done' ? t.copied() : copied === 'failed' ? t.copyFailed() : t.copy(),
+          () => {
+            void copyText(paste.text).then((ok) => setCopied(ok ? 'done' : 'failed'));
+          }
+        )}
+      </View>
+      <Text style={type.body} selectable>
+        {paste.text}
+      </Text>
+    </View>
+  );
 }
 
 /** How much of the platform's switch the *Record* tab draws, Pause included. */
@@ -886,6 +1021,12 @@ const styles = StyleSheet.create({
     borderColor: colors.textMuted,
   },
   entry: { gap: spacing(0.25) },
+  // The glyph before the name, so a paste reads as an entry and as not
+  // somebody talking; the time takes the room, pushing Copy to the end.
+  pasteMark: { alignSelf: 'center' },
+  pasteTime: { flex: 1 },
+  // A word rather than a button, in the body's colour so it reads as one.
+  pasteAction: { color: colors.text, fontSize: 13, fontWeight: '600' },
   entryHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing(1) },
   speaker: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
   // A room's line, inline and hoisted alike: the date and hours. The

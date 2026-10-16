@@ -39,7 +39,7 @@ caused; the list carries the meaning.
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The six views of a channel, one at a time: People, Clipboard, Invite, Record, Listen, Watch; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
+- **Channel tabs** — The five views of a channel, one at a time: People, Invite, Record, Listen, Watch — *Clipboard* stood second until 2026-10-15, when pasting went into *Record*; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
 - **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say. On the device *watching here*, and only there, each is ordered against the *audio session*: the play chime is sounded first and the microphone released after it, the pause chime waits for the microphone to come back — a chime is played into the session this app holds, and a run is the length of time it does not hold one
@@ -48,7 +48,7 @@ caused; the list carries the meaning.
 - **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
-- **Clipboard (a channel's)** — One piece of text the channel holds, readable and replaceable by anybody in it
+- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* as a *segment* of its own at the moment it was made — an instant, which breaks no other segment — for anybody to copy, and never deleted; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
 - **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared alone as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
@@ -90,7 +90,7 @@ caused; the list carries the meaning.
 - **Refusal** — The server's sentence for a channel action it would not take, shown as a card at the top of that channel — *That did not go through*, the sentence, *Got it*. Not a greyed control, which is the same rule seen before the press; a refusal is a race the greying lost. Held on this install only, unlike a *removal notice*, and only the registry's refusals: one by a reducer guard says nothing on the wire
 - **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
-- **Owner** — Whoever made a channel into a *community*, and the only one in it who holds the controls (`holdsTheControls`): invitations and guests, removal, media and recordings, muting anybody else, the name and description, the link, deleting. Other members mute themselves, claim the floor, use the clipboard and ping. Cannot leave or be moved against. No other channel has one
+- **Owner** — Whoever made a channel into a *community*, and the only one in it who holds the controls (`holdsTheControls`): invitations and guests, removal, media and recordings, muting anybody else, the name and description, the link, deleting. Other members mute themselves, claim the floor, paste and ping. Cannot leave or be moved against. No other channel has one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
 - **On another call** — What the roster says instead of *Present* about somebody whose phone is held for another call, taken with *Hold & Accept*; still in the room, neither hearing nor heard, and back to *Present* when the call is taken off hold (`ChannelState.onAnotherCall`)
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
@@ -108,7 +108,7 @@ caused; the list carries the meaning.
 - **Podcast directory** — Apple's, Spotify's, and the rest: somewhere a *feed* is submitted, reviewed and then findable. Nothing here does it; what needs doing is a person pressing a button. Not the *directory page*, which is this server's own
 - **Episode** — A *published* recording as a listener meets it: the same floor-gated mix the app plays, re-encoded as M4A because no podcast client plays Ogg/Opus
 - **Episode start** — The unit the public podcast is counted in: one read of an *episode*'s audio that begins at the first byte and asks for more than a probe's worth. A count of starts and never an audience — a replay is two, a podcast app that downloads and never plays is one — and it holds nobody at all
-- **Record (the tab)** — What was kept of a channel, as a log of *segments* laid out in *rooms*: each segment a muted line — its hours, what it kept, its share — with its text under it as plain lines under each speaker's name and time, a segment with audio being its *recording*'s line that opens to its actions; each room headed by a line with its date and hours that is pinned once it scrolls off — one recording from before rooms standing as a room of its own —, and the *Audio* and *Text* switches pinned over it all. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
+- **Record (the tab)** — What was kept of a channel, as a log of *segments* laid out in *rooms*: each segment a muted line — its hours, what it kept, its share — with its text under it as plain lines under each speaker's name and time, a segment with audio being its *recording*'s line that opens to its actions; each room headed by a line with its date and hours that is pinned once it scrolls off — one recording from before rooms standing as a room of its own —, and the *Audio* and *Text* switches pinned over it all; each *paste* an entry among the lines at its moment, with *Paste my clipboard* at the foot since 2026-10-15. The noun, not the verb on its Record button. *Recordings* and *Transcript* until 2026-10-09, and *Conversation* that day
 - **Audio and Text (the switches)** — What Play keeps, as two switches pinned on the *Record* tab beside the transport — Play (*Resume* while held), Pause, Stop, icons only — since 2026-10-11 (`ChannelState.keep`): *Audio* a *recording*, *Text* the *live transcript*. A selection, not a state: both off stops, any other change while running stops and restarts, a new *segment*, and while stopped or paused a switch changes only what Play or Resume will begin. Reset to *Record automatically*'s pair at each sitting. Since 2026-10-09. `KeepSwitches`
 - **Record automatically** — A channel setting, two switches since 2026-10-10: *Audio*, the room's first recording begins by itself (`autoRecord`), and *Text*, each sitting begins with the *live transcript* on (`autoTranscribe`), moved only by an account on the house. Each sitting's *Record* selection is set from it, since 2026-10-11, so switching it mid-sitting takes effect at the next. With both on, the text waits to begin with the audio, so the two are one *segment* (`startsTextWithAudio`). Switching either off on the *Record* tab holds until the room empties and fills again
 - **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off, by a Pause, or by *Text* changing under it, since 2026-10-10 — each one the audio of exactly one *segment* of the *Record*
@@ -200,7 +200,7 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
-- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, and what its share hands over. The user's word, not drawn on screen, where a segment is named by its hours. Since 2026-10-10. `segments`, `SegmentView`
+- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, and what its share hands over. The user's word, not drawn on screen, where a segment is named by its hours. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
 - **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in, holding one *segment* or more. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — notifications being the other — and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
@@ -352,20 +352,22 @@ planning/decision/2026-09-08-the-tier-says-which-room-you-are-in-always.md.
 
 ## Channel tabs
 
-**The six views of a channel**, one at a time, on the switch a channel screen
-draws: *People*, *Clipboard*, *Invite*, *Record*, *Listen*, *Watch* —
-the same six always. For one day, 2026-10-09, there was a seventh, *Transcript*,
+**The five views of a channel**, one at a time, on the switch a channel screen
+draws: *People*, *Invite*, *Record*, *Listen*, *Watch* — the same five always.
+Six until 2026-10-15, *Clipboard* standing second, when a *paste* began to be
+kept in *Record*. For one day, 2026-10-09, there was a seventh, *Transcript*,
 offered while a *live transcript* was on; it went into *Conversation*, now *Record*,
 with *Recordings* the same day, and the strip stopped changing length.
 Peers, in the way *Channels* and *Contacts* are on Home — none is a child of
 another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
 
-**Who, then what.** The first three are the people — who is here, what
-somebody in the channel has just handed everybody else (the *clipboard*), and
-how somebody who is not here gets in. The second was *Notepad* until
-2026-09-27 and held the *description* above the clipboard; the description is a
-setting again, and the tab is named after the one card left on it. The last three are what the channel
+**Who, then what.** The first two are the people — who is here, and how
+somebody who is not here gets in. *Clipboard* stood between them until
+2026-10-15, as what somebody in the channel had just handed everybody else,
+and was *Notepad* before 2026-09-27, holding the *description* above the
+clipboard. The description is a setting again, and a *paste* is kept in
+*Record* with everything else the room kept. The last three are what the channel
 is carrying, which outlives the moment: what was said, what is playing, what
 is being watched. The recording transport has been with the recordings since
 2026-09-12 — it was a second card on *Listen* until then, on the reasoning that
@@ -639,15 +641,6 @@ shown only to people the server places in the United States storefront — see
 `server/src/region.ts` for why that is a server decision rather than an app
 one.
 
-## Clipboard (a channel's)
-
-One piece of text the channel holds, which anybody in it — guests included —
-may read, replace or clear. A channel has *a* clipboard exactly as a device
-does: pasting replaces what was there, so there is no list, no ordering and
-nothing to delete individually. Silent, so it is not governed by the *floor*.
-
-The thing on it is a *clip*.
-
 ## Close
 
 **The way off a screen you opened**, and the word every one of them uses:
@@ -703,7 +696,7 @@ removing a member in one move with no *motion to remove*; what plays, the film,
 and recording, including *Record automatically* and changing a recording;
 muting anybody else; the name and the description; the link; and deleting the
 community at any size. **Every other member mutes themselves, claims and
-releases the floor, uses the clipboard and pings a contact**, and nothing else
+releases the floor, pastes into the *Record* and pings a contact**, and nothing else
 of the channel's. A recording the owner set to start by itself still starts
 whoever walks in. The owner cannot leave — deleting
 is their way out — and nobody may move against them. **An owner exists only by
@@ -882,7 +875,7 @@ you must leave the page to write on is not one. What that reasoning left out is
 *who the words are for*, which is what brought it back. Gone with it: the
 markdown parser and its live preview, dropped on 2026-09-13 and not restored;
 the *Edit* the sheet hid behind, a settings field needing none; and the tab's
-name, now *Clipboard*.
+name, *Clipboard* from then until the tab went into *Record* on 2026-10-15.
 
 **It is `description` in the code and on the wire throughout**, and always was.
 Renaming it would have been a wire change for a word — see AGENTS.md on never
@@ -2010,6 +2003,33 @@ second or so; above it, the old doubling backoff resumes.
 `AppState.offline` in the code, reported by `Realtime` through `onOffline`,
 rendered by `OfflineView`. Distinct from `ConnectionStatus`, which cycles
 while retrying and is not sticky. See decision/2026-09-16-being-offline-is-one-state.md.
+
+## Paste
+
+**A piece of text somebody here put into the channel**, kept in the *Record*
+as a *segment* of its own at the moment it was made, since 2026-10-15. Drawn
+in the log as an entry like a speaker's — the clipboard glyph, its author's
+name as it was then, the time — with the whole text under it, *Copy*, and
+*Open* when the whole of it is one link. Pasted with *Paste my clipboard* at
+the foot of *Record*, by anybody here, guests included; silent, so not
+governed by the *floor*.
+
+**An instant, which breaks nothing.** Every change of what is kept ends a
+segment, and a paste is not one: made while audio or text is being kept, it
+falls inside that segment, which carries on, and is drawn among its lines at
+its moment. So a recording is still exactly one segment's audio. Rodrigo's
+choice over a clean break, which would have cut a recording at every paste.
+
+**Never deleted**, by anybody — kept as a transcript line is. **And only from
+inside a room**: the *Record* is laid out in rooms, and an empty channel has
+none to keep it in, so `canPasteClip` asks `isHere` where it asked *present or
+empty*.
+
+**It replaced the channel's clipboard**, one slot each paste overwrote, which
+anybody here could clear, drawn on a *Clipboard* tab of its own. What is left
+of it is `ChannelState.clip`, the latest paste, which builds before 364 still
+draw as that tab and the guest page draws as *Last pasted*, a guest having no
+*Record*. In the code a paste is still a `Clip` and `PASTE_CLIP`.
 
 ## Ping
 
@@ -3873,7 +3893,7 @@ one thing only.
 
 `presentOrEmpty` — you are in the channel, or nobody is. The rule that nobody
 reaches into a conversation they are not in: the people talking decide what the
-channel is called, who gets in, what is on the clipboard. Membership is
+channel is called and who gets in. Membership is
 standing over a channel, not over an occupation of it.
 
 Not presence: an empty channel belongs to all its members equally.
@@ -3884,7 +3904,8 @@ then `canControlPlayback` a few hours later. Every control on the film moves
 something other people are watching in real time; and the audio player's turned
 out to let a member play a track into a channel from outside it, seen on build
 261. What the empty half still governs is what a conversation can *see* — its
-name, who gets in, the clipboard. See *Watch party* and
+name and who gets in; pasting left on 2026-10-15, a *paste* being kept in a
+room and an empty channel having none. See *Watch party* and
 decision/2026-09-20-playing-is-not-tidying.md.
 
 ## Hearing (a device's)
@@ -4384,6 +4405,12 @@ share's title does too, so nothing asks a person to learn it. A recording
 made as audio alone may be given a *transcript* afterwards, which makes it
 a segment kept both ways; one kept as text live is not offered one.
 
+**A *paste* is one too**, since 2026-10-15, and the exception to the rest:
+an instant (`startedAt === endedAt`, `paste` set) that is not a change of
+what is kept, so it breaks nothing and is the one segment that may fall
+inside another. Written in `pastes`, not `segments`, and listed among them by
+`Rooms.forChannel`.
+
 **Not the stem's pieces**, which the server's capture also calls segments in
 places — the objects one participant's audio is written in, several when an
 egress restarts.
@@ -4783,7 +4810,6 @@ are settled:
     At the door           En la puerta
     Guests                Invitados
     Invitations           Invitaciones
-    Clipboard (the tab)   Portapapeles
     Description           Descripción
     Invite (the tab)      Invitar
     Record (the tab)      Grabado
@@ -4819,7 +4845,10 @@ are settled:
                           enough for the footer's fifth of a phone
     Ping                  Aviso — *avisar* as the verb
     Nearby                Cerca
-    Clipboard             Portapapeles
+    Paste                 Lo pegado — *Pegado por* over one, *Lo último
+                          pegado* on a guest's page; *portapapeles* is the
+                          device's clipboard only, as in *Pegar mi
+                          portapapeles*
     Guest link            Enlace de invitado
     Knock (at the door)   Llamar — *En la puerta* as the state
     Seat                  Sitio

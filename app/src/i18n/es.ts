@@ -524,10 +524,9 @@ export const es: Strings = {
     accept: () => 'Aceptar',
     thatDidNotWork: () => 'Eso no ha funcionado.',
     noThanks: () => 'No, gracias',
-    clipboard: () => 'Portapapeles',
-    nothingOnTheClipboard: () => 'No hay nada en el portapapeles.',
+    clipboard: () => 'Lo \u00faltimo pegado',
+    nothingOnTheClipboard: () => 'Todav\u00eda no se ha pegado nada.',
     pasteMine: () => 'Pegar el m\u00edo',
-    clear: () => 'Borrar',
     yourNameHere: () => 'Tu nombre aqu\u00ed',
     whatYouAreCalledHere: () =>
       'C\u00f3mo te llaman aqu\u00ed. Es solo para esta conversaci\u00f3n, y no dice nada de tu cuenta.',
@@ -770,7 +769,7 @@ export const es: Strings = {
     communityOwnerWhat: (members: number) =>
       `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Eres responsable de ella: solo t\u00fa invitas a gente, decides qu\u00e9 suena y qu\u00e9 se graba, le pones nombre y descripci\u00f3n, tienes el enlace, expulsas a un miembro y puedes borrarla para todos. No puedes salir de ella.`,
     communityMemberWhat: (members: number) =>
-      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Solo quien es responsable invita a gente, decide qu\u00e9 suena y qu\u00e9 se graba, le pone nombre y descripci\u00f3n, tiene el enlace, expulsa a miembros y puede borrarla para todos. Los dem\u00e1s pueden pedir la palabra, silenciarse, usar el portapapeles y avisar a un contacto.`,
+      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Solo quien es responsable invita a gente, decide qu\u00e9 suena y qu\u00e9 se graba, le pone nombre y descripci\u00f3n, tiene el enlace, expulsa a miembros y puede borrarla para todos. Los dem\u00e1s pueden pedir la palabra, silenciarse, pegar en Grabado y avisar a un contacto.`,
     makeCommunity: () => 'Convertir el canal en una comunidad',
     makeCommunityNote: (members: number) =>
       `Una comunidad es un canal al que cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie; lo que se dice y se graba en ella queda entre sus miembros. No hay nadie m\u00e1s aqu\u00ed, as\u00ed que puedes convertir este: ser\u00edas responsable: solo t\u00fa invitar\u00edas a gente, decidir\u00edas qu\u00e9 suena y qu\u00e9 se graba, le pondr\u00edas nombre, expulsar\u00edas a gente y podr\u00edas borrarla para todos, y no podr\u00edas salir de ella. No se puede volver a hacer un canal corriente.`,
@@ -1011,7 +1010,6 @@ export const es: Strings = {
       'Eso no es un enlace de YouTube. Copia uno desde YouTube y vuelve a pulsar.',
     aFilmNobodyNamed: () => 'Una pel\u00edcula sin nombre',
     tabPeople: () => 'Gente',
-    tabClipboard: () => 'Portapapeles',
     tabInvite: () => 'Invitar',
     tabListen: () => 'Escuchar',
     tabRecord: () => 'Grabado',
@@ -1022,7 +1020,7 @@ export const es: Strings = {
     copyFailed: () => '\u2717 no se ha podido copiar',
     copy: () => 'Copiar',
     clipTooLong: (max: number) =>
-      `Eso es demasiado largo para compartir. El portapapeles del canal admite ${max} caracteres.`,
+      `Eso es demasiado largo para pegar. Se pueden pegar hasta ${max} caracteres.`,
     couldNotShare: () => 'No se ha podido compartir',
     recordingPaused: () => 'Grabaci\u00f3n en pausa',
     recording: () => 'Grabando',
@@ -1127,13 +1125,11 @@ export const es: Strings = {
     reconnectingIsLeaving: () =>
       'Reconectando: perder la conexi\u00f3n cuenta como salir.',
     open: () => 'Abrir',
-    clear: () => 'Borrar',
-    nothingOnTheChannelClipboard: () => 'No hay nada en el portapapeles del canal.',
-    replaceWithMyClipboard: () => 'Sustituir por mi portapapeles',
     pasteMyClipboard: () => 'Pegar mi portapapeles',
-    oneClipboard: () =>
-      'Un solo portapapeles para el canal: pegar sustituye lo que hay, y cualquiera de aqu\u00ed puede copiarlo.',
-    stepInToPaste: () => 'Entra para poner algo en el portapapeles del canal.',
+    pasteGoesInTheRecord: () =>
+      'Queda en Grabado en este momento, para que cualquiera de aqu\u00ed lo copie. Lo pegado no se puede retirar.',
+    stepInToPaste: () => 'Entra para pegar algo en Grabado.',
+    pastedBy: (who: string) => `Pegado por ${who}`,
     back15: () => '\u221215 s',
     pause: () => 'Pausa',
     play: () => 'Reproducir',

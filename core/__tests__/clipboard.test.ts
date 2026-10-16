@@ -1,6 +1,9 @@
 /**
- * The channel's clipboard: one slot, replaced rather than appended to, and
- * writable only by somebody who is actually in the channel.
+ * Pasting. Since 2026-10-15 every paste is kept in the *Record* by the server
+ * (`server/src/pastes.ts`), and what the reducer holds is the latest one, in
+ * `clip` — the slot builds before 364 draw as their *Clipboard* tab, which is
+ * also how the server sees that a paste happened. Writable only by somebody
+ * here, since there is no room to keep a paste in otherwise.
  */
 import { MAX_CLIP_LENGTH } from '../constants';
 import {
@@ -55,7 +58,7 @@ describe('the channel clipboard', () => {
     expect(pasted(joined()).clip).toEqual(CLIP);
   });
 
-  it('keeps only the most recent paste', () => {
+  it('holds only the most recent paste in the slot', () => {
     const s = pasted(pasted(joined()), {
       id: 'clip2',
       authorId: B,
@@ -74,6 +77,16 @@ describe('the channel clipboard', () => {
     );
     expect(next).toBe(s);
     expect(canPasteClip(s, B)).toBe(false);
+  });
+
+  it('refuses a paste into a channel nobody is in, there being no room to keep it in', () => {
+    const s = apply(joined(), [
+      [{ type: 'STEP_OUT', userId: A }, T0 + 1_000],
+      [{ type: 'STEP_OUT', userId: B }, T0 + 1_000],
+    ]);
+    expect(s.present).toEqual([]);
+    expect(canPasteClip(s, A)).toBe(false);
+    expect(reduce(s, { type: 'PASTE_CLIP', userId: A, clip: CLIP }, T0 + 2_000)).toBe(s);
   });
 
   it('refuses a paste from somebody who is not in the channel at all', () => {
@@ -100,7 +113,7 @@ describe('the channel clipboard', () => {
     expect(pasted(s, { text: '' })).toBe(s);
   });
 
-  it('is emptied by anyone present, not only by whoever filled it', () => {
+  it('lets anyone present empty the slot, for the builds that draw it', () => {
     const s = pasted(joined());
     expect(canClearClip(s, B)).toBe(true);
     expect(reduce(s, { type: 'CLEAR_CLIP', userId: B }, T0 + 1_000).clip).toBeNull();

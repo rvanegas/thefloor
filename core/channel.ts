@@ -626,8 +626,8 @@ export function atLeastTwoPresent(state: ChannelState): boolean {
  *
  * **The rule this states is that nobody reaches into a conversation they are
  * not in.** People talking to each other are entitled to be the ones who
- * decide what the channel is called, who is in it, who may get in, what is on
- * the clipboard and what is playing — without a member who is somewhere else
+ * decide what the channel is called, who is in it, who may get in and what is
+ * playing — without a member who is somewhere else
  * altogether renaming the place mid-sentence or letting a stranger's link out
  * into the world. Membership is standing over a channel; it is not standing
  * over an occupation of it.
@@ -645,9 +645,10 @@ export function atLeastTwoPresent(state: ChannelState): boolean {
  * buys is that the rule says what it means: a conversation is people who
  * belong here talking, and a guest is somebody a member is answering for.
  *
- * `isHere` rather than `isPresent` so that a guest satisfies it — the two
- * guards a guest is allowed through, the clipboard's, ask this directly.
- * Everything a guest must *not* reach says `isParticipant` beside it rather
+ * `isHere` rather than `isPresent` so that a guest satisfies it. The two
+ * guards a guest is allowed through, the clipboard's, asked this until
+ * 2026-10-15 and ask `isHere` alone now, a paste being kept in a room and an
+ * empty channel having none. Everything a guest must *not* reach says `isParticipant` beside it rather
  * than leaning on this one to do both jobs; see `canManageGuest`.
  *
  * What this does **not** govern is anything that is already about presence for
@@ -1502,7 +1503,7 @@ export function canJoin(state: ChannelState, userId: UserId): boolean {
  * glossary said *started and stopped by anybody present* the whole time, which
  * is the half of the pair that was right.
  *
- * Presence rather than `presentOrEmpty`, unlike the clipboard and the name. The
+ * Presence rather than `presentOrEmpty`, unlike the name. The
  * empty half of that guard exists so that an absent member may furnish a room
  * nobody is in, and there is no such thing here: a run cannot outlive the last
  * person stepping out, `settleEmpty` ending it on that transition, so whenever
@@ -2083,32 +2084,35 @@ export function isWithheld(state: ChannelState, speaker: UserId): boolean {
 }
 
 /**
- * Whether `userId` may put something on the channel's clipboard.
+ * Whether `userId` may paste: put a piece of text into the *Record*, where it
+ * stands as a segment of its own at the moment it was pasted.
  *
- * `presentOrEmpty`, not mere membership. A paste is an act in a conversation that
- * is happening — the reason the task calls it *in channel* — and someone who
- * has stepped out leaving something behind for the others to find later is a
- * message, which this deliberately is not. That reasoning is exactly why the
- * empty case is allowed: nothing is being reached into, so leaving a link on
- * an empty channel's clipboard is furnishing the room rather than talking.
+ * **`isHere`, since 2026-10-15** — present, or a guest — where it had been
+ * `presentOrEmpty`. Until then a paste filled a one-slot clipboard, and
+ * leaving a link on an empty channel's was furnishing the room rather than
+ * talking. Now a paste is kept in the log of rooms, and with nobody here
+ * there is no room for it to be kept in: it would have to stand as a room of
+ * its own, which Rodrigo chose against.
  *
  * No floor restriction, unlike playback: a claim governs what is heard, and a
  * paste makes no sound.
  */
 export function canPasteClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && presentOrEmpty(state, userId);
+  return state.status === 'active' && isHere(state, userId);
 }
 
 /**
- * Whether `userId` may empty the channel's clipboard.
+ * Whether `userId` may empty `ChannelState.clip`, the slot builds before 364
+ * draw as their *Clipboard* tab — a shim, in SHIMS.md.
  *
- * The same test as pasting, and deliberately not "only whoever pasted it".
- * There is one slot, so anybody present can already destroy what is there by
- * pasting over it; a clear that were narrower than a replace would protect
- * nothing.
+ * **A paste cannot be deleted**, since 2026-10-15: what is kept in the *Record*
+ * stays there. This empties only the slot those builds read, which holds the
+ * latest paste for them, and touches nothing in the log. The same test as
+ * pasting, as it always was: anybody who can replace the slot can already
+ * destroy what is in it.
  */
 export function canClearClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && presentOrEmpty(state, userId);
+  return state.status === 'active' && isHere(state, userId);
 }
 
 /**
@@ -2350,6 +2354,7 @@ export const GUEST_ACTIONS: ReadonlySet<ChannelAction['type']> = new Set([
   'STEP_OUT',
   'SET_SELF_MUTE',
   'PASTE_CLIP',
+  // For the *Clipboard* tab of builds up to 363; SHIMS.md, gate 364.
   'CLEAR_CLIP',
   'REQUEST_SPEECH',
   'REFUSE_CONTACT',
