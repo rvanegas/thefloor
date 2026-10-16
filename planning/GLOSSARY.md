@@ -126,7 +126,8 @@ caused; the list carries the meaning.
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel`
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
-- **Voice** — One speaker within a transcript, which since 2026-10-09 is exactly one *stem*: labelled with its owner's display name, or *Played audio*, and never renamed
+- **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
+- **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
 - **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: while a film is loaded no recording may be begun, and the film is unloaded when the *room* ends (since 2026-10-09), and while one is *playing* no *floor* may be claimed — the floor asked about the load too until 2026-09-24, which left a film paused at its own end refusing every claim in that channel for ever. Against the shared track it is the two *transports* that are exclusive, since 2026-09-20 — both may be loaded, neither may play while the other does, and pausing is the way out of either. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
 - **Screen** — The app instance showing a party's film; any device you are signed in on, moved by whichever single offer applies — *Watch on another device* where the film is, *Watch on this device* where it is not, and *Watch on this device* bare where no device of yours has it at all (since 2026-09-24; nothing at all only when you have stepped out); a switch showing both until 2026-09-23, and on Home a pinned bar making the same claim from the device you have walked to, and which moves while the film is playing — it refused to until 2026-09-23, on an argument about mid-scene confusion that a measurement retired. Given up when the account leaves the room — and, since 2026-09-20, by *Other device* on a *second device*, which hands the film to whichever device is standing in the channel without stopping it, and is the one way to stop watching that leaves your standing in the channel alone
@@ -2940,15 +2941,37 @@ mean.
 
 ## Voice
 
-One speaker within a transcript, and **exactly one *stem***, since
-2026-10-09 — see Part Two. A stem is one microphone, so whose stem a line came
-from is who said it, and its label is that person's display name as frozen
-with the run, or *Played audio* for the shared track. Nothing asks the provider
-how many voices it heard, and nothing renames one: an interview played into
-the room is one voice called *Played audio*, and a speakerphone's bleed is
-credited to the microphone's owner. Until then the provider's letters split a
-stem into several voices — *Played audio (B)* — that could be named or removed;
-decision/2026-10-09-a-stem-is-one-voice.md is why that went.
+One speaker within a transcript, and **ordinarily exactly one *stem*** — see
+Part Two. A stem is one microphone, so whose stem a line came from is who said
+it, and its label is that person's display name as frozen with the run, or
+*Played audio* for the shared track.
+
+**Except where a stem is separated**, since 2026-10-16: the shared track
+always, and a member's own microphone while they have *Several voices on my
+microphone* on. Those are asked of the provider which voice said what, and a
+stem that came back with more than one names each with a bare letter —
+*Played audio (A)*, *Rodrigo (B)* — that nobody renames; one that came back
+with one voice is that voice, unlettered. **A live letter is a session's**,
+and a session closes after half a minute of silence, so *A* after a pause need
+not be the *A* before it. Everywhere else a speakerphone's bleed is credited to
+the microphone's owner, by decision/2026-10-09-a-stem-is-one-voice.md, which
+this narrows rather than undoes; decision/2026-10-16-separating-voices-is-a-choice-per-room.md
+is why.
+
+## Several voices on my microphone
+
+The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16, drawn
+only while you are here: **your own microphone's track told apart into
+*voices***, for when more than one person is talking into one phone. It is
+about this *room* — the room emptying turns it off, and nobody's switch is
+anybody else's — and it reaches both forms of text: the live transcript's
+sessions are opened asking, and a recording made while it was on, for even a
+minute, notes you on its row so that the transcript asked for later separates
+your stem. Switching it off does not unask a recording already noted. Not on
+the guest page. **Named for the fact, not the mechanism**: somebody knows
+there are two people at their phone, and *diarisation* is the provider's word.
+`ChannelState.diarize`, `SET_DIARIZE`, `canSetDiarize`; Spanish *Varias voces
+en mi micrófono*.
 
 ## Waiting bar
 
@@ -4925,6 +4948,8 @@ are settled:
     Seat                  Sitio
     Recording             Grabación
     Transcript            Transcripción
+    Several voices on my microphone
+                          Varias voces en mi micrófono
     Watch party           Ver algo juntos — a phrase, there being no noun
     Watching /            Viendo / Sin ver — the roster suffixes. The negative
     not watching          names the absence rather than negating the verb, on

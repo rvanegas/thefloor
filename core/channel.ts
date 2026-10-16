@@ -1199,6 +1199,22 @@ export function canPlay(state: ChannelState, userId: UserId): boolean {
   return true;
 }
 
+/**
+ * Whether `userId` may switch *Several voices* on or off for their own
+ * microphone: a member here. Only ever their own — the action carries no
+ * target — and not a guest's, the guest page having no such switch. Nothing
+ * about the floor or about who pays: it changes what is asked of the provider
+ * about a track, never whether one is transcribed.
+ */
+export function canSetDiarize(state: ChannelState, userId: UserId): boolean {
+  return state.status === 'active' && isPresent(state, userId);
+}
+
+/** Whether `userId` has *Several voices* on this sitting. */
+export function isDiarized(state: ChannelState, userId: UserId): boolean {
+  return state.diarize?.[userId] === true;
+}
+
 /** Whether `userId` may press Pause: something running, on Pause's rules. */
 export function canPauseKeeping(state: ChannelState, userId: UserId): boolean {
   return (
@@ -3467,6 +3483,15 @@ function reduceAction(
       return stopKeeping(state, now);
     }
 
+    case 'SET_DIARIZE': {
+      if (!canSetDiarize(state, action.userId)) return state;
+      const { [action.userId]: _was, ...others } = state.diarize ?? {};
+      return {
+        ...state,
+        diarize: action.on ? { ...others, [action.userId]: true } : others,
+      };
+    }
+
     // Every playback action shares one guard, because they are all the same
     // kind of act: changing what the pair are listening to.
     case 'SET_TRACK':
@@ -4262,8 +4287,9 @@ function settleEmpty(state: ChannelState, now: number): ChannelState {
         }
       : watched;
   // **The next sitting begins with *Record automatically*'s pair selected**,
-  // since 2026-10-11 — both off where neither is set.
-  const reset = { ...settled, keep: keepForSitting(settled) };
+  // since 2026-10-11 — both off where neither is set. And with nobody's voices
+  // separated, that switch being per room since 2026-10-16.
+  const reset = { ...settled, keep: keepForSitting(settled), diarize: undefined };
   if (!isRecordingActive(reset.recording)) return reset;
   return endRun(reset, now);
 }

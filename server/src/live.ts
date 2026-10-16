@@ -20,12 +20,21 @@
  * not written. Zeros rather than nothing, so a session's audio stays one
  * continuous timeline.
  *
+ * **Voices within one stream are asked for where somebody wants them**, since
+ * 2026-10-16: the shared track's always, a member's while they have
+ * *Several voices* on (`isDiarized`). A session is opened asking one or the
+ * other, so a switch flipped mid-session closes it and the next frame opens
+ * one asking the other way. **A letter is the session's**: a session closes
+ * after `IDLE_MS` of silence, and the provider's `A` in the next one is
+ * whoever it heard first there, which is not necessarily the last one's `A`.
+ * See planning/decision/2026-10-16-separating-voices-is-a-choice-per-room.md.
+ *
  * **A line is placed on the wall clock**, there being no recording to place
  * it on. Each send records where in the session's audio it began and when
  * that was; a turn's offsets are mapped back through those anchors.
  */
 import { randomUUID } from 'node:crypto';
-import { isTranscribingLive, isWithheld } from '../../core/channel';
+import { isDiarized, isTranscribingLive, isWithheld } from '../../core/channel';
 import type { LiveLine } from '../../core/protocol';
 import type { ChannelState } from '../../core/types';
 import { MEDIA_IDENTITY, playbackIdentity } from './channels';
@@ -81,6 +90,8 @@ interface Stream {
    * channel's `liveTranscriptionPaidBy`. Absent, the house pays.
    */
   paidBy?: string;
+  /** Whether it was opened asking which voice said each turn. */
+  diarize: boolean;
 }
 
 interface Speaker {
@@ -170,7 +181,7 @@ export class LiveTranscriber {
   linesBefore(channelId: string, before: number, limit: number): LiveLine[] {
     const rows = this.options.db
       .prepare(
-        `SELECT id, identity, display_name, start_at, end_at, text, confidence
+        `SELECT id, identity, display_name, start_at, end_at, text, confidence, speaker
          FROM live_lines WHERE channel_id = ? AND start_at < ?
          ORDER BY start_at DESC LIMIT ?`
       )
@@ -206,6 +217,10 @@ export class LiveTranscriber {
       speaker = { stream: null, lastVoiceAt: 0, preroll: [], prerollMs: 0 };
       room.speakers.set(speakerId, speaker);
     }
+    // *Several voices* switched since this session opened: it ends here,
+    // keeping its last turn, and the next one asks the other way.
+    const diarize = separates(state, speakerId);
+    if (speaker.stream && speaker.stream.diarize !== diarize) this.closeStream(speaker);
 
     if (!speaker.stream) {
       if (!voiced) {
@@ -217,7 +232,7 @@ export class LiveTranscriber {
         }
         return;
       }
-      speaker.stream = this.openStream(channelId, speakerId, speaker);
+      speaker.stream = this.openStream(channelId, speakerId, speaker, diarize);
       // The pre-roll was heard before this frame, back to back with it.
       let at = now - frameMs - speaker.prerollMs;
       for (const earlier of speaker.preroll) {
@@ -249,7 +264,12 @@ export class LiveTranscriber {
     stream.sentMs += (frame.length / STREAM_SAMPLE_RATE) * 1000;
   }
 
-  private openStream(channelId: string, identity: string, speaker: Speaker): Stream {
+  private openStream(
+    channelId: string,
+    identity: string,
+    speaker: Speaker,
+    diarize: boolean
+  ): Stream {
     const openedAt = this.options.now();
     const paidBy = this.options.stateOf(channelId)?.liveTranscriptionPaidBy;
     // Built before the session so its handlers can reach the anchors: a turn
@@ -259,6 +279,7 @@ export class LiveTranscriber {
       anchors: [],
       sentMs: 0,
       openedAt,
+      diarize,
       ...(paidBy ? { paidBy } : {}),
     } as unknown as Stream;
     stream.session = this.options.provider.open({
@@ -290,7 +311,7 @@ export class LiveTranscriber {
           );
         if (error) this.options.onError(error, `live transcript ${channelId}/${identity}`);
       },
-    });
+    }, { diarize });
     return stream;
   }
 
@@ -304,12 +325,14 @@ export class LiveTranscriber {
       endAt: Math.round(wallOf(stream.anchors, turn.endMs)),
       text: turn.text,
       confidence: turn.confidence,
+      ...(stream.diarize && turn.speaker ? { speaker: turn.speaker } : {}),
     };
     this.options.db
       .prepare(
         `INSERT INTO live_lines
-           (id, channel_id, identity, display_name, start_at, end_at, text, confidence)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+           (id, channel_id, identity, display_name, start_at, end_at, text, confidence,
+            speaker)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         line.id,
@@ -319,7 +342,8 @@ export class LiveTranscriber {
         line.startAt,
         line.endAt,
         line.text,
-        line.confidence
+        line.confidence,
+        line.speaker ?? null
       );
     this.options.onLine(channelId, line);
   }
@@ -382,6 +406,7 @@ interface LineRow {
   end_at: number;
   text: string;
   confidence: number | null;
+  speaker: string | null;
 }
 
 function lineFrom(row: LineRow): LiveLine {
@@ -393,7 +418,13 @@ function lineFrom(row: LineRow): LiveLine {
     endAt: row.end_at,
     text: row.text,
     confidence: row.confidence,
+    ...(row.speaker ? { speaker: row.speaker } : {}),
   };
+}
+
+/** Whether a speaker's stream asks for its voices: see this file's header. */
+function separates(state: ChannelState, speakerId: string): boolean {
+  return speakerId === MEDIA_IDENTITY || isDiarized(state, speakerId);
 }
 
 function peakOf(samples: Int16Array): number {

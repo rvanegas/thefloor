@@ -4491,8 +4491,12 @@ export function buildApp(options: BuildOptions = {}): App {
       // Named here rather than on the client, so that an export, a search
       // result and this screen cannot disagree about who said what. No
       // `voices` roster and no `speaker` on a line, since 2026-10-09: builds
-      // that read them find none, which hides their voice-naming screen.
-      lines: readable(transcripts.linesFor(found.row.id), nameOf),
+      // that read them find none, which hides their voice-naming screen. A
+      // separated voice's letter travels in the name instead, since
+      // 2026-10-16 — `Played audio (B)` — which every build draws as it is.
+      lines: readable(transcripts.linesFor(found.row.id), nameOf).map(
+        ({ speaker: _letter, ...line }) => line
+      ),
     };
   });
 

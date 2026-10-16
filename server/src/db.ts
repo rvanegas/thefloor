@@ -409,6 +409,12 @@ export interface RecordingRow {
    */
   participant_names: string | null;
   /**
+   * JSON: string[] — the members who had *Several voices* on at any moment
+   * of the run, so the transcript asked for later separates their stems.
+   * Null when nobody did, and on every row from before 2026-10-16.
+   */
+  diarized: string | null;
+  /**
    * What the recording is called: decided when the run stopped, the same for
    * everybody in it, never recomputed. Null on rows written before it existed,
    * which fall back to a label derived at read time — the old behaviour, and
@@ -1869,9 +1875,10 @@ CREATE TABLE IF NOT EXISTS transcripts (
   model        TEXT
 );
 
--- One per speaker, because one stem is one job. Diarisation is asked for
--- inside each of them and never across them: the stems already know whose
--- microphone they were, and two participants are never in the same file.
+-- One per speaker, because one stem is one job. Diarisation is never asked
+-- for across them — the stems already know whose microphone they were, and
+-- two participants are never in the same file — and within one only for the
+-- shared track and for a member who asked (recordings.diarized).
 --
 -- Separate jobs are what make a partial failure partial. One stem the provider
 -- could not read leaves the rest of the transcript standing, and is the row
@@ -1888,6 +1895,11 @@ CREATE TABLE IF NOT EXISTS transcript_jobs (
   provider_id  TEXT,
   -- 'pending' | 'ready' | 'failed'
   state        TEXT NOT NULL,
+  -- Whether voices within this stem were asked for: 1 for the shared track,
+  -- and for a member's stem when recordings.diarized names them. Decided when
+  -- the job is made, so a resumed job asks what the first asking did, and read
+  -- back to say whether this job's letters are to be shown. Since 2026-10-16.
+  diarize      INTEGER NOT NULL DEFAULT 0,
   -- What language detection decided, per speaker — which is a thing per-stem
   -- jobs can answer and one multichannel job could not.
   language     TEXT,
@@ -1922,10 +1934,12 @@ CREATE TABLE IF NOT EXISTS transcript_lines (
   -- denormalisation worth having.
   channel_id   TEXT NOT NULL,
   identity     TEXT NOT NULL,
-  -- The provider's letter for a voice within this one stem. Written until
-  -- 2026-10-09, NULL since and read by nothing: a stem is one voice, named by
-  -- whose stem it is. Kept rather than dropped because it holds what older
-  -- transcripts came back with. See decision/2026-10-09-a-stem-is-one-voice.md.
+  -- The provider's letter for a voice within this one stem, where voices were
+  -- asked for: the shared track, and a member's stem when recordings.diarized
+  -- names them, since 2026-10-16. NULL otherwise. Written for every stem until
+  -- 2026-10-09 and never read in between, so the letters on older rows are not
+  -- shown: see Transcripts.linesFor, and
+  -- decision/2026-10-16-separating-voices-is-a-choice-per-room.md.
   speaker      TEXT,
   start_ms     INTEGER NOT NULL,
   end_ms       INTEGER NOT NULL,
@@ -1974,7 +1988,11 @@ CREATE TABLE IF NOT EXISTS live_lines (
   start_at     INTEGER NOT NULL,
   end_at       INTEGER NOT NULL,
   text         TEXT NOT NULL,
-  confidence   REAL
+  confidence   REAL,
+  -- The provider's letter for a voice within one streaming session, where
+  -- voices were asked for; NULL otherwise. Since 2026-10-16. A letter is the
+  -- session's, not the room's: see live.ts.
+  speaker      TEXT
 );
 CREATE INDEX IF NOT EXISTS live_lines_channel
   ON live_lines(channel_id, start_at);
@@ -2938,6 +2956,22 @@ function migrate(db: Db): void {
   // admitted before the question could be asked was never asked it.
   if (!hasColumn(db, 'guest_sessions', 'publish_consent_at')) {
     db.exec('ALTER TABLE guest_sessions ADD COLUMN publish_consent_at INTEGER');
+  }
+  // Null on every row that exists, which is true: nobody could ask for voices
+  // to be separated before 2026-10-16. See RecordingRow.diarized.
+  if (!hasColumn(db, 'recordings', 'diarized')) {
+    db.exec('ALTER TABLE recordings ADD COLUMN diarized TEXT');
+  }
+  // 0 on every job that exists, which is what keeps the letters written
+  // before 2026-10-09 off the screen they were taken off that day.
+  if (!hasColumn(db, 'transcript_jobs', 'diarize')) {
+    db.exec(
+      'ALTER TABLE transcript_jobs ADD COLUMN diarize INTEGER NOT NULL DEFAULT 0'
+    );
+  }
+  // Null on every line that exists, likewise. See live.ts.
+  if (!hasColumn(db, 'live_lines', 'speaker')) {
+    db.exec('ALTER TABLE live_lines ADD COLUMN speaker TEXT');
   }
   // The feed reads published recordings of one channel, in `started_at`
   // order, on every poll by every subscriber and every aggregator. Partial

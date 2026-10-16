@@ -15,6 +15,7 @@ import {
   findRecording,
   findSwitch,
   findTab,
+  mockApp,
   render,
   resetHarness,
   showChannel,
@@ -595,6 +596,63 @@ describe('rooms on the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
     expect(shareOf(tree).props.accessibilityState.disabled).toBe(true);
+    act(() => tree.unmount());
+  });
+});
+
+/*
+  **Several voices on my microphone**, since 2026-10-16: under Audio and
+  Text, your own track told apart into voices for this sitting. Only while
+  you are here, and only ever your own.
+*/
+describe('several voices on my microphone', () => {
+  it('is drawn while you are here, says what is chosen, and asks for the change', () => {
+    mockApp.act.mockClear();
+    showChannel(channelOf());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    const off = findSwitch(tree, 'Several voices on my microphone')!;
+    expect(off.props.value).toBe(false);
+    act(() => off.props.onValueChange(true));
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'SET_DIARIZE', on: true });
+    act(() => tree.unmount());
+
+    showChannel(channelOf((s) => reduce(s, { type: 'SET_DIARIZE', userId: ME, on: true }, NOW)));
+    const on = render(screen());
+    showTab(on, 'Record');
+    expect(findSwitch(on, 'Several voices on my microphone')!.props.value).toBe(true);
+    act(() => on.unmount());
+  });
+
+  it('is not drawn while you are away', () => {
+    showChannel(channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    expect(findSwitch(tree, 'Several voices on my microphone')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('letters a stem in the log only where it holds more than one voice', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        { ...line('l1', 'media', 'Played audio', NOW, 'welcome to the show'), speaker: 'A' },
+        { ...line('l2', 'media', 'Played audio', NOW + 2_000, 'glad to be here'), speaker: 'B' },
+        { ...line('l3', ME, 'Me', NOW + 4_000, 'just me here'), speaker: 'A' },
+      ],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [room('room_1', NOW - 1_000, NOW + 60_000, [])],
+    } as never);
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    const text = textOf(tree);
+    expect(text).toContain('Played audio (A)');
+    expect(text).toContain('Played audio (B)');
+    expect(text).not.toContain('Me (A)');
     act(() => tree.unmount());
   });
 });

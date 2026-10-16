@@ -2,12 +2,17 @@
  * Reading a transcript, as opposed to producing one.
  *
  * The server stores what the provider returned: one row per line, each tagged
- * with the stem it came from. A stem is one microphone and is taken to hold
- * exactly one voice, so the stem is the speaker and its name is the speaker's
- * name — the participant's display name as frozen with the run, or the played
- * audio's label. Nothing about who said what is asked of the provider, and
- * nothing about it is editable. See
+ * with the stem it came from. A stem is one microphone, so the stem is the
+ * speaker and its name is the speaker's name — the participant's display name
+ * as frozen with the run, or the played audio's label. See
  * planning/decision/2026-10-09-a-stem-is-one-voice.md.
+ *
+ * **Except where somebody asked for voices to be told apart**, since
+ * 2026-10-16: the shared track always, and a member's own microphone when
+ * they switched *Several voices* on for the room. Those lines carry the
+ * provider's letter, and a stem that came back with more than one is named
+ * `Name (A)`, `Name (B)`. Bare letters, never renamed. See
+ * planning/decision/2026-10-16-separating-voices-is-a-choice-per-room.md.
  *
  * Two jobs, and the two ends had better agree about both, which is why this is
  * here rather than in either of them: what to call each line, and where one
@@ -21,6 +26,11 @@ export interface TranscriptLine {
   endMs: number;
   text: string;
   confidence: number | null;
+  /**
+   * The provider's letter for a voice within this one stem, or null where
+   * voices were not asked for. Absent from a server that predates it.
+   */
+  speaker?: string | null;
 }
 
 /** A line once it has been through `readable`, which is how it travels. */
@@ -33,12 +43,56 @@ export type NamedLine<L> = L & { displayName: string | null };
  * question on both sides of the wire — the server has frozen participant names
  * and a live account table behind it. Null from it means the stem could not be
  * named at all, which stays null: a made-up name is worse than none.
+ *
+ * **A letter goes on the name only where the stem holds more than one** among
+ * the lines given. A separated stem that came back with one voice is that
+ * voice, and `Rodrigo (A)` alone on a page says less than `Rodrigo`.
  */
 export function readable<L extends TranscriptLine>(
   lines: readonly L[],
   nameOf: (identity: string) => string | null
 ): Array<NamedLine<L>> {
-  return lines.map((line) => ({ ...line, displayName: nameOf(line.identity) }));
+  return lettered(
+    lines.map((line) => ({ ...line, displayName: nameOf(line.identity) }))
+  );
+}
+
+/**
+ * Lines already named, with each voice's letter put on the name where its
+ * stem holds more than one among them — `readable`'s rule, for the live
+ * transcript too, whose names are frozen on the server with the line and
+ * whose letters are therefore applied wherever the lines are gathered.
+ */
+export function lettered<
+  L extends { identity: string; displayName: string | null; speaker?: string | null },
+>(lines: readonly L[]): L[] {
+  const letters = new Map<string, Set<string>>();
+  for (const line of lines) {
+    if (!line.speaker) continue;
+    const seen = letters.get(line.identity) ?? new Set<string>();
+    seen.add(line.speaker);
+    letters.set(line.identity, seen);
+  }
+  if (letters.size === 0) return [...lines];
+  return lines.map((line) => {
+    const several = (letters.get(line.identity)?.size ?? 0) > 1;
+    return several
+      ? { ...line, displayName: voiceName(line.displayName, line.speaker) }
+      : line;
+  });
+}
+
+/**
+ * A stem's name with one of its voices' letters: `Rodrigo (B)`. The name
+ * alone where there is no letter; null where there is no name, as `readable`
+ * explains, since a letter is no name either.
+ */
+export function voiceName(
+  name: string | null,
+  speaker: string | null | undefined
+): string | null {
+  if (name === null) return null;
+  return speaker ? `${name} (${speaker})` : name;
 }
 
 /** Consecutive lines under one name, which is one entry on screen. */

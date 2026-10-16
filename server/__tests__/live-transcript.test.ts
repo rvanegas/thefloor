@@ -498,3 +498,87 @@ describe('on the wire', () => {
     b.socket.close();
   });
 });
+
+/*
+  *Several voices*, since 2026-10-16: a session asks which voice said each
+  turn on the shared track always, and on a member's microphone while they
+  have it on — a choice nobody else can make for them.
+*/
+describe('separating voices', () => {
+  const separate = (channelId: string, userId: string, on: boolean) =>
+    app.channels.dispatch(channelId, userId, { type: 'SET_DIARIZE', on } as never);
+
+  it('asks on the shared track, and on a member only once they switch it on', async () => {
+    boot();
+    const { alice, bob, channelId, room: roomName } = await room();
+    await turnOn(alice.token, channelId);
+
+    talk(roomName, `media:${channelId}`, 100);
+    talk(roomName, alice.account.id, 100);
+    separate(channelId, bob.account.id, true);
+    talk(roomName, bob.account.id, 100);
+
+    expect(streaming.sessions.map((s) => s.options.diarize)).toEqual([true, false, true]);
+  });
+
+  it('closes a session the switch has changed under, and opens one asking the other way', async () => {
+    boot();
+    const { alice, channelId, room: roomName } = await room();
+    await turnOn(alice.token, channelId);
+
+    talk(roomName, alice.account.id, 100);
+    separate(channelId, alice.account.id, true);
+    talk(roomName, alice.account.id, 100);
+
+    expect(streaming.sessions.map((s) => [s.options.diarize, s.closed])).toEqual([
+      [false, true],
+      [true, false],
+    ]);
+  });
+
+  it('keeps each line\'s letter beside its name, never in it', async () => {
+    boot();
+    const { alice, channelId, room: roomName } = await room();
+    await turnOn(alice.token, channelId);
+    talk(roomName, `media:${channelId}`, 100);
+    streaming.sessions[0].turn({ startMs: 0, endMs: 50, text: 'Hi.', confidence: null, speaker: 'A' });
+    streaming.sessions[0].turn({ startMs: 50, endMs: 100, text: 'Hey.', confidence: null, speaker: 'B' });
+
+    const { lines } = (await history(alice.token, channelId)).json() as {
+      lines: Array<{ displayName: string; speaker?: string }>;
+    };
+    expect(lines.map((l) => [l.displayName, l.speaker])).toEqual([
+      ['Played audio', 'A'],
+      ['Played audio', 'B'],
+    ]);
+  });
+
+  it('notes a recording with whoever had it on while it ran', async () => {
+    boot();
+    const { alice, bob, channelId } = await room();
+    separate(channelId, bob.account.id, true);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    const runId = app.channels.get(channelId)!.recording.runId!;
+    // Switching it off does not unask: there is one transcript of the stem.
+    separate(channelId, bob.account.id, false);
+    separate(channelId, alice.account.id, true);
+
+    const row = app.db
+      .prepare('SELECT diarized FROM recordings WHERE id = ?')
+      .get(runId) as { diarized: string | null };
+    expect(JSON.parse(row.diarized ?? '[]').sort()).toEqual(
+      [alice.account.id, bob.account.id].sort()
+    );
+  });
+
+  it('is nobody else\'s to switch', async () => {
+    boot();
+    const { alice, bob, channelId } = await room();
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_DIARIZE',
+      on: true,
+      userId: bob.account.id,
+    } as never);
+    expect(app.channels.get(channelId)?.diarize?.[bob.account.id]).toBeUndefined();
+  });
+});

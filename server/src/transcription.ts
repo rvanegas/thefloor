@@ -14,10 +14,11 @@
  * here ever asks the provider to tell Alice from Bob: they were never in the
  * same file.
  *
- * Nor is diarisation *within* one stem, since 2026-10-09: a stem is taken to
- * hold exactly one voice, its microphone's owner's, so a line is named by
- * whose stem it came from and nothing is asked of the provider about voices
- * at all. See planning/decision/2026-10-09-a-stem-is-one-voice.md.
+ * Diarisation *within* one stem is asked for only where somebody wants it,
+ * since 2026-10-16 — see `TranscriptionOptions.diarize`. Otherwise a stem is
+ * taken to hold exactly one voice, its microphone's owner's, as it has been
+ * since 2026-10-09. See planning/decision/2026-10-09-a-stem-is-one-voice.md
+ * and planning/decision/2026-10-16-separating-voices-is-a-choice-per-room.md.
  *
  * Nothing calls any of this yet. It is the first phase of that design: the
  * credential, the configuration, the disclosure on the privacy page, and the
@@ -66,6 +67,11 @@ export interface Utterance {
    * what is stored cannot.
    */
   confidence: number | null;
+  /**
+   * Which voice inside this stem said it — `A`, `B`, … — where voices were
+   * asked for and the provider labelled the words; null or absent otherwise.
+   */
+  speaker?: string | null;
 }
 
 /** What one poll found. `pending` covers both queued and processing. */
@@ -91,6 +97,12 @@ export type TranscriptionState =
 
 export interface TranscriptionOptions {
   languageDetection: boolean;
+  /**
+   * Whether to ask which voice said what, *within* this one file. Never
+   * between participants, who are never in the same file: the shared track
+   * always, and a member's stem when they asked. See this file's header.
+   */
+  diarize: boolean;
   /** The grade of model, which the provider maps to one of its own. */
   model: TranscriptionModel;
 }
@@ -188,9 +200,9 @@ export const ASSEMBLYAI_MODELS: Record<TranscriptionModel, string[]> = {
 /**
  * How long a gap between words starts a new line, in milliseconds.
  *
- * The provider is never asked to label speakers, so it groups nothing and a
- * response is bare words; the seam a line breaks on is a pause long enough to
- * read as one.
+ * Lines are made from bare words, whatever the provider groups; the seam a
+ * line breaks on is a pause long enough to read as one, or, where voices were
+ * asked for, a change of voice.
  *
  * Chosen rather than derived, and deliberately at render distance from the
  * data — the words' own timings are what is stored, so a different number can
@@ -250,8 +262,10 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
       body: JSON.stringify({
         audio_url: url,
         speech_models: ASSEMBLYAI_MODELS[options.model],
-        // No `speaker_labels` (default false): a stem is one voice, named by
-        // whose stem it is. See this file's header.
+        // Within one stem only — see TranscriptionOptions.diarize. Left out
+        // rather than sent false where it is off (the default), so that a stem
+        // nobody separated is asked exactly what it was asked before.
+        ...(options.diarize ? { speaker_labels: true } : {}),
         language_detection: options.languageDetection,
         punctuate: true,
         format_text: true,
@@ -296,8 +310,8 @@ export class AssemblyAiTranscription implements TranscriptionProvider {
     // and cannot be tapped: its `startMs` is where the turn began, so seeking
     // to it lands an hour before the words being pointed at.
     //
-    // `intoLines` is what a line is for — a pause and a length cap. Nothing
-    // asks for speaker labels any more, so there are no turns to read either.
+    // `intoLines` is what a line is for — a pause, a length cap, and a change
+    // of voice where voices were asked for, which the words carry themselves.
     return {
       state: 'ready',
       languageCode: body.language_code ?? null,
@@ -363,6 +377,8 @@ interface ProviderWord {
   end?: number;
   text?: string;
   confidence?: number;
+  /** The voice's letter, on every word, where `speaker_labels` was asked. */
+  speaker?: string | null;
 }
 
 /**
@@ -402,14 +418,19 @@ export function intoLines(words: ProviderWord[]): Utterance[] {
     const startMs = word.start ?? 0;
     const endMs = word.end ?? startMs;
 
+    // A change of voice ends a line whatever the timing says: two speakers in
+    // one line is the one join that cannot be undone later.
+    const speaker = word.speaker ?? null;
     if (
       current &&
-      (startMs - current.endMs > LINE_GAP_MS || count >= LINE_MAX_WORDS)
+      (startMs - current.endMs > LINE_GAP_MS ||
+        count >= LINE_MAX_WORDS ||
+        speaker !== current.speaker)
     ) {
       close();
     }
     if (!current) {
-      current = { startMs, endMs, text, confidence: null };
+      current = { startMs, endMs, text, confidence: null, speaker };
     } else {
       current.text = `${current.text} ${text}`;
       current.endMs = Math.max(current.endMs, endMs);

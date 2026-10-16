@@ -363,6 +363,8 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   // Stop, since 2026-10-11: ends both, and spends nothing. Play and the
   // switches go through their routes, which ask who pays for the text.
   'STOP_KEEPING',
+  // Your own microphone only: the actor is supplied, and nothing is a target.
+  'SET_DIARIZE',
   'PAUSE_LIVE_TRANSCRIPTION',
   'RESUME_LIVE_TRANSCRIPTION',
   'CLEAR_TRACK',
@@ -722,6 +724,15 @@ export class ChannelRegistry {
    * they were not in the conversation, so the recording is not theirs.
    */
   private recordingAudience = new Map<string, Set<string>>();
+  /**
+   * Per run id, who has been noted on its row as wanting their voices
+   * separated — `recordings.diarized`. Only ever grows, like the audience: a
+   * member who had *Several voices* on for a minute of the run asked for it
+   * on that stem, and switching it off afterwards does not unask, there being
+   * one transcript of the stem and not one per minute of it. A mirror of the
+   * row so that most commits do not write to it; seeded from the row.
+   */
+  private separatedVoices = new Map<string, Set<string>>();
   /**
    * What the media plane was last known to have been told, per channel: for
    * each `listener<-speaker` pair, whether the speaker was withheld and the
@@ -4517,6 +4528,7 @@ export class ChannelRegistry {
     this.applySilenceToMedia(before, after);
     this.applyGuestSpeech(before, after);
     this.applyRecordingToMedia(before, after);
+    this.noteSeparatedVoices(after);
     // A run's audience only ever grows. Someone who arrives mid-recording is
     // in that recording and must be able to reach it afterwards; someone who
     // leaves — the channel or merely the room — was still in it, so they are
@@ -8341,6 +8353,7 @@ export class ChannelRegistry {
     this.floorWindows.delete(channel.id);
 
     this.checkpointedAt.delete(runId);
+    this.separatedVoices.delete(runId);
 
     // `lastRecording` is the reducer's account of the run that just ended. Its
     // absence means the reducer never had a run to report, and then nothing
@@ -8479,6 +8492,35 @@ export class ChannelRegistry {
     return this.mixes.recordingAudio(recordingId);
   }
 
+
+  /**
+   * Notes on a running recording's row whoever wants their voices separated,
+   * so that the transcript asked for later — once the sitting the switch
+   * belonged to is long over — separates their stems. After
+   * `applyRecordingToMedia`, which is what opens the row. See
+   * `separatedVoices`, and `Transcripts.separatedOf` for the reader.
+   */
+  private noteSeparatedVoices(channel: ChannelState): void {
+    const runId = channel.recording.runId;
+    if (runId === null || channel.recording.status !== 'recording') return;
+    const wanted = Object.keys(channel.diarize ?? {});
+    if (wanted.length === 0) return;
+    let noted = this.separatedVoices.get(runId);
+    if (!noted) {
+      const row = this.db
+        .prepare('SELECT diarized FROM recordings WHERE id = ?')
+        .get(runId) as { diarized: string | null } | undefined;
+      noted = new Set<string>(row?.diarized ? JSON.parse(row.diarized) : []);
+      this.separatedVoices.set(runId, noted);
+    }
+    if (wanted.every((id) => noted.has(id))) return;
+    for (const id of wanted) noted.add(id);
+    this.db
+      .prepare(
+        'UPDATE recordings SET diarized = ? WHERE id = ? AND ended_at IS NULL'
+      )
+      .run(JSON.stringify([...noted]), runId);
+  }
 
   /**
    * Opens a run's row, empty of audio, null ended_at marking it in flight.

@@ -40,7 +40,25 @@ describe('a finished turn', () => {
           { start: 1_600, end: 2_000, confidence: 1 },
         ],
       })
-    ).toEqual({ startMs: 1_200, endMs: 2_000, text: 'Hello there.', confidence: 0.9 });
+    ).toEqual({
+      startMs: 1_200,
+      endMs: 2_000,
+      text: 'Hello there.',
+      confidence: 0.9,
+      speaker: null,
+    });
+  });
+
+  it('carries the voice the provider called it, and no voice called PENDING', () => {
+    const turn = (speaker_label: string) =>
+      turnFrom({
+        end_of_turn: true,
+        turn_is_formatted: true,
+        transcript: 'Hi.',
+        speaker_label,
+      })?.speaker;
+    expect(turn('B')).toBe('B');
+    expect(turn('PENDING')).toBeNull();
   });
 
   it('is not a partial, nor the unformatted end that comes first', () => {
@@ -61,15 +79,28 @@ describe('a streaming session', () => {
     const session = new AssemblyAiStreaming({ apiKey: 'k', url: fake.url }).open({
       onTurn: () => {},
       onClose: () => {},
-    });
+    }, { diarize: false });
     const { url, auth, socket } = await fake.connected;
     const params = new URLSearchParams(url.split('?')[1]);
     expect(params.get('speech_model')).toBe(STREAMING_MODEL);
     expect(params.get('sample_rate')).toBe('16000');
     expect(params.get('format_turns')).toBe('true');
-    // Nothing asks whose voice it is: a stream is one speaker.
+    // Nothing asks whose voice it is unless asked: a stream is one speaker.
     expect(params.get('speaker_labels')).toBeNull();
     expect(auth).toBe('k');
+    socket.close(1000);
+    await session.close();
+    fake.server.close();
+  });
+
+  it('asks which voice said each turn where it was opened to', async () => {
+    const fake = await provider();
+    const session = new AssemblyAiStreaming({ apiKey: 'k', url: fake.url }).open(
+      { onTurn: () => {}, onClose: () => {} },
+      { diarize: true }
+    );
+    const { url, socket } = await fake.connected;
+    expect(new URLSearchParams(url.split('?')[1]).get('speaker_labels')).toBe('true');
     socket.close(1000);
     await session.close();
     fake.server.close();
@@ -84,7 +115,7 @@ describe('a streaming session', () => {
       onClose: (result) => {
         billed = result.billedSeconds;
       },
-    });
+    }, { diarize: false });
     const { socket } = await fake.connected;
     socket.on('message', (data, binary) => {
       if (binary) {
@@ -115,7 +146,7 @@ describe('a streaming session', () => {
     const session = new AssemblyAiStreaming({ apiKey: 'k', url: fake.url }).open({
       onTurn: (turn) => turns.push(turn),
       onClose: () => {},
-    });
+    }, { diarize: false });
     const { socket } = await fake.connected;
     socket.send(JSON.stringify({ type: 'Begin', id: 'x' }));
     socket.send(JSON.stringify({ type: 'Turn', end_of_turn: false, transcript: 'hel' }));
@@ -143,7 +174,7 @@ describe('a streaming session', () => {
       onClose: (result) => {
         error = result.error;
       },
-    });
+    }, { diarize: false });
     const { socket } = await fake.connected;
     socket.send(JSON.stringify({ type: 'Error', error_code: 3008, error: 'Session expired' }));
     socket.close(3008, 'Session expired');

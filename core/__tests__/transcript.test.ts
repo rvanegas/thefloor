@@ -25,7 +25,7 @@ describe('a transcript as it is meant to be read', () => {
   ];
 
   it('names every line after its stem', () => {
-    // A stem is one microphone and one voice, so whose stem it is answers who
+    // A stem is one microphone and, unseparated, one voice, so whose stem it is answers who
     // said it — there is no second answer to reconcile with the first.
     expect(readable(conversation, nameOf).map((l) => l.displayName)).toEqual([
       'Rodrigo',

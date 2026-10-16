@@ -112,6 +112,8 @@ interface JobRow {
   language: string | null;
   failure: string | null;
   billed_ms: number | null;
+  /** 1 where voices within the stem were asked for. */
+  diarize: number;
 }
 
 export class Transcripts {
@@ -272,11 +274,12 @@ export class Transcripts {
       );
 
     const insert = this.db.prepare(
-      `INSERT INTO transcript_jobs (id, recording_id, identity, state)
-       VALUES (?, ?, ?, 'pending')`
+      `INSERT INTO transcript_jobs (id, recording_id, identity, state, diarize)
+       VALUES (?, ?, ?, 'pending', ?)`
     );
+    const separated = this.separatedOf(recording);
     for (const identity of identities) {
-      insert.run(randomUUID(), recordingId, identity);
+      insert.run(randomUUID(), recordingId, identity, separated.has(identity) ? 1 : 0);
     }
 
     // Everybody in the channel, not just whoever asked: this is a change to a
@@ -448,7 +451,15 @@ export class Transcripts {
     return (
       this.db
         .prepare(
-          `SELECT l.identity, l.start_ms, l.end_ms, l.text, l.confidence
+          // The letter only from a job that asked for voices: the lines
+          // written before 2026-10-09 carry one from every stem, which that
+          // day took off the screen and this keeps off it.
+          `SELECT l.identity, l.start_ms, l.end_ms, l.text, l.confidence,
+                  CASE WHEN EXISTS (
+                    SELECT 1 FROM transcript_jobs j
+                    WHERE j.recording_id = l.recording_id
+                      AND j.identity = l.identity AND j.diarize = 1
+                  ) THEN l.speaker END AS speaker
            FROM transcript_lines l
            JOIN transcripts t ON t.recording_id = l.recording_id
            WHERE l.recording_id = ? AND t.deleted_at IS NULL
@@ -460,6 +471,7 @@ export class Transcripts {
         end_ms: number;
         text: string;
         confidence: number | null;
+        speaker: string | null;
       }>
     ).map((row) => ({
       identity: row.identity,
@@ -467,6 +479,7 @@ export class Transcripts {
       endMs: row.end_ms,
       text: row.text,
       confidence: row.confidence,
+      speaker: row.speaker,
     }));
   }
 
@@ -662,6 +675,7 @@ export class Transcripts {
       const providerId = await provider.submit(data, {
         model: this.modelOf(job.recording_id),
         languageDetection: true,
+        diarize: job.diarize === 1,
       });
 
       // Before anything waits on it. A crash after this line costs a poll; a
@@ -724,8 +738,8 @@ export class Transcripts {
     const insert = this.db.prepare(
       `INSERT INTO transcript_lines
          (id, recording_id, channel_id, identity, start_ms, end_ms, text,
-          confidence)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+          confidence, speaker)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     for (const line of answered.utterances) {
       if (!line.text) continue;
@@ -737,7 +751,8 @@ export class Transcripts {
         Math.round(line.startMs),
         Math.round(line.endMs),
         line.text,
-        line.confidence
+        line.confidence,
+        job.diarize === 1 ? (line.speaker ?? null) : null
       );
     }
 
@@ -920,9 +935,10 @@ export class Transcripts {
    * makes transcription worth having on a channel that plays anything — a
    * discussion of a recorded talk, where the talk is most of what was said.
    *
-   * Like every stem it is taken to be one voice, named `MEDIA_LABEL`, even
-   * when the track is an interview — see
-   * planning/decision/2026-10-09-a-stem-is-one-voice.md.
+   * Named `MEDIA_LABEL`, and **always separated into voices**, since
+   * 2026-10-16: an interview played into the room is the case the one-voice
+   * rule of planning/decision/2026-10-09-a-stem-is-one-voice.md paid for, and
+   * nobody owns the track to switch it on. See `separatedOf`.
    *
    * **What somebody plays is theirs to have the right to play**, and that is
    * true of the recording already — transcribing it does not make a copy that
@@ -933,6 +949,17 @@ export class Transcripts {
   private speakersOf(recording: RecordingRow): string[] {
     const stems = parse<Record<string, unknown[]>>(recording.stems) ?? {};
     return Object.keys(stems).filter((identity) => stems[identity]?.length);
+  }
+
+  /**
+   * Whose stems are asked for their voices: the shared track always, and
+   * every member who had *Several voices* on at some moment of the run —
+   * noted on the row by the channel registry as it happens, since the sitting
+   * the switch belonged to is long over by the time anybody asks. See
+   * planning/decision/2026-10-16-separating-voices-is-a-choice-per-room.md.
+   */
+  private separatedOf(recording: RecordingRow): Set<string> {
+    return new Set([MEDIA_IDENTITY, ...(parse<string[]>(recording.diarized) ?? [])]);
   }
 }
 
@@ -960,12 +987,20 @@ export function speakerName(
  * A transcript's lines as they are read: every line named after its stem. See
  * `core/transcript.ts`, which is where the rule is and where the app reads it
  * from too.
+ *
+ * **The letter leaves in the name and not beside it**, `Played audio (B)`:
+ * a separated voice's letter is in `displayName` where the stem held more
+ * than one, and the bare field is dropped, as `GET …/transcript` drops it, so
+ * that an export says what the screen says and no build that once drew a
+ * line's `speaker` finds one.
  */
 export function readableLines(
   lines: readonly TranscriptLine[],
   names: Record<string, string>
-): Array<TranscriptLine & { displayName: string | null }> {
-  return readable(lines, (identity) => speakerName(identity, names));
+): Array<Omit<TranscriptLine, 'speaker'> & { displayName: string | null }> {
+  return readable(lines, (identity) => speakerName(identity, names)).map(
+    ({ speaker: _letter, ...line }) => line
+  );
 }
 
 /**

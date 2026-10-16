@@ -609,6 +609,11 @@ repeated the header's pill, which is what says in red that what is said is
 being kept; the switch says only what was chosen. A refused switch is the
 platform's grey and its word goes to `textFaint`.
 
+**A third under the pair, since 2026-10-16**: *Several voices on my
+microphone*, the same `KeepSwitch` on a line of its own under the row — a
+third on the row does not fit 375 points — and drawn only while you are here,
+being about your own microphone (rule nine). Also a selection, for the room.
+
 **A selection, since 2026-10-11**: each says what Play keeps
 (`ChannelState.keep`), either, both or neither, and changes what runs only
 while something does. § *Checkbox*'s line that a switch cannot draw

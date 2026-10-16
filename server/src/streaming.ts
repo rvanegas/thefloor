@@ -5,8 +5,10 @@
  * One session per speaker, which the provider forces: a streaming session is
  * one WebSocket carrying one mono stream, so a channel of four is four
  * sessions, and who said what is known by construction from whose stream it
- * was. Nothing here asks the provider whose voice it heard. See
- * planning/decision/2026-10-09-a-stem-is-one-voice.md.
+ * was. The provider is asked which voice it heard *within* one stream only
+ * where somebody wanted it — the shared track always, a member's microphone
+ * when they switched *Several voices* on — since 2026-10-16. See
+ * planning/decision/2026-10-16-separating-voices-is-a-choice-per-room.md.
  *
  * **Billed by how long a session is open, not by audio sent**, which is why
  * the caller opens one only while somebody's microphone carries audio and
@@ -48,6 +50,19 @@ export interface LiveTurn {
   endMs: number;
   text: string;
   confidence: number | null;
+  /**
+   * The provider's letter for the voice that said most of it, where voices
+   * were asked for; null otherwise, and for a turn too short to call. **The
+   * session's letter, not the room's**: `A` in one session and `A` in the
+   * next need not be one person.
+   */
+  speaker: string | null;
+}
+
+/** What a session is opened asking. */
+export interface StreamingOptions {
+  /** Whether to ask which voice said each turn. See `LiveTurn.speaker`. */
+  diarize: boolean;
 }
 
 export interface StreamingHandlers {
@@ -68,7 +83,7 @@ export interface StreamingSession {
 }
 
 export interface StreamingTranscriptionProvider {
-  open(handlers: StreamingHandlers): StreamingSession;
+  open(handlers: StreamingHandlers, options: StreamingOptions): StreamingSession;
 }
 
 export interface AssemblyAiStreamingOptions {
@@ -80,11 +95,14 @@ export interface AssemblyAiStreamingOptions {
 export class AssemblyAiStreaming implements StreamingTranscriptionProvider {
   constructor(private options: AssemblyAiStreamingOptions) {}
 
-  open(handlers: StreamingHandlers): StreamingSession {
+  open(handlers: StreamingHandlers, options: StreamingOptions): StreamingSession {
     const params = new URLSearchParams({
       sample_rate: String(STREAM_SAMPLE_RATE),
       speech_model: STREAMING_MODEL,
       format_turns: 'true',
+      // Left out rather than sent false where it is off, as the batch
+      // request does, so an undivided stream is asked what it always was.
+      ...(options.diarize ? { speaker_labels: 'true' } : {}),
     });
     const base = this.options.url ?? 'wss://streaming.assemblyai.com/v3/ws';
     // The key bare, no `Bearer` — the same as the batch API.
@@ -232,11 +250,15 @@ export function turnFrom(message: Record<string, unknown>): LiveTurn | null {
     .map((w) => w.confidence)
     .filter((n): n is number => typeof n === 'number');
   const startMs = starts.length ? Math.min(...starts) : 0;
+  // `PENDING` is the provider declining to call a turn under about a second,
+  // which is no letter rather than a voice called PENDING.
+  const label = message.speaker_label;
   return {
     startMs,
     endMs: ends.length ? Math.max(...ends) : startMs,
     text,
     confidence: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
+    speaker: typeof label === 'string' && label && label !== 'PENDING' ? label : null,
   };
 }
 
@@ -244,8 +266,8 @@ export function turnFrom(message: Record<string, unknown>): LiveTurn | null {
 export class MemoryStreaming implements StreamingTranscriptionProvider {
   readonly sessions: MemoryStreamSession[] = [];
 
-  open(handlers: StreamingHandlers): StreamingSession {
-    const session = new MemoryStreamSession(handlers);
+  open(handlers: StreamingHandlers, options: StreamingOptions): StreamingSession {
+    const session = new MemoryStreamSession(handlers, options);
     this.sessions.push(session);
     return session;
   }
@@ -261,7 +283,11 @@ export class MemoryStreamSession implements StreamingSession {
   readonly samples: number[] = [];
   closed = false;
 
-  constructor(private handlers: StreamingHandlers) {}
+  constructor(
+    private handlers: StreamingHandlers,
+    /** What it was opened asking. */
+    readonly options: StreamingOptions
+  ) {}
 
   send(samples: Int16Array): void {
     if (this.closed) return;
@@ -275,8 +301,8 @@ export class MemoryStreamSession implements StreamingSession {
   }
 
   /** Answers with a finished turn, as the provider would. */
-  turn(turn: LiveTurn): void {
-    this.handlers.onTurn(turn);
+  turn(turn: Omit<LiveTurn, 'speaker'> & { speaker?: string | null }): void {
+    this.handlers.onTurn({ speaker: null, ...turn });
   }
 
   /** Ends the session the way the provider ending it would. */

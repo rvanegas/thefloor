@@ -57,6 +57,7 @@ describe('Submitting audio', () => {
     const id = await provider(fetch).submit(Buffer.from('opus'), {
       model: 'standard',
       languageDetection: true,
+      diarize: false,
     });
 
     expect(id).toBe('job-x');
@@ -70,8 +71,8 @@ describe('Submitting audio', () => {
 
     const started = JSON.parse(String(calls[1].body));
     expect(started.audio_url).toBe('https://cdn.example.test/u/1');
-    // The two decisions in this request. No speaker labels: a stem is one
-    // voice, named by whose stem it is. The models are named, so that the
+    // The two decisions in this request. No speaker labels unless asked: a
+    // stem is one voice, named by whose stem it is. The models are named, so that the
     // provider moving its default changes nothing here.
     expect(started.speaker_labels).toBeUndefined();
     expect(started.speech_models).toEqual(['universal-2']);
@@ -89,6 +90,7 @@ describe('Submitting audio', () => {
     await provider(fetch).submit(Buffer.from('opus'), {
       model: 'pro',
       languageDetection: true,
+      diarize: false,
     });
 
     expect(JSON.parse(String(calls[1].body)).speech_models).toEqual([
@@ -97,13 +99,28 @@ describe('Submitting audio', () => {
     ]);
   });
 
+  it('asks for the voices within the stem where they are wanted', async () => {
+    const { fetch, calls } = stubFetch([
+      { body: { upload_url: 'https://cdn.example.test/u/1' } },
+      { body: { id: 'job-z', status: 'queued' } },
+    ]);
+
+    await provider(fetch).submit(Buffer.from('opus'), {
+      model: 'standard',
+      languageDetection: true,
+      diarize: true,
+    });
+
+    expect(JSON.parse(String(calls[1].body)).speaker_labels).toBe(true);
+  });
+
   it('carries the status and any Retry-After when the provider refuses', async () => {
     const { fetch } = stubFetch([
       { status: 429, body: { error: 'slow down' }, headers: { 'retry-after': '30' } },
     ]);
 
     const failed = await provider(fetch)
-      .submit(Buffer.from('opus'), { model: 'standard', languageDetection: true })
+      .submit(Buffer.from('opus'), { model: 'standard', languageDetection: true, diarize: false })
       .catch((error: unknown) => error as TranscriptionError);
 
     expect(failed).toBeInstanceOf(TranscriptionError);
@@ -232,6 +249,22 @@ describe('Making lines out of words', () => {
     expect(intoLines([word(0, 0, '   ')])).toEqual([]);
   });
 
+  it('breaks a line where the voice changes, however short the gap', () => {
+    const lines = intoLines([
+      { ...word(0, 100, 'hello'), speaker: 'A' },
+      { ...word(110, 200, 'there'), speaker: 'A' },
+      { ...word(210, 300, 'hi'), speaker: 'B' },
+    ]);
+    expect(lines.map((l) => [l.text, l.speaker])).toEqual([
+      ['hello there', 'A'],
+      ['hi', 'B'],
+    ]);
+  });
+
+  it('carries no letter where voices were not asked for', () => {
+    expect(intoLines([word(0, 100, 'a')])[0].speaker).toBeNull();
+  });
+
   it('says nothing about confidence when the provider did not', () => {
     const lines = intoLines([{ start: 0, end: 10, text: 'a' }]);
     expect(lines[0].confidence).toBeNull();
@@ -244,6 +277,7 @@ describe('The memory double', () => {
     const id = await memory.submit(Buffer.from('opus'), {
       model: 'standard',
       languageDetection: true,
+      diarize: false,
     });
 
     expect(await memory.poll(id)).toEqual({ state: 'pending' });
@@ -263,6 +297,7 @@ describe('The memory double', () => {
     const id = await memory.submit(Buffer.from('a'), {
       model: 'standard',
       languageDetection: false,
+      diarize: false,
     });
     memory.fails(id, 'audio_too_short');
     expect(await memory.poll(id)).toEqual({
@@ -272,7 +307,7 @@ describe('The memory double', () => {
 
     memory.refuseSubmissions('no balance');
     await expect(
-      memory.submit(Buffer.from('b'), { model: 'standard', languageDetection: false })
+      memory.submit(Buffer.from('b'), { model: 'standard', languageDetection: false, diarize: false })
     ).rejects.toThrow('no balance');
   });
 });

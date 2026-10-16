@@ -13,8 +13,10 @@ import {
 import {
   canPauseKeeping,
   canPlay,
+  canSetDiarize,
   canSetKeep,
   canStopKeeping,
+  isDiarized,
   isPresent,
   keepOf,
   keepingOf,
@@ -26,7 +28,7 @@ import type {
   RoomView,
   SegmentView,
 } from '../../../core/protocol';
-import { intoBlocks, type TranscriptBlock } from '../../../core/transcript';
+import { intoBlocks, lettered, type TranscriptBlock } from '../../../core/transcript';
 import type { ChannelState, Keep } from '../../../core/types';
 import { shareRecording } from '../api/download';
 import { api } from '../api/http';
@@ -656,7 +658,15 @@ export function formatSegmentText(
  * the thumb — except Play and Pause, which are one place, the way every
  * transport has them.
  *
- * Under the row: why Play is refused when nothing else on the screen says,
+ * Under the row, while you are here: **Several voices on my microphone**,
+ * since 2026-10-16 — your own track told apart into voices by the
+ * transcriber, this sitting only (`ChannelState.diarize`). A third switch on
+ * the row would not fit a 375-point phone, and it belongs with the two it
+ * qualifies rather than with the people, being about what is kept of what
+ * your microphone hears. Not drawn while you are away, when you have no
+ * microphone in the room for it to be about.
+ *
+ * Under that: why Play is refused when nothing else on the screen says,
  * and a capture that stopped for a reason nobody asked for.
  */
 export function KeepSwitches({
@@ -764,6 +774,14 @@ export function KeepSwitches({
           />
           {trailing ? <View style={styles.trailing}>{trailing}</View> : null}
         </View>
+        {isPresent(channel, me) ? (
+          <KeepSwitch
+            label={t.severalVoices()}
+            on={isDiarized(channel, me)}
+            refused={!canSetDiarize(channel, me)}
+            onChange={(on) => app.act(channelId, { type: 'SET_DIARIZE', on })}
+          />
+        ) : null}
         {note}
         {keeping !== 'running' && keep.audio && refusal !== null ? (
           <Text style={type.muted}>
@@ -883,9 +901,14 @@ export type Entry =
  * cut wherever a paste was made, with the paste between — so that a paste in
  * the middle of somebody talking reads as made there, which it was. A paste
  * that is an item of its own is its only entry.
+ *
+ * **A separated voice's letter goes on its name here**, across the whole
+ * segment, by `lettered`: a live line carries it beside a name the server
+ * froze without it. A batch line's is in its name already.
  */
 export function entriesOf(item: SegmentItem): Entry[] {
   if (item.segment.paste) return [{ kind: 'paste', segment: item.segment }];
+  const lines = lettered(item.lines);
   const entries: Entry[] = [];
   const said = (lines: readonly LiveLine[]) => {
     for (const block of intoBlocks(
@@ -897,12 +920,12 @@ export function entriesOf(item: SegmentItem): Entry[] {
   let from = 0;
   for (const paste of item.pastes) {
     let until = from;
-    while (until < item.lines.length && item.lines[until].startAt <= paste.startedAt) until++;
-    said(item.lines.slice(from, until));
+    while (until < lines.length && lines[until].startAt <= paste.startedAt) until++;
+    said(lines.slice(from, until));
     entries.push({ kind: 'paste', segment: paste });
     from = until;
   }
-  said(item.lines.slice(from));
+  said(lines.slice(from));
   return entries;
 }
 

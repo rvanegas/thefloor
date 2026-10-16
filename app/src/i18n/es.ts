@@ -1073,6 +1073,7 @@ export const es: Strings = {
     keptBoth: () => 'Audio + Texto',
     roomTextCopied: () => 'El texto est\u00e1 copiado.',
     keepText: () => 'Texto',
+    severalVoices: () => 'Varias voces en mi micr\u00f3fono',
     roomsNothingYet: () =>
       'Todav\u00eda no se ha guardado nada. Lo que se grabe o se transcriba aqu\u00ed aparece como un registro, sala por sala.',
     paused: () => 'En pausa',

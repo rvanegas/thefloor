@@ -1339,6 +1339,13 @@ export const en = {
      * said, beside `audio`. Either, both or neither. See `KeepSwitches`.
      */
     keepText: () => 'Text',
+    /**
+     * The *Record* tab's switch under Audio and Text, since 2026-10-16: your
+     * own track told apart into voices, this sitting. Says the fact somebody
+     * knows — there is more than one person at this phone — rather than what
+     * the transcriber does about it.
+     */
+    severalVoices: () => 'Several voices on my microphone',
     roomsNothingYet: () =>
       'Nothing kept yet. What is recorded or transcribed here appears as a log, one room at a time.',
     paused: () => 'Paused',

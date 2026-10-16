@@ -561,3 +561,66 @@ describe('a stem that cannot be rendered', () => {
     expect(provider.submitted).toHaveLength(1);
   }, 60_000);
 });
+
+/*
+  *Several voices*, since 2026-10-16: the shared track is always asked for
+  its voices, and a member's stem only when the run noted them as wanting it.
+*/
+describe('separating the voices within a stem', () => {
+  const MEDIA = 'media';
+
+  beforeEach(async () => {
+    makeRecording({ [ALICE]: ['a.ogg'], [BOB]: ['b.ogg'], [MEDIA]: ['media.ogg'] });
+    db.prepare('UPDATE recordings SET diarized = ? WHERE id = ?').run(
+      JSON.stringify([ALICE]),
+      RECORDING
+    );
+    await transcripts.request(RECORDING, ALICE);
+    await transcripts.settled();
+  });
+
+  const jobOf = (identity: string) =>
+    jobs().find((j) => j.identity === identity) as Record<string, unknown>;
+  const asked = (identity: string) =>
+    provider.submitted.find((s) => s.id === jobOf(identity).provider_id)?.diarize;
+
+  it('asks for them on the shared track and on whoever wanted it, and nobody else', () => {
+    expect(asked(MEDIA)).toBe(true);
+    expect(asked(ALICE)).toBe(true);
+    expect(asked(BOB)).toBe(false);
+  });
+
+  it('keeps the letters of the stems that asked, and reads them back', async () => {
+    const lettered = (text: string, startMs: number, speaker: string) => ({
+      ...line(text, startMs),
+      speaker,
+    });
+    provider.ready(String(jobOf(MEDIA).provider_id), [
+      lettered('welcome', 0, 'A'),
+      lettered('thanks', 1_000, 'B'),
+    ], 'en');
+    provider.ready(String(jobOf(ALICE).provider_id), [lettered('hi', 2_000, 'A')], 'en');
+    // A letter from a stem nobody separated is not kept, whatever came back.
+    provider.ready(String(jobOf(BOB).provider_id), [lettered('yo', 3_000, 'A')], 'en');
+    clock += 120_000;
+
+    await transcripts.tick();
+
+    expect(transcripts.linesFor(RECORDING).map((l) => [l.identity, l.speaker])).toEqual([
+      [MEDIA, 'A'],
+      [MEDIA, 'B'],
+      [ALICE, 'A'],
+      [BOB, null],
+    ]);
+  });
+
+  it('shows no letter a job that did not ask for one wrote, as the old ones did', async () => {
+    provider.ready(String(jobOf(BOB).provider_id), [line('yo')], 'en');
+    clock += 120_000;
+    await transcripts.tick();
+    db.prepare("UPDATE transcript_lines SET speaker = 'B' WHERE identity = ?").run(BOB);
+    db.prepare('UPDATE transcripts SET state = ? WHERE recording_id = ?').run('ready', RECORDING);
+
+    expect(transcripts.linesFor(RECORDING).map((l) => l.speaker)).toEqual([null]);
+  });
+});

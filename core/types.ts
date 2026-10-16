@@ -916,6 +916,21 @@ export interface ChannelState {
    */
   liveTranscriptionPaidBy?: UserId;
   /**
+   * Whose microphone is asked to be told apart into voices, this sitting —
+   * the members who switched *Several voices* on for their own track, since
+   * 2026-10-16. **Per room**: the room emptying clears it, and nobody's
+   * switch is anybody else's. The shared track needs no entry, being
+   * separated always.
+   *
+   * Read by the server twice: a recording running while somebody is in here
+   * notes them on its row, so the transcript asked for later separates their
+   * stem; and the live transcript opens their sessions asking for speaker
+   * labels. See planning/decision/2026-10-16-separating-voices-is-a-choice-per-room.md.
+   *
+   * Absent on a snapshot from a server that predates it, read as nobody.
+   */
+  diarize?: Record<UserId, true>;
+  /**
    * The *Record* tab's two switches: what Play keeps — as audio, as text, or
    * both — since 2026-10-11. **A selection, not a state**: what is running is
    * `recording` and `liveTranscription`, started by Play (`PLAY_KEEPING`) and ended
@@ -1341,6 +1356,11 @@ export type ChannelAction =
    */
   | { type: 'PAUSE_LIVE_TRANSCRIPTION'; userId: UserId; runId?: string }
   | { type: 'RESUME_LIVE_TRANSCRIPTION'; userId: UserId; runId?: string }
+  /**
+   * Switches *Several voices* for the actor's own microphone, for this
+   * sitting. Nobody else's: `canSetDiarize`. See `ChannelState.diarize`.
+   */
+  | { type: 'SET_DIARIZE'; userId: UserId; on: boolean }
   /**
    * Capture could not be started or kept running. Not a user action — the
    * media plane reports it — so it carries no userId and no guard.

@@ -1055,6 +1055,13 @@ export interface LiveLine {
   endAt: number;
   text: string;
   confidence: number | null;
+  /**
+   * The provider's letter for a voice within this session, where *Separate
+   * voices* asked for one; absent otherwise and from a server before
+   * 2026-10-16. `displayName` never carries it: the letter goes on the name
+   * where the lines are gathered, by `lettered` in `core/transcript.ts`.
+   */
+  speaker?: string;
 }
 
 /**
@@ -1747,6 +1754,8 @@ export type ClientAction =
   | { type: 'STOP_RECORDING' }
   /** Stop: ends the recording and the live transcript together, since 2026-10-11. */
   | { type: 'STOP_KEEPING' }
+  /** *Several voices* on your own microphone, this sitting. Since 2026-10-16. */
+  | { type: 'SET_DIARIZE'; on: boolean }
   /** Since 2026-10-09; a server that predates them refuses them. */
   | { type: 'PAUSE_LIVE_TRANSCRIPTION' }
   | { type: 'RESUME_LIVE_TRANSCRIPTION' }
