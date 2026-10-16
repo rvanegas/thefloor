@@ -3029,6 +3029,8 @@ export function ChannelView({
               trailing={
                 <PasteButton
                   iconOnly
+                  // The row's other icons' width; see `rowIcon` in RecordTab.
+                  style={{ width: 40 }}
                   label={t.pasteMyClipboard()}
                   disabled={!canPasteClip(channel, me)}
                   onPaste={pasteClip}

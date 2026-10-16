@@ -729,6 +729,7 @@ export function KeepSwitches({
             <IconButton
               label={t.pause()}
               icon={(color) => <PauseIcon color={color} />}
+              style={styles.rowIcon}
               disabled={!mayPause}
               onPress={() => app.act(channelId, { type: 'PAUSE_RECORDING' })}
             />
@@ -736,6 +737,7 @@ export function KeepSwitches({
             <IconButton
               label={keeping === 'paused' ? t.resume() : t.start()}
               icon={(color) => <RecordingsIcon color={color} />}
+              style={styles.rowIcon}
               disabled={!mayPlay}
               onPress={play}
             />
@@ -743,6 +745,7 @@ export function KeepSwitches({
           <IconButton
             label={t.stop()}
             icon={(color) => <StopIcon color={color} />}
+            style={styles.rowIcon}
             disabled={!mayStop}
             onPress={() => app.act(channelId, { type: 'STOP_KEEPING' })}
           />
@@ -1081,23 +1084,26 @@ const styles = StyleSheet.create({
   /**
    * Five things on one line since the paste glyph joined it on 2026-10-16 —
    * the transport's two icons, two switches with their words, the glyph —
-   * **and they have to fit a 375-point phone, measured rather than
-   * estimated.** At the row's old 24-point gaps the glyph was drawn past the
-   * right edge; at 12, on build 365, the row wrapped and stood it alone on a
-   * second line, which Rodrigo's screenshot showed and called ugly. From that
-   * screenshot each switch takes about 56 points in layout, not the 41 its
-   * scaled drawing suggests, and the row ended at 334 of the 359 there. So
-   * the transport is one pair with no gap, groups stand 8 apart, and a word
-   * sits 6 from its switch: about 345 of 359, with room for *Texto*. **The
-   * wrap stays as the net**, for a narrower phone or a longer word.
+   * **and they have to fit a 375-point phone, measured from a screenshot,
+   * against 343**: the screen less the measure's 16 on each side. Build 367
+   * measured 346 needed — each switch takes about 56 in layout, not the 41
+   * its scale suggests — and 359, the right edge's coordinate, had been
+   * mistaken for the width, so the glyph wrapped onto a line of its own three
+   * builds running. Now the row's three icons are 40 wide rather than
+   * `IconButton`'s 44 (`rowIcon`, the glyph unchanged), Play and Stop are one
+   * pair with no gap, and groups stand 6 apart: about 328, with room for
+   * *Texto*. **The wrap stays as the net**, for a narrower phone.
    */
   switches: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    columnGap: spacing(1),
+    columnGap: spacing(0.75),
     rowGap: spacing(0.5),
   },
+  // The row's three icons — Play or Pause, Stop, paste — at 40 rather than
+  // 44, which is the room the row was short of. Height stays 44.
+  rowIcon: { width: 40 },
   transport: { flexDirection: 'row', alignItems: 'center' },
   switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
   // Pushed to the far end of the row, whatever its width.

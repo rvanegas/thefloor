@@ -1328,8 +1328,11 @@ phone, and is measured from a screenshot rather than estimated**, which is
 the failure a test renderer cannot see — it lays nothing out. At 24-point
 gaps the glyph sat past the right edge; at 12 the row wrapped and stood it
 alone on a second line. Now Play and Stop are one pair with no gap, groups
-stand 8 apart and a word 6 from its switch — about 345 of the 359 there. The
-row still wraps, as a net rather than a layout.
+stand 6 apart, a word 6 from its switch, and the row's three icons are 40
+wide rather than 44 — about 328 of the **343** there, the screen less the
+measure's 16 a side. (359, the right edge's coordinate, was mistaken for the
+width once, and the glyph wrapped for another build.) The row still wraps, as
+a net rather than a layout.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 
