@@ -1205,7 +1205,7 @@ describe('who is in the channel, and who is talking', () => {
 
   /**
    * The composer, reached the way somebody actually reaches it — through the
-   * roster card rather than by rendering `ProfileView` with an `onPing` handed
+   * People card rather than by rendering `ProfileView` with an `onPing` handed
    * to it. Whether that handler is supplied at all is this screen's decision,
    * and it is the half nothing else covers.
    *
@@ -2063,7 +2063,7 @@ describe('pinging somebody who is not in the room', () => {
   });
 
   /**
-   * Back to the roster rather than a "Sent." on this card: the roster card for
+   * Back to the roster rather than a "Sent." on this card: the People card for
    * them says "Pinged" itself, and the way out was the only move left here.
    */
   it('sends what was typed, and goes back to the roster', async () => {
@@ -2177,7 +2177,7 @@ describe('a channel screen that does not repeat its footer', () => {
 
   /**
    * The clock survives every card that has been deleted around it. It is on
-   * the holder's roster card now rather than in the floor's own, and a bar
+   * the holder's People card now rather than in the floor's own, and a bar
    * with room for one word was never able to carry it — so the screen still
    * counts the minute down with no card left to count it in.
    */
@@ -2496,7 +2496,7 @@ describe('somebody else’s microphone, from their profile', () => {
  * only shape of test that could have caught it.
  */
 describe('muting somebody else, through the channel screen', () => {
-  /** Their roster card, which is the way into their profile. */
+  /** Their People card, which is the way into their profile. */
   function openProfile(tree: ReactTestRenderer, name: string) {
     const card = tree.root
       .findAll(

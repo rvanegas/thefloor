@@ -20,7 +20,7 @@ open (GLOSSARY.md § *Ping*). What is missing is the reply.
 This is the direction `settle-whether-ping-is-enough-on-its-own.md` already
 names if ping turns out not to be enough: *make ping carry more — a reason, a
 time, a thing to answer — not … grow a thread inside the app*. Keep to that.
-A reply here is a state on the roster card, like *nearby*, and not a message
+A reply here is a state on the People card, like *nearby*, and not a message
 in a thread. Open questions: whether *"back in 20"* should notify the room or
 only show up there; and whether a stated time should itself become a later
 notification to the person who said it.

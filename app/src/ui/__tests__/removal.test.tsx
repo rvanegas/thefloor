@@ -158,7 +158,7 @@ describe('the removal control on a profile', () => {
 });
 
 describe('the removal control, through the channel screen', () => {
-  /** Their roster card, which is the way into their profile. */
+  /** Their People card, which is the way into their profile. */
   function openProfile(tree: ReactTestRenderer, name: string) {
     const card = tree.root
       .findAll(

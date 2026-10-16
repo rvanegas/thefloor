@@ -560,14 +560,14 @@ export function capturable(state: ChannelState): boolean {
  * instead of fifteen. Past the window it was worse than cosmetic: the
  * declaration was accepted, `waiting` held them, and `isWaiting` was false
  * from the instant they pressed it, so the footer lit *Nearby* while their own
- * roster card said *Stepped out sixteen minutes ago*. Somebody who had never
+ * People card said *Stepped out sixteen minutes ago*. Somebody who had never
  * been present had no stamp at all and so could never be nearby to anybody.
  *
  * Null has the same two meanings `idleMs` gives it — they are here, or nothing
  * is known — and now excludes the case a declaration answers: a declaration is
  * knowledge, whether or not this channel has ever seen them.
  *
- * Read through by `isWaiting` and by the roster card. `idleMs` is deliberately
+ * Read through by `isWaiting` and by the People card. `idleMs` is deliberately
  * left alone: *how long since we last heard anything* is a different question
  * and still has the old answer — though since 2026-09-12 the declaration is
  * itself something heard, so the two agree at the moment of the tap and part

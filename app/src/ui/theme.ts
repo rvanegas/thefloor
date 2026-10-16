@@ -247,7 +247,7 @@ export const type = {
 };
 
 /**
- * Seconds, for the two clocks on a roster card.
+ * Seconds, for the two clocks on a People card.
  *
  * Both are under a minute by construction — a claim runs FLOOR_CLAIM_MS and a
  * cooldown at most FLOOR_CLAIM_DELAY_STEP_MS × FLOOR_CLAIM_DELAY_MAX_STEPS —

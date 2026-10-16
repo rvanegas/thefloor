@@ -7,7 +7,7 @@ import { resetDiagnostics } from '../diagnostics';
 /**
  * **The warning that would not go out.**
  *
- * `failing` is the red line on a roster card — *Present · not receiving you* —
+ * `failing` is the red line on a People card — *Present · not receiving you* —
  * and it is a set the room fills. On 2026-09-08 it stuck: a force quit put an
  * account in it, the phone rejoined ten seconds later under the same identity,
  * and the line was still there minutes afterwards, going only when the person

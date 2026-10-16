@@ -1228,7 +1228,7 @@ describe('a ping', () => {
   });
 
   /**
-   * The window is on every roster card, so it has to reach every roster.
+   * The window is on every People card, so it has to reach every roster.
    * A ping changes nothing a reducer knows about, and until 2026-09-30 it
    * therefore waited for the next unrelated change to be seen by anybody but
    * the sender's own tap.

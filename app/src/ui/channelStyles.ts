@@ -19,7 +19,7 @@ export const styles = StyleSheet.create({
    * The same argument `audioBad` makes one line up, applied to one person
    * instead of the connection: somebody the room cannot hear is a conversation
    * that has stopped working for them, and it earns a glance. It is the only
-   * thing on a roster card that is ever coloured, which is what makes a glance
+   * thing on a People card that is ever coloured, which is what makes a glance
    * enough.
    */
   statusBad: { color: colors.danger },
@@ -115,7 +115,7 @@ export const styles = StyleSheet.create({
    * The name and status on the left, the ping or the speaking dot on the
    * right, centred against the pair. A row rather than the control sharing the
    * status line: the status is one clause long and the button is two words, and
-   * stacking them would make every roster card taller to hold something only a
+   * stacking them would make every People card taller to hold something only a
    * nearby person's card has.
    */
   cardBody: {

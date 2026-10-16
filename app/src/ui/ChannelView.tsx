@@ -1714,7 +1714,7 @@ export function ChannelView({
         stands in its place is *Audio*, which is not about the microphone
         and is drawn only when the connection is failing.
       - **The floor**, which went the same way first: the Claim/Release button
-        on 2026-08-31, the countdown to the holder's roster card on
+        on 2026-08-31, the countdown to the holder's People card on
         2026-09-12, the rest on 2026-09-13.
 
     The setting itself outlives this file, `hideControlCards` being on the
@@ -2449,7 +2449,7 @@ export function ChannelView({
     was refused, the warning about being recorded while silenced. One by one
     they stopped. The floor's card went first and in two steps — the button on
     2026-08-31, the rest on 2026-09-12 and 13, its readouts having moved to the
-    roster card of whoever holds it. The microphone, Step in and Step out
+    People card of whoever holds it. The microphone, Step in and Step out
     followed on 2026-09-13; the first kept its explanation and lost its button,
     and the other two were buttons and nothing else by the end.
 
@@ -3586,7 +3586,7 @@ export function ChannelView({
           was in the state it was in, and on 2026-09-15 that sentence was
           counted against what the rest of the screen already says. Three of
           its states were said twice — the footer tints Mute and accents
-          Release, and your own roster card carries `· muted` and `· has the
+          Release, and your own People card carries `· muted` and `· has the
           floor` — and the others were explanations of a control rather than
           facts about the room. STYLE.md's seventh load-bearing rule is the
           one that settles it: when the sentence goes the card goes.

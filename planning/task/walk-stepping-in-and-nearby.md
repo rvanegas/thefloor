@@ -383,7 +383,7 @@ open, stepped in or not, since B's roster is where the last assertion is read.
 **What settles it.** Each state offers the two moves off it and never the same
 word twice — *Step in* and *Be nearby* stepped out, *Step in* and *Step out*
 nearby, *Be nearby* and *Step out* stepped in — and neither slot moves as the
-words change. Stepping out of *Nearby* puts B's roster card back to *Stepped
+words change. Stepping out of *Nearby* puts B's People card back to *Stepped
 out* rather than leaving it nearby for fifteen minutes; that is the reducer
 change, and B is the only place it is visible.
 

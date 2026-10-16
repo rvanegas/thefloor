@@ -758,7 +758,7 @@ away. Anything else of this shape goes in the same place and reads the same way.
 The offline notice stays above it, on its own reasoning in § *The shape of a
 screen*: it is about the connection and removes itself.
 
-**A roster card's suffixes are ordered by what a reader may have to act on.**
+**A People card's suffixes are ordered by what a reader may have to act on.**
 There are three — `· muted`, `· has the floor`, `· watching` — appended to the
 status in that order, and the order is the ranking: the first two are states
 somebody reading the room may need to answer within the minute, and having the
@@ -779,7 +779,7 @@ spent where the absence of the positive was being read as an answer, and
 nowhere else. GLOSSARY.md § *Watching (on the roster)* has which cards are
 withheld from and why.
 
-**Fill and border are two different questions on a roster card.** The border
+**Fill and border are two different questions on a People card.** The border
 means *speaking*, driven by the room; the fill means *holds the floor*, driven
 by the reducer. They routinely disagree — a holder sitting silent, a
 self-muted person whose claim is running — so they may not share an edge.
@@ -860,7 +860,7 @@ defended as a division of labour: the bar is where the act is quick, the card
 is where the state is explained. **That holds only while the card is actually
 explaining something.** The channel screen's four — the floor, the microphone,
 Step in, Step out — each began with sentences under the button and each lost
-them one at a time, to a roster card that says whose minute it is, to a bar
+them one at a time, to a People card that says whose minute it is, to a bar
 whose accent says which rung you are on, and to editing that decided the
 sentence was saying it twice. What was left was a button with a heading over
 it, one scroll below the same button.

@@ -2,7 +2,7 @@
 
 **An open question**, written down so it is not re-derived from scratch next
 time, and planning/LIVEKIT.md until 2026-10-03. It came out of a
-screenshot on build 183: a roster card reading *Nearby* for somebody whose
+screenshot on build 183: a People card reading *Nearby* for somebody whose
 LiveKit connection was, by every other sign, still alive. Delete this file when
 the question below is answered — whatever survives goes to
 `decision/` if anything is changed, and to STATES.md § *Audio

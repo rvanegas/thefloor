@@ -419,7 +419,7 @@ things that this file keeps apart:
   **And Home's counts ask it, since 2026-10-01.** `presentCount` is
   `connectedCount` and `nearbyCount` is `othersNearby`, both in
   `core/channel.ts`: somebody in the grace is *nearby* on Home exactly as
-  their roster card says *Nearby*. Counting `present.length` had Home listing
+  their People card says *Nearby*. Counting `present.length` had Home listing
   a room as *1 present* while its roster showed nobody in it.
 - **Standing** — `Realtime.enteredChannel` on the client, mirrored into the
   app as `AppProvider.standingIn`. Which channel *this copy of the app* is in.
@@ -579,7 +579,7 @@ Beside it, and **not a measure at all**, is `steppedInAt`: the moment *this
 reader* last stepped into this channel. The server holds the last entry per
 channel on `ChannelRegistry`, in memory, and the view answers with the time when
 that entry was the reader's own. **Fifteen minutes wide (`WAITING_WINDOW_MS`),
-which is the same window that keeps somebody's roster card reading "Nearby"
+which is the same window that keeps somebody's People card reading "Nearby"
 rather than "Stepped out"** — the mark and that line are one visit described to
 two audiences, so they expire together. It read `PRESENCE_LIFETIME_MS`, the
 push's five minutes, from 2026-08-26 to 2026-08-27. Cleared by the next arrival

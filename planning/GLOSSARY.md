@@ -90,7 +90,7 @@ caused; the list carries the meaning.
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
 - **Removal notice** — The card on the *Channels* list telling somebody a channel's members removed them, and the only account they are given of it; it names the channel and names no member, and *Close* deletes it for every device
 - **Refusal** — The server's sentence for a channel action it would not take, shown as a card at the top of that channel — *That did not go through*, the sentence, *Got it*. Not a greyed control, which is the same rule seen before the press; a refusal is a race the greying lost. Held on this install only, unlike a *removal notice*, and only the registry's refusals: one by a reducer guard says nothing on the wire
-- **Nearby / Stepped out** — The two things a roster card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
+- **Nearby / Stepped out** — The two things a People card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Owner** — Whoever made a channel into a *community*, and the only one in it who holds the controls (`holdsTheControls`): invitations and guests, removal, media and recordings, muting anybody else, the name and description, the link, deleting. Other members mute themselves, claim the floor, paste and ping. Cannot leave or be moved against. No other channel has one
 - **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
@@ -141,7 +141,7 @@ caused; the list carries the meaning.
 - **Film title** — What the video is called, drawn under the progress bar on the watch card since 2026-09-20; learnt from the first player that can say *while it is showing the film*, the way its length is, and never asked of YouTube
 - **Showing the film** — Whether what is in a player's frame is the party's video or a pre-roll in front of it, which decides whether the follower speaks to it and whether anything is learnt from it; by the video id the player names since 2026-09-23, by comparing lengths where there is no id. `showingTheFilm`
 - **Watched before** — The films a channel has watched, newest first, offered back on the watch card as rows to press since 2026-09-22; a property of the channel rather than of any person, deduplicated by video and ten deep, holding whatever each party managed to learn about its name and its length before it ended. A row is pressed the way a link is pasted — it carries the stored URL back through the same parse — and the list stands behind a press on an idle card and open behind *Change video* on a loaded one. `WatchState.history`
-- **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their roster card since 2026-09-20; the account and never the device, drawn only while the film is *playing* — a pause is when nobody is watching — and a wider fact than *watching here*, a *second device* being on this and not on that. Since 2026-09-26 the other answer is said too: a member *in the room* without the film up reads *not watching*, the blank having meant both that and *this roster does not report screens*; withheld from a guest and from a server that does not send the field, neither of which can be denied honestly
+- **Watching (on the roster)** — That somebody has the film up on one of their devices, said as a suffix on their People card since 2026-09-20; the account and never the device, drawn only while the film is *playing* — a pause is when nobody is watching — and a wider fact than *watching here*, a *second device* being on this and not on that. Since 2026-09-26 the other answer is said too: a member *in the room* without the film up reads *not watching*, the blank having meant both that and *this roster does not report screens*; withheld from a guest and from a server that does not send the field, neither of which can be denied honestly
 - **Watching here** — Your screen and your voice on one device, which mutes the room
 
 **Words that exist only in the codebase**
@@ -152,7 +152,7 @@ caused; the list carries the meaning.
 - **Subscribeable** — Whether there is anything in a room to hear — another occupant, a track, a party — which is what stops *attention* retiring a silent listener
 - **Capturable** — Whether a *recording* started now would capture anything: anybody's open microphone, or a track playing. `subscribeable`'s companion, and it counts you where that one discounts you — which is why one person alone may record and, since 2026-09-14, is the whole of what the recording guard asks about the room
 - **Capture watch** — The meter a browser runs over its own published microphone, because a granted microphone that carries silence is reported by nothing; `core/capture.ts` counts, each caller reads its own samples
-- **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to
+- **Card** — One row in the *Channels* list, from either source — an invitation or a channel you belong to; a row on the *People* tab is a *People card*
 - **Channel state** — `ChannelState` in `core/types.ts` — everything true of a channel, reduced by pure functions
 - **Claim** — One holding of the *floor*: `floor.holder` plus `claimedAt`
 - **Cohort host** — The account a *getting-started channel* is opened with, named by sign-in address in `COHORT_HOST_IDENTIFIERS`. **Not a *root***, which is a position in the invitation forest and is most people
@@ -193,6 +193,7 @@ caused; the list carries the meaning.
 - **Unanswered (of an arrival)** — Announced to somebody who has not been seen since; the oldest one outstanding is `accounts.unanswered_since`, and a week of it is what *paused* measures
 - **Funnel level** — One of the fourteen steps in MARKETING.md between an impression and a recommendation; the code knows four of them by number — 3 in `accounts.notifications`, 4 in `bin/cohorts`, 9 and 10 in `pings`
 - **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
+- **People card** — Any one card on a channel's *People* tab, whichever of the four groups draws it — a member, a knock *at the door*, a *guest*, a *guest invitation* or *member link* — and not the *Invite card* after them, which is a control rather than anybody; *roster card* until 2026-10-15, after the tab's old name. `ParticipantCard` and `GuestCard` draw the first and third, the other two are drawn inline, and the phrase is the only name all four share
 - **Playback blocked** — A browser refusing this page permission to make sound; lifted by a real gesture and by nothing else, and always false on a phone
 - **Placed** — A player seen where the room is since the room's position last jumped; owed one seek when it is not — arriving, rebuilt, back from an advert, after a scrub or a replay — and none after, drift being corrected by nobody
 - **Playout** — Whether this device is actually rendering the audio it is subscribed to
@@ -1712,7 +1713,7 @@ every device at once. See
 
 ## Nearby / Stepped out
 
-The two things a roster card says about somebody who is not here.
+The two things a People card says about somebody who is not here.
 
 **Stepped out** — they left, deliberately, and the card says how long ago.
 **Nearby** — within reach, one notification away: ping rather than give up. It
@@ -2787,7 +2788,7 @@ two moves off the rung you are on, in that order.
 three slots are *In*, *Nearby* and *Out* — the same ladder, said as states
 rather than as acts, because the slot you are on is lit and a lit word naming
 an act would be naming one you cannot perform. They are short forms and not new
-terms: a roster card still says *Present* and *Stepped out* about other people,
+terms: a People card still says *Present* and *Stepped out* about other people,
 and at 11pt in a fifth of a phone those truncate. See
 `decision/2026-09-09-presence-is-a-ladder.md`.
 
@@ -3544,7 +3545,7 @@ a length cannot detect the case that poisons it.
 ## Watching (on the roster)
 
 **That this person has the party's film up on something of theirs**, said as a
-third suffix on their roster card — after *muted* and *has the floor*, which
+third suffix on their People card — after *muted* and *has the floor*, which
 are the two a reader may need to act on within the minute.
 
 **The account and never the device.** What the room is told is that somebody is
@@ -3726,6 +3727,9 @@ was observed: a quiet room with noise suppression reads the same way.
 One row in the *Channels* list, from either source — an invitation or a channel
 you belong to. The two are alternative presentations of the same row rather than
 a list and an exception to it.
+
+**Bare, it means that list and nothing else.** A card on a channel's *People*
+tab is a *People card*, and is always called that in full.
 
 ## Channel state
 
@@ -4277,6 +4281,28 @@ by default.
 
 Grows on `INVITE`, shrinks only on `LEAVE_CHANNEL`. **Membership is not
 presence** — see *present*.
+
+## People card
+
+Any one card on a channel's *People* tab, whichever of its four groups draws it:
+a member under *Members*, a knock under *At the door*, a *guest* under
+*Guests*, a pending *guest invitation* or *member link* under *Invitations*.
+Not the *Invite card* after them, which is a control and stands for nobody. Named 2026-10-15,
+for something prose had been calling a *roster card* since the tab was *Roster*.
+
+**Named after the tab, because the tab is the container** — the reasoning that
+renamed it *People* on 2026-09-22 applies one level in. Nothing narrower fits:
+*member* and *participant* leave out guests and invitations, and *here* leaves
+out everybody who cannot yet hear the room. Plain *card* was already spent on
+the *Channels* list.
+
+**A word for prose, not a component.** `ParticipantCard` and `GuestCard` in
+`ui/channelCards.tsx` draw the first and third groups, while knocks and
+invitations are drawn inline in `ChannelView.tsx` around a plain `Card`. So
+the phrase is the only name all four share. Most of what is said about one —
+its status and suffixes, its fill and border, in STYLE.md — concerns the two
+groups that hold somebody in the channel, members and guests; a knock or an
+invitation carries none of it.
 
 ## Playback blocked
 

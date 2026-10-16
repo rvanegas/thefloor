@@ -645,7 +645,7 @@ export function ParticipantCard({
    * **Empty rather than a greyed `Ping`.** The case with neither half is a
    * reader who may not ping: not an accepted contact of theirs, or out of the
    * room themselves. Both are refusals, and STYLE.md § *Words on controls*
-   * wants a sentence beside a refused control; a roster card has no room for
+   * wants a sentence beside a refused control; a People card has no room for
    * one, and a dead control is worse than an absent one. The answer to *why
    * not* is a tap away — the card opens a profile whose Contact section
    * offers *Add contact* — which is what the profile's own ping card was

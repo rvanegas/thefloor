@@ -249,7 +249,7 @@ describe('Channel', () => {
     const text = textOf(tree);
     expect(text).toContain('Dana Chu');
     // Nobody holds it, which the screen says by omission and not in words
-    // since the floor card went: no roster card is marked, and the footer's
+    // since the floor card went: no People card is marked, and the footer's
     // claim is live.
     expect(text).not.toContain('has the floor');
     const claim = findButton(tree, 'Claim')!;
@@ -785,7 +785,7 @@ describe('Channel', () => {
       />);
     const text = textOf(tree);
     /*
-      Whose claim it is comes off the roster card, and that it has cut you
+      Whose claim it is comes off the People card, and that it has cut you
       comes off the footer alone — the microphone's tint, and the Claim it
       refuses. It was said in words as well until 2026-09-15, on a card headed
       *Your microphone*; the card went when the last of its sentences did.
@@ -1210,7 +1210,7 @@ describe('Channel', () => {
     const stepIn = findButton(tree, 'In')!;
     expect(stepIn.props.accessibilityState.selected).toBe(false);
     // And the sentence says which of the two "not in it" cases this is. It is
-    // the one thing about being outside that no rung and no roster card can
+    // the one thing about being outside that no rung and no People card can
     // say, which is why it outlived the card that used to carry it — see the
     // note under the roster in ChannelView.
     expect(textOf(tree)).toContain('not on this device');
@@ -1248,7 +1248,7 @@ describe('Channel', () => {
    * without being in it* — on the Step in card. The two above are facts a
    * snapshot cannot show you, another device being invisible to this screen;
    * that one was a readout of which rung you are on, which the footer lights
-   * and your own roster card says in words. It went with the card.
+   * and your own People card says in words. It went with the card.
    */
   it('says nothing extra for a channel this account is not in', () => {
     const channel = reduce(channelOf(), { type: 'STEP_OUT', userId: ME }, NOW);
@@ -1266,7 +1266,7 @@ describe('Channel', () => {
     );
     expect(textOf(tree)).not.toContain('without being in it');
     expect(textOf(tree)).not.toContain('not on this device');
-    // The roster card is what says it instead, and says it about a person
+    // The People card is what says it instead, and says it about a person
     // rather than about a device.
     expect(textOf(tree)).toContain('Stepped out');
     act(() => tree.unmount());

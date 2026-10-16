@@ -115,7 +115,7 @@ describe('stepping in nearby, from outside', () => {
   it('counts as an arrival, stamping `lastPresentAt` where there was none', () => {
     // The substance of 2026-09-12, and the case that has no other answer:
     // somebody who has never been in this channel had no stamp at all, so
-    // `idleMs` returned null and a roster card whose wait had lapsed read a
+    // `idleMs` returned null and a People card whose wait had lapsed read a
     // bare *Stepped out* with no time under it. The declaration is the moment
     // to date it from, being equivalent to stepping in and tapping *Be
     // nearby* immediately afterwards.
@@ -158,7 +158,7 @@ describe('stepping out of nearby', () => {
     expect(isPresent(s, B)).toBe(false);
   });
 
-  it('puts the roster card back to stepped out', () => {
+  it('puts the People card back to stepped out', () => {
     // The one thing anybody else can see about a declaration: `isWaiting` is
     // what the roster reads, and it is *Nearby* against *Stepped out*. Being
     // worth calling is not affected either way — `canPing` asks only whether
@@ -281,7 +281,7 @@ describe('how long a wait has been going on', () => {
     // The sharp case, and the one that was visibly broken: past fifteen
     // minutes the declaration was recorded and `isWaiting` was false from the
     // instant it was made, so the footer lit *Nearby* while the person's own
-    // roster card read *Stepped out sixteen minutes ago*.
+    // People card read *Stepped out sixteen minutes ago*.
     const late = T0 + 16 * 60_000;
     const s = declare(steppedOutAt(T0 + 1_000), B, late);
     expect(s.waiting).toContain(B);

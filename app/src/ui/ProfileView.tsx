@@ -1196,7 +1196,7 @@ export function ProfileView({
         open. See `canSetSelfMute`, which is where the policy is and what
         `mayChange` is an answer from.
 
-        **Here rather than on the roster card, deliberately.** Muting somebody
+        **Here rather than on the People card, deliberately.** Muting somebody
         else is a favour and not a moderation tool, and a tap that reaches it
         from a list of faces is one that gets made by accident and made
         casually. A profile is a screen you went to about a person; the extra

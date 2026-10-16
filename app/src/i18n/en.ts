@@ -601,7 +601,7 @@ export const en = {
     pinged: () => 'Pinged',
     ping: () => 'Ping',
     /**
-     * The whole of what a screen reader says about one roster card. No
+     * The whole of what a screen reader says about one People card. No
      * seconds in it, deliberately: the clock beside the name ticks once a
      * second and a label carrying it would announce the card afresh each
      * time.

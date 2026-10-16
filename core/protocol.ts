@@ -565,7 +565,7 @@ export interface RejoinableView {
    * **A moment rather than a flag**, so the client expires it against its own
    * clock rather than waiting for a snapshot that may never come. The mark is
    * drawn while `now - steppedInAt < WAITING_WINDOW_MS` — fifteen minutes, the
-   * same window that keeps somebody's roster card reading "Nearby" rather than
+   * same window that keeps somebody's People card reading "Nearby" rather than
    * "Stepped out", since the mark and that line are one visit described to two
    * audiences. It was PRESENCE_LIFETIME_MS, the push's window, for a day. The
    * constant is in core/constants.ts, but nothing on the wire depends on which
