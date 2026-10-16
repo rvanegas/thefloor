@@ -1323,11 +1323,13 @@ since 2026-10-16 — the clipboard, or on iOS Apple's own paste control drawn
 icon-only (`displayMode="iconOnly"`), which is what spares the *Allow Paste?*
 sheet. It was a full-width button at the foot of the log for a day. It sits
 apart from the switches because it is an act rather than a selection, and its
-refusals are the bar's line under the row. **The row's gap is 12, and it
-wraps**: at 24 the glyph sat past the right edge of a 393-point phone, drawn
-and unreachable, which is the failure a test renderer cannot see — it lays
-nothing out. Where five still do not fit, the glyph takes a line of its own at
-the right.
+refusals are the bar's line under the row. **The row has to fit a 375-point
+phone, and is measured from a screenshot rather than estimated**, which is
+the failure a test renderer cannot see — it lays nothing out. At 24-point
+gaps the glyph sat past the right edge; at 12 the row wrapped and stood it
+alone on a second line. Now Play and Stop are one pair with no gap, groups
+stand 8 apart and a word 6 from its switch — about 345 of the 359 there. The
+row still wraps, as a net rather than a layout.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 

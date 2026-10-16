@@ -721,6 +721,10 @@ export function KeepSwitches({
     <View style={styles.bar}>
       <View style={[styles.barInner, styles.keep]}>
         <View style={styles.switches}>
+          {/* Play and Stop as one pair, with no gap between them: a transport
+              is read as one control, and the room it frees is what puts the
+              paste glyph on this line on a 375-point phone. */}
+          <View style={styles.transport}>
           {keeping === 'running' ? (
             <IconButton
               label={t.pause()}
@@ -742,6 +746,7 @@ export function KeepSwitches({
             disabled={!mayStop}
             onPress={() => app.act(channelId, { type: 'STOP_KEEPING' })}
           />
+          </View>
           <KeepSwitch
             label={t.audio()}
             on={keep.audio}
@@ -1075,23 +1080,26 @@ const styles = StyleSheet.create({
   keep: { gap: spacing(0.5) },
   /**
    * Five things on one line since the paste glyph joined it on 2026-10-16 —
-   * two 44-point icons, two switches with their words, the glyph — and a
-   * 24-point gap, the row's before then, put the glyph past the right edge of
-   * a 393-point phone, where nothing said it was there. 12 fits all five in
-   * the 361 that phone's measure leaves (about 349); **and the row wraps**,
-   * so where it still cannot — a narrower phone, a longer word in another
-   * language — the glyph moves to a line of its own at the right rather than
-   * off the screen. A wrap is a function of the width and fixed at any one
-   * (STYLE.md rule 6).
+   * the transport's two icons, two switches with their words, the glyph —
+   * **and they have to fit a 375-point phone, measured rather than
+   * estimated.** At the row's old 24-point gaps the glyph was drawn past the
+   * right edge; at 12, on build 365, the row wrapped and stood it alone on a
+   * second line, which Rodrigo's screenshot showed and called ugly. From that
+   * screenshot each switch takes about 56 points in layout, not the 41 its
+   * scaled drawing suggests, and the row ended at 334 of the 359 there. So
+   * the transport is one pair with no gap, groups stand 8 apart, and a word
+   * sits 6 from its switch: about 345 of 359, with room for *Texto*. **The
+   * wrap stays as the net**, for a narrower phone or a longer word.
    */
   switches: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     alignItems: 'center',
-    columnGap: spacing(1.5),
+    columnGap: spacing(1),
     rowGap: spacing(0.5),
   },
-  switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
+  transport: { flexDirection: 'row', alignItems: 'center' },
+  switchRow: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
   // Pushed to the far end of the row, whatever its width.
   trailing: { marginLeft: 'auto' },
   switchLabel: { color: colors.text, fontSize: 15 },
