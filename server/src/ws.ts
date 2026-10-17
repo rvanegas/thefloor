@@ -1458,10 +1458,20 @@ export function registerWebsocket(deps: {
           pushChannel(connection, channelId);
         }
       }
-      for (const guest of guestConnections) {
-        if (guest.channelId === channelId) pushGuest(guest);
-      }
       const channel = channels.get(channelId);
+      for (const guest of guestConnections) {
+        if (guest.channelId !== channelId) continue;
+        // A page still at the door of a channel that has been locked: no
+        // answer can come, so it is told rather than left knocking. Safe from
+        // racing an admission, since a locked channel admits nobody.
+        if (channel?.locked && guest.knockId && !guest.guestId) {
+          sendGuest(guest, { type: 'refused', reason: 'This channel is locked.' });
+          guest.knockId = null;
+          guest.socket.close();
+          continue;
+        }
+        pushGuest(guest);
+      }
       if (channel) {
         homeNotifier.notify([
           ...new Set([...channel.participants, ...departed]),

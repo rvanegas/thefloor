@@ -265,6 +265,7 @@ export const mockApp = {
   withdrawContact: jest.fn(async () => {}),
   startChannel: jest.fn(),
   makeCommunity: jest.fn(),
+  lockChannel: jest.fn(),
   communityLink: jest.fn(async () => null),
   setCommunityLink: jest.fn(async () => null),
   // Answers for whoever is asked about, as the server does — a mock that

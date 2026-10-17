@@ -537,6 +537,17 @@ export const api = {
     ),
 
   /**
+   * Locks a channel for good: nobody new may come in, and every offer still
+   * standing is taken back. See `ChannelState.locked`.
+   */
+  lockChannel: (token: string, channelId: string) =>
+    request<{ channelId: string }>(`/channels/${channelId}/lock`, {
+      method: 'POST',
+      body: {},
+      token,
+    }),
+
+  /**
    * Makes a *member link* for a channel, `/m/<username>/<pin>`: whoever
    * follows it first becomes a member, and nobody's contact. `url` is null for
    * an account with no username. Since 2026-10-16.

@@ -31,11 +31,13 @@ import {
   canClaimFloor,
   canDeleteChannel,
   canLoadTrack,
+  canLockChannel,
   canMakeCommunity,
   capacityOf,
   canMintMemberLink,
   canWithdrawMemberLink,
   membersPromised,
+  isLocked,
   isOwner,
   presentOrEmpty,
   canEditChannel,
@@ -1743,6 +1745,54 @@ export class ChannelRegistry {
   }
 
   /**
+   * Locks a channel for good — see `ChannelState.locked`, and `canLockChannel`
+   * for who may.
+   *
+   * The reducer takes back every offer the room can see; this takes back
+   * their durable halves in the same breath, so that nothing a restart
+   * projects back into the room is an offer a locked channel would refuse:
+   * the member links' pins, the guest invitations' seats, and every guest
+   * link still open — a door the page behind it would only be turned away
+   * from. Seats already taken are not touched.
+   */
+  lock(channelId: string, userId: string): { ok: true; channel: ChannelState } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active' || !isParticipant(channel, userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (isLocked(channel)) return { ok: true, channel };
+    if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
+    if (!canLockChannel(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to lock it.',
+        code: 'conflict',
+      };
+    }
+    const now = this.now();
+    const locked = this.apply(channelId, userId, {
+      type: 'LOCK',
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    if (!locked.ok) return locked;
+    if (!isLocked(locked.channel)) {
+      return { ok: false, error: 'Could not lock it.', code: 'conflict' };
+    }
+    for (const row of this.memberLinks.pendingIn(channelId, now)) {
+      this.memberLinks.withdraw(row.id, now);
+    }
+    for (const session of this.guests.pendingIn(channelId, now)) {
+      this.guests.eject(session.id, userId, now);
+    }
+    for (const link of this.guests.linksFor(channelId)) {
+      if (link.revoked_at === null) this.guests.revokeLink(link.token, userId, now);
+    }
+    // And a community's own door, which nothing may reopen: see `setJoinCode`.
+    this.db.prepare('UPDATE channels SET join_code = NULL WHERE id = ?').run(channelId);
+    this.emit([channelId]);
+    return locked;
+  }
+
+  /**
    * Starts a *community* from nothing: a new channel, then `makeCommunity`.
    *
    * **A shim, for build 335**, which offered *Start a community* on Home before
@@ -1824,6 +1874,7 @@ export class ChannelRegistry {
         code: 'forbidden',
       };
     }
+    if (open && isLocked(channel)) return { ok: false, error: 'This channel is locked.', code: 'conflict' };
     const joinCode = open ? mintJoinCode(channel.name ?? '') : null;
     this.db.prepare('UPDATE channels SET join_code = ? WHERE id = ?').run(joinCode, channelId);
     return { ok: true, joinCode };
@@ -1846,6 +1897,7 @@ export class ChannelRegistry {
       return { ok: false, error: 'That link no longer opens anything.', code: 'not_found' };
     }
     if (isParticipant(channel, userId)) return { ok: true, channel, already: true };
+    if (isLocked(channel)) return { ok: false, error: 'This channel is locked.', code: 'conflict' };
     if (channel.participants.length >= capacityOf(channel)) {
       return {
         ok: false,
@@ -1889,6 +1941,7 @@ export class ChannelRegistry {
     if (channel.owner !== undefined) {
       return { ok: false, error: 'A community is joined by its own link.', code: 'conflict' };
     }
+    if (isLocked(channel)) return { ok: false, error: 'This channel is locked.', code: 'conflict' };
     if (!canMintMemberLink(channel, userId, this.now())) {
       return membersPromised(channel, this.now()) >= capacityOf(channel)
         ? {
@@ -2556,6 +2609,7 @@ export class ChannelRegistry {
       if (isParticipant(channel, contactId)) {
         return { ok: false, error: 'Already in this channel.', code: 'conflict' };
       }
+      if (isLocked(channel)) return { ok: false, error: 'This channel is locked.', code: 'conflict' };
       // Places held by member links count, as the reducer counts them.
       if (membersPromised(channel, this.now()) >= capacityOf(channel)) {
         return {
@@ -6748,6 +6802,7 @@ export class ChannelRegistry {
     // what is wanted here is which half refused, and the two are a 403 and a
     // 409 because only one of them is worth waiting out.
     if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
+    if (isLocked(channel)) return { ok: false, error: 'This channel is locked.', code: 'conflict' };
     if (!presentOrEmpty(channel, userId)) {
       return {
         ok: false,
@@ -6791,6 +6846,7 @@ export class ChannelRegistry {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }
     if (!holdsTheControls(channel, userId)) return OWNERS_ALONE;
+    if (isLocked(channel)) return { ok: false, error: 'This channel is locked.', code: 'conflict' };
     if (!presentOrEmpty(channel, userId)) {
       return {
         ok: false,
@@ -6948,7 +7004,7 @@ export class ChannelRegistry {
     | Refused {
     const link = this.guests.liveLink(token);
     const channel = link ? this.channels.get(link.channel_id) : undefined;
-    if (!link || !channel || channel.status !== 'active') {
+    if (!link || !channel || channel.status !== 'active' || isLocked(channel)) {
       return { ok: false, error: 'This link is no longer open.', code: 'not_found' };
     }
     return {
@@ -7828,6 +7884,9 @@ export class ChannelRegistry {
       // back from a deploy without its owner would be twenty people in a
       // channel whose cap is six. Absent for every channel that is not one.
       ...(channel.owner !== undefined ? { owner: channel.owner } : {}),
+      // Durable above all: a lock is for good, and one a deploy undid would be
+      // a door reopened that nobody can see was ever shut.
+      ...(channel.locked ? { locked: true } : {}),
       participants: channel.participants,
       invitedBy: channel.invitedBy,
       // Outlives the process because it is a fact about the channel rather
@@ -8210,6 +8269,7 @@ export class ChannelRegistry {
       };
       trackFile?: { file: string; dir: string } | null;
       removals?: ChannelState['removals'];
+      locked?: boolean;
     };
     const stored =
       durable.participants ??
@@ -8259,6 +8319,7 @@ export class ChannelRegistry {
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       initiator: durable.initiator ?? row.initiator_id,
       ...(durable.owner !== undefined ? { owner: durable.owner } : {}),
+      ...(durable.locked ? { locked: true as const } : {}),
       participants,
       invitedBy,
       createdAt: row.created_at,

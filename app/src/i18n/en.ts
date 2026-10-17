@@ -1018,6 +1018,23 @@ export const en = {
     communityNeedsName: () =>
       'A community needs a name, since its link is read from it. This becomes the channel\u2019s name.',
     makeIt: () => 'Make it a community',
+    /** The section, and the act: see `ChannelState.locked`. */
+    locking: () => 'Lock',
+    lockChannel: () => 'Lock channel',
+    lockNote: () =>
+      'A locked channel takes nobody new, as a member or a guest, and offers no way to invite anybody. It cannot be unlocked.',
+    lockAsk: () => 'Lock this channel?',
+    lockBody: () =>
+      'Nobody new will be able to join it, as a member or a guest, ever again. Invitations nobody has answered, member links, guest invitations and guest links are all taken back now. Everybody already in it stays. It cannot be unlocked.',
+    lock: () => 'Lock',
+    lockingBusy: () => 'Locking\u2026',
+    couldNotLock: () => 'Could not lock the channel.',
+    isLocked: () => 'This channel is locked',
+    lockedWhat: () =>
+      'Nobody new can join it, as a member or a guest. It cannot be unlocked.',
+    /** Why *Lock channel* is grey: see `canLockChannel`. */
+    lockOwnersAlone: () => 'Only the community\u2019s owner can lock it.',
+    lockStepIn: () => 'Somebody is in this channel. Step in to lock it.',
     making: () => 'Making\u2026',
     couldNotMakeCommunity: () => 'Could not make it a community.',
     /** Why a podcast is offered no *Make channel into a community*. */
@@ -1427,6 +1444,8 @@ export const en = {
     youAskedThemIn: () => 'You asked them in as a guest. They have not been in yet.',
     theyAskedThemIn: (who: string) =>
       `${who} asked them in as a guest. They have not been in yet.`,
+    /** Where the *Invite card* was, on a locked channel. */
+    lockedNoInvite: () => 'This channel is locked. Nobody new can join it.',
     reconnectingIsLeaving: () =>
       'Reconnecting — a dropped connection counts as leaving.',
     open: () => 'Open',

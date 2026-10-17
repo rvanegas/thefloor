@@ -62,6 +62,7 @@ import {
   isPresent,
   canPing,
   isTranscribingLive,
+  isLocked,
 } from '../../../core/channel';
 import { isHere, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
@@ -3475,6 +3476,8 @@ export function ChannelView({
               // wrong for the guest who was already a contact when they
               // arrived.
               addable={
+                // Nor on a locked channel, where it would be a membership.
+                !isLocked(channel) &&
                 !!guest.accountId &&
                 (app.home?.contacts ?? []).some(
                   (entry) =>
@@ -3587,12 +3590,20 @@ export function ChannelView({
             and a link. Members only — a guest's screen is not this one. See
             `InviteCard`.
           */}
-          <InviteCard
-            channel={channel}
-            me={me}
-            now={now}
-            onInviteMember={(contactId) => act({ type: 'INVITE', contactId })}
-          />
+          {/*
+            On a locked channel the card goes and a sentence stays: nothing
+            on this screen can lift a lock — see `ChannelState.locked`.
+          */}
+          {isLocked(channel) ? (
+            <Text style={type.muted}>{t.lockedNoInvite()}</Text>
+          ) : (
+            <InviteCard
+              channel={channel}
+              me={me}
+              now={now}
+              onInviteMember={(contactId) => act({ type: 'INVITE', contactId })}
+            />
+          )}
 
           {/* Same delay as Home's: a foreground drops the socket every time,
               and this used to announce it the instant it happened. */}

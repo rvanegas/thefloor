@@ -761,6 +761,8 @@ interface AppValue extends AppState {
    * its link. A blank `name` keeps the channel's own.
    */
   makeCommunity: (channelId: string, name: string) => Promise<string>;
+  /** Locks a channel for good — see `ChannelState.locked`. */
+  lockChannel: (channelId: string) => Promise<void>;
   /** A community's link, for its owner; null while it is turned off. */
   communityLink: (channelId: string) => Promise<string | null>;
   /** Resets a community's link (revoking the old one), or turns it off. */
@@ -2953,6 +2955,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       makeCommunity: async (channelId, name) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return (await api.makeCommunity(state.token, channelId, name)).url;
+      },
+
+      lockChannel: async (channelId) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        await api.lockChannel(state.token, channelId);
       },
 
       communityLink: async (channelId) => {

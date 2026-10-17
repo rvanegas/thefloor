@@ -1677,7 +1677,7 @@ rules.
   sentence.
 - **Destructive and irreversible acts confirm through `Alert.alert`**, with
   `style: 'cancel'` first and `style: 'destructive'` second, and the body says
-  what is actually lost and for how long. There are 35 of these; there are no
+  what is actually lost and for how long. There are 36 of these; there are no
   custom modal dialogs and no `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
   **One choice is asked through iOS's action sheet**, since 2026-10-09: a

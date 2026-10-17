@@ -9,8 +9,11 @@ import {
 import {
   canEditChannel,
   canInviteGuest,
+  canLockChannel,
   canMakeCommunity,
   capacityOf,
+  holdsTheControls,
+  isLocked,
   isOwner,
 } from '../../../core/channel';
 import {
@@ -668,7 +671,7 @@ export function ChannelSettingsView({
               <MakeCommunity channel={channel} />
             )}
           </Card>
-          {owner ? (
+          {owner && !isLocked(channel) ? (
             <>
               <SectionLabel>{t.communityLink()}</SectionLabel>
               <Card style={styles.stack}>
@@ -697,6 +700,15 @@ export function ChannelSettingsView({
           mayRevoke={canInviteGuest(channel, app.me?.id ?? '')}
           ownersAlone={community && !owner}
         />
+      </Card>
+
+      {/*
+        Locking, for good: see `ChannelState.locked`. Before leaving and
+        deleting, being the other act here that cannot be taken back.
+      */}
+      <SectionLabel>{t.locking()}</SectionLabel>
+      <Card style={styles.stack}>
+        <LockChannel channel={channel} />
       </Card>
 
       {/*
@@ -1424,6 +1436,67 @@ function MakeCommunity({ channel }: { channel: ChannelState }) {
       ) : (
         <Button label={t.makeCommunity()} onPress={() => setOpen(true)} />
       )}
+      {error ? <Text style={styles.warning}>{error}</Text> : null}
+    </>
+  );
+}
+
+/**
+ * *Lock channel*, or what a locked channel is. Confirmed through `Alert`, an
+ * irreversible act; grey with a sentence while the lock is refused to *you*
+ * — somebody else's community, or a room you are not in — and gone once it
+ * is locked, a lock being a fact about everybody rather than a refusal.
+ */
+function LockChannel({ channel }: { channel: ChannelState }) {
+  const t = useText().channelSettings;
+  const app = useApp();
+  const me = app.me?.id ?? '';
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (isLocked(channel)) {
+    return (
+      <>
+        <Text style={type.heading}>{t.isLocked()}</Text>
+        <Text style={type.muted}>{t.lockedWhat()}</Text>
+      </>
+    );
+  }
+
+  const lock = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await app.lockChannel(channel.id);
+    } catch (failure) {
+      setError(failure instanceof Error ? failure.message : t.couldNotLock());
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const confirm = () =>
+    Alert.alert(t.lockAsk(), t.lockBody(), [
+      { text: t.cancel(), style: 'cancel' },
+      { text: t.lock(), style: 'destructive', onPress: () => void lock() },
+    ]);
+
+  const allowed = canLockChannel(channel, me);
+  const refusal = allowed
+    ? null
+    : !holdsTheControls(channel, me)
+      ? t.lockOwnersAlone()
+      : t.lockStepIn();
+
+  return (
+    <>
+      <Text style={type.muted}>{t.lockNote()}</Text>
+      <Button
+        label={busy ? t.lockingBusy() : t.lockChannel()}
+        disabled={!allowed || busy}
+        onPress={confirm}
+      />
+      {refusal ? <Text style={type.muted}>{refusal}</Text> : null}
       {error ? <Text style={styles.warning}>{error}</Text> : null}
     </>
   );

@@ -84,6 +84,7 @@ caused; the list carries the meaning.
 - **Language** — Which of the two catalogues the app speaks to you in — English or Spanish — as a *Floor Settings* choice: *Automatic*, which is the phone's and is the default, or either one named. Per account, so it follows you to the next device; changing it redraws rather than restarting
 - **Leaderboard** — The invitation standings: who is here because of whom
 - **Live** — On Home, a channel with somebody in it right now — the top of the priority ladder
+- **Locked (a channel)** — A channel that takes nobody new, as a member or a guest, and offers no way to invite anybody: *Lock channel* on *Channel Settings*, by whoever may invite, and for good. Locking takes back every offer still standing — unanswered invitations, *member links*, *guest invitations*, guest links, knocks, a community's link — and keeps everybody already in. Not the *lock screen card*, and not *portrait lock*. `ChannelState.locked`, since 2026-10-17
 - **Lock screen card** — The one piece of this interface outside the app: a Live Activity, up while this device is standing in a channel *and still in touch with it* — ended by the server, by push, when it steps this device out — carrying the channel's name, a microphone glyph that strikes through when you are not being heard and greys rather than disappears when it is refused, an *Out* button that steps you out, and a tap anywhere that opens the app at that channel. iOS only, 16.1 and later, and the microphone and Out buttons 17 and later
 - **Marketing email** — Permission to write to somebody about the application rather than to sign them in: offered as a checkbox at sign-up and as a switch on *Floor Settings*, which is the only place it can be withdrawn; so far unspent — nothing sends any
 - **Member** — A user with an account who belongs to a channel; the guest-facing word for *participant*. Having an account does not make you one — see *the three asks*. A *community*'s members are not one another's contacts
@@ -1384,6 +1385,34 @@ Also used loosely in the code for "the channel this account, or this device, is
 actually standing in" — see *live channel* in Part Two, which is a narrower
 thing and is not what the Home section means. **In prose that thing is *the
 channel one is present in***, settled 2026-09-08; the code has not caught up.
+
+## Locked (a channel)
+
+A channel that takes nobody new. **Lock channel**, on *Channel Settings*, is
+offered to whoever may invite — every member of a flat channel, a community's
+owner alone — under the same presence rule (`canLockChannel`), and confirmed,
+since it is **for good**: nothing unlocks a channel, and `ChannelState.locked`
+has no action that clears it.
+
+The lock is on **arrivals, not on people**. Everybody already a member stays,
+as does every guest holding a seat; what goes is every *offer* still standing,
+in the same step, so nobody is left holding one that would fail on arrival:
+
+- **invitations nobody has answered** — members asked in who never entered
+  (`pendingInvitees`, the same test `invitesFor` makes), who are dropped from
+  the roster and whose card leaves their Home;
+- **member links**, **guest invitations** and **knocks** at the door;
+- **every guest link**, revoked, and a **community's link**, cleared and not
+  to be reset.
+
+After it, the *Invite card* is gone from *People* and a sentence stands in
+its place, as is the rule for a refusal nobody on the screen can lift; *add to
+channel* is gone from a guest's card. The server refuses every way in by name
+— *This channel is locked.* — for builds that still draw the controls.
+
+Not the *lock screen card*, and not *portrait lock*, which share the word and
+nothing else. Spanish: *cerrado* — *Cerrar el canal*, *Este canal está
+cerrado* — since *bloquear* is what an app does to a person.
 
 ## Lock screen card
 
@@ -4906,6 +4935,8 @@ are settled:
     Invite (the card)     Invitar — *Invitar como miembro*, *Invitar como
                           invitado* the two steps it opens to
     Member link           Enlace de miembro
+    Lock channel          Cerrar el canal — *locked* is *cerrado*, never
+                          *bloqueado*, which is what is done to a person
     Record (the tab)      Grabado
     Room                  Sala
     Here                  Aquí

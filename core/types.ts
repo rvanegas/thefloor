@@ -699,6 +699,21 @@ export interface ChannelState {
    * that is not a community, which is how an older snapshot reads too.
    */
   owner?: UserId;
+  /**
+   * Whether this channel is *locked*: nobody new may come in, as a member or
+   * as a guest, and nothing may be offered that would let them — see
+   * `isLocked`. Set by `LOCK`, by anybody who holds the controls, and **for
+   * good**: there is no action that clears it.
+   *
+   * Locking settles every offer still standing rather than leaving them to
+   * fail on arrival: invitations nobody has answered (`pendingInvitees`),
+   * member links, guest invitations and knocks all go in the same commit.
+   * Seats already taken are not offers, and stay.
+   *
+   * Absent on every channel that is not locked, which is how an older
+   * snapshot reads too. Since 2026-10-17.
+   */
+  locked?: true;
   createdAt: number;
   /**
    * The last time anybody entered or left the channel — set on creation, on
@@ -1192,6 +1207,15 @@ export type ChannelAction =
    * which is `ChannelRegistry.makeCommunity`'s, so it arrives by its own route.
    */
   | { type: 'MAKE_COMMUNITY'; userId: UserId; name: string }
+  /**
+   * Locks the channel, for good — see `ChannelState.locked` and
+   * `canLockChannel`. Takes back every offer still standing in the same step.
+   *
+   * Not in the server's `CLIENT_ACTIONS`, for `MAKE_COMMUNITY`'s reason: the
+   * offers have durable halves the server deletes alongside, so it arrives by
+   * its own route — `ChannelRegistry.lock`.
+   */
+  | { type: 'LOCK'; userId: UserId }
   /**
    * Destroy the channel and everything recorded in it. Only its last member
    * may, there being nobody left to disagree — or a community's owner, at any

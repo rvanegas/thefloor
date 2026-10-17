@@ -213,6 +213,7 @@ export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new S
   ChannelAction['type']
 >([
   'INVITE',
+  'LOCK',
   'MOVE_TO_REMOVE',
   'SET_NAME',
   'SET_DESCRIPTION',
@@ -262,6 +263,45 @@ export function canMakeCommunity(state: ChannelState, userId: UserId): boolean {
   );
 }
 
+/** Whether this channel is *locked*, which it is for good: see `ChannelState.locked`. */
+export function isLocked(state: ChannelState): boolean {
+  return state.locked === true;
+}
+
+/**
+ * Whether `userId` may lock this channel: whoever may invite may also stop
+ * anybody being invited, under the same presence rule — locking is a
+ * decision about who is in the conversation, which is `canInvite`'s subject
+ * from the other side. Refused once locked, there being no way back to make
+ * a second press mean anything.
+ */
+export function canLockChannel(state: ChannelState, userId: UserId): boolean {
+  return (
+    state.status === 'active' &&
+    !isLocked(state) &&
+    isParticipant(state, userId) &&
+    holdsTheControls(state, userId) &&
+    presentOrEmpty(state, userId)
+  );
+}
+
+/**
+ * The members who were asked in and have never arrived — what reaches each
+ * of their Homes as an invitation, by the test `invitesFor` makes in the
+ * server: a member is not one until they are in `everPresent`. Only those
+ * somebody asked, by `invitedBy`, so neither half of a pair's standing
+ * channel nor anybody who came by a community's door is counted.
+ *
+ * What `LOCK` takes back, an unanswered invitation being an offer of a place
+ * like any other.
+ */
+export function pendingInvitees(state: ChannelState): UserId[] {
+  if (state.everPresent.length === 0) return [];
+  return state.participants.filter(
+    (id) => state.invitedBy[id] !== undefined && !state.everPresent.includes(id)
+  );
+}
+
 /**
  * The most members this channel may hold: `MAX_COMMUNITY_MEMBERS` for a
  * *community*, `MAX_CHANNEL_PARTICIPANTS` for every other.
@@ -306,6 +346,7 @@ export function pendingMemberLinks(state: ChannelState, now = -Infinity): Member
 export function canMintMemberLink(state: ChannelState, userId: UserId, now = -Infinity): boolean {
   return (
     state.status === 'active' &&
+    !isLocked(state) &&
     state.owner === undefined &&
     isParticipant(state, userId) &&
     holdsTheControls(state, userId) &&
@@ -1549,6 +1590,7 @@ export function canInvite(
 ): boolean {
   return (
     state.status === 'active' &&
+    !isLocked(state) &&
     isParticipant(state, userId) &&
     holdsTheControls(state, userId) &&
     presentOrEmpty(state, userId) &&
@@ -1569,6 +1611,7 @@ export function canInvite(
 export function canJoin(state: ChannelState, userId: UserId, now = -Infinity): boolean {
   return (
     state.status === 'active' &&
+    !isLocked(state) &&
     state.owner !== undefined &&
     !isParticipant(state, userId) &&
     membersPromised(state, now) < capacityOf(state)
@@ -2273,6 +2316,7 @@ export function canPing(
 export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&
+    !isLocked(state) &&
     isParticipant(state, userId) &&
     holdsTheControls(state, userId) &&
     presentOrEmpty(state, userId)
@@ -2302,6 +2346,7 @@ export function canAnswerKnock(
 ): boolean {
   return (
     state.status === 'active' &&
+    !isLocked(state) &&
     isPresent(state, userId) &&
     holdsTheControls(state, userId) &&
     guestsPromised(state, now) < MAX_CHANNEL_GUESTS
@@ -2657,6 +2702,8 @@ function reduceAction(
     // left waiting. Stated here as well as at the route, so that a knock
     // cannot survive the room emptying between the two.
     if (state.present.length === 0) return state;
+    // Nor a locked room, for the same reason: nobody may answer it.
+    if (isLocked(state)) return state;
     if (state.knocks.some((knock) => knock.id === action.knock.id)) return state;
     return { ...state, knocks: [...state.knocks, action.knock] };
   }
@@ -2733,6 +2780,10 @@ function reduceAction(
   }
 
   if (action.type === 'GUEST_INVITED') {
+    // The server asks `canInviteGuest` before writing the row, which a locked
+    // channel refuses; this is the reducer saying so too, so an offer can
+    // never stand in one.
+    if (isLocked(state)) return state;
     // Raised by the server when a `guest_sessions` row is written, the same
     // way `GUEST_ENTERED` is: the row is the durable half and this is the
     // room's picture of it. The server applies its own ceiling before writing
@@ -2796,6 +2847,7 @@ function reduceAction(
   }
 
   if (action.type === 'MEMBER_LINK_MADE') {
+    if (isLocked(state)) return state;
     // Raised by the server once it has written the pin's row, which is where
     // `canMintMemberLink` was asked; see the action in types.ts.
     return {
@@ -2817,6 +2869,7 @@ function reduceAction(
     const link = state.memberLinks?.[action.linkId];
     if (
       state.status !== 'active' ||
+      isLocked(state) ||
       !link ||
       link.expiresAt <= now ||
       isGuest(state, action.userId) ||
@@ -3332,6 +3385,25 @@ function reduceAction(
       const name = state.name ?? (trimmed === '' ? null : trimmed);
       if (name === null) return state;
       return { ...state, name, owner: action.userId };
+    }
+
+    case 'LOCK': {
+      if (!canLockChannel(state, action.userId)) return state;
+      // Every offer still standing goes with it, so nobody is left holding
+      // one that would only fail on arrival. The members who never answered
+      // are dropped as leaving would drop them — never the one locking,
+      // whose press is itself an answer.
+      let next: ChannelState = state;
+      for (const id of pendingInvitees(state)) {
+        if (id !== action.userId) next = dropParticipant(next, id, now);
+      }
+      return {
+        ...next,
+        locked: true,
+        memberLinks: {},
+        guestInvites: {},
+        knocks: [],
+      };
     }
 
     case 'SET_DESCRIPTION': {

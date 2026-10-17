@@ -795,6 +795,21 @@ export const es: Strings = {
     communityNeedsName: () =>
       'Una comunidad necesita un nombre, porque su enlace se lee de \u00e9l. Este pasa a ser el nombre del canal.',
     makeIt: () => 'Convertirlo',
+    locking: () => 'Cerrar',
+    lockChannel: () => 'Cerrar el canal',
+    lockNote: () =>
+      'Un canal cerrado no admite a nadie nuevo, ni como miembro ni como invitado, y no ofrece ninguna forma de invitar. No se puede volver a abrir.',
+    lockAsk: () => '\u00bfCerrar este canal?',
+    lockBody: () =>
+      'Nadie nuevo podr\u00e1 unirse, ni como miembro ni como invitado, nunca m\u00e1s. Las invitaciones sin responder, los enlaces de miembro, las invitaciones de invitado y los enlaces de invitado se retiran ahora. Quien ya est\u00e1 dentro se queda. No se puede volver a abrir.',
+    lock: () => 'Cerrar',
+    lockingBusy: () => 'Cerrando\u2026',
+    couldNotLock: () => 'No se ha podido cerrar el canal.',
+    isLocked: () => 'Este canal est\u00e1 cerrado',
+    lockedWhat: () =>
+      'Nadie nuevo puede unirse, ni como miembro ni como invitado. No se puede volver a abrir.',
+    lockOwnersAlone: () => 'Solo quien es responsable de la comunidad puede cerrarla.',
+    lockStepIn: () => 'Hay alguien en este canal. Entra para cerrarlo.',
     making: () => 'Convirtiendo\u2026',
     couldNotMakeCommunity: () => 'No se ha podido convertir en comunidad.',
     podcastNotCommunity: () =>
@@ -1141,6 +1156,7 @@ export const es: Strings = {
       'Le invitaste como invitado. Todav\u00eda no ha entrado.',
     theyAskedThemIn: (who: string) =>
       `${who} le invit\u00f3 como invitado. Todav\u00eda no ha entrado.`,
+    lockedNoInvite: () => 'Este canal est\u00e1 cerrado. Nadie nuevo puede unirse.',
     reconnectingIsLeaving: () =>
       'Reconectando: perder la conexi\u00f3n cuenta como salir.',
     open: () => 'Abrir',

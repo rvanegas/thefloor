@@ -3941,6 +3941,25 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * Locks a channel for good: nobody new comes in, and every offer still
+   * standing is taken back. See `ChannelRegistry.lock`.
+   */
+  fastify.post('/channels/:id/lock', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const before = channels.get(id)?.participants ?? [];
+    const result = channels.lock(id, account.id);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    // Everybody whose invitation it took back as well as the members, each
+    // of whose Home changes.
+    homeNotifier.notify(before);
+    return { channelId: result.channel.id };
+  });
+
+  /**
    * Starts a *community* from nothing. **A shim for build 335**, the only one
    * with *Start a community* on Home — SHIMS.md, gate 336.
    */
