@@ -3,7 +3,7 @@ import { act } from 'react-test-renderer';
 import { reduce } from '../../../../core/channel';
 import type { LiveLine } from '../../../../core/protocol';
 import { ChannelView } from '../ChannelView';
-import { HoistedRoom, RoomLine, merge } from '../RecordTab';
+import { RoomLine, merge } from '../RecordTab';
 import { receiveLiveLine } from '../../live/lines';
 import {
   AUDIO,
@@ -496,13 +496,12 @@ describe('rooms on the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
 
-    // Inline, one per room; nothing is hoisted until something has scrolled
-    // off the top, which in a renderer that measures nothing is never.
+    // Inline, one per room, and only ever inline: a line held at the top is
+    // the same line moved, not a copy drawn over the scroll.
     expect(tree.root.findAll((n: { type: unknown }) => n.type === RoomLine).map((n) => (n.props.room as { id: string }).id)).toEqual([
       'room_1',
       'room_2',
     ]);
-    expect(tree.root.findAll((n: { type: unknown }) => n.type === HoistedRoom)[0].props.room).toBeNull();
     expect(sharesOf(tree)).toHaveLength(2);
     act(() => tree.unmount());
   });

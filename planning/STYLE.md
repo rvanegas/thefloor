@@ -1236,19 +1236,19 @@ the *Record* tab hangs a second bar under the channel's, built the same way,
 carrying the two switches of § *Switch*.
 
 **The room's line is not pinned, until it has to be.** Each room in the log
-opens with a `RoomLine` — its date and hours, muted, and the share glyph
-(`lucide/share`, the open box iOS uses) at the trailing end, over a hairline
-— and it scrolls with the log, so two rooms on screen at once have their line
-between them. Once a room's line has scrolled off the top the same component
-is drawn pinned over the top edge of the scroll (`HoistedRoom`, through
-`Screen`'s `overlay`), on `bg`, until the next room's line arrives under it and
-pushes it off: a sticky header. **It covers rather than taking height** — the
-one thing on any screen allowed to — because a bar that came and went above
-the scroll would move the log by its own height each time, and bring back the
-very line it stood for. The share asks *Audio* or *Text*, with what the room
-did not keep greyed in the sheet; a room that kept neither yet greys the
-glyph, which stays drawn, since a control that comes and goes as you scroll
-is rule six broken. The pinned bars themselves:
+opens with a `RoomLine` — its date and hours, muted, over a hairline, and no
+share since 2026-10-10, each segment carrying its own — and it scrolls with
+the log, so two rooms on screen at once have their line between them. Once it
+would scroll off the top it is **held** there, on `bg`, over its own room's
+lines, until the next room's line arrives under it and pushes it off: a
+sticky header. **It covers rather than taking height** — the one thing on any
+screen allowed to — because a bar that came and went above the scroll would
+move the log by its own height each time, and bring back the very line it
+stood for. **It is the inline line moved, not a copy**, since 2026-10-17: a
+`translateY` interpolated from `ScrollPosition.y`, the native-driven offset,
+so it moves in the frame the content does. A pinned copy drawn over the
+scroll from JS once the inline line had gone arrived a frame or more after it
+had, and the line blinked out and back. The pinned bars themselves:
 
 ```
 header      paddingTop: spacing(1), paddingBottom: spacing(1–1.5),

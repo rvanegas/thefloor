@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   Alert,
+  Animated,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
@@ -11,6 +12,8 @@ import {
   TextInput,
   View,
   type ColorValue,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -463,7 +466,6 @@ export function Screen({
   aside,
   asidePlace = 'above',
   followEnd = false,
-  overlay,
 }: {
   children: React.ReactNode;
   contentStyle?: StyleProp<ViewStyle>;
@@ -548,15 +550,6 @@ export function Screen({
    * unreadable for exactly as long as anybody is talking.
    */
   followEnd?: boolean;
-  /**
-   * Drawn over the top edge of the scroll, inside its frame — **the one
-   * thing allowed to cover the content**, and only because what it covers is
-   * itself: the *Record* tab's room line, hoisted once the inline one has
-   * scrolled under it (`HoistedRoom`). A pinned row in `header` that came and
-   * went with the scroll would move the content by its own height every time
-   * it did, which is the jump this exists to avoid. Positions itself.
-   */
-  overlay?: React.ReactNode;
 }) {
   const scroll = React.useRef<ScrollView>(null);
   /** Whether the reader is at the end, which is what `followEnd` asks. */
@@ -576,9 +569,12 @@ export function Screen({
   const viewport = React.useRef({ offset: 0, height: 0 });
   /** Who has asked to hear the scroll move; see `ScrollPositionContext`. */
   const listeners = React.useRef(new Set<(offset: number) => void>());
+  /** The same offset on the UI thread; see `ScrollPosition.y`. */
+  const y = React.useRef(new Animated.Value(0)).current;
   const position = React.useMemo<ScrollPosition>(
     () => ({
       offset: () => viewport.current.offset,
+      y,
       subscribe: (listener) => {
         listeners.current.add(listener);
         return () => {
@@ -601,7 +597,7 @@ export function Screen({
         target.measureLayout(container, (_x, top) => then(top), () => {});
       },
     }),
-    []
+    [y]
   );
 
   /**
@@ -689,11 +685,8 @@ export function Screen({
             offsets within the content by subtracting this view's own top, so
             a pinned row inside it would put every reveal out by the height of
             that row. */}
-        {/* Clipped, so the `overlay` stays inside the frame it is drawn
-            over: a hoisted room line pushed off by the next one slides up
-            and out under the header, rather than over the pinned rows. */}
-        <View ref={frame} collapsable={false} style={[styles.screen, styles.clip]}>
-        <ScrollView
+        <View ref={frame} collapsable={false} style={styles.screen}>
+        <Animated.ScrollView
           ref={scroll}
           // Typed as never null, which no ref before mount is.
           innerViewRef={inner as React.RefObject<View>}
@@ -710,15 +703,22 @@ export function Screen({
             viewport.current.height = e.nativeEvent.layout.height;
           }}
           scrollEventThrottle={16}
-          onScroll={(e) => {
-            viewport.current.offset = e.nativeEvent.contentOffset.y;
-            for (const listener of listeners.current) listener(viewport.current.offset);
-            const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
-            // Within a line's height of the end counts as at it, so a
-            // reader who is a few points short is still followed.
-            atEnd.current =
-              contentOffset.y + layoutMeasurement.height >= contentSize.height - 48;
-          }}
+          // **Native first, then JS.** `y` moves on the UI thread in the same
+          // frame as the content, which is what lets a line stay put while
+          // everything around it scrolls; the listener is JS's copy, which
+          // trails it and is for everything that may.
+          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y } } }], {
+            useNativeDriver: true,
+            listener: (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+              viewport.current.offset = e.nativeEvent.contentOffset.y;
+              for (const listener of listeners.current) listener(viewport.current.offset);
+              const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+              // Within a line's height of the end counts as at it, so a
+              // reader who is a few points short is still followed.
+              atEnd.current =
+                contentOffset.y + layoutMeasurement.height >= contentSize.height - 48;
+            },
+          })}
           onContentSizeChange={(_, height) => {
             const grew = height > contentHeight.current;
             contentHeight.current = height;
@@ -728,8 +728,7 @@ export function Screen({
           }}
         >
           {children}
-        </ScrollView>
-        {overlay}
+        </Animated.ScrollView>
         </View>
         </BodyHeightContext.Provider>
         </View>
@@ -751,6 +750,13 @@ export function Screen({
  */
 export interface ScrollPosition {
   offset: () => number;
+  /**
+   * The offset as a native-driven value, for what has to move in the same
+   * frame as the scroll: the *Record* tab's room line, held at the top while
+   * its room passes under it. Anything driven from `subscribe` lands a frame
+   * or more late, and a line handed between two views that way blinks.
+   */
+  y: Animated.Value;
   subscribe: (listener: (offset: number) => void) => () => void;
   contentTopOf: (node: React.RefObject<View | null>, then: (top: number) => void) => void;
 }
@@ -1148,7 +1154,6 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  clip: { overflow: 'hidden' },
   /**
    * The aside beside the scroll rather than above it.
    *

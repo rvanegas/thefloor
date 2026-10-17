@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
-  Animated,
   Platform,
   Pressable,
   StyleSheet,
@@ -131,8 +130,7 @@ import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
-import { HoistedRoom, KeepSwitches, RecordTab } from './RecordTab';
-import type { RoomView } from '../../../core/protocol';
+import { KeepSwitches, RecordTab } from './RecordTab';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -350,14 +348,6 @@ export function ChannelView({
   // rendered nowhere in a channel.
   const [clipError, setClipError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /**
-   * The room whose line has scrolled off the top of the *Record* log, drawn
-   * pinned in its place, and how far the next room's line has pushed it up —
-   * a value rather than state, since it moves on every frame of a scroll and
-   * this screen is not to render on every one. See `HoistedRoom`.
-   */
-  const [hoistedRoom, setHoistedRoom] = useState<RoomView | null>(null);
-  const hoistShift = useRef(new Animated.Value(0)).current;
 
   /**
    * Sends an action to this channel.
@@ -3044,14 +3034,6 @@ export function ChannelView({
           header
         )
       }
-      overlay={
-        tab === 'record' ? (
-          <HoistedRoom
-            room={hoistedRoom}
-            shift={hoistShift}
-          />
-        ) : undefined
-      }
       footer={footer}
       aside={dockSlot}
       /*
@@ -3921,8 +3903,6 @@ export function ChannelView({
           paused={!!channel.liveTranscription && !!channel.liveTranscriptionPaused}
           name={channel.name ?? derivedTitle}
           recordings={recordings}
-          onHoist={setHoistedRoom}
-          hoistShift={hoistShift}
           // The latest paste's id with them: a paste is a segment of its own,
           // so one arriving means the rooms are fetched again.
           keptKey={`${channel.recording.runId}:${isTranscribingLive(channel)}:${channel.clip?.id ?? ''}`}

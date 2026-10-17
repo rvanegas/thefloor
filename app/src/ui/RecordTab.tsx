@@ -86,13 +86,15 @@ export interface SegmentHead {
  * rooms existed open the log, each under its own rule.
  *
  * **Each room's rule is a `RoomLine`** — its date and its hours — and it
- * scrolls with the log. **It is hoisted only once it has scrolled off the
- * top**, since 2026-10-09: the room whose rule is above the viewport is
- * reported up through `onHoist`, and the screen draws the same line pinned
- * over the top of the scroll until the next room's rule arrives and pushes it
- * off — `hoistShift` is how far, set on every scroll without rendering
- * anything. Before anything is measured (and in a test renderer, where nothing
- * is) nothing is hoisted, and every rule is inline.
+ * scrolls with the log. **It is held at the top once it would scroll off
+ * it**, since 2026-10-09, until the next room's rule arrives and pushes it
+ * off: a sticky header. **Held, not handed over**, since 2026-10-17 — the
+ * line is translated down by however far the scroll has passed it, on the
+ * native driver, so it never leaves the screen. Until then a pinned copy was
+ * drawn over the scroll from JS once the inline one had gone, a frame or more
+ * after it had, and the line blinked out and back. Before anything is
+ * measured (and in a test renderer, where nothing is) nothing is held, and
+ * every rule scrolls.
  *
  * **Fetched when shown, and kept current by the socket.** The transcript comes
  * a page at a time, newest first; lines written while the tab is open arrive
@@ -109,8 +111,6 @@ export function RecordTab({
   recordings,
   keptKey = '',
   renderRecording,
-  onHoist,
-  hoistShift,
 }: {
   channelId: string;
   /** What a shared file is called after. */
@@ -130,10 +130,6 @@ export function RecordTab({
   keptKey?: string;
   /** One recording as a segment's line of the log. */
   renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
-  /** The room whose rule has scrolled off the top, or null; see above. */
-  onHoist?: (room: RoomView | null) => void;
-  /** How far the next room's rule has pushed the hoisted one up, ≤ 0. */
-  hoistShift?: Animated.Value;
 }) {
   const t = useText().channel;
   const app = useApp();
@@ -256,64 +252,52 @@ export function RecordTab({
     more && held.length > 0 && !!firstSitting && held[0].startAt > firstSitting.openedAt;
   const loading = (rooms === null || (live && lines === null)) && !error;
 
-  // --- Which room's rule is hoisted ------------------------------------------
+  // --- Where each room's rule is held ----------------------------------------
   const position = useScrollPosition();
   const root = React.useRef<View>(null);
-  const rootTop = React.useRef<number | null>(null);
-  const tops = React.useRef(new Map<string, number>());
-  /** A rule's height, which is the hoisted line's: they are one component. */
-  const lineHeight = React.useRef(0);
-  const reported = React.useRef<RoomView | null | undefined>(undefined);
-  const shown = React.useRef(sittings);
-  shown.current = sittings;
-  const report = React.useRef(onHoist);
-  report.current = onHoist;
-  const shift = React.useRef(hoistShift);
-  shift.current = hoistShift;
-
-  const settle = React.useCallback(() => {
-    const list = shown.current;
-    let at: RoomView | null = null;
-    let push = 0;
-    const base = rootTop.current;
-    if (position && base !== null) {
-      const offset = position.offset();
-      // A rule exactly at the top is still in the log; one a hair above it
-      // has started to go, and the pinned copy, drawn identically in the same
-      // place, takes over without a visible seam.
-      for (let i = 0; i < list.length; i++) {
-        const y = tops.current.get(list[i].room.id);
-        if (y === undefined || base + y >= offset) break;
-        at = list[i].room;
-        const next = i + 1 < list.length ? tops.current.get(list[i + 1].room.id) : undefined;
-        push = next === undefined ? 0 : Math.min(0, base + next - offset - lineHeight.current);
-      }
-    }
-    shift.current?.setValue(push);
-    if (reported.current !== at) {
-      reported.current = at;
-      report.current?.(at);
-    }
-  }, [position]);
+  /** Where the log starts in the content; null until measured. */
+  const [rootTop, setRootTop] = React.useState<number | null>(null);
+  /** Each room's top within the log, and its height. */
+  const [frames, setFrames] = React.useState<
+    ReadonlyMap<string, { y: number; height: number }>
+  >(new Map());
+  /** A rule's height, the same for every room. */
+  const [lineHeight, setLineHeight] = React.useState(0);
 
   /** Where the log starts in the content, read afresh whenever it may have
    * moved: what sits above it — a note — changes height without the log's own
-   * frame changing, and a stale top hoists the wrong room. */
+   * frame changing, and a stale top holds the wrong room. */
   const measure = React.useCallback(() => {
-    position?.contentTopOf(root, (top) => {
-      rootTop.current = top;
-      settle();
-    });
-  }, [position, settle]);
+    position?.contentTopOf(root, (top) => setRootTop((was) => (was === top ? was : top)));
+  }, [position]);
 
-  React.useEffect(() => (position ? position.subscribe(settle) : undefined), [position, settle]);
-  React.useEffect(settle, [sittings, settle]);
-  React.useEffect(
-    () => () => {
-      report.current?.(null);
-    },
-    []
-  );
+  const frameOf = (id: string, y: number, height: number) =>
+    setFrames((held) => {
+      const was = held.get(id);
+      if (was && was.y === y && was.height === height) return held;
+      return new Map(held).set(id, { y, height });
+    });
+
+  /**
+   * How far down a room's rule is moved to stay at the top: none until the
+   * scroll reaches it, then as far as the scroll has gone past it, up to where
+   * its bottom meets the next room's rule — which then pushes it up and off
+   * with the scroll, being no longer moved any further. An interpolation of
+   * the native offset, so it moves in the same frame as the content.
+   */
+  const holdOf = (index: number): Animated.AnimatedInterpolation<number> | 0 => {
+    const frame = frames.get(sittings[index].room.id);
+    if (!position || rootTop === null || !frame || lineHeight === 0) return 0;
+    const next = index + 1 < sittings.length ? frames.get(sittings[index + 1].room.id) : undefined;
+    const start = rootTop + frame.y;
+    const travel = (next ? next.y - frame.y : frame.height) - lineHeight;
+    if (travel <= 0) return 0;
+    return position.y.interpolate({
+      inputRange: [start, start + travel],
+      outputRange: [0, travel],
+      extrapolate: 'clamp',
+    });
+  };
 
   return (
     <View
@@ -346,24 +330,28 @@ export function RecordTab({
         />
       ) : null}
 
-      {sittings.map(({ room, items }) => (
+      {sittings.map(({ room, items }, index) => (
         <View
           key={room.id}
           style={styles.room}
           onLayout={(event) => {
-            tops.current.set(room.id, event.nativeEvent.layout.y);
+            const { y, height } = event.nativeEvent.layout;
+            frameOf(room.id, y, height);
             measure();
           }}
         >
-          {/* Where one sitting ends and the next begins — the line the
-              pinned copy takes over once it has scrolled off the top. */}
-          <View
+          {/* Where one sitting ends and the next begins — held at the top
+              while its room passes under it. Over the room's own lines, so
+              they pass beneath it rather than through it. */}
+          <Animated.View
+            style={[styles.held, { transform: [{ translateY: holdOf(index) }] }]}
             onLayout={(event) => {
-              lineHeight.current = event.nativeEvent.layout.height;
+              const next = event.nativeEvent.layout.height;
+              setLineHeight((was) => (was === next ? was : next));
             }}
           >
             <RoomLine room={room} />
-          </View>
+          </Animated.View>
           {items.map((item) => (
             <View key={item.segment.id} style={styles.segment}>
               <SegmentLine
@@ -400,10 +388,8 @@ export function RecordTab({
 }
 
 /**
- * A room's line: its date and its hours. Drawn inline at the head of each
- * room in the log, and again pinned over the top of the scroll by
- * `HoistedRoom` once that one has scrolled off — **the same component in both
- * places**, so the hand-over from one to the other has no seam to see.
+ * A room's line: its date and its hours, at the head of each room in the log
+ * and held at the top while the room passes under it.
  *
  * **No share since 2026-10-10.** What is shared is a segment, each from its
  * own line, a room holding as many as it changed what it kept.
@@ -416,37 +402,6 @@ export function RoomLine({ room }: { room: RoomView }) {
         {t.liveDay(room.openedAt)} · {t.roomSpan(room.openedAt, room.closedAt)}
       </Text>
     </View>
-  );
-}
-
-/**
- * The hoisted copy of a `RoomLine`, for `Screen`'s `overlay`: pinned over the
- * top edge of the scroll while its room's own line is above it, and pushed up
- * by `shift` as the next room's line arrives under it — a sticky header.
- *
- * **Over the scroll rather than above it**, which is the exception to the
- * rule `Screen.header` keeps. A row that came and went above the scroll would
- * take its height out of the viewport each time, moving the log down by
- * exactly enough to bring the inline line back and dismiss itself — so it
- * covers instead, and what it covers is the line it stands for.
- */
-export function HoistedRoom({
-  room,
-  shift,
-}: {
-  room: RoomView | null;
-  shift: Animated.Value;
-}) {
-  if (!room) return null;
-  return (
-    <Animated.View
-      pointerEvents="box-none"
-      style={[styles.hoisted, { transform: [{ translateY: shift }] }]}
-    >
-      <View style={styles.hoistedInner}>
-        <RoomLine room={room} />
-      </View>
-    </Animated.View>
   );
 }
 
@@ -1072,8 +1027,8 @@ const styles = StyleSheet.create({
   pasteAction: { color: colors.text, fontSize: 13, fontWeight: '600' },
   entryHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing(1) },
   speaker: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
-  // A room's line, inline and hoisted alike: the date and hours. The
-  // hairline under it is what made it a rule.
+  // A room's line: the date and hours. The hairline under it is what made it
+  // a rule.
   line: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1083,15 +1038,9 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   lineLabel: { ...type.muted, flex: 1 },
-  // Over the top of the scroll, on the page's own colour so the log passes
-  // under it, and on the measure with the padding the log has — so it lands
-  // exactly on the line it stands for.
-  hoisted: { position: 'absolute', top: 0, left: 0, right: 0 },
-  hoistedInner: {
-    ...measure,
-    paddingHorizontal: spacing(2),
-    backgroundColor: colors.bg,
-  },
+  // Over its room's lines and on the page's own colour, so that held at the
+  // top the log passes under it.
+  held: { zIndex: 1, backgroundColor: colors.bg },
   // A pinned bar, built as STYLE.md § *The pinned header* says: the edge full
   // bleed, the contents on the measure and lined up with the log below.
   bar: {
