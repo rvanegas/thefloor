@@ -1444,8 +1444,6 @@ export const en = {
     youAskedThemIn: () => 'You asked them in as a guest. They have not been in yet.',
     theyAskedThemIn: (who: string) =>
       `${who} asked them in as a guest. They have not been in yet.`,
-    /** Where the *Invite card* was, on a locked channel. */
-    lockedNoInvite: () => 'This channel is locked. Nobody new can join it.',
     reconnectingIsLeaving: () =>
       'Reconnecting — a dropped connection counts as leaving.',
     open: () => 'Open',

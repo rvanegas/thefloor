@@ -1405,9 +1405,9 @@ in the same step, so nobody is left holding one that would fail on arrival:
 - **every guest link**, revoked, and a **community's link**, cleared and not
   to be reset.
 
-After it, the *Invite card* is gone from *People* and a sentence stands in
-its place, as is the rule for a refusal nobody on the screen can lift; *add to
-channel* is gone from a guest's card. The server refuses every way in by name
+After it, the *Invite card* is gone from *People*, with nothing in its place
+— *Channel Settings* is where the lock is said; *add to channel* is gone from
+a guest's card. The server refuses every way in by name
 — *This channel is locked.* — for builds that still draw the controls.
 
 Not the *lock screen card*, and not *portrait lock*, which share the word and

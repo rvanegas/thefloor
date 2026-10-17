@@ -1156,7 +1156,6 @@ export const es: Strings = {
       'Le invitaste como invitado. Todav\u00eda no ha entrado.',
     theyAskedThemIn: (who: string) =>
       `${who} le invit\u00f3 como invitado. Todav\u00eda no ha entrado.`,
-    lockedNoInvite: () => 'Este canal est\u00e1 cerrado. Nadie nuevo puede unirse.',
     reconnectingIsLeaving: () =>
       'Reconectando: perder la conexi\u00f3n cuenta como salir.',
     open: () => 'Abrir',

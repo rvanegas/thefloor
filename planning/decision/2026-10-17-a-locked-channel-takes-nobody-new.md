@@ -27,7 +27,9 @@ The judgements the request left open, and which way each went:
   place to return to, and somebody holding one is not new. Only offers go.
 - **The *Invite card* is removed, with a sentence in its place**, rather than
   greyed — STYLE.md's rule for a refusal nobody on the screen can lift. *Add
-  to channel* on a guest's card goes too, being a membership.
+  to channel* on a guest's card goes too, being a membership. **The sentence
+  went the same day**, at Rodrigo's word: *Channel Settings* already heads
+  its *Lock* section *This channel is locked*, and *People* need not repeat it.
 - **No shim.** `locked` is an optional field older builds ignore; they keep
   drawing the controls, and the server refuses every way in by name — *This
   channel is locked.* — so a press on an old build says why.

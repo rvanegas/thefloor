@@ -3573,12 +3573,10 @@ export function ChannelView({
             `InviteCard`.
           */}
           {/*
-            On a locked channel the card goes and a sentence stays: nothing
-            on this screen can lift a lock — see `ChannelState.locked`.
+            On a locked channel the card goes, and nothing takes its place —
+            Settings is where the lock is said. See `ChannelState.locked`.
           */}
-          {isLocked(channel) ? (
-            <Text style={type.muted}>{t.lockedNoInvite()}</Text>
-          ) : (
+          {isLocked(channel) ? null : (
             <InviteCard
               channel={channel}
               me={me}
