@@ -644,8 +644,26 @@ describe('the transport', () => {
     expect(s.liveTranscriptionPaused).toBe(false);
   });
 
-  it('refuses Play with nothing selected, or with audio that cannot begin', () => {
-    expect(canPlay(joined(), A)).toBe(false);
+  it('selects both and plays them when Play is pressed with nothing selected', () => {
+    const neither = reduce(joined(), keep(false, false), T0);
+    expect(canPlay(neither, A)).toBe(true);
+    const s = reduce(neither, play(), T0 + 1_000);
+    expect(s.keep).toEqual({ audio: true, text: true });
+    expect(s.recording).toMatchObject({ status: 'recording', runId: RUN, startedAt: T0 + 1_000 });
+    expect(s.liveTranscription).toBe(true);
+  });
+
+  it('refuses Play with nothing selected while the audio cannot begin, and changes nothing', () => {
+    const silent = apply(joined(), [
+      [keep(false, false), T0],
+      [{ type: 'SET_SELF_MUTE', userId: A, muted: true } as ChannelAction, T0],
+      [{ type: 'SET_SELF_MUTE', userId: B, muted: true } as ChannelAction, T0],
+    ]);
+    expect(canPlay(silent, A)).toBe(false);
+    expect(reduce(silent, play(), T0)).toBe(silent);
+  });
+
+  it('refuses Play with audio that cannot begin', () => {
     const muted = apply(joined(), [
       [keep(true, false), T0],
       [{ type: 'SET_SELF_MUTE', userId: A, muted: true } as ChannelAction, T0],

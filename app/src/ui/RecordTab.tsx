@@ -18,6 +18,7 @@ import {
   canStopKeeping,
   isDiarized,
   isPresent,
+  keepForPlay,
   keepOf,
   keepingOf,
   recordingRefusal,
@@ -602,9 +603,10 @@ export function formatSegmentText(
  * `PUT /channels/:id/keep`, which asks who pays for a text it begins.
  *
  * **Play begins all of what is selected or none of it** (`canPlay`), so what
- * runs is what the switches show: refused with nothing selected, with Audio
- * selected while it cannot begin — a film loaded, every microphone shut —
- * and with Text selected for somebody with no minutes left. The sentence
+ * runs is what the switches show — **with nothing selected it selects both
+ * first**, since 2026-10-17 (`keepForPlay`). Refused with Audio selected, or
+ * nothing, while the audio cannot begin — a film loaded, every microphone shut —
+ * and with Text selected, or nothing, for somebody with no minutes left. The sentence
  * under the row says which. A text it begins is the presser's to pay for.
  *
  * **Pause holds both and Stop ends both**, on the recording's Pause rules. A
@@ -648,6 +650,7 @@ export function KeepSwitches({
   const t = useText().channel;
   const app = useApp();
   const keep = keepOf(channel);
+  const plays = keepForPlay(channel);
   const keeping = keepingOf(channel);
 
   const setKeep = (next: Keep) => {
@@ -669,7 +672,7 @@ export function KeepSwitches({
 
   // A text Play would begin is the presser's to pay for; one held resumes on
   // whoever was paying.
-  const textWanting = keep.text && !channel.liveTranscription && !mayTranscribeLive;
+  const textWanting = plays.text && !channel.liveTranscription && !mayTranscribeLive;
   const mayPlay = keeping !== 'running' && canPlay(channel, me) && !textWanting;
   const mayPause = canPauseKeeping(channel, me);
   const mayStop = canStopKeeping(channel, me);
@@ -738,7 +741,7 @@ export function KeepSwitches({
           />
         ) : null}
         {note}
-        {keeping !== 'running' && keep.audio && refusal !== null ? (
+        {keeping !== 'running' && plays.audio && refusal !== null ? (
           <Text style={type.muted}>
             {refusal === 'owner'
               ? t.recordRefusedOwner()

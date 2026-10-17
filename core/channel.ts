@@ -1176,6 +1176,17 @@ export function keepOf(state: ChannelState): Keep {
   );
 }
 
+/**
+ * What Play begins: the selection, except that Play pressed with nothing
+ * selected selects both first, since 2026-10-17. Pressing the record button
+ * is the request to record, and refusing it for want of a switch made the
+ * person do the same thing twice.
+ */
+export function keepForPlay(state: ChannelState): Keep {
+  const keep = keepOf(state);
+  return keep.audio || keep.text ? keep : { audio: true, text: true };
+}
+
 /** The selection a sitting begins with: *Record automatically*'s pair. */
 function keepForSitting(state: ChannelState): Keep {
   return { audio: !!state.autoRecord, text: !!state.autoTranscribe };
@@ -1224,8 +1235,8 @@ export function canSetKeep(state: ChannelState, userId: UserId, next: Keep): boo
 }
 
 /**
- * Whether `userId` may press Play: something selected, nothing running, and
- * all of what is selected able to begin — the audio capturable with no film
+ * Whether `userId` may press Play: nothing running, and all of what Play
+ * would begin (`keepForPlay` — both, when nothing is selected) able to begin — the audio capturable with no film
  * loaded (`recordingRefusal` says which), the text the room's to switch.
  * **All or nothing**, so that what runs is what the switches show; whether
  * the text has a payer is the route's.
@@ -1234,8 +1245,7 @@ export function canPlay(state: ChannelState, userId: UserId): boolean {
   if (state.status !== 'active') return false;
   if (!isPresent(state, userId) || !holdsTheControls(state, userId)) return false;
   if (keepingOf(state) === 'running') return false;
-  const keep = keepOf(state);
-  if (!keep.audio && !keep.text) return false;
+  const keep = keepForPlay(state);
   if (keep.audio && !audioCouldBegin(state, userId)) return false;
   return true;
 }
@@ -3544,10 +3554,8 @@ function reduceAction(
 
     case 'PLAY_KEEPING': {
       if (!canPlay(state, action.userId)) return state;
-      return {
-        ...playKeeping(state, action.runId, action.paidBy, false, now),
-        keep: keepOf(state),
-      };
+      const keep = keepForPlay(state);
+      return { ...playKeeping({ ...state, keep }, action.runId, action.paidBy, false, now), keep };
     }
 
     case 'STOP_KEEPING': {

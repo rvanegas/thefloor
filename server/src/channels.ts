@@ -1341,7 +1341,7 @@ export class ChannelRegistry {
               ? 'Not while a film is loaded.'
               : refusal === 'silent'
                 ? 'There is nothing to record yet.'
-                : 'Switch on Audio or Text first.',
+                : 'Already recording.',
         code: 'forbidden',
       };
     }

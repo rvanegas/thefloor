@@ -18,7 +18,7 @@ import {
   IM_SERVICE_NAMES,
   normaliseImHandle,
 } from '../../core/im';
-import { capacityOf, keepOf, keepingOf } from '../../core/channel';
+import { capacityOf, keepForPlay, keepOf, keepingOf } from '../../core/channel';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { isNavAction, NAV_ACTIONS } from '../../core/navigation';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
@@ -4675,7 +4675,7 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
     const { id } = request.params as { id: string };
     const channel = channels.get(id);
-    const beginsText = !!channel && keepOf(channel).text && !channel.liveTranscription;
+    const beginsText = !!channel && keepForPlay(channel).text && !channel.liveTranscription;
     if (beginsText && !mayTranscribeLive(account.id)) {
       return reply.code(403).send({ error: freeMinutesSpentMessage() });
     }
