@@ -683,6 +683,22 @@ export function showRecord(tree: ReactTestRenderer): void {
 }
 
 /**
+ * Opens every closed segment in the *Record* tab's log, each header being a
+ * press that says whether it is expanded. Since 2026-10-18, when segments
+ * began closed; a test about what one kept opens it first, as a person would.
+ */
+export function openSegments(tree: ReactTestRenderer): void {
+  for (const header of tree.root.findAll(
+    (n) =>
+      typeof n.type !== 'string' &&
+      typeof n.props?.onPress === 'function' &&
+      n.props?.accessibilityState?.expanded === false
+  )) {
+    act(() => header.props.onPress());
+  }
+}
+
+/**
  * The watch party, which since 2026-09-18 is a tab like the other five.
  *
  * It was the one tab that was not always there, Labs deciding, and `showTab`

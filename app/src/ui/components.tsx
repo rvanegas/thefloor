@@ -1406,6 +1406,8 @@ export function RecordingRow({
   inline = false,
   inlineLabel,
   inlineTrailing,
+  inlineOpen,
+  onInlineToggle,
 }: {
   recording: RecordingView;
   /**
@@ -1421,6 +1423,13 @@ export function RecordingRow({
   inlineLabel?: string;
   /** Drawn at the end of the inline line, outside its press: the share. */
   inlineTrailing?: React.ReactNode;
+  /**
+   * Whether the row is open, when its segment holds that rather than the row,
+   * since 2026-10-18: the line is the segment's header, and one press opens
+   * the actions and the lines under them together. See `SegmentLine`.
+   */
+  inlineOpen?: boolean;
+  onInlineToggle?: () => void;
   /** Whether this row can be played into the room. */
   playable?: boolean;
   /** Whoever holds the floor decides what plays, and this says when that is not you. */
@@ -1454,7 +1463,8 @@ export function RecordingRow({
    * matters more than the tidiness: it is the one action here that cannot be
    * undone from inside the app.
    */
-  const [open, setOpen] = React.useState(false);
+  const [ownOpen, setOwnOpen] = React.useState(false);
+  const open = inlineOpen ?? ownOpen;
   /**
    * The rename field takes the place of the actions rather than joining them,
    * so a row is either offering things to do or asking for a name — never a
@@ -1499,20 +1509,34 @@ export function RecordingRow({
           // offers the actions again rather than the half-typed name of
           // whatever the person had changed their mind about.
           setRenaming(false);
-          setOpen((current) => {
-            // Only opening needs revealing. Closing can only make the card
-            // smaller, and scrolling after it would move the list under a
-            // finger that asked for nothing of the sort.
-            if (!current) wants.current = true;
-            return !current;
-          });
+          // Only opening needs revealing. Closing can only make the card
+          // smaller, and scrolling after it would move the list under a
+          // finger that asked for nothing of the sort.
+          if (!open) wants.current = true;
+          if (onInlineToggle) onInlineToggle();
+          else setOwnOpen(!open);
         }}
-        style={({ pressed }) => (pressed ? recordingStyles.pressed : undefined)}
+        accessibilityState={inlineLabel !== undefined ? { expanded: open } : undefined}
+        style={({ pressed }) => [
+          inline ? recordingStyles.inlinePress : undefined,
+          pressed ? recordingStyles.pressed : undefined,
+        ]}
       >
         {inline ? (
           <View style={recordingStyles.marker}>
-            <RecordingsIcon color={colors.textMuted} size={14} />
-            <Text style={[type.muted, recordingStyles.markerText]} numberOfLines={1}>
+            {/* A segment's header, in `type.heading`, where it heads one;
+                the old muted marker where it does not. */}
+            <RecordingsIcon
+              color={colors.textMuted}
+              size={inlineLabel !== undefined ? 17 : 14}
+            />
+            <Text
+              style={[
+                inlineLabel !== undefined ? type.heading : type.muted,
+                recordingStyles.markerText,
+              ]}
+              numberOfLines={1}
+            >
               {inlineLabel ?? (
                 <>
                   {recording.name} ·{' '}
@@ -2129,6 +2153,8 @@ const recordingStyles = StyleSheet.create({
   main: { gap: spacing(0.25) },
   // The press and, inline, the share beside it.
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
+  // The whole of the line up to the share is the press, not only its words.
+  inlinePress: { flex: 1, paddingVertical: spacing(0.5) },
   marker: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
   markerText: { flexShrink: 1 },
   name: { color: colors.text, fontSize: 16, fontWeight: '600' },

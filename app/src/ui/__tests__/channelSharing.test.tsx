@@ -32,6 +32,7 @@ import {
   render,
   resetHarness,
   showChannel,
+  openSegments,
   showRecord,
   showWatch,
   textOf,
@@ -2479,6 +2480,7 @@ describe('pasting into the record', () => {
     ]);
     showChannel(channelOf((c) => reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW)));
     const tree = await open();
+    openSegments(tree);
     const text = textOf(tree);
     expect(text.indexOf('before the paste')).toBeLessThan(text.indexOf('example.com/the-thing'));
     expect(text.indexOf('example.com/the-thing')).toBeLessThan(text.indexOf('after the paste'));

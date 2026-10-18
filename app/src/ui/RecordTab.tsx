@@ -45,11 +45,14 @@ import { colors, formatDuration, measure, spacing, type } from './theme';
 
 /**
  * What a segment's line says and carries, for a recording drawn as one: its
- * hours and what it kept, and its share.
+ * hours and what it kept, and its share — and whether the segment is open,
+ * which pressing the line changes.
  */
 export interface SegmentHead {
   label: string;
   trailing: React.ReactNode;
+  open: boolean;
+  onToggle: () => void;
 }
 
 /**
@@ -71,6 +74,13 @@ export interface SegmentHead {
  * kept as audio alone, that recording's batch transcript once there is one,
  * on the clock at the recording's start plus each line's offset — exact, a
  * recording being one unbroken run.
+ *
+ * **Each segment's line is its header, and opens and closes it**, since
+ * 2026-10-18: closed, a segment is its line alone, so a log of closed ones is
+ * a list of headers. Open, it is its lines and — for one with audio — first
+ * the actions its recording's card had, so opening one is the single press it
+ * always was. **Closed until asked, except the one still being kept**, which
+ * starts open so that talk arriving is seen arriving.
  *
  * **A paste is a segment of its own, since 2026-10-15** — an instant, which
  * breaks nothing. One made while a segment was being kept is drawn inside it,
@@ -354,36 +364,70 @@ export function RecordTab({
             <RoomLine room={room} />
           </Animated.View>
           {items.map((item) => (
-            <View key={item.segment.id} style={styles.segment}>
-              <SegmentLine
-                channelId={channelId}
-                name={name}
-                item={item}
-                renderRecording={renderRecording}
-              />
-              {entriesOf(item).map((entry) =>
-                entry.kind === 'paste' ? (
-                  <PasteEntry key={entry.segment.id} segment={entry.segment} />
-                ) : (
-                  <View key={entry.block.lines[0].id} style={styles.entry}>
-                    <View style={styles.entryHead}>
-                      <Text style={styles.speaker} numberOfLines={1}>
-                        {entry.block.displayName}
-                      </Text>
-                      <Text style={type.muted}>{t.liveTime(entry.block.startMs)}</Text>
-                    </View>
-                    {entry.block.lines.map((line) => (
-                      <Text key={line.id} style={type.body}>
-                        {line.text}
-                      </Text>
-                    ))}
-                  </View>
-                )
-              )}
-            </View>
+            <Segment
+              key={item.segment.id}
+              channelId={channelId}
+              name={name}
+              item={item}
+              renderRecording={renderRecording}
+            />
           ))}
         </View>
       ))}
+    </View>
+  );
+}
+
+/**
+ * One segment: its line, and under it, while open, what it kept. See the note
+ * on `RecordTab` for which are open.
+ */
+function Segment({
+  channelId,
+  name,
+  item,
+  renderRecording,
+}: {
+  channelId: string;
+  name: string;
+  item: SegmentItem;
+  renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
+}) {
+  const t = useText().channel;
+  const [open, setOpen] = React.useState(item.segment.endedAt === null);
+  // A paste standing alone has no line to press, and is all it has to show.
+  const shown = open || !!item.segment.paste;
+  return (
+    <View style={styles.segment}>
+      <SegmentLine
+        channelId={channelId}
+        name={name}
+        item={item}
+        renderRecording={renderRecording}
+        open={open}
+        onToggle={() => setOpen((was) => !was)}
+      />
+      {shown
+        ? entriesOf(item).map((entry) =>
+            entry.kind === 'paste' ? (
+              <PasteEntry key={entry.segment.id} segment={entry.segment} />
+            ) : (
+              <View key={entry.block.lines[0].id} style={styles.entry}>
+                <View style={styles.entryHead}>
+                  <Text style={styles.speaker} numberOfLines={1}>
+                    {entry.block.displayName}
+                  </Text>
+                  <Text style={type.muted}>{t.liveTime(entry.block.startMs)}</Text>
+                </View>
+                {entry.block.lines.map((line) => (
+                  <Text key={line.id} style={type.body}>
+                    {line.text}
+                  </Text>
+                ))}
+              </View>
+            )
+          )
+        : null}
     </View>
   );
 }
@@ -408,9 +452,10 @@ export function RoomLine({ room }: { room: RoomView }) {
 
 /**
  * A segment's line: the record dot where it kept audio and a ring where it
- * kept none, its hours, what it kept, and its share. A segment with a
- * recording is drawn by `renderRecording`, so its line opens to that
- * recording's actions; the rest is this.
+ * kept none, its hours, what it kept, and its share, in `type.heading`: the
+ * segment's header, which opens and closes it. A segment with a recording is
+ * drawn by `renderRecording`, so opening it opens that recording's actions
+ * too; the rest is this.
  *
  * **The share asks which**: the segment's audio, or its text, with whichever
  * it lacks greyed — the native action sheet on iOS, which can grey an option;
@@ -425,11 +470,15 @@ export function SegmentLine({
   name,
   item,
   renderRecording,
+  open = false,
+  onToggle = () => {},
 }: {
   channelId: string;
   name: string;
   item: SegmentItem;
   renderRecording?: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
+  open?: boolean;
+  onToggle?: () => void;
 }) {
   const t = useText().channel;
   const app = useApp();
@@ -486,18 +535,26 @@ export function SegmentLine({
   );
 
   if (recording && renderRecording) {
-    return <>{renderRecording(recording, { label, trailing })}</>;
+    return <>{renderRecording(recording, { label, trailing, open, onToggle })}</>;
   }
   return (
     <View style={styles.segmentLine}>
-      {segment.recordingId !== null ? (
-        <RecordingsIcon color={colors.textMuted} size={14} />
-      ) : (
-        <View style={styles.ring} />
-      )}
-      <Text style={[type.muted, styles.segmentLabel]} numberOfLines={1}>
-        {label}
-      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={{ expanded: open }}
+        onPress={onToggle}
+        style={({ pressed }) => [styles.segmentPress, pressed ? styles.pressed : undefined]}
+      >
+        {segment.recordingId !== null ? (
+          <RecordingsIcon color={colors.textMuted} size={SEGMENT_MARK} />
+        ) : (
+          <View style={styles.ring} />
+        )}
+        <Text style={[type.heading, styles.segmentLabel]} numberOfLines={1}>
+          {label}
+        </Text>
+      </Pressable>
       {trailing}
     </View>
   );
@@ -1001,6 +1058,12 @@ export function PasteEntry({ segment }: { segment: SegmentView }) {
   );
 }
 
+/**
+ * The record dot on a segment's header, sized to its 17-point label; the ring
+ * where it kept no audio is drawn to match.
+ */
+const SEGMENT_MARK = 17;
+
 /** How much of the platform's switch the *Record* tab draws, Pause included. */
 const SWITCH_SCALE = 0.8;
 
@@ -1008,16 +1071,24 @@ const styles = StyleSheet.create({
   body: { gap: spacing(1) },
   room: { gap: spacing(1.5) },
   segment: { gap: spacing(1) },
-  // A segment's line where no recording draws it: the marker, the label, the
-  // share at the end — the same row `RecordingRow`'s inline line is.
-  segmentLine: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
-  segmentLabel: { flex: 1 },
+  // A segment's line where no recording draws it: the marker and the label,
+  // which are the press, and the share at the end, outside it — the same row
+  // `RecordingRow`'s inline line is.
+  segmentLine: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
+  segmentPress: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(0.75),
+    paddingVertical: spacing(0.5),
+  },
+  segmentLabel: { flexShrink: 1 },
   // A ring the record dot's size: kept, and not as audio.
   ring: {
-    width: 10,
-    height: 10,
-    marginHorizontal: 2,
-    borderRadius: 5,
+    width: 12,
+    height: 12,
+    marginHorizontal: (SEGMENT_MARK - 12) / 2,
+    borderRadius: 6,
     borderWidth: 1.5,
     borderColor: colors.textMuted,
   },

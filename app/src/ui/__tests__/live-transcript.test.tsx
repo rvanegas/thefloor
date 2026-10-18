@@ -16,6 +16,7 @@ import {
   findSwitch,
   findTab,
   mockApp,
+  openSegments,
   render,
   resetHarness,
   showChannel,
@@ -139,6 +140,7 @@ describe('the Record tab', () => {
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
+    openSegments(tree);
 
     // Each recording is a segment's line, kept both ways here, with what was
     // said inside it under it.
@@ -187,6 +189,7 @@ describe('the Record tab', () => {
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
+    openSegments(tree);
 
     const text = textOf(tree);
     expect(text).toContain('so the plan is');
@@ -372,6 +375,7 @@ describe('rooms on the Record tab', () => {
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
+    openSegments(tree);
 
     const text = textOf(tree);
     expect(findRecording(tree, 'Before rooms')).toBeDefined();
@@ -401,6 +405,7 @@ describe('rooms on the Record tab', () => {
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
+    openSegments(tree);
 
     const text = textOf(tree);
     const both = text.indexOf('· Audio + Text');
@@ -411,6 +416,60 @@ describe('rooms on the Record tab', () => {
     expect(textOnly).toBeLessThan(text.indexOf('said off the record'));
     // One share each, and none on the room.
     expect(sharesOf(tree)).toHaveLength(2);
+    act(() => tree.unmount());
+  });
+
+  it('closes each segment to its header, which opens it, its actions with it', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        line('l1', ME, 'Me', NOW + 5_000, 'said on the record'),
+        line('l2', ME, 'Me', NOW + 45_000, 'said off the record'),
+        line('l3', ME, 'Me', NOW + 75_000, 'said just now'),
+      ],
+      more: false,
+    } as never);
+    showChannel(transcribed(), [segment('rec_1', 'Planning', NOW)]);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, null, ['rec_1'], [
+          seg('s1', NOW, NOW + 30_000, 'rec_1', true),
+          seg('s2', NOW + 30_000, NOW + 60_000, null, true),
+          seg('s3', NOW + 60_000, null, null, true),
+        ]),
+      ],
+    } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    // Closed, a segment is its header alone — except the one still being
+    // kept, which is open on what is arriving.
+    const headers = () =>
+      tree.root.findAll(
+        (n) =>
+          typeof n.type !== 'string' &&
+          typeof n.props?.onPress === 'function' &&
+          n.props?.accessibilityState?.expanded !== undefined
+      );
+    expect(headers()).toHaveLength(3);
+    expect(textOf(tree)).not.toContain('said on the record');
+    expect(textOf(tree)).not.toContain('said off the record');
+    expect(textOf(tree)).toContain('said just now');
+    expect(findButton(tree, 'Rename')).toBeUndefined();
+
+    // A recording's header opens its actions and its lines in one press.
+    act(() => headers()[0].props.onPress());
+    expect(textOf(tree)).toContain('said on the record');
+    expect(findButton(tree, 'Rename')).toBeDefined();
+    expect(textOf(tree)).not.toContain('said off the record');
+
+    // And closes them in another.
+    act(() => headers()[0].props.onPress());
+    expect(textOf(tree)).not.toContain('said on the record');
+    expect(findButton(tree, 'Rename')).toBeUndefined();
+
+    act(() => headers()[2].props.onPress());
+    expect(textOf(tree)).not.toContain('said just now');
     act(() => tree.unmount());
   });
 
@@ -453,6 +512,7 @@ describe('rooms on the Record tab', () => {
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
+    openSegments(tree);
 
     const text = textOf(tree);
     expect(transcript).toHaveBeenCalledWith(expect.anything(), 'rec_old');
@@ -647,6 +707,7 @@ describe('several voices on my microphone', () => {
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
+    openSegments(tree);
 
     const text = textOf(tree);
     expect(text).toContain('Played audio (A)');

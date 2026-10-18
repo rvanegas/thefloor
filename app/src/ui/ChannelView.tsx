@@ -3910,6 +3910,8 @@ export function ChannelView({
               inline
               inlineLabel={head.label}
               inlineTrailing={head.trailing}
+              inlineOpen={head.open}
+              onInlineToggle={head.onToggle}
               recording={r}
               // Playing one loads it as the channel's shared track, so it is
               // governed by exactly what governs a track somebody uploaded —

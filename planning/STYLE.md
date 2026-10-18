@@ -1316,7 +1316,13 @@ where it kept audio and a 10-point ring in `textMuted` where it did not, its
 hours, what it kept, and the share glyph at the end; the recording's name
 moved into the opened row, above its actions. A segment's text — live, or
 its recording's *transcript* — is drawn under its line exactly as the live
-lines were. Each room starts with its line — date and hours, no share — over
+lines were. **Since 2026-10-18 the line is the segment's header**: in
+`type.heading` rather than muted, the record dot and the ring at 17, and the
+whole of it up to the share a press that opens and closes the segment.
+Closed, a segment is its header alone, so a closed log is a list of them;
+open, it is its lines, and for one with audio its recording's actions above
+them — one press, as opening the recording always was. Segments start closed
+except the one still being kept, so talk arriving is seen arriving. Each room starts with its line — date and hours, no share — over
 a hairline; see § *The pinned header*.
 **A paste is an entry like a speaker's**, since 2026-10-15: the clipboard
 glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*
