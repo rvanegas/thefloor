@@ -545,6 +545,12 @@ export function registerWebsocket(deps: {
   owesPublicNotice: (channelId: string, userId: string) => boolean;
   now: () => number;
   homeNotifier: HomeNotifier;
+  /**
+   * Whoever a Home push is aimed at, told whether or not they are watching:
+   * their app icon's number counts rows on Home, and a phone in a drawer is
+   * the one that needs it. See badges.ts.
+   */
+  onHomeChanged?: (userIds: readonly string[]) => void;
   settingsNotifier: SettingsNotifier;
   liveLineNotifier?: LiveLineNotifier;
   /** Whether this account may turn a channel's live transcript on. */
@@ -597,6 +603,7 @@ export function registerWebsocket(deps: {
     preferences,
     mediaUrl,
     onEntered = () => {},
+    onHomeChanged = () => {},
     heartbeatIntervalMs = HEARTBEAT_INTERVAL_MS,
     switchTargets = () => [],
   } = deps;
@@ -1413,6 +1420,7 @@ export function registerWebsocket(deps: {
   // requester's and the recipient's. Without this the recipient learns nothing
   // until they happen to reload — a request simply never appears.
   homeNotifier.notify = (userIds) => {
+    onHomeChanged(userIds);
     for (const connection of connections) {
       if (connection.watchingHome && userIds.includes(connection.userId)) {
         pushHome(connection);

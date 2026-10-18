@@ -186,13 +186,22 @@ function isPassive(notification: Notifications.Notification): boolean {
  * app they are looking at would be precisely the interruption they declined,
  * and it would be this app overriding a setting the server had already
  * honoured on the way out.
+/**
+ *
+ * **The badge is let through, since the icon started counting what is
+ * waiting.** The server sends the number as a push of its own carrying nothing
+ * else (server/src/badges.ts), and one that lands while the app is open is
+ * applied only if this says so — refused here, it was discarded, and the icon
+ * went back to the home screen showing whatever the previous one said. The
+ * notifications with words in them carry no badge, so for them this changes
+ * nothing; and the badge-only one has no words to list.
  */
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => ({
     shouldShowBanner: reachesInApp(notification) && !isPassive(notification),
-    shouldShowList: true,
+    shouldShowList: !!notification.request.content.title,
     shouldPlaySound: false,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
   }),
 });
 

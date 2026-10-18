@@ -657,6 +657,20 @@ export interface LiveActivityEnder {
 }
 
 /**
+ * Sets the number on the app's icon, and nothing else — see core/badge.ts for
+ * what it counts and badges.ts for when it is sent.
+ *
+ * **Its own interface, on `LiveActivityEnder`'s reasoning**: it says nothing
+ * to anybody, and a badge that landed in `MemoryPusher.sent` would be a
+ * notification nobody sent. iOS only; an Android launcher keeps its own count.
+ *
+ * Never rejects, on `Pusher.send`'s contract.
+ */
+export interface BadgeSetter {
+  setBadge(token: string, count: number): Promise<PushResult>;
+}
+
+/**
  * Reaching people from code that must not know how notifications work.
  *
  * `ChannelRegistry` decides *that* something is worth telling somebody about;
@@ -708,7 +722,7 @@ const JWT_TTL_MS = 50 * 60 * 1000;
 /** How long to wait for one notification before giving up on it. */
 const REQUEST_TIMEOUT_MS = 10_000;
 
-export class ApnsPusher implements Pusher, LiveActivityEnder {
+export class ApnsPusher implements Pusher, LiveActivityEnder, BadgeSetter {
   private privateKey: KeyObject;
   private host: string;
   private session: ClientHttp2Session | null = null;
@@ -859,6 +873,43 @@ export class ApnsPusher implements Pusher, LiveActivityEnder {
         // end delivered late is harmless — the token belongs to this one
         // activity, so it cannot take down a card started since.
         'apns-expiration': String(seconds + 60 * 60),
+      });
+      return { token, status, reason, dead: isDeadToken(status) };
+    } catch (error) {
+      return {
+        token,
+        status: 0,
+        error: error instanceof Error ? error.message : String(error),
+        dead: false,
+      };
+    }
+  }
+
+  /**
+   * A notification carrying a badge and nothing else: no alert, no sound, so
+   * iOS changes the number and shows nothing.
+   *
+   * Still the `alert` push type, which is Apple's word for anything that
+   * alerts, sounds *or badges*; `background` is for `content-available` and
+   * would be refused with a badge in it.
+   *
+   * **Collapsed onto one key**, since a badge is the newest count or it is
+   * wrong: an older one still in flight is the thing a later one must replace.
+   * Priority 5, because nobody is owed a radio waking to change a number, and
+   * a day to live, because the count it carries has usually been replaced by
+   * then.
+   */
+  async setBadge(token: string, count: number): Promise<PushResult> {
+    const payload = JSON.stringify({ aps: { badge: count } });
+    try {
+      const { status, reason } = await this.post(token, payload, {
+        'apns-topic': this.options.bundleId,
+        'apns-push-type': 'alert',
+        'apns-priority': '5',
+        'apns-collapse-id': 'badge',
+        'apns-expiration': String(
+          Math.floor((this.now() + 24 * 60 * 60 * 1000) / 1000)
+        ),
       });
       return { token, status, reason, dead: isDeadToken(status) };
     } catch (error) {
@@ -1442,7 +1493,7 @@ export function mintServiceAccountAssertion(
 }
 
 /** Prints what would have been sent. For local work without an APNs key. */
-export class ConsolePusher implements Pusher, LiveActivityEnder {
+export class ConsolePusher implements Pusher, LiveActivityEnder, BadgeSetter {
   constructor(private log: (message: string) => void = console.log) {}
 
   async send(
@@ -1460,6 +1511,28 @@ export class ConsolePusher implements Pusher, LiveActivityEnder {
   async end(token: string): Promise<PushResult> {
     this.log(`\n  ── live activity ended: ${token.slice(0, 12)}… ──\n`);
     return { token, status: 200, dead: false };
+  }
+
+  async setBadge(token: string, count: number): Promise<PushResult> {
+    this.log(`\n  ── badge ${count}: ${token.slice(0, 12)}… ──\n`);
+    return { token, status: 200, dead: false };
+  }
+}
+
+/** Records which numbers would have been put on which icons. For tests. */
+export class MemoryBadgeSetter implements BadgeSetter {
+  readonly set: Array<{ token: string; count: number }> = [];
+
+  async setBadge(token: string, count: number): Promise<PushResult> {
+    this.set.push({ token, count });
+    return { token, status: 200, dead: false };
+  }
+
+  /** The numbers sent to this address, in order. */
+  countsFor(token: string): number[] {
+    return this.set
+      .filter((entry) => entry.token === token)
+      .map((entry) => entry.count);
   }
 }
 

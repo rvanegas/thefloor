@@ -103,9 +103,12 @@ import {
   createPushNotifier,
   NOTIFICATION_PAUSE_MS,
   notifications,
+  type BadgeSetter,
   type LiveActivityEnder,
   type Pusher,
 } from './push';
+import { BadgeKeeper } from './badges';
+import { badgeCount } from '../../core/badge';
 import type { RecordingStore } from './storage';
 import { Diagnostics } from './diagnostics';
 import { clientAddress, Excess, type ExcessSubject } from './excess';
@@ -205,6 +208,13 @@ export interface BuildOptions {
    * inferred, for the reason `androidPusher` gives. Absent, the console.
    */
   liveActivityEnder?: LiveActivityEnder;
+  /**
+   * Puts the number on the app's icon. In production the same `ApnsPusher`
+   * again, for the same reason. Absent, the console.
+   */
+  badgeSetter?: BadgeSetter;
+  /** How long a burst of Home changes is coalesced into one badge. */
+  badgeDelayMs?: number;
   now?: () => number;
   logger?: boolean;
   /**
@@ -607,6 +617,54 @@ export function buildApp(options: BuildOptions = {}): App {
       )
   );
 
+
+  /**
+   * The number on each person's app icon — core/badge.ts for what it counts,
+   * badges.ts for when it is sent. iOS addresses only, and nobody who has
+   * switched notifications off in Floor Settings: a badge is a notification,
+   * and *off* there means every kind.
+   */
+  const badges = new BadgeKeeper({
+    setter: options.badgeSetter ?? new ConsolePusher(() => {}),
+    delayMs: options.badgeDelayMs,
+    countFor: (userId) =>
+      badgeCount(
+        {
+          contacts: accounts.contactsFor(userId),
+          invites: channels.invitesFor(userId),
+          rejoinable: channels.rejoinableFor(userId),
+        },
+        channels.standingIn(userId)
+      ),
+    addressesFor: (userIds) => {
+      const byAccount = new Map<string, string[]>();
+      for (const [id, addresses] of devices.addressesByAccount(userIds)) {
+        if (accounts.byId(id)?.push_off === 1) continue;
+        byAccount.set(
+          id,
+          addresses
+            .filter((address) => address.platform === 'ios')
+            .map((address) => address.token)
+        );
+      }
+      return byAccount;
+    },
+    onResult: (userId, result) => {
+      if (result.dead) devices.forget(result.token);
+      if (result.status !== 200) {
+        fastify.log.warn(
+          {
+            account: userId,
+            token: result.token.slice(0, 8),
+            status: result.status,
+            reason: result.reason,
+            error: result.error,
+          },
+          'badge refused'
+        );
+      }
+    },
+  });
 
   /**
    * Turns "these people should know" into notifications actually sent.
@@ -1152,6 +1210,8 @@ export function buildApp(options: BuildOptions = {}): App {
   // the app's own clock so it can never disagree with the rows it is judging.
   accounts.start(now);
   fastify.addHook('onClose', async () => accounts.stop());
+  // Whatever is still being coalesced goes now rather than with the process.
+  fastify.addHook('onClose', async () => badges.flush());
   // The same reasoning, for lines whose promise is a week. See diagnostics.ts.
   diagnostics.start(now, SWEEP_INTERVAL_MS);
   fastify.addHook('onClose', async () => diagnostics.stop());
@@ -1507,6 +1567,10 @@ export function buildApp(options: BuildOptions = {}): App {
         fastify.log.error({ err: error }, 'cohort placement failed');
       }
     }
+
+    // On every launch, which is what this request is: a fresh install's first
+    // chance at a number, and the correction for one left over from before.
+    badges.resend(account.id);
 
     return { ok: true };
   });
@@ -3345,6 +3409,18 @@ export function buildApp(options: BuildOptions = {}): App {
     // see — no roster, no name, no availability — so unlike a rename there is
     // no audience beyond the account's own devices.
     settingsNotifier.notify(account.id, settings);
+    // The icon's number is a notification too, so it follows the switch both
+    // ways: off takes it down, on puts the current count back.
+    if (changes.pushNotificationsOff === true) {
+      badges.clear(
+        account.id,
+        (devices.addressesByAccount([account.id]).get(account.id) ?? [])
+          .filter((address) => address.platform === 'ios')
+          .map((address) => address.token)
+      );
+    } else if (changes.pushNotificationsOff === false) {
+      badges.resend(account.id);
+    }
     return settingsForWire(settings);
   });
 
@@ -6105,6 +6181,7 @@ export function buildApp(options: BuildOptions = {}): App {
       accounts,
       channels,
       homeFor,
+      onHomeChanged: (userIds) => badges.refresh(userIds),
       recordingsInChannel,
       owesPublicNotice: (channelId, userId) =>
         publication.owesPublicNotice(channelId, userId),

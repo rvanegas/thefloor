@@ -7,6 +7,7 @@ import {
   ApnsPusher,
   ConsolePusher,
   FcmPusher,
+  type BadgeSetter,
   type LiveActivityEnder,
   type Pusher,
 } from './push';
@@ -131,7 +132,7 @@ const apnsTeamId = process.env.APNS_TEAM_ID;
 const apnsBundleId = process.env.APNS_BUNDLE_ID ?? 'co.rvanegas.thefloor';
 const apnsEnv =
   process.env.APNS_ENV === 'sandbox' ? 'sandbox' : 'production';
-const pusher: (Pusher & LiveActivityEnder) | undefined =
+const pusher: (Pusher & LiveActivityEnder & BadgeSetter) | undefined =
   apnsKeyPath && apnsKeyId && apnsTeamId
     ? new ApnsPusher({
         key: readFileSync(apnsKeyPath, 'utf8'),
@@ -332,6 +333,7 @@ const app = buildApp({
   // The same sender: an activity's token is an APNs address under the same
   // key, host and environment, on a topic `end` adds the suffix to.
   liveActivityEnder: pusher,
+  badgeSetter: pusher,
   transcription,
   streaming,
   freeTranscriptMinutes,
