@@ -36,9 +36,14 @@ export const HANDOVER_MS = spanMs('play') + CHIME_TAIL_MS;
  * Holds this device's microphone open for the length of the play chime and its
  * tail, so the chime is heard.
  *
- * **A chime is an `AVAudioPlayer` playing into the session this app holds** —
- * `CHIME_PATH` is `player`, and `playThroughPlayer` in `AudioRouteModule.swift`
- * says what that means. So a chime is audible only while this app holds a
+ * **Written while a chime was an `AVAudioPlayer` playing into the session this
+ * app holds** — `CHIME_PATH` was `player` from 2026-09-17 to 2026-10-18, and
+ * `playThroughPlayer` in `AudioRouteModule.swift` says what that means. It is
+ * `system` now, which plays outside this app's session, so the hold below
+ * guards a path the app no longer ships on; it stays until a phone shows the
+ * play chime surviving the handover without it, since removing it on reasoning
+ * alone is how the race was made in the first place. With no player reading,
+ * `waitForChime` ends on `no reading`, which is `HANDOVER_MS`. So a chime is audible only while this app holds a
  * settled session, and on the device showing the film both edges of a run move
  * it: `isScreening` drops `microphoneNeeded`, the session falls from `CALL`
  * (`playAndRecord`) to `LISTENING` (`playback`), and then the `WKWebView` takes

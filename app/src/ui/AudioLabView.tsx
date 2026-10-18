@@ -403,11 +403,11 @@ export function AudioLabView({ onBack }: { onBack: () => void }) {
    * Which path the next chime goes down.
    *
    * Starts on `CHIME_PATH`, which is what the app ships, so the first tap is
-   * the sound somebody actually has rather than the one it replaced. That is
-   * `player` since 2026-09-17 — the chip stays because `system` is the control
-   * the choice was made against, and because the two differ in silent mode
-   * rather than only in level, which is a difference an ear can only take with
-   * the switch thrown.
+   * the sound somebody actually has rather than the one it replaced. That was
+   * `player` from 2026-09-17 and is `system` again since 2026-10-18, so that
+   * the switch silences it — the chip stays because the two differ in silent
+   * mode rather than only in level, which is a difference an ear can only take
+   * with the switch thrown.
    */
   const [path, setPath] = useState<ChimePath>(CHIME_PATH);
 

@@ -660,6 +660,10 @@ looking like the fix not having worked. `chimeArity()` reading less than four
 is the reading that tells them apart, and the answer is a native rebuild rather
 than another day in the renderer.
 
+**Since 2026-10-18 it is a loss of detail again.** `CHIME_PATH` is `system`, so
+the alert path a stale binary falls back to is the path chosen, and the step
+down is inaudible. It still hides the lab's `player` chip on such a binary.
+
 Covered by `app/src/audio/__tests__/chimeArity.test.ts`, which is the only jest
 coverage this module has: `load()` returns null off iOS, so everything else in
 it is a null check under test.

@@ -43,7 +43,7 @@ caused; the list carries the meaning.
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
 - **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say. On the device *watching here*, and only there, each is ordered against the *audio session*: the play chime is sounded first and the microphone released after it, the pause chime waits for the microphone to come back — a chime is played into the session this app holds, and a run is the length of time it does not hold one
-- **Chime path** — Which way a chime reaches the speaker: `player` since 2026-09-17, an `AVAudioPlayer` on the media path, so a phone in silent mode still plays it while it is in a call; `system` is the alert path it shipped on, kept as the control
+- **Chime path** — Which way a chime reaches the speaker: `system`, the alert path, so a phone in silent mode plays no chime even in a call — again since 2026-10-18; `player`, an `AVAudioPlayer` on the media path that sounds through the switch, shipped from 2026-09-17 until then and is kept as the control
 - **Chime loudness** — One number, `CHIME_AMPLITUDE` — full scale, the top of a ladder that was a setting for one day; the peak the file is rendered at, the media path then playing it at full gain
 - **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
@@ -634,11 +634,11 @@ expiring — and neither sounds. See `core/channel.ts` § `Exit`.
 Distinct from the **buzz** (`app/src/audio/cue.ts`), which is the vibration
 motor and tells *you* something about yourself without words. The two shared a
 delivery mechanism — an iOS system sound, chosen because it starts no engine
-and writes no audio session — until 2026-09-17, and now share only the second
-half of that reason. A chime goes out an `AVAudioPlayer` on the media path,
-which also writes nothing to the session but, unlike an alert, is not silenced
-by the ringer switch; the buzz is still a system sound. See
-`decision/2026-09-17-the-chime-is-not-an-alert.md`. `usePresenceChime` is the
+and writes no audio session — and share it again. From 2026-09-17 a chime went
+out an `AVAudioPlayer` on the media path, so that the ringer switch could not
+silence it; since 2026-10-18 it is a system sound once more, so that it can.
+See `decision/2026-09-17-the-chime-is-not-an-alert.md` and
+`decision/2026-10-18-the-chimes-obey-the-silent-switch.md`. `usePresenceChime` is the
 schedule for the three and `useRecordingChime` for the fourth, `chime.ts` the sound, and `AudioRouteModule.swift` renders it —
 `chimeNotes` there is the table of kinds, and `chime.web.ts` mirrors it row for
 row so the same event does not sound like a different one depending on which

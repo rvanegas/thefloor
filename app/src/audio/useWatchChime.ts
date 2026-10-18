@@ -250,10 +250,12 @@ export function useWatchChime(
       **The pause chime waits for the session, where the play chime was waited
       for.**
 
-      A chime is an `AVAudioPlayer` playing into the session this app holds —
-      `CHIME_PATH` is `player`, and `playThroughPlayer` in
-      `AudioRouteModule.swift` is explicit that it configures nothing of its
-      own. On the device that was showing the film that session is `playback`
+      Written while a chime was an `AVAudioPlayer` playing into the session
+      this app holds — `CHIME_PATH` was `player` until 2026-10-18, and
+      `playThroughPlayer` in `AudioRouteModule.swift` is explicit that it
+      configures nothing of its own. It is `system` now, which does not depend
+      on this app's session, so the wait below may be guarding nothing; it
+      stays until a phone says so, as the hold in `useFilmHandover` does. On the device that was showing the film that session is `playback`
       at this moment and the `WKWebView` has had it for the length of the run;
       what brings it back is the microphone being retaken, about 700ms later.
       A chime fired now is simply lost, which is what this hook was reported

@@ -440,34 +440,29 @@ export const CHIME_BEAT_SECONDS = 0.3;
  * `expo-audio`, which does manage the session, and was carried across to the
  * bare player without being checked.
  *
- * **It was a comparison, and on 2026-09-17 it became a choice: the app ships
- * on `player`.** The question that settled it was not loudness but the ringer
- * switch. `AudioServicesPlaySystemSound` is an alert, and a phone in silent
- * mode does not play alerts — so every chime was being discarded for any
- * listener with the switch thrown, which is a great many of them and was
- * indistinguishable from the cue being broken. It cost most of a day of
- * chasing a renderer that was working the whole time.
+ * **It was a comparison, and on 2026-09-17 it became a choice: the app shipped
+ * on `player`**, so that a chime would sound through the ringer switch. In a
+ * channel the session is `playAndRecord`, which ignores the switch, and the
+ * argument was that a cue saying who just joined a conversation you are having
+ * is part of it rather than an interruption of it.
  *
- * **A chime is not an alert, because by the time one can fire you are already
- * in a call.** The silent switch is a statement about being interrupted by
- * things you did not ask for. Somebody present in a channel is listening to a
- * voice through the same speaker at the same moment; a cue that says who just
- * joined that conversation is part of it, not an interruption of it, and
- * suppressing it silences an explanation while leaving the thing it explains
- * audible. That is the whole argument, and it is why this is a judgement about
- * what a presence cue *is* rather than a workaround for a quiet one.
+ * **On 2026-10-18 it went back to `system`, for exactly the reason it left.**
+ * `AudioServicesPlaySystemSound` is an alert, and a phone in silent mode does
+ * not play alerts — in a call or out of one. That was the fault on 2026-09-17
+ * and is the behaviour asked for now: somebody who has thrown the switch has
+ * said they do not want the phone making sounds of its own, and a chime is one
+ * whatever it is announcing. The voices still play, since they are the call.
+ * **No API reports the switch** — the iOS 26.2 headers mention it only as a
+ * behaviour of categories — so the path is the only honest way to obey it; a
+ * detector would be a timing guess. See
+ * planning/decision/2026-10-18-the-chimes-obey-the-silent-switch.md.
  *
- * **The mechanism is the session, not a flag.** `AVAudioPlayer` plays into
- * whatever session the app already holds and sets nothing itself; in a channel
- * that session is `playAndRecord`, which ignores the ringer switch. So the
- * chime is audible in silent mode exactly when there is a conversation for it
- * to be about, and no flag had to be set for it — outside a channel the app
- * holds no such session and the same call would respect the switch, which is
- * the right behaviour there and is why the audio lab can still be silent with
- * the switch thrown.
+ * **What it costs is the volume slider.** The alert path plays at the ringer's
+ * level, not the call's, and has no gain of its own; `CHIME_AMPLITUDE` at full
+ * scale is the only lever, which is why it is there.
  *
- * `system` stays, because it is the control the above was judged against and
- * is what every build before this one played.
+ * `player` stays, because it is the control this was judged against, the lab
+ * still offers it, and `chimePlayer` reads from it.
  */
 export type ChimePath = 'system' | 'player';
 
@@ -477,12 +472,12 @@ export type ChimePath = 'system' | 'player';
  * **A named constant rather than a literal default, because a binary can be
  * older than this choice.** `chime` negotiates its argument count downwards,
  * and the `via` argument is the first one dropped — so a bundle running
- * against a binary built before the path existed silently plays down the alert
- * path and is silent in silent mode, which is the original fault wearing the
- * fix's clothes. `chimeArity` below is how the lab tells the two apart. See
- * planning/SHIMS.md.
+ * against a binary built before the path existed plays down the alert path
+ * whatever this says. Since 2026-10-18 that is the path chosen, so the step
+ * down costs nothing audible; `chimeArity` below is still how the lab tells
+ * the two apart. See planning/SHIMS.md.
  */
-export const CHIME_PATH: ChimePath = 'player';
+export const CHIME_PATH: ChimePath = 'system';
 
 /**
  * Renders a chime and hands it to the system sound server, without playing it.
