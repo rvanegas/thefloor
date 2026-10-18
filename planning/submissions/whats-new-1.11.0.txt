@@ -1,0 +1,19 @@
+Lock channel, in Channel Settings, closes a channel to anybody new for good. Invitations, member links and guest links still open are taken back, and everybody already in it stays.
+
+Inviting starts on the People tab. The Invite card under the people offers Invite as member or Invite as guest, then your contacts, then a link. A member link makes whoever opens it a member of that one channel without becoming your contact; it works once, lasts thirty days, and Take back withdraws it.
+
+Add a contact makes an invite link and opens the share sheet. The link works once, for the first person to open it. Sending a contact request to an email address is gone. In a browser, an invite or community link shows one button, Accept invite or Join community, with Get the app across the top.
+
+The Record tab has the record button, Pause and Stop, and the Audio and Text switches choose what they keep. Pressing record with both off switches both on. Each change of what is kept begins a new line in the log, so audio and text cover the same span. A recording's transcript is read in the log, under its line. The separate transcript screen and transcript search are gone.
+
+Pasting is the clipboard glyph on the Record tab. Each paste is kept in the log at the moment it was made, with Copy, and Open for a link. The Clipboard tab is gone.
+
+Several voices on my microphone, on the Record tab, tells apart the people talking into one phone, in the live transcript and in a recording's.
+
+Every account has sixty free transcription minutes a week, for Transcribe or Text. They come back each Monday.
+
+Notifications are asked for at sign-in. Declining turns on Email notifications in Floor Settings, which sends them to your sign-in address; Push notifications there turns push off on every device.
+
+People shows On another call while somebody takes a phone call, and their voice comes back when it ends. Holding the floor and taking a call gives the floor up.
+
+Voices carry on through a film of any length, a film stays in step after you leave the app and come back, and a community link opens the community for somebody already in it. The floating film starts bottom right.
