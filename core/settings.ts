@@ -180,9 +180,8 @@ export interface AccountSettings {
    * unreachable without anybody knowing. Off by default for everybody else,
    * since it is a second copy of what a phone already shows them.
    *
-   * Carries the three notifications aimed at one person — *invited*,
-   * *pinged*, *accepted* — and never an arrival, which is true for five
-   * minutes and arrives by the dozen.
+   * Carries all four kinds — *invited*, *pinged*, *accepted* and *arrived* —
+   * and arrivals stop under the same week-long pause that stops their push.
    */
   emailNotifications: boolean;
   /**

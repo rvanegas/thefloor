@@ -683,7 +683,7 @@ export const es: Strings = {
     openSettings: () => 'Abrir Ajustes',
     emailNotifications: () => 'Notificaciones por correo',
     emailNotificationsNote: () =>
-      'Invitaciones, toques e invitaciones aceptadas, enviadas a la direcci\u00f3n con la que entras. Nunca qui\u00e9n ha entrado.',
+      'Invitaciones, toques, invitaciones aceptadas y qui\u00e9n ha entrado, enviados a la direcci\u00f3n con la que entras.',
     email: () => 'Correo',
     occasionalEmail: () => 'Correo ocasional sobre The Floor',
     emailNote: () =>

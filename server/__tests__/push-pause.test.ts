@@ -1,6 +1,7 @@
 import WebSocket from 'ws';
 import { buildApp, type App } from '../src/app';
 import { ANNOUNCE_INTERVAL_MS } from '../src/channels';
+import { MemoryMailer } from '../src/mail';
 import { MemoryPusher, NOTIFICATION_PAUSE_MS } from '../src/push';
 
 /**
@@ -28,13 +29,15 @@ import { MemoryPusher, NOTIFICATION_PAUSE_MS } from '../src/push';
 
 let app: App;
 let pusher: MemoryPusher;
+let mailer: MemoryMailer;
 let clock = 1_700_000_000_000;
 let baseUrl: string;
 
 beforeEach(async () => {
   clock = 1_700_000_000_000;
   pusher = new MemoryPusher();
-  app = buildApp({ dbPath: ':memory:', now: () => clock, pusher });
+  mailer = new MemoryMailer();
+  app = buildApp({ dbPath: ':memory:', now: () => clock, pusher, mailer });
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const address = app.fastify.server.address();
   if (typeof address === 'string' || address === null) throw new Error('no port');
@@ -324,4 +327,42 @@ it('does not let a ping start the week', async () => {
   clear();
   await arrival(alice, channelId);
   expect(reached()).toEqual(['bob-phone']);
+});
+
+/**
+ * Arrivals by email, since 2026-10-17, and under the same pause: an account
+ * reached by email alone would otherwise be sent arrivals for ever by an app
+ * its owner never opens. See `emailNotifications` in core/settings.ts.
+ */
+describe('arrivals by email', () => {
+  async function emailOnly() {
+    const room = await anEmptyRoom();
+    await app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: auth(room.bob.token),
+      payload: { emailNotifications: true, pushNotificationsOff: true },
+    });
+    return room;
+  }
+
+  it('emails an arrival to somebody who asked for email', async () => {
+    const { alice, channelId } = await emailOnly();
+    await arrival(alice, channelId);
+    expect(mailer.notified).toHaveLength(1);
+    expect(mailer.notified[0]).toMatchObject({
+      to: 'bob@example.com',
+      body: 'Alice stepped in.',
+    });
+    expect(reached()).toEqual([]);
+  });
+
+  it('pauses after a week of them, as push does', async () => {
+    const { alice, channelId } = await emailOnly();
+    await arrival(alice, channelId);
+    clock += NOTIFICATION_PAUSE_MS;
+    mailer.notified.length = 0;
+    await arrival(alice, channelId);
+    expect(mailer.notified).toHaveLength(0);
+  });
 });

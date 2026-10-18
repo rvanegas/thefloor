@@ -970,7 +970,7 @@ describe("the notification switches", () => {
 
   it("saves email notifications both ways", async () => {
     const tree = await openSettings();
-    expect(textOf(tree)).toContain("Never who stepped in");
+    expect(textOf(tree)).toContain("who stepped in, sent to");
     act(() => choice(tree, "Email notifications", "On").props.onPress());
     expect(mockApp.setEmailNotifications).toHaveBeenLastCalledWith(true);
     act(() => choice(tree, "Email notifications", "Off").props.onPress());

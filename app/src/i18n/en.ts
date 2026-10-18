@@ -888,7 +888,7 @@ export const en = {
     openSettings: () => 'Open Settings',
     emailNotifications: () => 'Email notifications',
     emailNotificationsNote: () =>
-      'Invitations, pings and accepted invitations, sent to the address you sign in with. Never who stepped in.',
+      'Invitations, pings, accepted invitations and who stepped in, sent to the address you sign in with.',
     email: () => 'Email',
     occasionalEmail: () => 'Occasional email about The Floor',
     emailNote: () =>

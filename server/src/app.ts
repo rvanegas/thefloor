@@ -705,23 +705,27 @@ export function buildApp(options: BuildOptions = {}): App {
      */
     const watched = new Map<string, string>();
     /**
-     * **Email, for whoever asked for it, and never for an arrival.** The
-     * fallback for somebody who declined the system dialog — see
-     * `emailNotifications` in core/settings.ts. An arrival is excluded because
-     * it is true for five minutes and arrives by the dozen, which in an inbox
-     * is exactly the re-engagement traffic this app says it does not send;
-     * the other three are a person aiming something at one person, and
-     * happen a handful of times.
+     * **Email, for whoever asked for it — every kind, arrivals included.**
+     * The fallback for somebody who declined the system dialog; see
+     * `emailNotifications` in core/settings.ts.
+     *
+     * **The pause governs it exactly as it governs push.** A paused person is
+     * sent no arrival email, and an arrival emailed counts towards the pause
+     * — otherwise an account reached only by email, whose owner never opens
+     * the app, would be sent arrivals by the dozen for ever, and the pause
+     * would be measuring only the people it was least needed for.
      *
      * Independent of the push below: somebody with both on gets both, which
      * is what two switches saying *on* means.
      */
-    if (!pausable && options.mailer) {
+    if (options.mailer) {
       const link = `${(process.env.PUBLIC_URL || DEFAULT_ORIGIN).replace(/\/$/, '')}/app`;
       for (const id of userIds) {
+        if (paused.has(id)) continue;
         const account = accounts.byId(id);
         if (account?.email_notifications !== 1) continue;
         if (!isEmailAddress(account.identifier)) continue;
+        notified.push(id);
         void options.mailer
           .sendNotification(account.identifier, message.title, message.body, link)
           .catch((error: unknown) =>
@@ -786,6 +790,14 @@ export function buildApp(options: BuildOptions = {}): App {
         byGroup.set(key, group);
       }
     }
+    // Stamped before the sends rather than in their callbacks, and before the
+    // early return below, since somebody reached by email alone has been
+    // notified with no push to send: the clock is about having been notified,
+    // which is settled here, and a delivery result arrives per address rather
+    // than per person. A refusal from Apple does not un-notify anybody — the
+    // notification left — and the address it names is pruned by the 410 path
+    // instead. A set, because one person may be both emailed and pushed.
+    if (pausable) accounts.noteNotified([...new Set(notified)], now());
     if (byGroup.size === 0) {
       // Logged even though nothing was sent. There are two ways to send
       // nothing again — nobody has registered a device, and every arrival's
@@ -804,12 +816,6 @@ export function buildApp(options: BuildOptions = {}): App {
       );
       return;
     }
-    // Stamped before the sends rather than in their callbacks: the clock is
-    // about having been notified, which is settled here, and a delivery
-    // result arrives per address rather than per person. A refusal from Apple
-    // does not un-notify anybody — the notification left — and the address it
-    // names is pruned by the 410 path instead.
-    if (pausable) accounts.noteNotified(notified, now());
     for (const { platform, alert, tokens } of byGroup.values()) {
       void pusherFor(platform)
         .send(tokens, message, alert)

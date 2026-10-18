@@ -60,7 +60,7 @@ caused; the list carries the meaning.
 - **Description** — One line or two of plain text saying what a channel is, written on *Channel Settings* by anybody with the room and offered only to a *public channel* and a *community*, whose pages (and the podcast's *feed*) are where it is read. It was the *notepad*, on a tab of the channel screen, from 2026-09-12 to 2026-09-27. `description` in the code, which never moved
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
-- **Email notifications** — A *Floor Settings* switch, `emailNotifications`: invitations, pings and accepted invitations also sent as email to the address you sign in with — never an arrival. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
+- **Email notifications** — A *Floor Settings* switch, `emailNotifications`: every notification also sent as email to the address you sign in with, arrivals included and paused with them. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has granted notifications, at the moment they do, and never to a tombstone or to an address of ours
@@ -917,8 +917,8 @@ and so does the Contact screen.
 
 ## Email notifications
 
-**The notifications people aim at you, also sent as email**, to the address
-you sign in with: *invited*, *pinged*, *accepted*, in the push's own words. A
+**Every notification people send you, also sent as email**, to the address
+you sign in with — all four kinds, in the push's own words. A
 *Floor Settings* switch, `emailNotifications` on the wire and
 `accounts.email_notifications` in the table.
 
@@ -928,10 +928,11 @@ central loop of the app is a notification, and an install that refused one is
 otherwise unreachable without anybody knowing. Off by default for everybody
 else, since it is a second copy of what a phone already shows.
 
-**Never an arrival.** *Somebody stepped in* is true for five minutes and comes
-by the dozen; in an inbox it is exactly the re-engagement traffic this app says
-it does not send. Not *marketing email*, which is a permission to write about
-the application and is still unspent.
+**Arrivals included, and paused with push.** A week of arrivals without the
+app being opened stops arrival email as it stops arrival push, and an emailed
+arrival counts towards the week — so an account reached by email alone still
+pauses. Not *marketing email*, which is a permission to write about the
+application and is still unspent.
 
 ## Floor, the
 

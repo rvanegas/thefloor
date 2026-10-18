@@ -12,9 +12,12 @@ to come at once.
 a new account setting), so the refusal does not leave the account silently
 unreachable — which was the whole reason the old page existed. The email
 carries the push's own title and body, a link to the web app, and how to turn
-it off. **It carries *invited*, *pinged* and *accepted*, and never an
-arrival**: an arrival is true for five minutes and comes by the dozen, and in
-an inbox that is the re-engagement traffic the app says it does not send.
+it off. **It carries all four kinds, arrivals included.** The first cut left
+arrivals out — true for five minutes, and by the dozen — and Rodrigo asked for
+them in. What keeps that from flooding an inbox is the existing pause: a week
+of arrivals without the app being opened stops arrival email exactly as it
+stops arrival push, and an emailed arrival counts towards that week, or an
+account reached by email alone would never pause.
 Somebody with both switches on gets both; two switches saying *on* mean that.
 
 **Push became a switch too**, `pushNotificationsOff` — stored as the
