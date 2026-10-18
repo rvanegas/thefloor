@@ -136,7 +136,7 @@ describe('the app icon badge', () => {
     const sent = setter.countsFor('bob-phone').length;
 
     // A change to the room that moves nobody's count.
-    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_SELF_MUTE', muted: true });
+    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_SELF_MUTE', muted: true } as never);
     await settle();
     expect(setter.countsFor('bob-phone')).toHaveLength(sent);
   });
