@@ -197,6 +197,27 @@ record() {
     || echo "⚠ could not append to the box's deploys.log" >&2
 }
 
+# Whether the compatibility floor is due to rise, read off the /healthz body a
+# deploy has just been answered with. Due means the census already permits it
+# — `oldestBuild` above `minBuild` with nothing silent — *and* the raise would
+# free at least one shim in planning/SHIMS.md, since the floor is permission to
+# delete a shim and not a record of the population: a raise that frees nothing
+# is the wrong reason to move it, and a notice every deploy would be read by
+# nobody. Said, never acted on, and never a failed deploy.
+floor_due() {
+  local min oldest silent due
+  min=$(echo "$1" | sed -n 's/.*"minBuild":\([0-9]*\).*/\1/p')
+  oldest=$(echo "$1" | sed -n 's/.*"oldestBuild":\([0-9]*\).*/\1/p')
+  silent=$(echo "$1" | sed -n 's/.*"silentBuilds":\([0-9]*\).*/\1/p')
+  [ -n "$min" ] && [ -n "$oldest" ] && [ "$silent" = "0" ] || return 0
+  due=$(awk -F'|' -v lo="$min" -v hi="$oldest" '
+    $2 ~ /^ *[0-9]+ *$/ { g = $2 + 0; if (g > lo && g <= hi) { n++; if (!seen[g]++) gates = gates (gates ? ", " : "") g } }
+    END { if (n) printf "%d shim(s), gates %s", n, gates }' planning/SHIMS.md)
+  [ -n "$due" ] || return 0
+  echo "↑ time to raise MIN_SUPPORTED_BUILD: it is $min and oldestBuild is $oldest;"
+  echo "  raising it to $oldest frees $due in planning/SHIMS.md"
+}
+
 cat > server/deployed.json <<JSON
 {
   "commit": "$SHA",
@@ -249,6 +270,7 @@ for _ in $(seq 1 20); do
          exit 1 ;;
     esac
     record ok
+    floor_due "$HEALTH" || true
     # needrestart is told not to restart the media plane on its own, so stale
     # libraries there wait for a person — and a deploy is when one is at the
     # keyboard. Reported, never acted on: this restart cost presence, and one
