@@ -84,6 +84,8 @@ describe('the settings that follow the account', () => {
       hideControlCards: false,
       labs: false,
       marketingEmail: false,
+      emailNotifications: false,
+      pushNotificationsOff: false,
       // The old names as well, which is what stops a build already on a phone
       // reading this answer as its channel settings having been turned over.
       // See settings-wire.ts.
@@ -112,6 +114,8 @@ describe('the settings that follow the account', () => {
       hideControlCards: false,
       labs: true,
       marketingEmail: false,
+      emailNotifications: false,
+      pushNotificationsOff: false,
     });
 
     await save(alice.token, { labs: false, hideControlCards: true });
@@ -121,6 +125,8 @@ describe('the settings that follow the account', () => {
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
+      emailNotifications: false,
+      pushNotificationsOff: false,
     });
 
     await save(alice.token, { appearance: 'dark' });
@@ -130,6 +136,8 @@ describe('the settings that follow the account', () => {
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
+      emailNotifications: false,
+      pushNotificationsOff: false,
     });
 
     // And the language, which is the newest of them and the one most likely to
@@ -141,6 +149,8 @@ describe('the settings that follow the account', () => {
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
+      emailNotifications: false,
+      pushNotificationsOff: false,
     });
     await save(alice.token, { appearance: 'light' });
     expect(app.accounts.settings(alice.account.id).language).toBe('es');
@@ -353,10 +363,12 @@ describe('the settings that follow the account', () => {
       // The two names builds already installed know, which go out beside the
       // current ones until the compatibility floor has passed them.
       'controlCards',
+      'emailNotifications',
       'hideControlCards',
       'labs',
       'language',
       'marketingEmail',
+      'pushNotificationsOff',
       'tapToLook',
       'tapToStepIn',
     ]);
@@ -380,6 +392,8 @@ describe('the settings that follow the account', () => {
       hideControlCards: true,
       labs: false,
       marketingEmail: false,
+      emailNotifications: false,
+      pushNotificationsOff: false,
     });
 
     // And is refused when it is not a boolean, rather than being stored as one.

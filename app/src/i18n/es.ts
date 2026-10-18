@@ -115,27 +115,14 @@ export const es: Strings = {
     noServer: () => 'No hay ning\u00fan servidor configurado, as\u00ed que no hay nada que listar.',
   },
   notifications: {
-    title: () => 'Estar localizable',
-    cohortOffer: () =>
-      'Llegaste sin nadie aqu\u00ed. Activa esto y te pondremos en un canal con algunas personas que se unieron por las mismas fechas, y alguien de nuestro equipo, para que haya con quien hablar.',
-    cohortOnce: () =>
-      'Es un solo canal, ocurre una vez y puedes salir cuando quieras. Nadie de ah\u00ed pasa a ser un contacto.',
-    peopleNotMessages: () =>
-      'The Floor es gente hablando, no mensajes esperando. Alguien entra en un canal, o te da un toque desde uno, y todo ocurre mientras est\u00e1 ah\u00ed.',
-    otherwiseUnreachable: () =>
-      'Sin notificaciones solo se puede llegar a este tel\u00e9fono mientras lo est\u00e9s mirando. Para los dem\u00e1s eres alguien que nunca contesta.',
-    whatWeWillSend: () => 'Qu\u00e9 vamos a enviar',
-    onlyAPerson: () =>
-      'Solo a una persona. Alguien te invit\u00f3, alguien te dio un toque o alguien entr\u00f3 en un canal al que perteneces. No hay m\u00e1s tipos que esos tres.',
-    nothingOnOurBehalf: () =>
-      'Nada para hacerte volver, nada sobre lo que te has perdido y nada que la app decida enviar por su cuenta. No hay ninguna versi\u00f3n de esto que sea buena para nosotros y mala para ti.',
-    howLoudPerChannel: () => 'Cu\u00e1nto suena, por canal',
-    setPerChannel: () =>
-      'Cada canal se ajusta por separado, en sus ajustes, cuando quieras. Los nuevos empiezan en Solo toques.',
+    title: () => 'Activar las notificaciones',
+    why: () =>
+      'Las notificaciones son la forma en que la gente te encuentra aqu\u00ed: una invitaci\u00f3n, un toque, alguien que entra.',
+    steps: () =>
+      'iOS solo pregunta una vez. Abre Ajustes, toca Notificaciones y activa Permitir notificaciones.',
+    byEmail: () => 'Mientras tanto, lo que te env\u00eden llega por correo.',
     asking: () => 'Preguntando\u2026',
     turnOn: () => 'Activar las notificaciones',
-    alreadyAnswered: () =>
-      'Ya respondiste una vez, y iOS solo pregunta una vez. Activarlo ahora se hace en Ajustes, en Notificaciones.',
     openSettings: () => 'Abrir Ajustes',
     notNow: () => 'Ahora no',
   },
@@ -684,6 +671,19 @@ export const es: Strings = {
     system: () => 'Del sistema',
     appearanceNote: () =>
       'Del sistema sigue al tel\u00e9fono, y cambia con \u00e9l, incluso con un horario si tienes uno puesto.',
+    notificationsSection: () => 'Notificaciones',
+    pushNotifications: () => 'Notificaciones push',
+    pushNeedsThePhone: () =>
+      'Las notificaciones push llegan a The Floor en un iPhone. En un navegador, activa las notificaciones por correo.',
+    pushNotAskedYet: () =>
+      'A\u00fan no se ha preguntado a iOS. Act\u00edvalas e iOS te pedir\u00e1 que las permitas.',
+    pushRefusedInSettings: () =>
+      'iOS no permite las notificaciones de The Floor, as\u00ed que no llegar\u00e1 ninguna. Abre Ajustes, toca Notificaciones y activa Permitir notificaciones.',
+    turnOnPush: () => 'Activar las notificaciones',
+    openSettings: () => 'Abrir Ajustes',
+    emailNotifications: () => 'Notificaciones por correo',
+    emailNotificationsNote: () =>
+      'Invitaciones, toques e invitaciones aceptadas, enviadas a la direcci\u00f3n con la que entras. Nunca qui\u00e9n ha entrado.',
     email: () => 'Correo',
     occasionalEmail: () => 'Correo ocasional sobre The Floor',
     emailNote: () =>

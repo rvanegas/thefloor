@@ -60,9 +60,11 @@ caused; the list carries the meaning.
 - **Description** — One line or two of plain text saying what a channel is, written on *Channel Settings* by anybody with the room and offered only to a *public channel* and a *community*, whose pages (and the podcast's *feed*) are where it is read. It was the *notepad*, on a tab of the channel screen, from 2026-09-12 to 2026-09-27. `description` in the code, which never moved
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
 - **Floor, the** — The thing the app is named after
+- **Email notifications** — A *Floor Settings* switch, `emailNotifications`: invitations, pings and accepted invitations also sent as email to the address you sign in with — never an arrival. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
+- **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has granted notifications, at the moment they do, and never to a tombstone or to an address of ours
-- **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`, and the one thing that lets the app raise the notification question for somebody who has nobody
+- **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
 - **Guest invitation** — An offer of a *seat*, addressed to a contact by name and delivered as a push; unlike an *invitation* it makes nobody a member and spends none of the six, but it does hold one of the forty and is drawn under *Invitations* on the *People* tab. Expires when the room empties, or when a member takes it back
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account. Always the browser: the *seat* it produces is openable in the app afterwards, and only for an account
@@ -912,6 +914,24 @@ nobody's name: it is the private half of an identity, drawn to strangers.
 
 Typing one at signup replaces it, on an existing account as much as a new one,
 and so does the Contact screen.
+
+## Email notifications
+
+**The notifications people aim at you, also sent as email**, to the address
+you sign in with: *invited*, *pinged*, *accepted*, in the push's own words. A
+*Floor Settings* switch, `emailNotifications` on the wire and
+`accounts.email_notifications` in the table.
+
+**The fallback for a declined dialog.** The system dialog is raised straight
+after sign-in, and the moment it is refused the app switches this on — the
+central loop of the app is a notification, and an install that refused one is
+otherwise unreachable without anybody knowing. Off by default for everybody
+else, since it is a second copy of what a phone already shows.
+
+**Never an arrival.** *Somebody stepped in* is true for five minutes and comes
+by the dozen; in an inbox it is exactly the re-engagement traffic this app says
+it does not send. Not *marketing email*, which is a permission to write about
+the application and is still unspent.
 
 ## Floor, the
 
@@ -2300,6 +2320,18 @@ unanimous, and the card's second paragraph says so — that is the sentence
 doing the real work. `public_notices` in db.ts,
 `owesPublicNotice` in publication.ts, and
 `decision/2026-09-22-a-page-nobody-was-told-about.md`.
+
+## Push notifications
+
+**Whether this account is sent pushes at all**, on every device it holds — a
+*Floor Settings* switch, stored as its negation, `pushNotificationsOff`, on the
+rule that every boolean setting is false by default.
+
+**A wish, not a fact.** iOS holds the permission, and a phone that refused it
+receives nothing however this reads. So when it is on and the permission is
+not granted, the card says what to do: the dialog while it is unspent, the
+Settings app once it is not, and the phone itself from a browser. Switched
+off, it also silences Home's daily banner about notifications being off.
 
 ## Directory page
 
@@ -4949,6 +4981,8 @@ are settled:
     Leaderboard           Invitaciones
     Chip in               Contribuir
     Floor Settings        Ajustes de The Floor
+    Push notifications    Notificaciones push
+    Email notifications   Notificaciones por correo
     Language              Idioma — the two languages are named in themselves in
                           both catalogues, *English* and *Español*; *Automatic*
                           is *Automático*

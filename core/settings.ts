@@ -170,6 +170,32 @@ export interface AccountSettings {
    * both ways. See GLOSSARY.md § *Marketing email*.
    */
   marketingEmail: boolean;
+  /**
+   * Whether the notifications people send this person also arrive as email,
+   * at the address they sign in with.
+   *
+   * **The fallback for somebody who declined the system dialog**, and turned
+   * on by the app at the moment they do: the central loop of this app is a
+   * notification, and an install that refused one would otherwise be
+   * unreachable without anybody knowing. Off by default for everybody else,
+   * since it is a second copy of what a phone already shows them.
+   *
+   * Carries the three notifications aimed at one person — *invited*,
+   * *pinged*, *accepted* — and never an arrival, which is true for five
+   * minutes and arrives by the dozen.
+   */
+  emailNotifications: boolean;
+  /**
+   * Whether this person has asked for no push notifications at all, on any
+   * device, whatever iOS allows.
+   *
+   * Named for the departure, as every boolean here is: Floor Settings shows
+   * it as *Push notifications* switched on, and this is false for that case.
+   * It is not the system permission and cannot stand in for it — a phone that
+   * refused the dialog receives nothing however this reads, which is why the
+   * screen says what to do in Settings when the two disagree.
+   */
+  pushNotificationsOff: boolean;
 }
 
 /**
@@ -230,4 +256,6 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
    * about, and this one is the absence of somebody's yes.
    */
   marketingEmail: false,
+  emailNotifications: false,
+  pushNotificationsOff: false,
 };

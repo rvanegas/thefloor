@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
 import { showRoutePicker } from '../audio/routePicker';
+import { mayHoldToken } from '../push';
 import { useApp } from '../state/AppProvider';
 import { forgetInstall } from '../state/storage';
 import {
@@ -494,6 +495,80 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         the shapes are saying different things: a box is a question nobody has
         answered yet, and this is an answer in force. See STYLE.md § *Checkbox*.
       */}
+      {/*
+        The two ways what people send you reaches you, as two switches. Push
+        is stored as its negation — `pushNotificationsOff` — on the rule that
+        every boolean setting is false by default; see core/settings.ts.
+
+        **Push on is a wish, not a fact**: iOS holds the permission, and a
+        phone that refused it receives nothing however this reads. So when the
+        two disagree the card says so and says what to do — the dialog while
+        it is unspent, Settings once it is not, and the phone itself from a
+        browser, which has no permission to grant.
+      */}
+      <SectionLabel>{t.notificationsSection()}</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>{t.pushNotifications()}</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [false, t.on()],
+              [true, t.off()],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={
+                app.pushNotificationsOff === value ? 'primary' : 'default'
+              }
+              onPress={() => app.setPushNotificationsOff(value)}
+            />
+          ))}
+        </View>
+        {app.pushNotificationsOff ||
+        app.notifications.permission === 'granted' ? null : !mayHoldToken() ? (
+          <Text style={type.muted}>{t.pushNeedsThePhone()}</Text>
+        ) : app.notifications.canPrompt ? (
+          <>
+            <Text style={type.muted}>{t.pushNotAskedYet()}</Text>
+            <Button
+              label={t.turnOnPush()}
+              onPress={() => void app.notifications.allow()}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={type.muted}>{t.pushRefusedInSettings()}</Text>
+            <Button
+              label={t.openSettings()}
+              onPress={() => void Linking.openSettings()}
+            />
+          </>
+        )}
+      </Card>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>{t.emailNotifications()}</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, t.on()],
+              [false, t.off()],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={app.emailNotifications === value ? 'primary' : 'default'}
+              onPress={() => app.setEmailNotifications(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>{t.emailNotificationsNote()}</Text>
+      </Card>
+
       <SectionLabel>{t.email()}</SectionLabel>
       <Card style={styles.stack}>
         <Text style={type.heading}>{t.occasionalEmail()}</Text>

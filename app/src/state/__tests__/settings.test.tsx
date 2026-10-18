@@ -109,12 +109,18 @@ function hello(settings: {
   hideControlCards: boolean;
   labs: boolean;
   marketingEmail: boolean;
+  emailNotifications?: boolean;
+  pushNotificationsOff?: boolean;
 } | null): void {
   handlers.onHello?.(
     { id: 'acct_me', displayName: 'Me' },
     false,
     false,
-    settings
+    settings && {
+      emailNotifications: false,
+      pushNotificationsOff: false,
+      ...settings,
+    }
   );
 }
 
@@ -259,6 +265,8 @@ describe('the settings that follow the account', () => {
         hideControlCards: true,
         labs: true,
         marketingEmail: false,
+        emailNotifications: false,
+        pushNotificationsOff: false,
       })
     );
     expect(textOf(tree)).toContain('light/es/bare/labs');

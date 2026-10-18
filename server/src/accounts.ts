@@ -667,6 +667,8 @@ export class Accounts {
       // whether we may write to this person, and the column answers when they
       // said we could. See `marketing_email_at` in db.ts.
       marketingEmail: row.marketing_email_at !== null,
+      emailNotifications: row.email_notifications === 1,
+      pushNotificationsOff: row.push_off === 1,
     };
   }
 
@@ -737,6 +739,16 @@ export class Accounts {
           .prepare('UPDATE accounts SET marketing_email_at = ? WHERE id = ?')
           .run(now, accountId);
       }
+    }
+    if (changes.emailNotifications !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET email_notifications = ? WHERE id = ?')
+        .run(changes.emailNotifications ? 1 : 0, accountId);
+    }
+    if (changes.pushNotificationsOff !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET push_off = ? WHERE id = ?')
+        .run(changes.pushNotificationsOff ? 1 : 0, accountId);
     }
     return this.settings(accountId);
   }
@@ -3101,7 +3113,8 @@ export class Accounts {
                 debug = NULL, im_phone = NULL, im_whatsapp = NULL,
                 im_telegram = NULL, im_signal = NULL, tried_floor = NULL, tried_nearby = NULL,
                 tried_guest = NULL, tried_player = NULL,
-                marketing_email_at = NULL
+                marketing_email_at = NULL, email_notifications = NULL,
+                push_off = NULL
           WHERE id = ?`
       )
       .run(erasedIdentifier(accountId), ERASED_DISPLAY_NAME, accountId);

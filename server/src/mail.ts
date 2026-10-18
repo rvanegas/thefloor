@@ -35,6 +35,42 @@ export interface Mailer {
    * writes it down.
    */
   sendInvite(to: string, from: string, link: string): Promise<void>;
+  /**
+   * A notification somebody here sent, delivered as email to an account that
+   * asked for that — see `emailNotifications` in core/settings.ts.
+   *
+   * Unlike the two above this goes to an address that has proved itself by
+   * signing in, and only because its owner switched it on. `title` and `body`
+   * are the push notification's own words, so the two can never say
+   * different things; `link` is where the app is.
+   */
+  sendNotification(
+    to: string,
+    title: string,
+    body: string,
+    link: string
+  ): Promise<void>;
+}
+
+/**
+ * The email form of a notification: the push's two lines, where to answer it,
+ * and how to make it stop — the last because this is the one email here that
+ * arrives repeatedly, and somebody who cannot see how to end it will mark it
+ * as spam instead.
+ */
+export function notificationBody(
+  title: string,
+  body: string,
+  link: string
+): string {
+  return [
+    `${title}: ${body}`,
+    '',
+    `Open The Floor: ${link}`,
+    '',
+    'You are getting this by email because notifications by email are on for',
+    'your account. Turn them off in Floor Settings, behind the gear on Home.',
+  ].join('\n');
 }
 
 /**
@@ -162,6 +198,26 @@ export class SesMailer implements Mailer {
       })
     );
   }
+
+  async sendNotification(
+    to: string,
+    title: string,
+    body: string,
+    link: string
+  ): Promise<void> {
+    await this.client.send(
+      new SendEmailCommand({
+        FromEmailAddress: this.options.from,
+        Destination: { ToAddresses: [to] },
+        Content: {
+          Simple: {
+            Subject: { Data: `${title}: ${body}` },
+            Body: { Text: { Data: notificationBody(title, body, link) } },
+          },
+        },
+      })
+    );
+  }
 }
 
 /**
@@ -221,6 +277,17 @@ export class ConsoleMailer implements Mailer {
       `\n  ── invitation to ${to}, from ${from} ──\n${inviteBody(from, link)}\n`
     );
   }
+
+  async sendNotification(
+    to: string,
+    title: string,
+    body: string,
+    link: string
+  ): Promise<void> {
+    this.log(
+      `\n  ── notification to ${to} ──\n${notificationBody(title, body, link)}\n`
+    );
+  }
 }
 
 /** Records what would have been sent. For tests. */
@@ -234,8 +301,20 @@ export class MemoryMailer implements Mailer {
     body: string;
   }> = [];
 
+  readonly notified: Array<{ to: string; title: string; body: string; link: string }> =
+    [];
+
   async sendCode(to: string, code: string): Promise<void> {
     this.sent.push({ to, code });
+  }
+
+  async sendNotification(
+    to: string,
+    title: string,
+    body: string,
+    link: string
+  ): Promise<void> {
+    this.notified.push({ to, title, body, link });
   }
 
   async sendInvite(to: string, from: string, link: string): Promise<void> {

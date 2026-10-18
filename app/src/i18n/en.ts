@@ -134,27 +134,14 @@ export const en = {
     noServer: () => 'No server is configured, so there is nothing to list.',
   },
   notifications: {
-    title: () => 'Being reachable',
-    cohortOffer: () =>
-      'You arrived without anybody here. Turn these on and we will put you in a channel with a few other people who joined around the same time, and one of us, so there is somebody to talk to.',
-    cohortOnce: () =>
-      'It is one channel, it happens once, and you can leave it whenever you like. Nobody in it becomes a contact.',
-    peopleNotMessages: () =>
-      'The Floor is people talking, not messages waiting. Somebody walks into a channel, or pings you from one, and the whole of it happens while they are there.',
-    otherwiseUnreachable: () =>
-      'Without notifications this phone can only be reached while you happen to be looking at it. Everyone else sees you as somebody who never answers.',
-    whatWeWillSend: () => 'What we will send',
-    onlyAPerson: () =>
-      'Only a person. Somebody invited you, somebody pinged you, or somebody walked into a channel you belong to. That is all three kinds there are.',
-    nothingOnOurBehalf: () =>
-      'Nothing to bring you back, nothing about what you have missed, and nothing the app decided to send on its own behalf. There is no version of this that is good for us and bad for you.',
-    howLoudPerChannel: () => 'How loud, per channel',
-    setPerChannel: () =>
-      'Each channel is set on its own, in its settings, whenever you like. New ones start at Pings only.',
+    title: () => 'Turn on notifications',
+    why: () =>
+      'Notifications are how people reach you here: an invitation, a ping, somebody stepping in.',
+    steps: () =>
+      'iOS only asks once. Open Settings, tap Notifications, and switch on Allow Notifications.',
+    byEmail: () => 'Until then, what people send you arrives by email.',
     asking: () => 'Asking\u2026',
     turnOn: () => 'Turn on notifications',
-    alreadyAnswered: () =>
-      'You have already answered this once, and iOS only asks the once. Turning it on now happens in Settings, under Notifications.',
     openSettings: () => 'Open Settings',
     notNow: () => 'Not now',
   },
@@ -889,6 +876,19 @@ export const en = {
     system: () => 'System',
     appearanceNote: () =>
       'System follows the phone, and changes with it — including on a schedule, if you have one set.',
+    notificationsSection: () => 'Notifications',
+    pushNotifications: () => 'Push notifications',
+    pushNeedsThePhone: () =>
+      'Push notifications reach The Floor on an iPhone. In a browser, turn on email notifications instead.',
+    pushNotAskedYet: () =>
+      'iOS has not been asked yet. Turn them on and iOS will ask you to allow them.',
+    pushRefusedInSettings: () =>
+      'iOS is not allowing notifications from The Floor, so none will arrive. Open Settings, tap Notifications, and switch on Allow Notifications.',
+    turnOnPush: () => 'Turn on notifications',
+    openSettings: () => 'Open Settings',
+    emailNotifications: () => 'Email notifications',
+    emailNotificationsNote: () =>
+      'Invitations, pings and accepted invitations, sent to the address you sign in with. Never who stepped in.',
     email: () => 'Email',
     occasionalEmail: () => 'Occasional email about The Floor',
     emailNote: () =>

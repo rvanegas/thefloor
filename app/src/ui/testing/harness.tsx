@@ -185,7 +185,7 @@ export const mockApp = {
    * See `state/notificationAsk.ts`.
    */
   notifications: {
-    ask: 'none' as 'none' | 'pitch' | 'nudge',
+    ask: 'none' as 'none' | 'prompt' | 'nudge',
     permission: 'granted' as 'granted' | 'undetermined' | 'denied',
     canPrompt: false,
     noteShown: jest.fn(),
@@ -392,6 +392,14 @@ export const mockApp = {
   labs: false,
   setLabs: jest.fn((value: boolean) => {
     mockApp.labs = value;
+  }),
+  emailNotifications: false,
+  setEmailNotifications: jest.fn((value: boolean) => {
+    mockApp.emailNotifications = value;
+  }),
+  pushNotificationsOff: false,
+  setPushNotificationsOff: jest.fn((value: boolean) => {
+    mockApp.pushNotificationsOff = value;
   }),
 };
 
@@ -973,6 +981,8 @@ export function resetHarness(): void {
   mockApp.notifications.ask = 'none';
   mockApp.notifications.permission = 'granted';
   mockApp.notifications.canPrompt = false;
+  mockApp.emailNotifications = false;
+  mockApp.pushNotificationsOff = false;
   // Everything read, and the keychain has answered — the state in which no tab
   // wears a dab, which is what every test but the dab ones is about.
   mockApp.helpSeen.seenAnsweredAt = Number.MAX_SAFE_INTEGER;

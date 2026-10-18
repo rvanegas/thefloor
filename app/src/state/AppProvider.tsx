@@ -956,6 +956,21 @@ interface AppValue extends AppState {
   marketingEmail: boolean;
   setMarketingEmail: (value: boolean) => void;
   /**
+   * Whether people's notifications also arrive as email. Turned on by the app
+   * when the system dialog is declined, and on Floor Settings both ways. See
+   * `emailNotifications` in core/settings.ts. Not cached, for
+   * `marketingEmail`'s reason.
+   */
+  emailNotifications: boolean;
+  setEmailNotifications: (value: boolean) => void;
+  /**
+   * Whether this account has switched push off, on every device. Floor
+   * Settings shows the negation, as *Push notifications*. See
+   * `pushNotificationsOff` in core/settings.ts.
+   */
+  pushNotificationsOff: boolean;
+  setPushNotificationsOff: (value: boolean) => void;
+  /**
    * Whether this address is the one that last signed in on this install.
    *
    * Read by the sign-in screen and by nothing else: the marketing opt-in is
@@ -1165,6 +1180,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [marketingEmail, setMarketingEmailState] = useState(
     DEFAULT_ACCOUNT_SETTINGS.marketingEmail
   );
+  const [emailNotifications, setEmailNotificationsState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.emailNotifications
+  );
+  const [pushNotificationsOff, setPushNotificationsOffState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.pushNotificationsOff
+  );
   /**
    * The address last signed in here, read once at start.
    *
@@ -1223,6 +1244,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setLabsState(settings.labs);
     void storage.set(LABS_KEY, settings.labs ? 'true' : 'false');
     setMarketingEmailState(settings.marketingEmail);
+    // `?? false` for a server older than either field, which sends neither
+    // and whose behaviour is exactly the defaults.
+    setEmailNotificationsState(settings.emailNotifications ?? false);
+    setPushNotificationsOffState(settings.pushNotificationsOff ?? false);
   }, [adoptLanguage]);
   /**
    * Puts the settings back to what somebody who has never signed in sees, and
@@ -1250,6 +1275,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     void storage.remove(LABS_KEY);
     void storage.remove(DEAD_CHIME_AMPLITUDE_KEY);
     setMarketingEmailState(DEFAULT_ACCOUNT_SETTINGS.marketingEmail);
+    setEmailNotificationsState(DEFAULT_ACCOUNT_SETTINGS.emailNotifications);
+    setPushNotificationsOffState(DEFAULT_ACCOUNT_SETTINGS.pushNotificationsOff);
   }, [forgetLanguage]);
   /**
    * The address this install is registered at, kept so sign-out can hand it
@@ -1942,21 +1969,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.token, rememberIdentifier, connect]);
 
   /**
-   * Whether there is anybody at all who could reach you, which is the floor
-   * under every reason to ask about notifications — see `worthAsking`.
-   *
-   * Three sources because they are three ways of having somebody: a contact, a
-   * channel you can walk back into, and an invitation you have not answered.
-   * The last one matters most for a new account, since being invited is how
-   * most people arrive and the invitation is the first thing they have.
-   */
-  const somebody =
-    !!state.home &&
-    (state.home.contacts.length > 0 ||
-      state.home.rejoinable.length > 0 ||
-      state.home.invites.length > 0);
-
-  /**
    * Whether a conversation is happening — you, in a channel, with somebody
    * else in it.
    *
@@ -2004,12 +2016,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [forcedDabs, setForcedDabs] = useState(false);
   const notifications = useNotificationAsk({
     token: state.token,
-    somebody,
-    conversing,
-    // Absent on a server older than the field, which reads as false and is the
-    // behaviour every build before this one had — see `HomeView.cohortEligible`
-    // and planning/SHIMS.md.
-    cohortEligible: state.home?.cohortEligible ?? false,
+    // Home arrives after the hello that carries the settings, so by then
+    // `pushNotificationsOff` is this account's answer rather than a default.
+    settled: state.home !== null,
+    pushOff: pushNotificationsOff,
+    // **The fallback, written the moment the dialog is refused**: somebody who
+    // will not take a push is reached by email instead, and can turn it off on
+    // Floor Settings. See `emailNotifications` in core/settings.ts.
+    onDeclined: useCallback(() => {
+      setEmailNotificationsState(true);
+      if (state.token) {
+        void api
+          .saveSettings(state.token, { emailNotifications: true })
+          .catch(() => {});
+      }
+    }, [state.token]),
     // The same ref the sign-in registration writes, so a token granted from
     // the explanation is the one sign-out later revokes.
     onRegistered: useCallback((token: string) => {
@@ -2532,6 +2553,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         if (state.token) {
           void api
             .saveSettings(state.token, { marketingEmail: value })
+            .catch(() => {});
+        }
+      },
+      emailNotifications,
+      setEmailNotifications: (value) => {
+        setEmailNotificationsState(value);
+        if (state.token) {
+          void api
+            .saveSettings(state.token, { emailNotifications: value })
+            .catch(() => {});
+        }
+      },
+      pushNotificationsOff,
+      setPushNotificationsOff: (value) => {
+        setPushNotificationsOffState(value);
+        if (state.token) {
+          void api
+            .saveSettings(state.token, { pushNotificationsOff: value })
             .catch(() => {});
         }
       },
@@ -3213,6 +3252,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       hideControlCards,
       labs,
       marketingEmail,
+      emailNotifications,
+      pushNotificationsOff,
       lastIdentifier,
       rememberIdentifier,
       forgetSettings,

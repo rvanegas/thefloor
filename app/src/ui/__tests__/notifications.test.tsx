@@ -93,24 +93,20 @@ describe('the banner on the tier', () => {
   });
 });
 
-describe('the explanation', () => {
-  it('says why it matters, what will be sent, and how loud', () => {
+describe('the prompt', () => {
+  it('says why in one sentence, and nothing about levels', () => {
     const tree = render(<NotificationsView onDone={() => {}} />);
     const text = textOf(tree);
-    expect(text).toContain('Being reachable');
-    // The promise, which is the half people refuse over.
-    expect(text).toContain('Only a person');
-    // And that it is not all-or-nothing: the levels, in the settings screen's
-    // own words rather than a second copy of them.
-    expect(text).toContain('Quiet');
-    expect(text).toContain('Pings only');
-    expect(text).toContain('Everything');
+    expect(text).toContain('Turn on notifications');
+    expect(text).toContain('how people reach you');
+    expect(text).not.toContain('Pings only');
     act(() => tree.unmount());
   });
 
-  it('counts as having been shown, so the banner does not follow it', () => {
+  it('says email is carrying them meanwhile, when it is', () => {
+    mockApp.emailNotifications = true;
     const tree = render(<NotificationsView onDone={() => {}} />);
-    expect(mockApp.notifications.noteShown).toHaveBeenCalled();
+    expect(textOf(tree)).toContain('arrives by email');
     act(() => tree.unmount());
   });
 
@@ -137,7 +133,8 @@ describe('the explanation', () => {
       .mockResolvedValue(undefined);
     mockApp.notifications.canPrompt = false;
     const tree = render(<NotificationsView onDone={() => {}} />);
-    expect(textOf(tree)).not.toContain('Turn on notifications');
+    expect(textOf(tree)).toContain('switch on Allow Notifications');
+    expect(findButton(tree, 'Turn on notifications')).toBeFalsy();
     act(() => findButton(tree, 'Open Settings')?.props.onPress());
     expect(openSettings).toHaveBeenCalled();
     expect(mockApp.notifications.allow).not.toHaveBeenCalled();

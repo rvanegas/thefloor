@@ -2,10 +2,15 @@
 
 It was item 1 of planning/ROADMAP.md, *the roadmap the proposition obliges*, until 2026-10-03; the ordering argument is now PROPOSITION.md § *What the proposition obliges, in order*.
 
-**Piece a is built**: `app/src/state/notificationAsk.ts` argues the ask before
-spending iOS's one dialog. **Pieces b and c are not** — nothing at the point of
-pinging and nothing on a profile says that somebody is not receiving
-notifications, as of 2026-10-03. Those two are the task.
+**Piece a is superseded**: the argued pre-prompt was built on 2026-09-08 and
+dropped on 2026-10-17, when the system dialog moved to straight after sign-in
+and a declined dialog started switching on *email notifications* — see
+decision/2026-10-17-notifications-are-asked-for-at-sign-in.md. Floor Settings
+now says when push is on and iOS refuses it, which is half of piece c for
+your own account. **Piece b, and piece c on somebody else's profile, are not
+built** — nothing at the point of pinging says that somebody is not receiving
+notifications. Those are the task, and an account with email notifications on
+is now a third state for b to tell apart.
 
 **Why it is first.** Because there is no ring and no call interface, every
 synchrony this app establishes travels as an ordinary notification. An

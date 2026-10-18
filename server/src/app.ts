@@ -121,6 +121,13 @@ import { createLiveLineNotifier } from './ws';
 import { LiveTranscriber } from './live';
 import type { StreamingTranscriptionProvider } from './streaming';
 
+/**
+ * Where a link is sent when there is no request to read the origin from — a
+ * notification email, minted inside a channel transition. `PUBLIC_URL`
+ * overrides it, as it overrides `origin` below.
+ */
+const DEFAULT_ORIGIN = 'https://thefloor.rvanegas.co';
+
 export interface BuildOptions {
   dbPath?: string;
   /** Delivers one-time codes. Without one, only the bypass can sign anyone in. */
@@ -697,7 +704,37 @@ export function buildApp(options: BuildOptions = {}): App {
      * answer arrives with no idea whose device it was about.
      */
     const watched = new Map<string, string>();
+    /**
+     * **Email, for whoever asked for it, and never for an arrival.** The
+     * fallback for somebody who declined the system dialog — see
+     * `emailNotifications` in core/settings.ts. An arrival is excluded because
+     * it is true for five minutes and arrives by the dozen, which in an inbox
+     * is exactly the re-engagement traffic this app says it does not send;
+     * the other three are a person aiming something at one person, and
+     * happen a handful of times.
+     *
+     * Independent of the push below: somebody with both on gets both, which
+     * is what two switches saying *on* means.
+     */
+    if (!pausable && options.mailer) {
+      const link = `${(process.env.PUBLIC_URL || DEFAULT_ORIGIN).replace(/\/$/, '')}/app`;
+      for (const id of userIds) {
+        const account = accounts.byId(id);
+        if (account?.email_notifications !== 1) continue;
+        if (!isEmailAddress(account.identifier)) continue;
+        void options.mailer
+          .sendNotification(account.identifier, message.title, message.body, link)
+          .catch((error: unknown) =>
+            fastify.log.warn(
+              { account: id, kind: message.kind, error: String(error) },
+              'notification email failed'
+            )
+          );
+      }
+    }
     for (const [id, addresses] of devices.addressesByAccount(userIds)) {
+      // Switched off in Floor Settings, on every device, whatever iOS allows.
+      if (accounts.byId(id)?.push_off === 1) continue;
       if (paused.has(id)) {
         // The debug account's half of the ledger, matching 'push intended'
         // below: *nothing was even attempted* is the commonest answer to "why
@@ -3279,6 +3316,13 @@ export function buildApp(options: BuildOptions = {}): App {
           .send({ error: 'marketingEmail must be true or false.' });
       }
       changes.marketingEmail = body.marketingEmail;
+    }
+    for (const field of ['emailNotifications', 'pushNotificationsOff'] as const) {
+      if (body?.[field] === undefined) continue;
+      if (typeof body[field] !== 'boolean') {
+        return reply.code(400).send({ error: `${field} must be true or false.` });
+      }
+      changes[field] = body[field];
     }
     // `chimeAmplitude` is not read here and, like `tabsAtFoot` above, is
     // deliberately not refused either. Build 211 and earlier carry the

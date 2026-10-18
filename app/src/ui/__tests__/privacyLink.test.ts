@@ -26,6 +26,11 @@ const mockApp = {
   switchAccounts: [] as string[],
   deleteAccount: jest.fn(async () => {}),
   saveProfile: jest.fn(async () => {}),
+  notifications: { permission: 'granted', canPrompt: false, allow: jest.fn() },
+  emailNotifications: false,
+  setEmailNotifications: jest.fn(),
+  pushNotificationsOff: false,
+  setPushNotificationsOff: jest.fn(),
   loadProfile: jest.fn(async (accountId: string) => ({
     account: { id: accountId, displayName: 'Me' },
   })),

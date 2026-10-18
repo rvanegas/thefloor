@@ -53,12 +53,10 @@ jest.mock('../../push', () => ({
 function Probe({ report }: { report: (ask: string) => void }) {
   const { ask } = useNotificationAsk({
     token: 'auth',
-    somebody: true,
-    conversing: false,
-    // This file is about what a reinstall forgets, and the cohort gate is no
-    // part of it: `somebody` above already carries the reason to ask.
-    cohortEligible: false,
+    settled: true,
+    pushOff: false,
     onRegistered: () => {},
+    onDeclined: () => {},
   });
   report(ask);
   return <Text>{ask}</Text>;
@@ -98,41 +96,25 @@ describe('the marker that dies with the app', () => {
 
 describe('a reinstall on a phone whose keychain outlived the app', () => {
   it('asks, rather than believing a previous install had already asked', async () => {
-    mockKeychain.set('thefloor.notifications.pitched', 'true');
     mockKeychain.set('thefloor.notifications.nudgedAt', String(Date.now()));
-    mockKeychain.set('thefloor.notifications.launches', '7');
-    // Kept across the reinstall, and what makes the explanation due on this
-    // launch rather than the next one.
-    mockKeychain.set('thefloor.notifications.conversed', 'true');
-
-    expect(await launch()).toBe('pitch');
+    expect(await launch()).toBe('prompt');
   });
 
-  it('forgets the previous install rather than the person', async () => {
-    mockKeychain.set('thefloor.notifications.pitched', 'true');
+  it('forgets when the banner was last raised', async () => {
     mockKeychain.set('thefloor.notifications.nudgedAt', '123');
-    mockKeychain.set('thefloor.notifications.launches', '7');
-    mockKeychain.set('thefloor.notifications.conversed', 'true');
-
     await launch();
-
-    expect(mockKeychain.get('thefloor.notifications.pitched')).toBeUndefined();
     expect(mockKeychain.get('thefloor.notifications.nudgedAt')).toBeUndefined();
-    // Counted from this install, so the launch that reinstalled is its first.
-    expect(mockKeychain.get('thefloor.notifications.launches')).toBe('1');
-    expect(mockKeychain.get('thefloor.notifications.conversed')).toBe('true');
   });
 
   it('leaves a living install alone, which is every other launch', async () => {
+    const push = jest.requireMock('../../push');
+    push.permissionState.mockImplementation(async () => 'denied');
     mockMarkerExists = true;
-    mockKeychain.set('thefloor.notifications.pitched', 'true');
-    mockKeychain.set('thefloor.notifications.nudgedAt', String(Date.now()));
-    mockKeychain.set('thefloor.notifications.launches', '7');
+    const today = String(Date.now());
+    mockKeychain.set('thefloor.notifications.nudgedAt', today);
 
-    // Pitched today and not reinstalled: the daily banner is the most that is
-    // owed, and the explanation must not open itself a second time.
+    // Nudged today and not reinstalled: nothing more is owed until tomorrow.
     expect(await launch()).toBe('none');
-    expect(mockKeychain.get('thefloor.notifications.pitched')).toBe('true');
-    expect(mockKeychain.get('thefloor.notifications.launches')).toBe('8');
+    expect(mockKeychain.get('thefloor.notifications.nudgedAt')).toBe(today);
   });
 });

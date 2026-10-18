@@ -274,6 +274,17 @@ export interface AccountRow {
    * a boolean throws that away for nothing.
    */
   marketing_email_at: number | null;
+  /**
+   * Whether people's notifications also reach this account as email, null
+   * until anybody says — the app writes 1 when the system dialog is declined.
+   * See `emailNotifications` in core/settings.ts.
+   */
+  email_notifications: number | null;
+  /**
+   * Whether this account has switched push off, null until it says. See
+   * `pushNotificationsOff` in core/settings.ts.
+   */
+  push_off: number | null;
 }
 
 export interface ContactRow {
@@ -799,7 +810,11 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- When this person opted in to marketing and instructional email, null until
   -- they do. Written by the sign-in screen's checkbox and by nothing else; see
   -- the row type above for why an unticked box does not clear it.
-  marketing_email_at INTEGER
+  marketing_email_at INTEGER,
+  -- Notifications by email, and push switched off; null until somebody says,
+  -- which is the off case for both. See core/settings.ts.
+  email_notifications INTEGER,
+  push_off           INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -2661,6 +2676,13 @@ function migrate(db: Db): void {
   // be writing down a permission nobody granted.
   if (!accountColumns.some((c) => c.name === 'marketing_email_at')) {
     db.exec('ALTER TABLE accounts ADD COLUMN marketing_email_at INTEGER');
+  }
+  // Null for every existing account: nobody has said, and both read as off.
+  if (!accountColumns.some((c) => c.name === 'email_notifications')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN email_notifications INTEGER');
+  }
+  if (!accountColumns.some((c) => c.name === 'push_off')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN push_off INTEGER');
   }
   // Null for every existing account, and emphatically not back-filled from
   // `last_seen_at`. That column is the fact this one exists to stop being read

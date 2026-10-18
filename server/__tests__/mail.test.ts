@@ -264,6 +264,7 @@ describe('inviting an address with no account', () => {
         async sendInvite() {
           throw new Error('SES said no');
         },
+        async sendNotification() {},
       },
     });
     const code = broken.accounts.issueCode('alice@example.com', clock)!;
@@ -301,6 +302,7 @@ describe('transport failure', () => {
         async sendInvite() {
           throw new Error('SES said no');
         },
+        async sendNotification() {},
       },
     });
     const response = await broken.fastify.inject({

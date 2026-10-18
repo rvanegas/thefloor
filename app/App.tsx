@@ -737,45 +737,6 @@ function Root() {
   }, [ready, token, watchChannel, app]);
 
   /**
-   * The explanation, put up by the app rather than asked for — once, when the
-   * moment has come and nobody has read it on this install. That includes an
-   * install that already refused: the screen is about what the application is,
-   * not about a permission dialog, and a phone nobody can reach is barely
-   * running the application at all. See `askDue`.
-   *
-   * **The only screen in this file that opens itself**, which is why it is
-   * fenced about as narrowly as it is. `ask` has already decided that this
-   * install is worth telling and has not been told; the two conditions here
-   * are about the *instant*, and both are the same rule: it may only interrupt
-   * nothing.
-   *
-   * - Nothing else is open. Whatever somebody last asked for outranks
-   *   something they did not ask for at all, and the detail pane is one value
-   *   — putting this in it would close a conversation to talk about
-   *   notifications.
-   * - They are not present anywhere. Covering a live room to explain why being
-   *   reached matters would be doing the interrupting it is warning about, and
-   *   `live` is on this screen because presence outlives navigation here.
-   *
-   * When neither holds it simply does not fire, and nothing is lost: `ask`
-   * stays due, every one of those states ends, and the next render with an
-   * empty pane is the moment. Nothing is scheduled and nothing waits.
-   */
-  useEffect(() => {
-    if (!ready || !token) return;
-    if (app.notifications.ask !== 'pitch') return;
-    if (detail.kind !== 'none' || live) return;
-    // **And not on a device that is showing a film**, which is the fourth of
-    // these and the only one that is not about the person being busy: the
-    // pitch and the arrival of a film both answer an empty pane, they are set
-    // in the same commit when a film lands on a device nobody is holding, and
-    // this one is written second — so a television covered itself with a
-    // notification pitch at the moment somebody sent it a picture.
-    if (app.screenFor !== null) return;
-    setDetail({ kind: 'notifications' });
-  }, [ready, token, app.notifications.ask, detail.kind, live, app.screenFor]);
-
-  /**
    * The address bar, which on a phone does not exist and in a browser *is* the
    * navigation.
    *

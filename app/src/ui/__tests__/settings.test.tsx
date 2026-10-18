@@ -8,8 +8,8 @@ import { HomeView } from "../HomeView";
 import { HomeSettingsView } from "../HomeSettingsView";
 import { SupportView } from "../SupportView";
 import { LeaderboardView } from "../LeaderboardView";
-import { SectionLabel } from "../components";
-import { Alert, StyleSheet } from "react-native";
+import { Card, SectionLabel } from "../components";
+import { Alert, Linking, StyleSheet } from "react-native";
 import { chimeIn, warmChimes } from "../../audio/chime";
 import {
   NOW,
@@ -42,6 +42,11 @@ jest.mock("../../state/AppProvider", () =>
  * went**, because the assertion that is left is that this screen makes no
  * noise at all — which needs something to watch.
  */
+let mockMayHoldToken = true;
+jest.mock("../../push", () => ({
+  ...jest.requireActual("../../push"),
+  mayHoldToken: () => mockMayHoldToken,
+}));
 jest.mock("../../audio/chime", () => ({
   chimeIn: jest.fn(),
   warmChimes: jest.fn(),
@@ -933,5 +938,94 @@ describe("the invitation standings", () => {
     const tree = await open(<LeaderboardView onBack={() => {}} />);
     expect(textOf(tree)).toContain("Not found.");
     act(() => tree.unmount());
+  });
+});
+
+describe("the notification switches", () => {
+  const openSettings = async () => {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  };
+
+  /**
+   * The On or Off under one heading. Each switch has a card of its own, so
+   * the heading's nearest ancestor holding buttons is that card.
+   */
+  const choice = (tree: ReactTestRenderer, heading: string, label: string) => {
+    const card = tree.root
+      .findAll((n) => n.type === Card)
+      .find((n) => labelOf(n).includes(heading));
+    const button = card?.findAll(
+      (n) =>
+        n.props?.accessibilityRole === "button" &&
+        typeof n.type !== "string" &&
+        labelOf(n) === label,
+    )[0];
+    if (!button) throw new Error(`no ${label} under ${heading}`);
+    return button;
+  };
+
+  it("saves email notifications both ways", async () => {
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("Never who stepped in");
+    act(() => choice(tree, "Email notifications", "On").props.onPress());
+    expect(mockApp.setEmailNotifications).toHaveBeenLastCalledWith(true);
+    act(() => choice(tree, "Email notifications", "Off").props.onPress());
+    expect(mockApp.setEmailNotifications).toHaveBeenLastCalledWith(false);
+  });
+
+  it("stores push switched off as its negation", async () => {
+    const tree = await openSettings();
+    act(() => choice(tree, "Push notifications", "Off").props.onPress());
+    expect(mockApp.setPushNotificationsOff).toHaveBeenLastCalledWith(true);
+    act(() => choice(tree, "Push notifications", "On").props.onPress());
+    expect(mockApp.setPushNotificationsOff).toHaveBeenLastCalledWith(false);
+  });
+
+  it("says nothing more while iOS allows them", async () => {
+    mockApp.notifications.permission = "granted";
+    const tree = await openSettings();
+    expect(textOf(tree)).not.toContain("Allow Notifications");
+    expect(textOf(tree)).not.toContain("has not been asked");
+  });
+
+  it("gives the steps and Settings when push is on and iOS refuses it", async () => {
+    const open = jest.spyOn(Linking, "openSettings").mockResolvedValue(undefined);
+    mockApp.notifications.permission = "denied";
+    mockApp.notifications.canPrompt = false;
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("switch on Allow Notifications");
+    act(() => findButton(tree, "Open Settings")?.props.onPress());
+    expect(open).toHaveBeenCalled();
+    open.mockRestore();
+  });
+
+  it("offers the dialog when iOS has not been asked", async () => {
+    mockApp.notifications.permission = "undetermined";
+    mockApp.notifications.canPrompt = true;
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("has not been asked");
+    await act(async () =>
+      findButton(tree, "Turn on notifications")?.props.onPress(),
+    );
+    expect(mockApp.notifications.allow).toHaveBeenCalled();
+  });
+
+  it("says nothing about iOS once push is switched off", async () => {
+    mockApp.notifications.permission = "denied";
+    mockApp.pushNotificationsOff = true;
+    const tree = await openSettings();
+    expect(textOf(tree)).not.toContain("Allow Notifications");
+  });
+
+  it("points a browser at the phone", async () => {
+    mockMayHoldToken = false;
+    mockApp.notifications.permission = "denied";
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("on an iPhone");
+    mockMayHoldToken = true;
   });
 });
