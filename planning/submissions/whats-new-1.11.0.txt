@@ -4,7 +4,7 @@ Inviting starts on the People tab. The Invite card under the people offers Invit
 
 Add a contact makes an invite link and opens the share sheet. The link works once, for the first person to open it. Sending a contact request to an email address is gone. In a browser, an invite or community link shows one button, Accept invite or Join community, with Get the app across the top.
 
-The Record tab has the record button, Pause and Stop, and the Audio and Text switches choose what they keep. Pressing record with both off switches both on. Each change of what is kept begins a new line in the log, so audio and text cover the same span. A recording's transcript is read in the log, under its line. The separate transcript screen and transcript search are gone.
+The Record tab has the record button, Pause and Stop, and the Audio and Text switches choose what they keep. Pressing record with both off switches both on. Each change of what is kept begins a new line in the log, so audio and text cover the same span. A recording's transcript is read in the log, under its line, which opens and closes. The separate transcript screen and transcript search are gone.
 
 Pasting is the clipboard glyph on the Record tab. Each paste is kept in the log at the moment it was made, with Copy, and Open for a link. The Clipboard tab is gone.
 
@@ -13,6 +13,8 @@ Several voices on my microphone, on the Record tab, tells apart the people talki
 Every account has sixty free transcription minutes a week, for Transcribe or Text. They come back each Monday.
 
 Notifications are asked for at sign-in. Declining turns on Email notifications in Floor Settings, which sends them to your sign-in address; Push notifications there turns push off on every device.
+
+The app icon shows a number: contact requests and invitations waiting for you, and contacts who are in a channel you can step into. Chimes are silent when the phone is set to silent.
 
 People shows On another call while somebody takes a phone call, and their voice comes back when it ends. Holding the floor and taking a call gives the floor up.
 
