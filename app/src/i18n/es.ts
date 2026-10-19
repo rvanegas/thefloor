@@ -694,6 +694,25 @@ export const es: Strings = {
     privacyPolicy: () => 'Pol\u00edtica de privacidad',
     privacyNote: () =>
       'Qu\u00e9 se guarda, por qu\u00e9 y durante cu\u00e1nto tiempo. Se abre en tu navegador.',
+    pro: () => 'Pro',
+    proPitch: (freeMinutes: number) =>
+      `Transcripci\u00f3n sin el l\u00edmite semanal de ${freeMinutes} minutos gratis. Nada m\u00e1s cambia, y no hay nada m\u00e1s a la venta.`,
+    proSubscribe: (price: string) => `Suscribirse por ${price} al mes`,
+    proUntil: (until: number) =>
+      `Eres Pro hasta el ${new Date(until).toLocaleDateString('es', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })}, cuando se renueva salvo que lo hayas cancelado.`,
+    proTerms: () =>
+      'Se renueva cada mes hasta que lo canceles en los ajustes de tu cuenta de Apple. Eliminar tu cuenta aqu\u00ed no lo cancela.',
+    proManage: () => 'Gestionar suscripci\u00f3n',
+    proRestore: () => 'Restaurar compras',
+    termsOfUse: () => 'Condiciones de uso',
+    proNotFound: () => 'No se encontr\u00f3 ninguna suscripci\u00f3n Pro para esta cuenta.',
+    storeUnreachable: () => 'Ahora mismo no se puede acceder a la App Store.',
+    proNotConfirmed: () =>
+      'La App Store lo acept\u00f3, pero aqu\u00ed todav\u00eda no se pudo confirmar. Se volver\u00e1 a intentar la pr\u00f3xima vez que abras la app.',
     account: () => 'Cuenta',
     signOut: () => 'Cerrar sesi\u00f3n',
     signOutAsk: () => '\u00bfCerrar sesi\u00f3n?',

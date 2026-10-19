@@ -311,6 +311,14 @@ export const mockApp = {
       totals: Array<{ currency: string; cents: number }>;
     } | null,
   })),
+  // Not Pro, and Pro not on sale: what every account sees on a server without
+  // APP_STORE_PRO_PRODUCT, and so what Floor Settings looks like for nearly
+  // every test. The Pro cases replace it. Typed loosely for the reason above.
+  loadPro: jest.fn(async () => ({
+    until: null as number | null,
+    freeMinutes: 60,
+    offer: null as { product: string; accountToken: string } | null,
+  })),
   // No questions asked yet and a slot free, which is the state everybody is
   // in the first time they open the Help screen. The tests about a backlog or
   // an answer replace these, and `resetHarness` puts them back — a test that

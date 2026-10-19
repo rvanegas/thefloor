@@ -11,6 +11,8 @@ import { LeaderboardView } from "../LeaderboardView";
 import { Card, SectionLabel } from "../components";
 import { Alert, Linking, StyleSheet } from "react-native";
 import { chimeIn, warmChimes } from "../../audio/chime";
+import * as iap from "expo-iap";
+import { watchPurchases } from "../../state/purchases";
 import {
   NOW,
   findButton,
@@ -1027,5 +1029,214 @@ describe("the notification switches", () => {
     const tree = await openSettings();
     expect(textOf(tree)).toContain("on an iPhone");
     mockMayHoldToken = true;
+  });
+});
+
+/**
+ * *Pro*, the monthly subscription that lifts the weekly transcription limit,
+ * in its card on Floor Settings. The store is `expo-iap`'s stub in
+ * jest.setup.js; these cases teach it to sell.
+ */
+describe("Pro", () => {
+  const PRODUCT = "co.rvanegas.thefloor.pro.monthly";
+  const TOKEN = "6f1c2a52-0d8e-4b8f-9a4e-3b7d9c1e2f40";
+  const MONTH = 30 * 24 * 60 * 60 * 1000;
+
+  // The store's stub is module-wide and the harness does not know it, so its
+  // call history is cleared here; what each fake answers stays put.
+  beforeEach(() => {
+    for (const fake of Object.values(iap)) {
+      if (jest.isMockFunction(fake)) fake.mockClear();
+    }
+  });
+
+  async function openSettings() {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  }
+
+  const onSale = (until: number | null = null) =>
+    mockApp.loadPro.mockResolvedValueOnce({
+      until,
+      freeMinutes: 60,
+      offer: { product: PRODUCT, accountToken: TOKEN },
+    });
+  const stocked = () =>
+    (iap.fetchProducts as jest.Mock).mockResolvedValueOnce([
+      { id: PRODUCT, displayPrice: "$1.99" },
+    ]);
+
+  /** The listeners `watchPurchases` registered, as StoreKit would call them. */
+  const storeKitDelivers = () => {
+    const calls = (iap.purchaseUpdatedListener as jest.Mock).mock.calls;
+    return calls[calls.length - 1][0] as (purchase: object) => void;
+  };
+  const storeKitFails = () => {
+    const calls = (iap.purchaseErrorListener as jest.Mock).mock.calls;
+    return calls[calls.length - 1][0] as (error: object) => void;
+  };
+
+  const purchase = {
+    productId: PRODUCT,
+    transactionId: "2000000123456789",
+    purchaseToken: "header.payload.signature",
+    platform: "ios",
+  };
+
+  it("draws nothing where Pro is not sold and nobody has it", async () => {
+    const tree = await openSettings();
+    expect(textOf(tree)).not.toContain("weekly limit");
+    expect(textOf(tree)).not.toContain("You are Pro");
+    act(() => tree.unmount());
+  });
+
+  it("draws nothing where the store has not priced it", async () => {
+    // App Store Connect not set up yet: a button that cannot work is worse
+    // than no card.
+    onSale();
+    const tree = await openSettings();
+    expect(findButton(tree, "Subscribe for $1.99 a month")).toBeUndefined();
+    expect(textOf(tree)).not.toContain("weekly limit");
+    act(() => tree.unmount());
+  });
+
+  it("offers it at the store's price, with what it does and how it stops", async () => {
+    onSale();
+    stocked();
+    const tree = await openSettings();
+    const text = textOf(tree);
+    expect(text).toContain("weekly limit of 60 free minutes");
+    expect(findButton(tree, "Subscribe for $1.99 a month")).toBeTruthy();
+    // What App Review looks for beside a subscription: how it renews and stops,
+    // the terms and the privacy policy, and a way to restore.
+    expect(text).toContain("Renews every month until you cancel it");
+    expect(text).toContain("Deleting your account here does not cancel it");
+    expect(findButton(tree, "Terms of Use")).toBeTruthy();
+    expect(findButton(tree, "Restore purchases")).toBeTruthy();
+    act(() => tree.unmount());
+  });
+
+  it("asks StoreKit for the subscription with the account's token", async () => {
+    onSale();
+    stocked();
+    const tree = await openSettings();
+    await act(async () =>
+      findButton(tree, "Subscribe for $1.99 a month")!.props.onPress(),
+    );
+    expect(iap.requestPurchase).toHaveBeenCalledWith({
+      request: { apple: { sku: PRODUCT, appAccountToken: TOKEN } },
+      type: "subs",
+    });
+    expect(
+      findButton(tree, "Subscribe for $1.99 a month")!.props.disabled,
+    ).toBe(true);
+    act(() => tree.unmount());
+  });
+
+  it("gives the button back, silently, when the sheet is cancelled", async () => {
+    onSale();
+    stocked();
+    const tree = await openSettings();
+    const stop = watchPurchases(async () => ({ kind: "later" as const }));
+    await act(async () =>
+      findButton(tree, "Subscribe for $1.99 a month")!.props.onPress(),
+    );
+    await act(async () => storeKitFails()({ code: "user-cancelled", message: "" }));
+    expect(
+      findButton(tree, "Subscribe for $1.99 a month")!.props.disabled,
+    ).toBe(false);
+    expect(textOf(tree)).not.toContain("could not be confirmed");
+    stop();
+    act(() => tree.unmount());
+  });
+
+  it("finishes it only once the server has it, and then says until when", async () => {
+    onSale();
+    stocked();
+    const tree = await openSettings();
+    const upload = jest.fn(async () => ({
+      kind: "recorded" as const,
+      pro: { until: NOW + MONTH, freeMinutes: 60, offer: null },
+    }));
+    const stop = watchPurchases(upload);
+    await act(async () => storeKitDelivers()(purchase));
+
+    expect(upload).toHaveBeenCalledWith("header.payload.signature");
+    expect(iap.finishTransaction).toHaveBeenCalledWith({
+      purchase,
+      isConsumable: false,
+    });
+    expect(textOf(tree)).toContain("You are Pro until");
+    stop();
+    act(() => tree.unmount());
+  });
+
+  it("leaves it unfinished when the server will not have it, and says so", async () => {
+    onSale();
+    stocked();
+    const tree = await openSettings();
+    for (const answer of [{ kind: "refused" as const }, { kind: "later" as const }]) {
+      const stop = watchPurchases(async () => answer);
+      await act(async () => storeKitDelivers()(purchase));
+      stop();
+    }
+    // StoreKit keeps it and offers it again; finishing would be the one way
+    // to lose it.
+    expect(iap.finishTransaction).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain("could not be confirmed here yet");
+    act(() => tree.unmount());
+  });
+
+  it("sends what the store holds at the start", async () => {
+    (iap.getAvailablePurchases as jest.Mock).mockResolvedValueOnce([purchase]);
+    const upload = jest.fn(async () => ({
+      kind: "recorded" as const,
+      pro: { until: NOW + MONTH, freeMinutes: 60, offer: null },
+    }));
+    let stop!: () => void;
+    await act(async () => {
+      stop = watchPurchases(upload);
+    });
+    expect(upload).toHaveBeenCalledWith("header.payload.signature");
+    expect(iap.finishTransaction).toHaveBeenCalled();
+    stop();
+  });
+
+  it("tells a subscriber until when, and where to manage it", async () => {
+    onSale(NOW + MONTH);
+    stocked();
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("You are Pro until");
+    expect(findButton(tree, "Subscribe for $1.99 a month")).toBeUndefined();
+    await act(async () => findButton(tree, "Manage subscription")!.props.onPress());
+    expect(iap.deepLinkToSubscriptions).toHaveBeenCalled();
+    act(() => tree.unmount());
+  });
+
+  it("shows a subscriber their Pro even where Pro is no longer sold", async () => {
+    mockApp.loadPro.mockResolvedValueOnce({
+      until: NOW + MONTH,
+      freeMinutes: 60,
+      offer: null,
+    });
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("You are Pro until");
+    act(() => tree.unmount());
+  });
+
+  it("says so when restoring finds nothing for this account", async () => {
+    onSale();
+    stocked();
+    const tree = await openSettings();
+    // After the restore, the server still says not Pro: whatever the store
+    // held belonged to another account, or there was nothing.
+    onSale();
+    await act(async () => findButton(tree, "Restore purchases")!.props.onPress());
+    expect(iap.restorePurchases).toHaveBeenCalled();
+    expect(textOf(tree)).toContain("No Pro subscription was found");
+    act(() => tree.unmount());
   });
 });

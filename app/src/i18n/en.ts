@@ -899,6 +899,40 @@ export const en = {
     privacyPolicy: () => 'Privacy policy',
     privacyNote: () =>
       'What is stored, why, and for how long. It opens in your browser.',
+    /**
+     * *Pro*, the subscription that lifts the weekly transcription limit — not
+     * the *Pro* transcription model a channel can choose. GLOSSARY.md, *Pro*.
+     */
+    pro: () => 'Pro',
+    proPitch: (freeMinutes: number) =>
+      `Transcription without the weekly limit of ${freeMinutes} free minutes. Nothing else changes, and nothing else is for sale.`,
+    /** `price` is the App Store's own, already in the buyer's currency. */
+    proSubscribe: (price: string) => `Subscribe for ${price} a month`,
+    proUntil: (until: number) =>
+      `You are Pro until ${new Date(until).toLocaleDateString('en', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })}, when it renews unless you have cancelled it.`,
+    /**
+     * Under the button, and required by App Review alongside the links: what
+     * renews, how often, and how it stops — including the one thing somebody
+     * would reasonably assume, that deleting the account here would stop it.
+     */
+    proTerms: () =>
+      'Renews every month until you cancel it in your Apple account settings. Deleting your account here does not cancel it.',
+    proManage: () => 'Manage subscription',
+    proRestore: () => 'Restore purchases',
+    termsOfUse: () => 'Terms of Use',
+    proNotFound: () => 'No Pro subscription was found for this account.',
+    storeUnreachable: () => 'The App Store cannot be reached right now.',
+    /**
+     * The server would not confirm a purchase StoreKit says succeeded. Not
+     * "nothing was charged" — it may have been — and not a dead end: it stays
+     * with the App Store and is sent again at the next launch.
+     */
+    proNotConfirmed: () =>
+      'The App Store took that, but it could not be confirmed here yet. It will be tried again the next time you open the app.',
     account: () => 'Account',
     signOut: () => 'Sign out',
     signOutAsk: () => 'Sign out?',

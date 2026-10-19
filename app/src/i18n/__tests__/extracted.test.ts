@@ -196,6 +196,10 @@ describe('the two languages', () => {
       // A grade name taken from the provider's own model name, which is not
       // translated where they sell it either.
       'channelSettings.transcriptionPro',
+      // The subscription's name — a different Pro from the grade above, and
+      // the name it is sold under in the App Store, which is not translated
+      // either. GLOSSARY.md, *Pro (the subscription)*.
+      'homeSettings.pro',
       // The two language names, which are each written in their own language
       // in both catalogues: the person who cannot read the language the screen
       // is drawn in is the one about to change it, and *Inglés* is no use to

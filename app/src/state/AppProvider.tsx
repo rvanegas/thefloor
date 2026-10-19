@@ -22,6 +22,7 @@ import type {
   ChannelView,
   ScreenDevice,
   SupportView,
+  ProView,
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
@@ -39,6 +40,7 @@ import {
 import { mustUpdate } from '../api/expiry';
 import { receiveLiveLine } from '../live/lines';
 import { api, ApiError, type GuestLinkSummary, onSignedOut } from '../api/http';
+import { watchPurchases } from './purchases';
 import { Realtime, type ConnectionStatus } from '../api/socket';
 import { traceSocket } from '../api/socketTrace';
 import { shouldReport } from './attention';
@@ -592,6 +594,12 @@ interface AppValue extends AppState {
   ping: (channelId: string, targetId: string, text: string) => Promise<void>;
   /** Where to donate, and what you have already given. */
   loadSupport: () => Promise<SupportView>;
+  /**
+   * Whether this account is *Pro*, and how to become it, for Floor Settings.
+   * Read when the screen opens and held nowhere, for `loadSupport`'s reason:
+   * one screen reads it, and a renewal can change it at any moment.
+   */
+  loadPro: () => Promise<ProView>;
   /**
    * The questions you have asked of The Floor, with any answers.
    *
@@ -2101,6 +2109,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.remove();
   }, [state.token]);
 
+  /**
+   * App Store transactions — *Pro* — recorded and then finished, for as long
+   * as somebody is signed in rather than while Floor Settings is open: a
+   * purchase completing after the screen has gone, one left unfinished last
+   * time, and every renewal the phone hears of all reach the server. A no-op
+   * off iOS. See `purchases.ts`.
+   *
+   * Uploaded under whoever is signed in now. That need not be whose it is,
+   * and does not have to be: the server credits the token inside it.
+   */
+  useEffect(() => {
+    const token = state.token;
+    if (!token) return;
+    return watchPurchases(async (signed) => {
+      try {
+        const { pro } = await api.uploadAppStore(token, signed);
+        return { kind: 'recorded', pro };
+      } catch (error) {
+        return error instanceof ApiError && error.status === 422
+          ? { kind: 'refused' }
+          : { kind: 'later' };
+      }
+    });
+  }, [state.token]);
+
   // A tap on a notification, from either direction it can arrive. Mounted once
   // and independent of sign-in state, because the tap that launched the app is
   // read before the stored token has been restored.
@@ -2805,6 +2838,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadSupport: async () => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return api.support(state.token);
+      },
+
+      loadPro: async () => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        return api.pro(state.token);
       },
 
       loadHelp: async () => {

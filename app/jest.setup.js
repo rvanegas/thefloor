@@ -169,6 +169,24 @@ jest.mock('react-native-webview', () => {
   };
 });
 
+// StoreKit, which only a device has, for *Pro*. The default store is reachable
+// and sells nothing: no products, no current purchases, and a purchase request
+// that resolves without a purchase ever arriving. A test that wants a sale
+// replaces `fetchProducts` and drives the captured `purchaseUpdatedListener`.
+jest.mock('expo-iap', () => ({
+  initConnection: jest.fn(async () => true),
+  endConnection: jest.fn(async () => true),
+  fetchProducts: jest.fn(async () => []),
+  getAvailablePurchases: jest.fn(async () => []),
+  requestPurchase: jest.fn(async () => null),
+  finishTransaction: jest.fn(async () => {}),
+  purchaseUpdatedListener: jest.fn(() => ({ remove: jest.fn() })),
+  purchaseErrorListener: jest.fn(() => ({ remove: jest.fn() })),
+  restorePurchases: jest.fn(async () => {}),
+  deepLinkToSubscriptions: jest.fn(async () => {}),
+  ErrorCode: { UserCancelled: 'user-cancelled' },
+}));
+
 /** Holding a screen awake is a device's business, and a no-op off one. */
 jest.mock('expo-keep-awake', () => ({
   activateKeepAwakeAsync: jest.fn(async () => {}),

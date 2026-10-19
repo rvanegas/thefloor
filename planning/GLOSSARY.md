@@ -64,6 +64,7 @@ caused; the list carries the meaning.
 - **Email notifications** — A *Floor Settings* switch, `emailNotifications`: every notification also sent as email to the address you sign in with, arrivals included and paused with them. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
+- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and changes nothing else; not the *Pro* grade of *Transcription model*
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has granted notifications, at the moment they do, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
@@ -128,7 +129,7 @@ caused; the list carries the meaning.
 - **Free minutes** — What an account without the `transcripts_unlimited` mark may spend on transcription each calendar week, from Monday 00:00 UTC: `FREE_TRANSCRIPT_MINUTES`, 60 unless set, shared between a recording's *transcript* (length times stems, held when asked for) and the *live transcript* (each session's open time, billed to whoever switched it on), and kept in `transcript_usage`. Since 2026-10-10, replacing one free transcript per account
 - **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
-- **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel`
+- **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
@@ -2981,6 +2982,26 @@ either: each line is named after its *voice*, which is its *stem*, and there
 is no renaming. Until then a rename or a removal was a *declaration* laid over
 the text.
 
+## Pro (the subscription)
+
+**A monthly App Store subscription that makes an account's transcription
+unmetered** — the hand-set `transcripts_unlimited` mark, bought rather than
+granted. Offered in a card on *Floor Settings*, on an iPhone only; being Pro
+shows on every platform. It lifts the weekly free minutes and changes nothing
+else, and it is the only thing The Floor sells.
+
+**Not the *Pro* transcription model**, which is a grade of speech model a
+channel asks for, shown only to `debug` accounts — being Pro does not choose
+it, and choosing it does not need Pro. In code the subscription is never a
+bare `'pro'`, which is the model's value: it is `ProView`, `ProSubscriptions`,
+`pro_subscriptions`, `GET /pro`. **Not a donation either**: *Chip in* is still
+the Ko-fi link and unlocks nothing. See the 2026-10-19 decision.
+
+A subscription is credited by the `appAccountToken` it carries — a random
+UUID the server gives each account — not by whoever uploads it, and deleting
+the account does not cancel it: Apple bills it until its owner cancels it
+there. `server/src/pro.ts` and `app/src/state/purchases.ts` have the rest.
+
 ## Transcription model
 
 **A channel setting, and drawn only for an account with `debug` set**, since
@@ -5009,6 +5030,7 @@ are settled:
     Leaderboard           Invitaciones
     Chip in               Contribuir
     Floor Settings        Ajustes de The Floor
+    Pro (the subscription) Pro — a name, the same in both
     Push notifications    Notificaciones push
     Email notifications   Notificaciones por correo
     Language              Idioma — the two languages are named in themselves in

@@ -8,6 +8,8 @@ import type {
   PublicAccount,
   ProfileView,
   SupportView,
+  ProView,
+  AppStoreUpload,
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
@@ -400,6 +402,21 @@ export const api = {
       token,
     });
   },
+
+  /** Whether this account is *Pro*, and how to become it. */
+  pro: (token: string) => request<ProView>('/pro', { token }),
+
+  /**
+   * One App Store transaction, as StoreKit signed it. A 422 is one the server
+   * will never accept; anything else that is not a 200 is worth sending again
+   * — see `state/purchases.ts`, which finishes it only on a 200.
+   */
+  uploadAppStore: (token: string, signedTransaction: string) =>
+    request<{ pro: ProView }>('/pro/apple', {
+      method: 'POST',
+      token,
+      body: { signedTransaction } satisfies AppStoreUpload,
+    }),
 
   /**
    * The questions this person has asked of us, and whether they may ask

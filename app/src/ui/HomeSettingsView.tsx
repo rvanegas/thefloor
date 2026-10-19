@@ -1,9 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
 import { showRoutePicker } from '../audio/routePicker';
 import { mayHoldToken } from '../push';
 import { useApp } from '../state/AppProvider';
+import {
+  available as purchasesAvailable,
+  loadOffer,
+  manage,
+  onPurchase,
+  restore,
+  subscribe,
+  type Offer,
+} from '../state/purchases';
 import { forgetInstall } from '../state/storage';
 import {
   Button,
@@ -17,6 +26,7 @@ import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 import type { LanguagePreference } from '../../../core/settings';
 import { useText } from '../i18n';
+import type { ProView } from '../../../core/protocol';
 
 /**
  * The app and the account: how it looks, what it stores, and the two ways out.
@@ -603,6 +613,8 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         <Text style={type.muted}>{t.privacyNote()}</Text>
       </Card>
 
+      <ProCard />
+
       <SectionLabel>{t.account()}</SectionLabel>
       <Card style={styles.stack}>
         <Button
@@ -721,6 +733,163 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
     </Screen>
+  );
+}
+
+/**
+ * Apple's standard licence, which a subscription with no terms of its own is
+ * sold under, and which App Review asks the purchase screen to link to.
+ */
+const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+
+/**
+ * *Pro*: the monthly subscription that lifts the weekly transcription limit.
+ * Not the *Pro* transcription model a channel chooses — GLOSSARY.md, *Pro*.
+ *
+ * **Drawn only when there is something to say**: to somebody who is Pro, on
+ * any platform, and to somebody who could buy it — an iPhone, a server
+ * selling it, and a store that has priced it. Everybody else, which is every
+ * account on a server without APP_STORE_PRO_PRODUCT, sees no card at all
+ * rather than one explaining why they cannot have it.
+ *
+ * Recording and finishing a purchase is not done here; `state/purchases.ts`
+ * keeps doing it after this screen closes, and tells this card what happened.
+ *
+ * Every button is `default`. On this screen `primary` marks the option in
+ * force within a choice, and a subscription is not one of those.
+ */
+function ProCard() {
+  const app = useApp();
+  const t = useText().homeSettings;
+  const [view, setView] = useState<ProView | null>(null);
+  const [offer, setOffer] = useState<Offer | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const pro = await app.loadPro();
+        if (cancelled) return;
+        // Priced before the card is drawn, so it does not appear and then
+        // grow a button a moment later.
+        const priced = pro.offer
+          ? await loadOffer(pro.offer.product).catch(() => null)
+          : null;
+        if (cancelled) return;
+        setOffer(priced);
+        setView(pro);
+      } catch {
+        // An older server, or one that failed: no card, as for a server that
+        // does not sell it. Nothing here is worth an error on a settings page.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [app.token]);
+
+  useEffect(
+    () =>
+      onPurchase((event) => {
+        setBusy(false);
+        if (event.kind === 'recorded') {
+          setMessage(null);
+          setView(event.pro);
+        } else if (event.kind === 'failed') {
+          setMessage(event.message ?? t.proNotConfirmed());
+        }
+      }),
+    [t]
+  );
+
+  if (!view) return null;
+  const until = view.until;
+  const canBuy = purchasesAvailable && !!offer && !!view.offer;
+  if (until === null && !canBuy) return null;
+
+  const buy = async () => {
+    if (!offer || !view.offer) return;
+    setMessage(null);
+    setBusy(true);
+    try {
+      if (!(await subscribe(offer.product, view.offer.accountToken))) {
+        setBusy(false);
+        setMessage(t.storeUnreachable());
+      }
+    } catch (e) {
+      setBusy(false);
+      setMessage(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const restoreThem = async () => {
+    setMessage(null);
+    setBusy(true);
+    try {
+      if (!(await restore())) {
+        setMessage(t.storeUnreachable());
+        return;
+      }
+      // Whatever the store held has been sent by now; the server's answer is
+      // what decides, since a subscription belongs to the account it was
+      // bought under rather than to whoever restores it.
+      const pro = await app.loadPro();
+      setView(pro);
+      if (pro.until === null) setMessage(t.proNotFound());
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const open = (url: string) => void Linking.openURL(url).catch(() => {});
+
+  return (
+    <>
+      <SectionLabel>{t.pro()}</SectionLabel>
+      <Card style={styles.stack}>
+        {until !== null ? (
+          <Text style={type.muted}>{t.proUntil(until)}</Text>
+        ) : (
+          <Text style={type.muted}>{t.proPitch(view.freeMinutes)}</Text>
+        )}
+        {until === null && canBuy ? (
+          <Button
+            label={t.proSubscribe(offer!.price)}
+            disabled={busy}
+            onPress={() => void buy()}
+          />
+        ) : null}
+        {until !== null && purchasesAvailable ? (
+          <Button label={t.proManage()} onPress={() => void manage()} />
+        ) : null}
+        {canBuy ? (
+          <>
+            <Text style={type.muted}>{t.proTerms()}</Text>
+            {/*
+              Stacked: at 375 points a card is about 310 wide, and
+              *Condiciones de uso* does not fit half of it.
+            */}
+            <Button label={t.termsOfUse()} onPress={() => open(APPLE_TERMS_OF_USE)} />
+            {API_URL ? (
+              <Button
+                label={t.privacyPolicy()}
+                onPress={() => open(`${API_URL}/privacy`)}
+              />
+            ) : null}
+            <Button
+              label={t.proRestore()}
+              disabled={busy}
+              onPress={() => void restoreThem()}
+            />
+          </>
+        ) : null}
+        {message ? <Text style={styles.error}>{message}</Text> : null}
+      </Card>
+    </>
   );
 }
 
