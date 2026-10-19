@@ -68,11 +68,11 @@
           "UIInterfaceOrientationLandscapeRight"
         ]
       },
-      "buildNumber": "379"
+      "buildNumber": "380"
     },
     "android": {
       "package": "co.rvanegas.thefloor",
-      "versionCode": 379,
+      "versionCode": 380,
       "permissions": [
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS",
