@@ -11,8 +11,11 @@ Pod::Spec.new do |s|
   s.static_framework = true
 
   s.dependency 'ExpoModulesCore'
-  # For RTCAudioSession: CallKit's activation is forwarded to WebRTC natively.
-  s.dependency 'WebRTC-SDK'
+  # For LKRTCAudioSession: CallKit's activation is forwarded to WebRTC natively.
+  # The same pod @livekit/react-native-webrtc links, unversioned so it takes
+  # that one; naming the unprefixed WebRTC-SDK instead would link a second
+  # WebRTC whose session nothing else uses, and the forwarding would go nowhere.
+  s.dependency 'LiveKitWebRTC'
 
   s.pod_target_xcconfig = {
     'DEFINES_MODULE' => 'YES',

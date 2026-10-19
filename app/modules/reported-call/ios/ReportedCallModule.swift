@@ -1,7 +1,7 @@
 import AVFoundation
 import CallKit
 import ExpoModulesCore
-import WebRTC
+import LiveKitWebRTC
 import os
 
 /**
@@ -30,7 +30,7 @@ import os
  * The app still starts its own session first, as it did before; the spike
  * showed CallKit's `didActivate` following about 190ms later on the same `CALL`
  * configuration, with no conflict. `didActivate` and `didDeactivate` are passed
- * to `RTCAudioSession` here, natively, with no JavaScript in the path. And
+ * to `LKRTCAudioSession` here, natively, with no JavaScript in the path. And
  * while CallKit holds the session the app's own `releaseSession` fails
  * (`-12988`), so `holdsSession` tells the teardown to leave the release to
  * CallKit, which makes it within a second.
@@ -193,7 +193,7 @@ public class ReportedCallModule: Module {
       emit("interruption not recovered: \(error.localizedDescription)")
       return false
     }
-    let rtc = RTCAudioSession.sharedInstance()
+    let rtc = LKRTCAudioSession.sharedInstance()
     rtc.audioSessionDidDeactivate(session)
     rtc.audioSessionDidActivate(session)
     emit("interruption ended by the app \(session.category.rawValue)/\(session.mode.rawValue)")
@@ -474,14 +474,14 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
   }
 
   func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
-    RTCAudioSession.sharedInstance().audioSessionDidActivate(audioSession)
+    LKRTCAudioSession.sharedInstance().audioSessionDidActivate(audioSession)
     module?.holdsSession = true
     module?.interrupted = false
     module?.emit("activated \(audioSession.category.rawValue)/\(audioSession.mode.rawValue)")
   }
 
   func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
-    RTCAudioSession.sharedInstance().audioSessionDidDeactivate(audioSession)
+    LKRTCAudioSession.sharedInstance().audioSessionDidDeactivate(audioSession)
     module?.holdsSession = false
     module?.emit("deactivated")
   }
