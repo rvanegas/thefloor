@@ -632,9 +632,8 @@ export function buildApp(options: BuildOptions = {}): App {
         {
           contacts: accounts.contactsFor(userId),
           invites: channels.invitesFor(userId),
-          rejoinable: channels.rejoinableFor(userId),
         },
-        channels.standingIn(userId)
+        channels.aboutFor(userId)
       ),
     addressesFor: (userIds) => {
       const byAccount = new Map<string, string[]>();

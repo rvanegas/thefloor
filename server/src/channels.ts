@@ -3410,6 +3410,29 @@ export class ChannelRegistry {
   }
 
   /**
+   * Everybody else present or nearby in a channel this person can step into,
+   * which is what the icon badge counts their contacts against.
+   *
+   * The channels are `rejoinableFor`'s, so an invitation not yet answered is
+   * not one, and its rule is not written twice. In a seat, the people in the
+   * room only: who is standing beside it is not a guest's to read, which is
+   * why that row's `nearbyCount` is nought.
+   */
+  aboutFor(userId: string): Set<string> {
+    const about = new Set<string>();
+    for (const view of this.rejoinableFor(userId)) {
+      const channel = this.channels.get(view.channelId);
+      if (!channel) continue;
+      for (const id of channel.present) {
+        if (!view.seat || !(id in channel.disconnectedAt)) about.add(id);
+      }
+      if (!view.seat) for (const id of channel.waiting) about.add(id);
+    }
+    about.delete(userId);
+    return about;
+  }
+
+  /**
    * Whether two people are in any live channel together.
    *
    * Membership rather than presence: being in a channel with somebody is a

@@ -56,7 +56,7 @@ caused; the list carries the meaning.
 - **Community page** — What a community link shows in a browser: since 2026-10-15 the community and one button, *Join community* — the app on iOS, the web app elsewhere — with *Get the app* in a bar across the top as its prerequisite, and Safari's Smart App Banner. Hands straight on to the web app only on a box with no App Store. Names no member
 - **Contact** — Somebody you have both agreed to be in touch with
 - **Contacts** — The other of Home's two lists: the same people indexed by name rather than by room
-- **Icon badge** — The number on the app's icon, since 2026-10-18: contact requests you can answer, plus *invitations*, plus *live* rooms you belong to or hold a *seat* in — not the one you are standing in, and not one somebody is merely *nearby*. A state rather than a tally, so it falls as each is answered or empties. iOS only. `badgeCount` in core, sent by `BadgeKeeper`; not the `badge` prop, which draws a *Dab*
+- **Icon badge** — The number on the app's icon, since 2026-10-18: contact requests you can answer, plus *invitations*, plus *contacts* who are *present* or *nearby* in at least one channel you belong to or hold a *seat* in — each counted once, and the room you are standing in included. Live rooms until later the same day. A state rather than a tally, so it falls as each is answered or leaves. iOS only. `badgeCount` in core, sent by `BadgeKeeper`; not the `badge` prop, which draws a *Dab*
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
 - **Description** — One line or two of plain text saying what a channel is, written on *Channel Settings* by anybody with the room and offered only to a *public channel* and a *community*, whose pages (and the podcast's *feed*) are where it is read. It was the *notepad*, on a tab of the channel screen, from 2026-09-12 to 2026-09-27. `description` in the code, which never moved
 - **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
@@ -792,9 +792,10 @@ Decline or Withdraw on itself.
 ## Icon badge
 
 **The number iOS draws on the app's icon**, since 2026-10-18: what is waiting
-for you on Home, counted. Contact requests you can answer, every *invitation*
-(memberships and seats, live or not), and every *live* room you belong to or
-hold a seat in. `badgeCount` in `core/badge.ts` says what it counts;
+for you, and who is about. Contact requests you can answer, every *invitation*
+(memberships and seats, live or not), and every *contact* who is *present* or
+*nearby* in at least one channel you belong to or hold a seat in — people
+rather than rooms, each counted once. `badgeCount` in `core/badge.ts` says what it counts;
 `BadgeKeeper` in `server/src/badges.ts` sends it, as a push carrying nothing
 but the number, whenever it changes.
 
@@ -804,9 +805,11 @@ something marks it read, and here everything it would count already leaves
 Home on its own — a request answered, a room emptied. Opening the app does not
 clear it, and nothing has to.
 
-**Not the room you are standing in, and not a room somebody is only
-*nearby*.** The first is not waiting for you; the second has nobody in it to
-step in beside, though Home files it under *Live*.
+**Live rooms until later on 2026-10-18**, not counting the one you stood in
+or one somebody was only *nearby*. Now a contact beside you counts, and so
+does one who is only nearby; somebody who is not a contact never does. In a
+seat, only the people actually in the room, since who is beside it is not a
+guest's to read.
 
 **Not the `badge` prop**, which is how a *Dab* is asked for and is words rather
 than a number. The two are different marks on different surfaces and share an

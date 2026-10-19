@@ -105,7 +105,7 @@ describe('the app icon badge', () => {
     expect(answered).toEqual([0, 1, 0]);
   });
 
-  it('counts a room with somebody in it, and not one you are in', async () => {
+  it('counts a contact who is present, including beside you', async () => {
     const alice = await signIn('alice@example.com', 'Alice');
     const bob = await signIn('bob@example.com', 'Bob');
     await register(bob, 'bob-phone');
@@ -116,13 +116,28 @@ describe('the app icon badge', () => {
     await app.channels.mediaToken(channelId, alice.account.id);
     await settle();
     expect(setter.countsFor('bob-phone').at(-1)).toBe(1);
-    // Alice is standing in it, so it is not waiting for her.
+    // Bob is nowhere, so there is nobody about for Alice.
     expect(setter.countsFor('alice-phone').at(-1)).toBe(0);
 
+    // In the room together, each is about for the other.
     app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
     await app.channels.mediaToken(channelId, bob.account.id);
     await settle();
-    expect(setter.countsFor('bob-phone').at(-1)).toBe(0);
+    expect(setter.countsFor('bob-phone').at(-1)).toBe(1);
+    expect(setter.countsFor('alice-phone').at(-1)).toBe(1);
+  });
+
+  it('counts a contact who is only nearby', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const bob = await signIn('bob@example.com', 'Bob');
+    await register(bob, 'bob-phone');
+    const { channelId } = await contacts(alice, bob);
+
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'DECLARE_NEARBY',
+    });
+    await settle();
+    expect(setter.countsFor('bob-phone').at(-1)).toBe(1);
   });
 
   it('is not resent when the count has not moved', async () => {

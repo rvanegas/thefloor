@@ -1,46 +1,39 @@
 /**
- * The number on the app's icon: everything on Home that is waiting for you.
+ * The number on the app's icon: what is waiting for you, and who is about.
  *
- * Three things, each already a row on Home, so the icon and the screen it
- * opens onto cannot disagree about what is there:
+ * Three things, each something Home shows:
  *
  * - **contact requests you can answer** — the incoming ones only. An outgoing
  *   request is one only the other person can settle, and a number that
  *   tapping through cannot bring down is the one thing a badge must not be.
  * - **invitations**, memberships and seats alike — every one, live or not,
  *   which is the *waiting bar*'s count rather than the *Invitations* section's.
- * - **live rooms you can step into** — a channel you belong to, or hold a seat
- *   in, with somebody connected in it. `rejoinable` excludes invitations, so
- *   an invitation with somebody in it is counted once, as an invitation.
+ * - **contacts who are about** — *present* or *nearby* in at least one channel
+ *   you can step into, passed as `about`. Each is counted once however many
+ *   rooms they are in, so the number is people rather than places, and
+ *   somebody who is not your contact is not counted at all.
  *
- * **Not a room you are standing in yourself**, which is passed as `standingIn`.
- * The badge says what is waiting, and a room you are already in is not waiting
- * for you — while it is the only live one, it would put a 1 on the icon of a
- * phone in a pocket for exactly as long as its owner is talking.
+ * **A room you are standing in is not left out**, as it was while this counted
+ * live rooms: a contact beside you is still a contact who is about.
  *
- * **Somebody nearby does not count**, though Home files such a room under
- * *Live*. Nobody is in it, so there is nothing to step into yet. The word is
- * the glossary's: *live* is somebody in it right now.
- *
- * Typed on the three fields it reads rather than on `HomeView`, so the server
- * can ask it without composing the rest of a Home snapshot.
+ * Typed on the fields it reads rather than on `HomeView`, so the server can
+ * ask it without composing the rest of a Home snapshot.
  *
  * A state rather than a tally of notifications sent, so it falls on its own as
- * a request is answered or a room empties, and there is nothing to mark seen.
+ * a request is answered or a contact leaves, and there is nothing to mark seen.
  */
 export function badgeCount(
   home: {
-    contacts: ReadonlyArray<{ status: string }>;
+    contacts: ReadonlyArray<{ account: { id: string }; status: string }>;
     invites: readonly unknown[];
-    rejoinable: ReadonlyArray<{ channelId: string; presentCount: number }>;
   },
-  standingIn: readonly string[]
+  about: ReadonlySet<string>
 ): number {
   const requests = home.contacts.filter(
     (entry) => entry.status === 'incoming'
   ).length;
-  const live = home.rejoinable.filter(
-    (entry) => entry.presentCount > 0 && !standingIn.includes(entry.channelId)
+  const company = home.contacts.filter(
+    (entry) => entry.status === 'accepted' && about.has(entry.account.id)
   ).length;
-  return requests + home.invites.length + live;
+  return requests + home.invites.length + company;
 }

@@ -1,50 +1,51 @@
 import { badgeCount } from '../badge';
 
-const room = (channelId: string, presentCount: number) => ({
-  channelId,
-  presentCount,
+const contact = (id: string, status = 'accepted') => ({
+  account: { id },
+  status,
 });
+const none = new Set<string>();
 
 describe('badgeCount', () => {
   it('is nought for a Home with nothing waiting', () => {
-    expect(badgeCount({ contacts: [], invites: [], rejoinable: [] }, [])).toBe(0);
+    expect(badgeCount({ contacts: [], invites: [] }, none)).toBe(0);
   });
 
   it('counts requests you can answer, and not the ones you sent', () => {
     const contacts = [
-      { status: 'incoming' },
-      { status: 'incoming' },
-      { status: 'outgoing' },
-      { status: 'accepted' },
+      contact('a', 'incoming'),
+      contact('b', 'incoming'),
+      contact('', 'outgoing'),
+      contact('c'),
     ];
-    expect(badgeCount({ contacts, invites: [], rejoinable: [] }, [])).toBe(2);
+    expect(badgeCount({ contacts, invites: [] }, none)).toBe(2);
   });
 
   it('counts every invitation', () => {
+    expect(badgeCount({ contacts: [], invites: [{}, {}, {}] }, none)).toBe(3);
+  });
+
+  it('counts the contacts who are about, and not the others', () => {
+    const contacts = [contact('a'), contact('b'), contact('c')];
+    expect(badgeCount({ contacts, invites: [] }, new Set(['a', 'c']))).toBe(2);
+  });
+
+  it('counts nobody who is about but is not a contact', () => {
+    const contacts = [contact('a'), contact('b', 'incoming')];
+    // `b` is counted once, as a request, and `z` is a stranger.
     expect(
-      badgeCount({ contacts: [], invites: [{}, {}, {}], rejoinable: [] }, [])
-    ).toBe(3);
-  });
-
-  it('counts the rooms with somebody in them, and not the empty ones', () => {
-    const rejoinable = [room('a', 2), room('b', 0), room('c', 1)];
-    expect(badgeCount({ contacts: [], invites: [], rejoinable }, [])).toBe(2);
-  });
-
-  it('leaves out the room you are standing in yourself', () => {
-    const rejoinable = [room('a', 2), room('c', 1)];
-    expect(badgeCount({ contacts: [], invites: [], rejoinable }, ['a'])).toBe(1);
+      badgeCount({ contacts, invites: [] }, new Set(['b', 'z']))
+    ).toBe(1);
   });
 
   it('adds the three together', () => {
     expect(
       badgeCount(
         {
-          contacts: [{ status: 'incoming' }],
+          contacts: [contact('a', 'incoming'), contact('b')],
           invites: [{}],
-          rejoinable: [room('a', 1)],
         },
-        []
+        new Set(['b'])
       )
     ).toBe(3);
   });
