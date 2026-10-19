@@ -65,6 +65,7 @@ GLOSSARY.md's one-line list, which is worth reading routinely.
 | [SHIMS.md](SHIMS.md) | Every shim kept for older installs, by the build that retires it | When `MIN_SUPPORTED_BUILD` moves, and in the commit that adds a shim |
 | [STATES.md](STATES.md) | What each state is called in each layer, when it holds, and where two layers can differ | Before touching the floor, the microphone, presence or the audio session |
 | [STYLE.md](STYLE.md) | What the app looks like and why: colour tokens, type roles, controls, cards, rows, icons | Before adding or changing a screen, a control or a colour; edit it in the same commit |
+| [WATCH-SYNC.md](WATCH-SYNC.md) | Where a watch party's timing authority lies: the server's `WatchState`, the presses and reports that may change it, and how each screen follows it on `serverNow` | Before touching the transport, the follower, `WATCH_STARTED` / `WATCH_READY` or the clock offset; edit it in the same commit |
 
 `MARKETING.pdf`, `PROPOSITION.pdf` and any other PDF here are renders for
 reading offline. `.gitignore` excludes them, so they exist only in the checkout
