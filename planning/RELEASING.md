@@ -717,7 +717,12 @@ sign-in will change nothing on the label.
 correct, and the reason no ATT prompt and no `NSUserTrackingUsageDescription`
 belongs anywhere near this app — and an **empty `NSPrivacyCollectedDataTypes`**.
 
-That emptiness was justified on the meter: the manifest describes collection by
+**Since SDK 55 the file is generated from `app.json`'s
+`ios.privacyManifests`**, and that is where to change it. SDK 54's template
+carried the file and 55's does not, so a prebuild without the key produces an
+app with no manifest at all, and says nothing.
+
+The empty collected-data list was justified on the meter: the manifest describes collection by
 app and SDK *code*, and the meter is derived server-side from sessions rather
 than sent as telemetry. True of the meter, and **not true of the rest of the
 table** — the client posts an email address and a display name and publishes

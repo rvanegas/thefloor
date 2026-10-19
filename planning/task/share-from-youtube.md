@@ -30,7 +30,7 @@ step nearer. What goes is the app switch, the navigation and the clipboard.
 **All the cost is native.** A share extension is a second Xcode target, which
 `expo prebuild` cannot write — the reason `app/plugins/with-live-activity.js`
 exists, so the pattern is in the tree. Either a hand-written plugin on that
-model or `expo-share-intent` (check its SDK 54 support). The extension forwards
+model or `expo-share-intent` (check its SDK 55 support). The extension forwards
 the URL on a new `thefloor://` path, read the way `useChannelLink.ts` reads
 its own — `getInitialURL` and the listener both, or a cold launch drops it.
 Rebuild and upload.

@@ -225,12 +225,12 @@ Line *length* is not a constraint — a read truncates at 2,000 characters.
 
 # Expo HAS CHANGED
 
-This project is on **Expo SDK 54**. Read the exact versioned docs at
-https://docs.expo.dev/versions/v54.0.0/ before writing any code.
+This project is on **Expo SDK 55**. Read the exact versioned docs at
+https://docs.expo.dev/versions/v55.0.0/ before writing any code.
 
-It is on 54 rather than the latest because `@livekit/react-native-webrtc`'s
-config plugin had no SDK 57 release. Check that before proposing an upgrade —
-the media layer is what pins the version, not preference.
+It is on 55 rather than the latest because the upgrade goes one SDK at a time,
+and the hop to 56 brings `@livekit/react-native` 3.0's migration. Read
+`planning/task/upgrade-expo-and-react-native.md` before proposing the next.
 
 Confirm against `app/package.json` rather than trusting this line; a file
 saying which version you are on is a file that can be wrong, and this one

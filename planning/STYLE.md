@@ -1546,7 +1546,7 @@ It carries pane identity and never tokens.
 
 Twenty glyphs, **vendored** from `lucide-static@1.38.0` as path data in
 `icons.tsx`, each carrying the name it came from. Not `lucide-react-native`:
-Metro does not tree-shake by default on SDK 54, so the barrel import that
+Metro does not tree-shake by default on SDK 54 or 55, so the barrel import that
 reads most naturally risks dragging a 25MB package into the graph.
 
 The cost of vendoring is that a mistyped path is silent — it draws the wrong
