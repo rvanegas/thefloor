@@ -1253,7 +1253,7 @@ anybody who wants it, which is the answer to "why not just always".
 
 
 **Where the sources disagree.** Three writers touch this, and it is **process-
-wide shared mutable state** (`RTCAudioSessionConfiguration.webRTCConfiguration`):
+wide shared mutable state** (`LKRTCAudioSessionConfiguration.webRTCConfiguration`):
 this app, the SDK's native policy observer on every audio-engine transition, and
 WebRTC re-applying its own defaults. Last writer wins, and the observer wins
 every race it enters — it runs on the audio worker thread at the transition
@@ -1264,7 +1264,7 @@ configures.** Under a *reported call* the app still starts its own session
 first, and CallKit's `didActivate` follows about 190ms later on the same
 `CALL` configuration — `playAndRecord`, `videoChat`, loudspeaker — with no
 conflict measured. `modules/reported-call` passes `didActivate` and
-`didDeactivate` to `RTCAudioSession` natively. It writes no category, so the
+`didDeactivate` to `LKRTCAudioSession` natively. It writes no category, so the
 table above still holds, and `LISTENING` under a call has a cost, below. See
 `decision/2026-10-08-a-channel-is-an-outgoing-call-and-channel-view-is-its-screen.md`.
 
@@ -1276,7 +1276,7 @@ came — and the app returning to the foreground restarted the engine against a
 session CallKit still had on hold: `playout frozen`, until a step-out and back.
 So `modules/reported-call` watches every call on the device (`CXCallObserver`)
 and asks for `CXSetHeldCallAction(onHold: false)` once no other call is up.
-CallKit's `didActivate` follows, which `RTCAudioSession` treats as the end of
+CallKit's `didActivate` follows, which `LKRTCAudioSession` treats as the end of
 the interruption, and the engine restarts on a live session. The room is told
 both ways as `ON_ANOTHER_CALL` — GLOSSARY.md § *On another call*.
 

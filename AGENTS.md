@@ -229,7 +229,7 @@ This project is on **Expo SDK 55**. Read the exact versioned docs at
 https://docs.expo.dev/versions/v55.0.0/ before writing any code.
 
 It is on 55 rather than the latest because the upgrade goes one SDK at a time,
-and the hop to 56 brings `@livekit/react-native` 3.0's migration. Read
+and 56 needs Xcode 26.4 and raises the iOS floor to 16.4. Read
 `planning/task/upgrade-expo-and-react-native.md` before proposing the next.
 
 Confirm against `app/package.json` rather than trusting this line; a file

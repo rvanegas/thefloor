@@ -54,12 +54,19 @@ arrives next: a library worth having whose newest version has moved past 0.81.
 
 ## What will actually break, in order of how much it will hurt
 
-1. **LiveKit and WebRTC, at the hop to 56.** `@livekit/react-native` is now
-   **3.0.0** against this app's `^2.12.0` — a major, with its own migration,
-   independent of Expo. The plugin that once blocked it no longer does:
-   **`@livekit/react-native-expo-plugin@1.0.3` peers `^2.1.0 || ^3.0.0`**
-   (1.0.2 peered `^2.1.0` only). `@config-plugins/react-native-webrtc` 15.x
-   peers `expo ^56`, and is the version 56 takes.
+1. **LiveKit is no longer part of this.** It moved to 3.0 on SDK 55, as its
+   own step and not an SDK hop's — nothing in 56's peers asks for it, and an
+   audio change and a runtime change are better not shipped in one build.
+   What 56 still takes is `@config-plugins/react-native-webrtc` 15.x, which
+   peers `expo ^56`. LiveKit 3.1 is a separate, later step again: it moves
+   WebRTC to 150 and needs the Expo plugin's 1.1.0 for the podspec source.
+
+   **The trap LiveKit 3.0 carried was `modules/reported-call`**, and any local
+   module that touches WebRTC natively will carry it again. The prefix arrived
+   with `@livekit/react-native-webrtc` 144.2.0 — `WebRTC-SDK` became
+   `LiveKitWebRTC`, `RTCAudioSession` became `LKRTCAudioSession` — and a module
+   still depending on the old pod *compiles*: it links a second WebRTC and
+   forwards CallKit's activation to a session nothing uses.
 2. **The four local native modules.** `modules/live-activity`,
    `modules/call-service`, `modules/audio-route` and `modules/reported-call` are
    Swift and Kotlin against
