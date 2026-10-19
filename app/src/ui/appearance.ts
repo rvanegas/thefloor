@@ -18,9 +18,12 @@ import {
  * second source of colour: the same mechanism that follows the system setting
  * carries the override too.
  *
- * `null` is the system, and is what `setColorScheme` wants for "stop
- * overriding" — so the stored value and the platform call agree, and there is
- * no third representation to convert between.
+ * `'unspecified'` is what `setColorScheme` wants for "stop overriding", since
+ * React Native 0.83 (SDK 55); before that it was `null`, which 0.83 no longer
+ * types and whose cached scheme it no longer refreshes. The native side maps
+ * either to `UIUserInterfaceStyleUnspecified`, so the window follows the
+ * system again — but only `'unspecified'` makes `Appearance` re-read what the
+ * system now says.
  */
 export type { ColorSchemePreference };
 
@@ -83,5 +86,7 @@ export function applyPreference(preference: ColorSchemePreference): void {
     return;
   }
   if (Platform.OS !== 'ios') return;
-  Appearance.setColorScheme(preference === 'system' ? null : preference);
+  Appearance.setColorScheme(
+    preference === 'system' ? 'unspecified' : preference
+  );
 }

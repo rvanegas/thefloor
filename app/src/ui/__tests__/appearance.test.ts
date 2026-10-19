@@ -7,7 +7,7 @@ import { applyPreference, isPreference } from '../appearance';
  * "System" is not a third scheme to apply — it is the *absence* of an
  * override, which is what lets the phone go on changing its mind (on a
  * schedule, say) after the app has been told to follow it. Sending 'system'
- * where null belongs would pin the app to whatever it happened to be.
+ * where 'unspecified' belongs would pin the app to whatever it happened to be.
  */
 describe('applying a colour scheme preference', () => {
   const setColorScheme = jest.spyOn(Appearance, 'setColorScheme');
@@ -25,7 +25,7 @@ describe('applying a colour scheme preference', () => {
   it('clears the override for system, rather than pinning the current one', () => {
     applyPreference('system');
     if (Platform.OS === 'ios') {
-      expect(setColorScheme).toHaveBeenCalledWith(null);
+      expect(setColorScheme).toHaveBeenCalledWith('unspecified');
     }
   });
 });

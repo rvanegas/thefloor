@@ -39,7 +39,7 @@ describe('choosing a scheme in a browser', () => {
   /**
    * `system` removes the attribute rather than naming a scheme, so
    * `prefers-color-scheme` is consulted again — the same reason iOS passes
-   * `null` to `setColorScheme`. Setting it to the string "system" would match
+   * `'unspecified'` to `setColorScheme`. Setting it to the string "system" would match
    * neither selector and leave the app on whatever bare `:root` carries,
    * which is light, whatever the operating system says.
    */
