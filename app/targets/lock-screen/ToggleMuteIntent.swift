@@ -1,7 +1,8 @@
 import AppIntents
 
 #if !LOCKSCREEN_WIDGET_EXTENSION
-  import LiveActivity
+  // Explicitly internal: LockScreenController.swift says why.
+  internal import LiveActivity
 #endif
 
 /**

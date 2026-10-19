@@ -1,6 +1,6 @@
 import ActivityKit
 import Foundation
-import LiveActivity
+public import LiveActivity
 import UIKit
 
 /**
@@ -16,6 +16,14 @@ import UIKit
 
  The dependency runs the only way it can: an app target may import a pod, so
  `import LiveActivity` above is fine and the reverse would not be.
+
+ **The import says `public`, and the two intents' say `internal`, because
+ since SDK 55 the generated `ExpoModulesProvider.swift` writes `internal import
+ LiveActivity` into this same module** — and Swift refuses a module imported
+ explicitly in one file and implicitly in another ("ambiguous implicit access
+ level"). Public here because this class conforms to `LockScreenHost` and
+ takes a `LockScreenPayload` in public methods; an `internal` import would
+ refuse both.
 
  **Everything is `iOS 16.1` or later, against a 15.1 deployment target.** A
  phone below that gets no card and a channel that works exactly as it did
