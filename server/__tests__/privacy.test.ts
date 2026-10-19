@@ -10,6 +10,7 @@ import {
 } from '../../core/constants';
 import { NOTIFY_HEADER } from '../src/release';
 import { buildApp, type App } from '../src/app';
+import { toTransaction, type AppStoreVerifier } from '../src/appStore';
 import { PRIVACY_UPDATED } from '../src/privacy';
 import { MemoryTranscription } from '../src/transcription';
 
@@ -307,6 +308,63 @@ describe('The privacy policy', () => {
       app = buildApp({ dbPath, cohortHosts: [] });
       expect(app.channels.hasCohorts()).toBe(true);
       expect(await collapsed()).toContain(COHORT_CHANNEL_NAME);
+    });
+  });
+
+  describe('on Pro', () => {
+    const collapsed = async () =>
+      (await fetchPolicy()).body.replace(/\s+/g, ' ');
+    const PRODUCT = 'co.rvanegas.thefloor.pro.monthly';
+    const verifier: AppStoreVerifier = {
+      transaction: async (signed) => toTransaction(JSON.parse(signed)),
+      notification: async () => null,
+    };
+
+    it('says nothing about it where it is not sold', async () => {
+      app = buildApp({ dbPath: ':memory:' });
+      expect(await collapsed()).not.toContain('<h2>Pro</h2>');
+      expect(await collapsed()).not.toContain('Apple sells Pro');
+    });
+
+    it('says what Apple tells this server, and what deleting does not do', async () => {
+      app = buildApp({ dbPath: ':memory:', pro: { productId: PRODUCT, verifier } });
+      const page = await collapsed();
+      expect(page).toContain('<h2>Pro</h2>');
+      expect(page).toContain('never sees your card or your Apple ID');
+      // The one thing somebody would reasonably assume the other way.
+      expect(page).toContain('Deleting your account does not cancel the subscription.');
+      expect(page).toContain('Apple sells Pro.');
+    });
+
+    it('goes on describing subscriptions already recorded after it is taken off sale', async () => {
+      const dbPath = join(mkdtempSync(join(tmpdir(), 'privacy-pro-')), 'floor.db');
+      app = buildApp({ dbPath, pro: { productId: PRODUCT, verifier } });
+      const code = app.accounts.issueCode('me@example.com', Date.now())!;
+      const { token } = (
+        await app.fastify.inject({
+          method: 'POST',
+          url: '/auth/verify',
+          payload: { identifier: 'me@example.com', code },
+        })
+      ).json();
+      await app.fastify.inject({
+        method: 'POST',
+        url: '/pro/apple',
+        headers: { authorization: `Bearer ${token}` },
+        payload: {
+          signedTransaction: JSON.stringify({
+            transactionId: '1',
+            productId: PRODUCT,
+            type: 'Auto-Renewable Subscription',
+            expiresDate: Date.now() + 1000,
+          }),
+        },
+      });
+      app.channels.stop();
+      await app.fastify.close();
+
+      app = buildApp({ dbPath });
+      expect(await collapsed()).toContain('<h2>Pro</h2>');
     });
   });
 

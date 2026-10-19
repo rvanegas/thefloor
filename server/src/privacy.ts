@@ -18,7 +18,7 @@ import { escapeHtml, page, socialCard } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '4 October 2026';
+export const PRIVACY_UPDATED = '19 October 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -120,10 +120,18 @@ export interface PolicyOptions {
    * provider receives only what somebody asked to have transcribed.
    */
   liveTranscription?: boolean;
+  /**
+   * Whether *Pro* is sold here, or any subscription is still recorded —
+   * `cohorts`' two conditions, for its reason: the rows outlive the setting,
+   * and a page that stopped describing what this server holds about somebody
+   * because the product was taken off sale would be withdrawing a disclosure
+   * rather than a feature.
+   */
+  pro?: boolean;
 }
 
 export function privacyPage(options: PolicyOptions = {}): string {
-  const { contactEmail, transcription, cohorts } = options;
+  const { contactEmail, transcription, cohorts, pro } = options;
   const live = !!(options.liveTranscription && transcription);
   const contact = contactEmail
     ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>`
@@ -454,7 +462,23 @@ different address than you signed in with, the donation is simply not connected
 to you. Deleting your account disconnects any donation from it; the record of
 the payment itself stays, with Ko-fi and here, because it is money that changed
 hands rather than something about you.</p>
-
+${
+  pro
+    ? `<h2>Pro</h2>
+<p>Pro is a monthly subscription, bought on an iPhone through Apple under
+Apple’s own privacy policy, that lifts the weekly limit on free transcription
+and changes nothing else. The Floor never sees your card or your Apple ID.
+Apple tells this server when your subscription begins, renews, ends or is
+refunded, along with a random identifier this server gave your account so the
+subscription can be connected to you.</p>
+<p><strong>Deleting your account does not cancel the subscription.</strong>
+Apple bills it, and only you can stop it, in your Apple account’s settings.
+Deleting your account disconnects the subscription from it and forgets the
+identifier; the record of the subscription itself stays, with Apple and here,
+because it is money that changed hands.</p>
+`
+    : ''
+}
 ${cohortSection}<h2>Communities</h2>
 <p>A community is a channel its owner opens to anybody holding its link. The
 page that link opens shows the community's name, its description and how many
@@ -470,7 +494,7 @@ screen.</p>
 <h2>Who else can see any of it</h2>
 <p>Amazon Web Services stores the recordings and sends the sign-in emails. Apple
 and Google deliver notifications, each to their own phones. Ko-fi handles
-donations.${
+donations.${pro ? ' Apple sells Pro.' : ''}${
       provider
         ? ` ${provider} transcribes a recording when somebody asks it to${live ? ', and a channel\u2019s speech as it happens where its live transcript is on' : ''}.`
         : ''

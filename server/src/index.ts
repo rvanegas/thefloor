@@ -11,6 +11,7 @@ import {
   type LiveActivityEnder,
   type Pusher,
 } from './push';
+import { appleVerifier } from './appStore';
 import { deployed, MIN_SUPPORTED_BUILD } from './release';
 import { S3RecordingStore } from './storage';
 import {
@@ -257,6 +258,18 @@ const kofi =
     : undefined;
 
 /**
+ * *Pro*, the monthly subscription that makes transcription unmetered.
+ * APP_STORE_PRO_PRODUCT is its product id, exactly as created in App Store
+ * Connect; unset, it is not on sale, and anybody already subscribed stays Pro
+ * until their period ends. Nothing else is needed: verifying Apple's
+ * signature takes the root certificate in server/certs and two identifiers
+ * that are constants in appStore.ts. No key — that is only for calling
+ * Apple's API, which this does not.
+ */
+const proProduct = process.env.APP_STORE_PRO_PRODUCT?.trim() || undefined;
+const pro = proProduct ? { productId: proProduct, verifier: appleVerifier() } : undefined;
+
+/**
  * Transcription, which is optional and is off by default — including on the
  * box, deliberately, until the phases after this one exist to use it.
  *
@@ -318,6 +331,7 @@ const app = buildApp({
   cohortHosts,
   switchAccounts,
   kofi,
+  pro,
   contactEmail: process.env.CONTACT_EMAIL,
   // Where a build below MIN_SUPPORTED_BUILD is sent. Configuration rather than
   // a constant because the App Store id is not known in this repository, and
@@ -377,6 +391,7 @@ app.fastify
         // interchangeable, and that should be visible without reading .env.
         switchAccounts: switchAccounts.length > 0 ? switchAccounts : 'none',
         donations: kofiVerificationToken ? 'ko-fi' : 'not configured',
+        pro: proProduct ?? 'not on sale',
         // Worth a line for the same reason `review` is: it changes what a
         // public page claims, and reading .env is not how anybody should have
         // to find out which.

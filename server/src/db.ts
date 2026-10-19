@@ -1079,6 +1079,39 @@ CREATE TABLE IF NOT EXISTS donations (
 );
 CREATE INDEX IF NOT EXISTS donations_account ON donations(account_id);
 
+-- Pro subscriptions, one row per subscription: keyed on Apple's original
+-- transaction id, which every renewal shares, holding the furthest period this
+-- server has been shown. Written only from transactions Apple signed, uploaded
+-- by the app or sent as notifications; see pro.ts. Apple is the record.
+CREATE TABLE IF NOT EXISTS pro_subscriptions (
+  original_transaction_id TEXT PRIMARY KEY,
+  -- Whose it is: the account whose token it carried, which need not be whoever
+  -- uploaded it. Null once that account is deleted, which does not cancel the
+  -- subscription with Apple — only its owner can, in their Apple account.
+  account_id            TEXT REFERENCES accounts(id),
+  product_id            TEXT NOT NULL,
+  -- 'Production' or 'Sandbox'. Sandbox is TestFlight, App Review and the
+  -- sandbox tester, whose months last minutes; it grants Pro all the same, and
+  -- anything about real money filters on this.
+  environment           TEXT NOT NULL,
+  expires_at            INTEGER,
+  -- Set by a refund or revocation; cleared only by a later period that is not.
+  revoked_at            INTEGER,
+  latest_transaction_id TEXT NOT NULL,
+  updated_at            INTEGER NOT NULL,
+  -- The latest transaction as decoded, kept whole.
+  raw                   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS pro_subscriptions_account ON pro_subscriptions(account_id);
+
+-- The appAccountToken each account's purchases carry: a UUID, because that is
+-- all StoreKit accepts and account ids are not one. Random and stored rather
+-- than derived, so a purchase is credited by looking its token up.
+CREATE TABLE IF NOT EXISTS app_store_tokens (
+  token      TEXT PRIMARY KEY,
+  account_id TEXT NOT NULL UNIQUE REFERENCES accounts(id)
+);
+
 -- Channels are held in memory while live; this is the record written when one
 -- ends, for history and to anchor recordings.
 -- initiator_id/invitee_id predate channels holding more than two people.

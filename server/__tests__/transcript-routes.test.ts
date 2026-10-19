@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { weekStartOf } from '../src/accounts';
 import { buildApp, type App } from '../src/app';
+import { toTransaction, type AppStoreVerifier } from '../src/appStore';
+import { PRO_LEEWAY_MS } from '../src/pro';
 import type { RecordingRow } from '../src/db';
 import { MemoryMailer } from '../src/mail';
 import { MemoryRecordingStore } from '../src/storage';
@@ -50,6 +52,12 @@ async function tone(name: string): Promise<Buffer> {
   return readFile(path);
 }
 
+/** Reads a "signed" transaction as its payload; see pro.test.ts. */
+const fakeAppStore: AppStoreVerifier = {
+  transaction: async (signed) => toTransaction(JSON.parse(signed)),
+  notification: async () => null,
+};
+
 function build(withProvider = true, freeTranscriptMinutes?: number) {
   store = new MemoryRecordingStore();
   app = buildApp({
@@ -59,6 +67,7 @@ function build(withProvider = true, freeTranscriptMinutes?: number) {
     transcription: withProvider ? provider : undefined,
     freeTranscriptMinutes,
     now: () => clock,
+    pro: { productId: 'co.rvanegas.thefloor.pro.monthly', verifier: fakeAppStore },
   });
 }
 
@@ -1065,4 +1074,61 @@ describe('what the recordings list carries', () => {
     const { alice } = await room();
     expect(listedFor(alice.account.id).transcript).toBeUndefined();
   });
+});
+
+/**
+ * *Pro*, which is the unlimited mark bought rather than set by hand — so it
+ * is held to the same nothing, and only for as long as it is paid for.
+ */
+describe('an account that is Pro', () => {
+  const MONTH = 30 * 24 * 60 * 60 * 1000;
+
+  beforeEach(async () => {
+    build(true, 0.25);
+    store.put('a.ogg', await tone('a.ogg'));
+    store.put('b.ogg', await tone('b.ogg'));
+  });
+
+  async function subscribe(token: string) {
+    const offer = (
+      await app.fastify.inject({ method: 'GET', url: '/pro', headers: auth(token) })
+    ).json().offer;
+    const answered = await app.fastify.inject({
+      method: 'POST',
+      url: '/pro/apple',
+      headers: auth(token),
+      payload: {
+        signedTransaction: JSON.stringify({
+          transactionId: '2000000000000001',
+          originalTransactionId: '2000000000000001',
+          productId: offer.product,
+          type: 'Auto-Renewable Subscription',
+          appAccountToken: offer.accountToken,
+          expiresDate: clock + MONTH,
+          environment: 'Sandbox',
+        }),
+      },
+    });
+    expect(answered.statusCode).toBe(200);
+  }
+
+  it('is not held to the minutes while it is paid for, and is again after', async () => {
+    const { bob } = await room();
+    await ask(bob.token);
+    await app.transcripts.settled();
+    await ask(bob.token, 'DELETE');
+    expect((await ask(bob.token)).statusCode).toBe(403);
+
+    await subscribe(bob.token);
+    expect((await ask(bob.token)).statusCode).toBe(200);
+    await app.transcripts.settled();
+    // Spends nothing it has a limited amount of, as the hand-set mark does.
+    expect(listedFor(bob.account.id).transcript!.spendsFreeUse).toBeUndefined();
+
+    // A month and a day later, with no renewal heard of, the account is
+    // metered again: asking would spend this week's free minutes. (They have
+    // reset by then, so a refusal is not the thing to look for.)
+    clock += MONTH + PRO_LEEWAY_MS + 1;
+    expect(listedFor(bob.account.id).transcript!.spendsFreeUse).toBe(true);
+  }, 60_000);
 });

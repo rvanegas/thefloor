@@ -9,6 +9,7 @@ import websocket from '@fastify/websocket';
 import fastifyStatic from '@fastify/static';
 import type {
   HomeView,
+  ProView,
   PublicAccount,
   RecordingView,
 } from '../../core/protocol';
@@ -49,6 +50,7 @@ import { Devices, type DevicePlatform } from './devices';
 import { LiveActivities } from './live-activities';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
+import { ProSubscriptions, type ProOptions } from './pro';
 import { artworkKeyFor, MAX_ARTWORK_BYTES, readArtwork } from './artwork';
 import {
   joinRecordings,
@@ -270,6 +272,12 @@ export interface BuildOptions {
    */
   kofi?: { url?: string; verificationToken?: string };
   /**
+   * *Pro*, the subscription that makes transcription unmetered. Absent and it
+   * is not on sale: `GET /pro` offers nothing and uploads answer 503, while
+   * anybody already subscribed stays Pro until their period ends. See pro.ts.
+   */
+  pro?: ProOptions;
+  /**
    * Where somebody reads the privacy policy and wants to write to a person —
    * including to ask for their account to be deleted, which the policy promises.
    *
@@ -346,6 +354,7 @@ export interface App {
   channels: ChannelRegistry;
   devices: Devices;
   donations: Donations;
+  pro: ProSubscriptions;
   transcripts: Transcripts;
   help: Help;
   /** What `bin/diagnostics` reads. Here so a test can see what was kept. */
@@ -445,6 +454,7 @@ export function buildApp(options: BuildOptions = {}): App {
     accounts,
     options.kofi?.verificationToken
   );
+  const pro = new ProSubscriptions(db, options.pro);
   const help = new Help(db);
   // Never the review accounts, whatever `.env` says — see switching.ts. A
   // refusal is logged once, at startup, which is when somebody is looking.
@@ -2848,6 +2858,9 @@ export function buildApp(options: BuildOptions = {}): App {
       // withdrawing a disclosure rather than a feature. See
       // PolicyOptions.cohorts.
       cohorts: (options.cohortHosts?.length ?? 0) > 0 || channels.hasCohorts(),
+      // Sold now, or subscribed to before: the same two conditions, for the
+      // same reason. See PolicyOptions.pro.
+      pro: pro.product !== null || pro.hasRecords(),
     });
   });
 
@@ -3049,6 +3062,85 @@ export function buildApp(options: BuildOptions = {}): App {
         return reply.code(401).send({ error: 'Unauthorized' });
       }
       return reply.code(400).send({ error: 'Unreadable payload.' });
+    }
+    return { ok: true };
+  });
+
+  // --- Pro ----------------------------------------------------------------
+
+  /** What Floor Settings shows about Pro, for whoever is asking. */
+  function proView(accountId: string): ProView {
+    return {
+      until: pro.activeUntil(accountId, now()),
+      freeMinutes: freeAllowanceMs / 60_000,
+      // Minted on the first visit to Floor Settings while Pro is on sale, and
+      // offered whether or not they are Pro already: StoreKit is what says a
+      // subscriber cannot buy it twice, and the screen asks it, not this.
+      offer: pro.product
+        ? { product: pro.product, accountToken: pro.accountToken(accountId) }
+        : null,
+    };
+  }
+
+  /**
+   * Whether this account is Pro, and how to become it. A route of its own for
+   * `/donations`' reason: one screen reads it, when it opens.
+   */
+  fastify.get('/pro', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    return proView(account.id);
+  });
+
+  /**
+   * A subscription transaction, uploaded by the app that holds it — after a
+   * purchase, and again at every launch for whatever StoreKit says is current.
+   *
+   * Authenticated, though the session proves nothing about whose it is: the
+   * token inside Apple's signature does. **The app finishes a transaction only
+   * on a 200**, so 503 means "send it again later" and 422 means "this is not
+   * genuine", and neither loses anything.
+   */
+  fastify.post('/pro/apple', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { signedTransaction } = (request.body ?? {}) as {
+      signedTransaction?: unknown;
+    };
+    if (typeof signedTransaction !== 'string' || signedTransaction === '') {
+      return reply.code(400).send({ error: 'No transaction.' });
+    }
+    const result = await pro.record(signedTransaction, now());
+    if (!result.ok) {
+      if (result.reason === 'unverified') {
+        return reply.code(422).send({ error: 'That purchase could not be verified.' });
+      }
+      return reply.code(503).send({ error: 'Purchases cannot be recorded right now.' });
+    }
+    return { pro: proView(account.id) };
+  });
+
+  /**
+   * App Store Server Notifications, version 2: renewals, lapses, refunds.
+   * Unauthenticated for Ko-fi's reason — Apple holds no token of ours and its
+   * signature is the whole proof.
+   *
+   * The URL is entered in App Store Connect under the app's App Information,
+   * and moving this path means editing it there in the same breath. Named
+   * for the store rather than for Pro, since there is one such URL per app.
+   * A non-200 is retried by Apple, so anything verified answers 200.
+   */
+  fastify.post('/app-store/notifications', async (request, reply) => {
+    const { signedPayload } = (request.body ?? {}) as { signedPayload?: unknown };
+    if (typeof signedPayload !== 'string' || signedPayload === '') {
+      return reply.code(400).send({ error: 'Unreadable payload.' });
+    }
+    const result = await pro.notification(signedPayload, now());
+    if (!result.ok) {
+      if (result.reason === 'unverified') {
+        return reply.code(401).send({ error: 'Unauthorized' });
+      }
+      return reply.code(503).send({ error: 'Not configured.' });
     }
     return { ok: true };
   });
@@ -5997,12 +6089,13 @@ export function buildApp(options: BuildOptions = {}): App {
 
   /**
    * Whether this account's transcribing is unmetered: the
-   * `transcripts_unlimited` mark, and nothing else since 2026-10-10, when
-   * `TRANSCRIBE_IDENTIFIER` was retired. Resolved on each call, so setting
-   * the mark by hand takes effect without a restart.
+   * `transcripts_unlimited` mark, set by hand, or *Pro*, bought. Nothing else
+   * since 2026-10-10, when `TRANSCRIBE_IDENTIFIER` was retired. Resolved on
+   * each call, so setting the mark takes effect without a restart and Pro
+   * lapses on time.
    */
   function transcribesFreely(userId: string): boolean {
-    return accounts.transcribesUnlimited(userId);
+    return accounts.transcribesUnlimited(userId) || pro.isPro(userId, now());
   }
 
   /** This week's free transcription minutes, in milliseconds. */
@@ -6207,6 +6300,7 @@ export function buildApp(options: BuildOptions = {}): App {
     channels,
     devices,
     donations,
+    pro,
     transcripts,
     help,
     diagnostics,

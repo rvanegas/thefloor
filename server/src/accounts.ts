@@ -3092,6 +3092,16 @@ export class Accounts {
         'UPDATE donations SET account_id = NULL, matched_by = NULL WHERE account_id = ?'
       )
       .run(accountId);
+    // A Pro subscription is unlinked the same way, for the same reason, and
+    // deleting the account does not cancel it — Apple bills it, and only its
+    // owner can stop that, in their Apple account. The privacy page says so.
+    // The token goes outright: it names this account.
+    this.db
+      .prepare('UPDATE pro_subscriptions SET account_id = NULL WHERE account_id = ?')
+      .run(accountId);
+    this.db
+      .prepare('DELETE FROM app_store_tokens WHERE account_id = ?')
+      .run(accountId);
     // Deleted outright, and the contrast with the line above is the point: a
     // donation is money that changed hands and has a counterparty holding the
     // same record, so unlinking it keeps two ends agreeing. A question is a

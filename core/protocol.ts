@@ -835,6 +835,43 @@ export interface SupportView {
 }
 
 /**
+ * What Floor Settings is told about *Pro*: the monthly subscription that makes
+ * transcription unmetered. Fetched when that screen opens, for `SupportView`'s
+ * reason. Not the *Pro* transcription model, which is a channel setting.
+ */
+export interface ProView {
+  /**
+   * When the current period ends, while this account is Pro — renewing then
+   * unless it was cancelled with Apple. Null when it is not Pro. An account
+   * marked unlimited by hand is not Pro and reads null here.
+   */
+  until: number | null;
+  /** The free transcription allowance Pro removes, in minutes a week. */
+  freeMinutes: number;
+  /**
+   * How to buy it, on a phone that can. Null when this server does not sell
+   * it, which withdraws the offer and leaves the status above alone.
+   */
+  offer: {
+    /** The StoreKit product id; the price comes from the store, never here. */
+    product: string;
+    /**
+     * The `appAccountToken` to pass with the purchase — a UUID, because that
+     * is all StoreKit takes, and how the server knows whose it is.
+     */
+    accountToken: string;
+  } | null;
+}
+
+/**
+ * The body of `POST /pro/apple`: a transaction exactly as StoreKit signed it.
+ * Nothing else is sent, because nothing else would be believed.
+ */
+export interface AppStoreUpload {
+  signedTransaction: string;
+}
+
+/**
  * One question somebody asked of The Floor, and the answer if it has been
  * written yet.
  *
