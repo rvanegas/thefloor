@@ -25,7 +25,7 @@ and "Lock channel".
 
 NEW: People ends in an Invite card: "Invite as member" or "Invite as guest",
 then a contact, or a link at the foot. On Record, Audio and Text choose what
-the record button keeps, and Transcribe is on a recording's row.
+the record button keeps; open a recording's header for Transcribe.
 
 WHY UIBackgroundModes HAS voip: stepping into a channel is reported to
 CallKit as an outgoing call, so it shows in Recents and other calls meet it
@@ -36,9 +36,10 @@ Floor Settings, from Home: Language, "Choose where sound comes out", Email,
 
 NOT BUGS: a channel holds you on one device at a time; "Claim the floor" is
 unavailable while alone; Ping is offered only to somebody in the channel or
-nearby it; Audio off is final until the room empties; the room is muted while a
-film plays on the device you stepped in on; a podcast needs a named channel;
-removing a member needs a second member to agree, except a community's owner.
+nearby it; chimes obey the silent switch; Audio off is final until the room
+empties; the room is muted while a film plays on the device you stepped in on;
+a podcast needs a named channel; removing a member needs a second member to
+agree, except a community's owner.
 
 4. EXTERNAL SERVICES
 LiveKit (open-source, self-hosted) for audio and recordings; S3 stores them and
