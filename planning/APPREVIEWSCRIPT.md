@@ -95,6 +95,11 @@ whether the thing works, not for a pitch.
     recordings.
 13. **The donation link.** Support → Chip in, showing it opens Ko-fi in the
     browser and unlocks nothing. US storefront only, which is worth saying.
+    **Then Pro, once `APP_STORE_PRO_PRODUCT` is set on the box**: Floor
+    Settings → Pro, subscribe as the sandbox tester, and show the card turning
+    to *You are Pro until…* — and that the terms, privacy and restore are on
+    the card. Pro lifts the transcription limit and nothing else; the donation
+    above still unlocks nothing.
 14. **Privacy policy**, from Settings, opening in the browser.
 15. **Sign out**, then back in, to show nothing was lost.
 16. **Delete the account. Last.** Settings → Delete account, confirm, and show
