@@ -1,5 +1,7 @@
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import { Platform } from 'react-native';
+import { shareText, type Handoff } from '../share';
 import { API_URL } from './config';
 import { ApiError, reportSignedOut } from './http';
 
@@ -41,12 +43,7 @@ async function shareOgg(
   const directory = `${FileSystem.cacheDirectory}exports/`;
   await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
 
-  // A name alone is not unique: a named channel lends its name to every
-  // recording made in it, so several files would collide in the share sheet
-  // and in whatever folder they land in. When it ended is what tells them
-  // apart, and it is the thing a person would look for anyway.
-  const safeName = name.replace(/[^\w\- ]/g, '').trim() || 'channel';
-  const target = `${directory}The Floor — ${safeName} — ${stamp(at)}.ogg`;
+  const target = `${directory}${exportName(name, at)}.ogg`;
 
   let result: FileSystem.FileSystemDownloadResult;
   try {
@@ -84,6 +81,54 @@ async function shareOgg(
     UTI: 'public.audio',
     dialogTitle,
   });
+}
+
+/**
+ * A segment's text, handed over as a `.txt` file named as its audio is.
+ *
+ * A file rather than a message, since 2026-10-20: a message lands wherever
+ * the receiving application puts pasted text, and the audio beside it lands
+ * as a file, so the two halves of one segment ended up in different places
+ * under no common name. Sharing both now leaves `… — 2026-08-11 1437.ogg`
+ * and `… — 2026-08-11 1437.txt` side by side in whatever folder took them.
+ *
+ * **The web still gets the message**, and the clipboard behind it: a browser
+ * has no file system to write to, and `shareText` already knows what to do
+ * where there is nothing to share to at all.
+ */
+export async function shareTextFile(
+  text: string,
+  name: string,
+  at: number
+): Promise<Handoff> {
+  if (Platform.OS === 'web' || !(await Sharing.isAvailableAsync())) {
+    return shareText(text);
+  }
+  const directory = `${FileSystem.cacheDirectory}exports/`;
+  await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
+  const target = `${directory}${exportName(name, at)}.txt`;
+  await FileSystem.writeAsStringAsync(target, text);
+  // `shareAsync` resolves alike whether the sheet was used or dismissed, so
+  // there is no telling the two apart here; neither is reported to anybody.
+  await Sharing.shareAsync(target, {
+    mimeType: 'text/plain',
+    UTI: 'public.plain-text',
+    dialogTitle: name,
+  });
+  return 'shared';
+}
+
+/**
+ * The basename every exported file of a channel's shares, extension aside.
+ *
+ * A name alone is not unique: a named channel lends its name to every
+ * recording made in it, so several files would collide in the share sheet
+ * and in whatever folder they land in. When it ended is what tells them
+ * apart, and it is the thing a person would look for anyway.
+ */
+function exportName(name: string, at: number): string {
+  const safeName = name.replace(/[^\w\- ]/g, '').trim() || 'channel';
+  return `The Floor — ${safeName} — ${stamp(at)}`;
 }
 
 /**

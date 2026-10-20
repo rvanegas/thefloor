@@ -311,8 +311,8 @@ describe('merging lines', () => {
   of its own — its hours, what it kept, its share — with its text under it.
 */
 describe('rooms on the Record tab', () => {
-  const { shareRecording } = require('../../api/download');
-  const { ActionSheetIOS, Share } = require('react-native');
+  const { shareRecording, shareTextFile } = require('../../api/download');
+  const { ActionSheetIOS } = require('react-native');
 
   /** A segment's share, named by its hours. The tests run as iOS. */
   const sharesOf = (tree: ReturnType<typeof render>) =>
@@ -525,14 +525,15 @@ describe('rooms on the Record tab', () => {
     const sheet = jest
       .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
       .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
-    const handed = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction } as never);
+    shareTextFile.mockClear();
     await act(async () => shareOf(tree).props.onPress());
-    const message = (handed.mock.calls[0][0] as { message: string }).message;
+    // A file, named as its audio is: the recording's name and end.
+    const [message, , endedAt] = shareTextFile.mock.calls[0];
+    expect(endedAt).toBe(old.endedAt);
     expect(message).toContain('first in batch\nthen more');
     expect(message).toContain('and Dana');
     expect(message).not.toContain('said during the old one');
     sheet.mockRestore();
-    handed.mockRestore();
     transcript.mockRestore();
     act(() => tree.unmount());
   });
@@ -621,7 +622,7 @@ describe('rooms on the Record tab', () => {
     const sheet = jest
       .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
       .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
-    const handed = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction } as never);
+    shareTextFile.mockClear();
     shareRecording.mockClear();
     showChannel(transcribed());
     const tree = render(screen());
@@ -631,11 +632,12 @@ describe('rooms on the Record tab', () => {
     await act(async () => shareOf(tree).props.onPress());
     expect(sheet.mock.calls[0][0]).toMatchObject({ disabledButtonIndices: [0] });
     expect(shareRecording).not.toHaveBeenCalled();
-    const message = (handed.mock.calls[0][0] as { message: string }).message;
+    // No audio to be named after, so the segment's own end stands in.
+    const [message, , endedAt] = shareTextFile.mock.calls[0];
+    expect(endedAt).toBe(NOW + 60_000);
     expect(message).toContain('only written down\nand again');
     expect(message).not.toContain('before the room');
     sheet.mockRestore();
-    handed.mockRestore();
     act(() => tree.unmount());
   });
 

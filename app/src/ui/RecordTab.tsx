@@ -31,12 +31,11 @@ import type {
 } from '../../../core/protocol';
 import { intoBlocks, lettered, type TranscriptBlock } from '../../../core/transcript';
 import type { ChannelState, Keep } from '../../../core/types';
-import { shareRecording } from '../api/download';
+import { shareRecording, shareTextFile } from '../api/download';
 import { api } from '../api/http';
 import { copyText } from '../clipboard';
 import { subscribeLiveLines } from '../live/lines';
 import { useApp } from '../state/AppProvider';
-import { shareText } from '../share';
 import { useText, type Strings } from '../i18n';
 import { Button, Empty, IconButton, useScrollPosition } from './components';
 import { ClipboardIcon, PauseIcon, RecordingsIcon, ShareIcon, StopIcon } from './icons';
@@ -507,8 +506,12 @@ export function SegmentLine({
       if (what === 'audio' && recording) {
         await shareRecording(app.token, recording.id, name, recording.endedAt);
       } else {
-        const handed = await shareText(
-          await segmentText(app.token, channelId, item, t)
+        // Stamped as its audio is, so the two files sort and pair together;
+        // a text kept alone has only the segment's own end to go by.
+        const handed = await shareTextFile(
+          await segmentText(app.token, channelId, item, t),
+          name,
+          recording?.endedAt ?? segment.endedAt ?? Date.now()
         );
         if (handed === 'copied') Alert.alert(t.roomTextCopied());
         if (handed === 'failed') Alert.alert(t.couldNotShareKept());

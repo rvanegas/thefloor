@@ -11,6 +11,7 @@
  */
 
 const downloads: string[] = [];
+const writes: Array<{ uri: string; text: string }> = [];
 const moves: Array<{ from: string; to: string }> = [];
 const shared: Array<{ uri: string; dialogTitle?: string; mimeType?: string }> =
   [];
@@ -24,6 +25,9 @@ jest.mock('expo-file-system/legacy', () => ({
   deleteAsync: jest.fn(async () => {}),
   moveAsync: jest.fn(async ({ from, to }: { from: string; to: string }) => {
     moves.push({ from, to });
+  }),
+  writeAsStringAsync: jest.fn(async (uri: string, text: string) => {
+    writes.push({ uri, text });
   }),
   downloadAsync: jest.fn(async (_url: string, target: string) => {
     downloads.push(target);
@@ -58,6 +62,7 @@ const ENDED = new Date(2026, 7, 11, 14, 37, 5).getTime();
 
 beforeEach(() => {
   downloads.length = 0;
+  writes.length = 0;
   moves.length = 0;
   shared.length = 0;
   mockHeaders = {};
@@ -137,5 +142,23 @@ describe('a shared track’s filename', () => {
     const { shareTrack } = load();
     await shareTrack('token', 'chan_1', '///');
     expect(moves[0].to).toBe('file:///cache/exports/track.mp3');
+  });
+});
+
+describe('a shared segment’s text', () => {
+  it('is a .txt file under the basename its audio gets', async () => {
+    const { shareRecording, shareTextFile } = load();
+    await shareRecording('token', 'rec_1', 'Thursday rehearsal', ENDED);
+    const handed = await shareTextFile('Alice · 14:30\nhello', 'Thursday rehearsal', ENDED);
+
+    expect(handed).toBe('shared');
+    expect(writes).toEqual([
+      {
+        uri: 'file:///cache/exports/The Floor — Thursday rehearsal — 2026-08-11 1437.txt',
+        text: 'Alice · 14:30\nhello',
+      },
+    ]);
+    expect(shared[1]).toMatchObject({ uri: writes[0].uri, mimeType: 'text/plain' });
+    expect(downloads[0].replace(/\.ogg$/, '')).toBe(writes[0].uri.replace(/\.txt$/, ''));
   });
 });
