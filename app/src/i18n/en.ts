@@ -49,8 +49,11 @@ export const en = {
      * language may make a different one.
      */
     labelWithBadge: (label: string, badge: string) => `${label}, ${badge}`,
-    /** A paste button's sublabel while the clipboard holds nothing it takes. */
-    copySomethingFirst: () => 'Copy something first',
+    /**
+     * The line under a paste button while the clipboard holds nothing it
+     * takes: the fact first, since the greyed button is all that says it.
+     */
+    copySomethingFirst: () => 'Nothing on your clipboard — copy something first',
   },
   offline: {
     partlyConnected: () => 'Partly connected',
@@ -1534,7 +1537,8 @@ export const en = {
     openInYouTube: () => 'Open in YouTube',
     watchSomethingTogether: () => 'Watch something together',
     watchSomethingTogetherSub: () => 'A YouTube link on your clipboard',
-    copyAYouTubeLinkFirst: () => 'Copy a YouTube link first',
+    copyAYouTubeLinkFirst: () =>
+      'Nothing on your clipboard — copy a YouTube link first',
     hideWhatWeHaveWatched: () => 'Hide what we have watched',
     watchedBefore: (count: number) => `Watched before (${count})`,
     watchedBeforeSub: () => 'Puts one of them back on, without a link',

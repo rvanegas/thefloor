@@ -4134,7 +4134,7 @@ export function ChannelView({
                       <PasteButton
                         label={t.watchThisInstead()}
                         sublabel={t.watchThisInsteadSub()}
-                        emptySublabel={t.copyAYouTubeLinkFirst()}
+                        emptyNote={t.copyAYouTubeLinkFirst()}
                         variant="primary"
                         style={styles.flexButton}
                         disabled={!mayStartWatch}
@@ -4367,7 +4367,7 @@ export function ChannelView({
                 <PasteButton
                   label={t.watchSomethingTogether()}
                   sublabel={t.watchSomethingTogetherSub()}
-                  emptySublabel={t.copyAYouTubeLinkFirst()}
+                  emptyNote={t.copyAYouTubeLinkFirst()}
                   disabled={!mayStartWatch}
                   onPaste={pasteWatchUrl}
                 />

@@ -459,8 +459,12 @@ What that costs, all of it forced:
 - **Nor an empty one: on a device it draws nothing** when the clipboard holds
   no text or link — not grey, nothing, the caption left under a blank slot.
   The simulator draws it anyway. So the clipboard is asked first, without
-  being read, and an empty one gets the disabled `Button` too, its sublabel
-  saying what to copy — *Copy a YouTube link first* on the watch card.
+  being read, and an empty one gets the disabled `Button` too, **with a line
+  beneath it** in `textMuted`, where the caption goes — *Nothing on your
+  clipboard — copy a YouTube link first* on the watch card. Not in its
+  sublabel, as it was until 2026-10-20: a disabled `Button` draws the
+  sublabel `textFaint` on grey with the rest of it, so the one sentence
+  explaining the grey went unread.
 - **A row holding one is top-aligned** (`buttonRowTop`), since the caption
   would otherwise stretch its neighbour.
 

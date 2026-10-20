@@ -48,9 +48,16 @@ import { colors, spacing, type } from './theme';
  * device the control does not grey itself for that, as was assumed when it
  * went in: it draws nothing, and the caption sat under an empty slot. So the
  * clipboard is asked first — without being read, see
- * `useClipboardHasPasteable` — and an empty one gets the disabled `Button`
- * with `emptySublabel`, which says what to go and do rather than what the
- * press would have done.
+ * `useClipboardHasPasteable` — and an empty one gets the disabled `Button`.
+ *
+ * **Why it is disabled is a line beneath it, since 2026-10-20**, not its
+ * sublabel. The sublabel was swapped for *what to copy* until then, but a
+ * disabled `Button` draws its sublabel in `textFaint` on the `disabled` fill
+ * like its label, so the one sentence explaining the grey was itself grey: a
+ * button that did nothing and said nothing anybody read. `emptyNote` is drawn
+ * where the system control's caption goes, in `textMuted`, saying first that
+ * the clipboard is empty — the button keeps its own words, so the card reads
+ * the same either side of a copy.
  *
  * **And it is drawn afresh whenever the clipboard is asked again**, since
  * 2026-10-03: a control that has been to the background can come back drawing
@@ -64,7 +71,7 @@ import { colors, spacing, type } from './theme';
 export function PasteButton({
   label,
   sublabel,
-  emptySublabel,
+  emptyNote,
   onPaste,
   disabled,
   variant = 'default',
@@ -74,8 +81,11 @@ export function PasteButton({
   /** What the press does, in words. The caption under the system control. */
   label: string;
   sublabel?: string;
-  /** The sublabel while the clipboard holds nothing to paste: what to copy. */
-  emptySublabel?: string;
+  /**
+   * The line under the button while the clipboard holds nothing to paste:
+   * that it is empty, and what to copy.
+   */
+  emptyNote?: string;
   onPaste: (text: string | null) => void;
   disabled?: boolean;
   variant?: 'default' | 'primary';
@@ -97,7 +107,7 @@ export function PasteButton({
   if (iconOnly && (disabled || !system || empty)) {
     return (
       <IconButton
-        label={empty && !disabled ? (emptySublabel ?? shared.copySomethingFirst()) : label}
+        label={empty && !disabled ? (emptyNote ?? shared.copySomethingFirst()) : label}
         icon={(color) => <ClipboardIcon color={color} />}
         disabled={disabled || empty}
         style={style}
@@ -123,17 +133,29 @@ export function PasteButton({
       />
     );
   }
-  if (disabled || !system || empty) {
+  if (empty && !disabled) {
+    return (
+      <View style={[styles.stack, style]}>
+        <Button
+          label={label}
+          sublabel={sublabel}
+          variant={variant}
+          disabled
+          onPress={() => {}}
+        />
+        <Text style={styles.captionSub}>
+          {emptyNote ?? shared.copySomethingFirst()}
+        </Text>
+      </View>
+    );
+  }
+  if (disabled || !system) {
     return (
       <Button
         label={label}
-        sublabel={
-          empty && !disabled
-            ? (emptySublabel ?? shared.copySomethingFirst())
-            : sublabel
-        }
+        sublabel={sublabel}
         variant={variant}
-        disabled={disabled || empty}
+        disabled={disabled}
         style={style}
         onPress={() => void pasteText().then(onPaste)}
       />

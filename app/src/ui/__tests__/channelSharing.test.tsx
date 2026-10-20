@@ -360,9 +360,10 @@ describe('Channel, watching together', () => {
     available.mockRestore();
   });
 
-  it('says what to copy, rather than an empty slot, when the clipboard holds nothing', async () => {
+  it('says the clipboard is empty, rather than an empty slot, when it holds nothing', async () => {
     // On a device the control draws nothing at all for an empty clipboard,
-    // so it is not drawn: the refused button is, saying what would light it.
+    // so it is not drawn: the refused button is, with a line under it — not
+    // in its sublabel, which a disabled button draws faint.
     const available = jest
       .spyOn(clipboard, 'systemPasteAvailable')
       .mockReturnValue(true);
@@ -374,7 +375,10 @@ describe('Channel, watching together', () => {
 
     const button = findButton(tree, 'Watch something together')!;
     expect(button.props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Copy a YouTube link first');
+    expect(textOf(tree)).toContain(
+      'Nothing on your clipboard — copy a YouTube link first'
+    );
+    expect(textOf(tree)).toContain('A YouTube link on your clipboard');
     expect(
       tree.root.findAll((node) => node.type === 'ClipboardPasteButton')
     ).toHaveLength(0);
