@@ -354,6 +354,8 @@ const app = buildApp({
   logger: true,
 });
 app.channels.start();
+// After the registry's sweep, which restarts the mixes these transcodes wait on.
+app.publication.resume();
 // Resumes any job the last process left open and polls whatever is running.
 // A no-op without a key — see planning/decision/2026-08-25-transcripts.md.
 app.transcripts.start();

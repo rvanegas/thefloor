@@ -645,6 +645,13 @@ export class Transcripts {
       this.deleteFor(job.recording_id);
       return;
     }
+    // Asked for the moment the run stopped, which is allowed: the wait is
+    // here rather than at the button. While the mix is being made the stems
+    // may not all have landed — `stopEgress` returns before the upload does,
+    // and the read below does not wait — and a mix that fails can still drop
+    // a hollow one. Left for a later tick rather than waited on, because this
+    // chain is one job at a time and a mix can wait minutes for a stem.
+    if (recording.mix_state === 'pending') return;
 
     try {
       const { data, durationMs } = await encodeStem(

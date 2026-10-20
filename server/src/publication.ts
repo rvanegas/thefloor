@@ -81,6 +81,8 @@ export class Publication {
       announce: (channelId: string) => void;
       /** One recording's finished, floor-gated Opus mix. */
       recordingAudio: (recordingId: string) => Promise<Buffer>;
+      /** Resolves once that recording's mix is not in flight; never rejects. */
+      mixSettled: (recordingId: string) => Promise<void>;
       onError: (error: unknown, context: string) => void;
     }
   ) {}
@@ -451,9 +453,10 @@ export class Publication {
         'invalid'
       );
     }
-    if (row.mix_state === 'pending') {
-      return refuse('This recording is still being prepared.', 'conflict');
-    }
+    // A mix still being made is not here, though it used to be. Agreeing is
+    // about the conversation, which is over; only the transcode needs the
+    // audio, and `transcode` waits for it. Refusing meant a card whose
+    // checkbox failed for the first seconds after every run, for nothing.
     return null;
   }
 
@@ -614,6 +617,28 @@ export class Publication {
   }
 
   /**
+   * Starts again every transcode the last process left unfinished.
+   *
+   * Nothing else ever looks at a published row whose file is `'pending'`, so
+   * a restart between the last consent and the file being stored left the
+   * episode preparing for good. Rare while the transcode took seconds; less so
+   * once a consent could arrive while the mix was still being made, since the
+   * transcode now waits out the mix too and a deploy can land in the gap.
+   * Called after the registry's boot sweep, which is what restarts the mixes
+   * these wait on.
+   */
+  resume(): void {
+    const rows = this.db
+      .prepare(
+        `SELECT id, channel_id FROM recordings
+         WHERE published_at IS NOT NULL AND aac_state = 'pending'
+           AND deleted_at IS NULL`
+      )
+      .all() as unknown as Array<{ id: string; channel_id: string }>;
+    for (const row of rows) void this.transcode(row.id, row.channel_id);
+  }
+
+  /**
    * Takes a recording out of the feed and off the page.
    *
    * `published_at` is cleared and the AAC object is left in the bucket. That
@@ -641,6 +666,12 @@ export class Publication {
    * this runs after the consent that triggered it has already been answered,
    * exactly as mixing runs after a run ends, and a failed transcode leaves a
    * published recording whose page entry says it is still being prepared.
+   *
+   * **It waits for the mix first**, because the last consent may arrive while
+   * the mix is still being made. Asking for the audio then would encode it a
+   * second time without waiting for stems, and fail on whatever had not yet
+   * landed — leaving an episode `'failed'` that a few seconds' patience would
+   * have published.
    */
   private async transcode(
     recordingId: string,
@@ -649,6 +680,7 @@ export class Publication {
     const store = this.options.store;
     if (!store) return;
     try {
+      await this.options.mixSettled(recordingId);
       const mixed = await this.options.recordingAudio(recordingId);
       const { data } = await transcodeToPublished(mixed);
       await store.put(

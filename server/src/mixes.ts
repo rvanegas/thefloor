@@ -228,6 +228,21 @@ export class Mixer {
   }
 
   /**
+   * Resolves once this recording's mix is not in flight — at once when it
+   * never was. Never rejects: a failed mix says so by leaving the row
+   * `'unmixed'`, and `recordingAudio` is what reads the outcome.
+   *
+   * For work that is accepted while the mix is still being made and needs its
+   * result — so that it can be asked for the moment a run stops, rather than
+   * refused until the card catches up. The map is complete enough for that
+   * after a restart, because the boot sweep starts a mix for every row still
+   * `'pending'` before anything can ask.
+   */
+  async mixSettled(recordingId: string): Promise<void> {
+    await this.mixing.get(recordingId);
+  }
+
+  /**
    * Encodes one recording and stores the result beside its stems.
    *
    * `wait` is whether a stem that is not in the bucket yet is worth waiting

@@ -2051,10 +2051,12 @@ function TranscriptButton({
       {failed}
       <Button
         label={busy ? t.starting() : t.transcribe()}
-        // The mix has nothing to do with it — a transcript is made from the
-        // stems — but a recording still being prepared is one whose stems may
-        // not all have landed, and waiting a moment beats a job that fails.
-        disabled={busy || !manageable || !!recording.mixing}
+        // Not while the recording is still being prepared, though it used to
+        // be: its stems may not all have landed, but the server holds the job
+        // until the mix settles, so the wait is the request's and not the
+        // button's. A server from before that refuses nothing either, and its
+        // job may fail — the retry it offers then is this same button.
+        disabled={busy || !manageable}
         onPress={() => {
           // Two confirmations, because there are two different stakes. The
           // ordinary one is about where the audio goes; the other is about

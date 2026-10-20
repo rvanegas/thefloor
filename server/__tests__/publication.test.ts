@@ -117,8 +117,14 @@ async function befriend(a: User, b: User, identifier: string) {
  * unnamed channel here would mean every one of them asserting the same
  * precondition; the two that are about the precondition itself say so in
  * their own words.
+ *
+ * `stemsLate` leaves the stems out of the bucket, so the mix is still waiting
+ * for them when this returns; `land` puts them there.
  */
-async function recorded(name = 'The Tuesday call') {
+async function recorded(
+  name = 'The Tuesday call',
+  { stemsLate = false }: { stemsLate?: boolean } = {}
+) {
   const alice = await signIn('alice@example.com', 'Alice Appleby');
   const bob = await signIn('bob@example.com', 'Bob Barker');
   await befriend(alice, bob, 'bob@example.com');
@@ -141,8 +147,13 @@ async function recorded(name = 'The Tuesday call') {
   app.channels.dispatch(channelId, alice.account.id, {
     type: 'STOP_RECORDING',
   });
-  for (const { key } of media.recordings) store.put(key, stem);
-  await app.channels.mixesSettled();
+  const land = () => {
+    for (const { key } of media.recordings) store.put(key, stem);
+  };
+  if (!stemsLate) {
+    land();
+    await app.channels.mixesSettled();
+  }
 
   // Nobody is left in the room. Publication has no such rule of its own, but
   // `deleteRecording` does — it refuses while somebody is in the channel —
@@ -158,7 +169,7 @@ async function recorded(name = 'The Tuesday call') {
   } as never);
 
   const [recording] = app.channels.recordingsFor(alice.account.id);
-  return { alice, bob, channelId, recordingId: recording.id };
+  return { alice, bob, channelId, recordingId: recording.id, land };
 }
 
 const goPublic = (token: string, channelId: string, wanted = true) =>
@@ -536,6 +547,61 @@ describe('unanimity', () => {
     await consent(alice.token, recording.id);
     const second = await consent(bob.token, recording.id);
     expect(second.json().publishedAt).toBe(clock);
+  }, 120_000);
+});
+
+describe('agreeing while the recording is still being prepared', () => {
+  it('is accepted at once, and the episode waits for the mix', async () => {
+    const { alice, bob, channelId, recordingId, land } = await recorded(
+      undefined,
+      { stemsLate: true }
+    );
+    await goPublic(alice.token, channelId);
+    expect(
+      app.db.prepare('SELECT mix_state FROM recordings WHERE id = ?').get(recordingId)
+    ).toEqual({ mix_state: 'pending' });
+
+    expect((await consent(alice.token, recordingId)).statusCode).toBe(200);
+    const second = await consent(bob.token, recordingId);
+    expect(second.statusCode).toBe(200);
+    expect(second.json().publishedAt).toBe(clock);
+
+    // Published and preparing: the transcode is waiting on the mix rather than
+    // encoding its own copy from stems that are not there yet, which would
+    // have settled as 'failed'.
+    await settle();
+    const before = app.db
+      .prepare('SELECT aac_state FROM recordings WHERE id = ?')
+      .get(recordingId) as { aac_state: string };
+    expect(before.aac_state).toBe('pending');
+
+    land();
+    await app.channels.mixesSettled();
+    expect(await transcoded(recordingId)).toBe('ready');
+    expect((await pageFor(channelId)).payload).toContain('<audio');
+  }, 120_000);
+});
+
+describe('a transcode the last process left unfinished', () => {
+  it('is started again by resume', async () => {
+    const { alice, bob, channelId, recordingId } = await recorded();
+    await goPublic(alice.token, channelId);
+    await consent(alice.token, recordingId);
+    await consent(bob.token, recordingId);
+    await transcoded(recordingId);
+
+    // What a restart between the last consent and the file being stored
+    // leaves: published, with nothing in the bucket and nothing running.
+    await store.delete(publishedKeyFor(channelId, recordingId));
+    app.db
+      .prepare(
+        "UPDATE recordings SET aac_state = 'pending', published_bytes = NULL WHERE id = ?"
+      )
+      .run(recordingId);
+
+    app.publication.resume();
+    expect(await transcoded(recordingId)).toBe('ready');
+    expect(store.keys()).toContain(publishedKeyFor(channelId, recordingId));
   }, 120_000);
 });
 

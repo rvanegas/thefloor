@@ -2741,7 +2741,10 @@ would land in the file.
 
 A recording that has just stopped is **mixing** for a few seconds before it can
 be played or shared — its card appears immediately, with those two actions
-disabled, rather than being withheld with nothing to explain the gap.
+disabled, rather than being withheld with nothing to explain the gap. Only
+those two: renaming, transcribing and agreeing to publish are accepted at once,
+and whatever needs the mix waits for it — see
+`decision/2026-10-20-a-request-waits-for-what-it-needs-instead-of-being-refused-until-it-is-ready.md`.
 
 ## Seat
 

@@ -1050,6 +1050,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // The floor-gated Opus mix, and the only audio publication is ever handed
     // — see `transcodeToPublished` on why nothing here may read a stem.
     recordingAudio: (recordingId) => channels.recordingAudio(recordingId),
+    mixSettled: (recordingId) => channels.mixSettled(recordingId),
     onError: (error, context) =>
       fastify.log.error({ err: error, context }, 'publication failed'),
   });

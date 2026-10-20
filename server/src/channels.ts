@@ -8565,6 +8565,11 @@ export class ChannelRegistry {
     return this.mixes.mixesSettled();
   }
 
+  /** Resolves once one recording's mix is not in flight. See `Mixer.mixSettled`. */
+  mixSettled(recordingId: string): Promise<void> {
+    return this.mixes.mixSettled(recordingId);
+  }
+
   /**
    * One recording's finished audio, with the floor applied. See
    * `Mixer.recordingAudio`, which is where the fallbacks are explained.

@@ -151,6 +151,29 @@ describe('asking for a transcript', () => {
     expect(errors).toEqual([]);
   }, 60_000);
 
+  it('is accepted while the mix is being made, and submitted once it settles', async () => {
+    makeRecording({ [ALICE]: ['a.ogg'], [BOB]: ['b.ogg'] });
+    db.prepare("UPDATE recordings SET mix_state = 'pending' WHERE id = ?").run(
+      RECORDING
+    );
+
+    await transcripts.request(RECORDING, ALICE);
+    await transcripts.tick();
+
+    // Held rather than refused or sent: the stems may not all be in the
+    // bucket yet, and the read that renders them does not wait.
+    expect(transcript()).toMatchObject({ state: 'pending' });
+    expect(jobs()).toHaveLength(2);
+    expect(provider.submitted).toHaveLength(0);
+
+    db.prepare("UPDATE recordings SET mix_state = 'ready' WHERE id = ?").run(
+      RECORDING
+    );
+    await transcripts.tick();
+    expect(provider.submitted).toHaveLength(2);
+    expect(errors).toEqual([]);
+  }, 60_000);
+
   it('asks for the standard grade unless told otherwise, and stores it', async () => {
     makeRecording({ [ALICE]: ['a.ogg'] });
 
