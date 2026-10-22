@@ -21,7 +21,7 @@ import {
   NOTIFICATION_LEVELS,
   type NotificationLevel,
 } from '../../../core/notifications';
-import type { ChannelState, TranscriptionModel } from '../../../core/types';
+import type { ChannelState, ResponseModel, TranscriptionModel } from '../../../core/types';
 import { API_URL } from '../api/config';
 import { api, type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
@@ -179,6 +179,8 @@ export function ChannelSettingsView({
   const mayAutoTranscribe = view?.mayAutoTranscribe ?? view?.mayTranscribeLive ?? false;
   /** `?? 'standard'` for the same reason. See `transcriptionModel`. */
   const transcriptionModel = channel.transcriptionModel ?? 'standard';
+  /** `?? 'standard'` again. See `ChannelState.responseModel`. */
+  const responseModel = channel.responseModel ?? 'standard';
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
   /**
@@ -521,6 +523,44 @@ export function ChannelSettingsView({
             ))}
           </View>
           <Text style={type.muted}>{t.transcriptionModelNote()}</Text>
+        </Card>
+      ) : null}
+
+      {/*
+        **Which model Claude's *Respond* asks, since 2026-10-22** — the
+        transcription model's shape, with the one difference that it is drawn
+        for everybody: which model is answering in a channel is something
+        everybody in it may know. Settable only by `debug`, which the server
+        enforces; for anybody else it is grey, with the sentence that says
+        why, STYLE.md's case of a refusal a rule can name against you. Drawn
+        only where this server can ask Claude at all, since a choice of model
+        for nothing is a control the state overrules.
+      */}
+      {view?.claude ? (
+        <Card style={styles.stack}>
+          <Text style={type.heading}>{t.responseModel()}</Text>
+          <View style={styles.choices}>
+            {(
+              [
+                ['standard', t.responseStandard()],
+                ['pro', t.responsePro()],
+              ] as Array<[ResponseModel, string]>
+            ).map(([value, label]) => (
+              <Button
+                key={value}
+                label={label}
+                style={styles.choice}
+                disabled={!mayEdit || !app.debug}
+                variant={responseModel === value ? 'primary' : 'default'}
+                onPress={() => app.act(channel.id, {
+                  type: 'SET_RESPONSE_MODEL',
+                  responseModel: value,
+                })}
+              />
+            ))}
+          </View>
+          <Text style={type.muted}>{t.responseModelNote()}</Text>
+          {app.debug ? null : <Text style={type.muted}>{t.responseModelWho()}</Text>}
         </Card>
       ) : null}
 

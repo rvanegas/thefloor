@@ -16,6 +16,7 @@
 import React, { useState } from 'react';
 import { Pressable, Text, View, type ColorValue } from 'react-native';
 import {
+  canAskClaude,
   canInvite,
   capacityOf,
   idleMs,
@@ -974,6 +975,85 @@ export function ParticipantCard({
     >
       {body}
     </Pressable>
+  );
+}
+
+/**
+ * **Claude, on *People*, since 2026-10-22**: a card in `ParticipantCard`'s
+ * shape — the same card, the same row — that is not a person, and so carries
+ * none of what is true of one: no dot, no clock, no profile to open. Its one
+ * control is *Respond*, in the ping's style literally, which reads the
+ * channel's *Record* and posts Claude's turn into it.
+ *
+ * **The busy state is the channel's, not this screen's.** `channel.claude`
+ * is set for everybody present the moment anybody presses, so every screen
+ * says *Responding…* and who asked, and every button is grey — the same
+ * `canAskClaude` the server refuses a second press with. This screen's own
+ * pending state covers only the instant before the snapshot arrives.
+ *
+ * Grey with a sentence when you are not here, the paste rule — STYLE.md's
+ * case of a refusal a rule can name against *you*. A failure's sentence sits
+ * on the line until the next press, which is the only place on this screen
+ * that is about this card.
+ */
+export function ClaudeCard({
+  channel,
+  me,
+  nameOf,
+  onRespond,
+}: {
+  channel: ReturnType<typeof useApp>['channelViews'][string]['channel'];
+  me: string;
+  nameOf: (id: string) => string;
+  onRespond: () => Promise<void>;
+}) {
+  const t = useText().channelCards;
+  const [pressing, setPressing] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  // `?? null` for a server that predates the field.
+  const asked = channel.claude ?? null;
+  const busy = pressing || asked !== null;
+  const here = isPresent(channel, me);
+
+  const respond = async () => {
+    setPressing(true);
+    setFailure(null);
+    try {
+      await onRespond();
+    } catch (error) {
+      setFailure(error instanceof Error ? error.message : String(error));
+    } finally {
+      setPressing(false);
+    }
+  };
+
+  const line = asked
+    ? asked.askedBy === me
+      ? t.claudeAskedByYou()
+      : t.claudeAsked(nameOf(asked.askedBy))
+    : (failure ??
+      (here ? t.claudeReads() : t.claudeStepIn()) +
+        ((channel.responseModel ?? 'standard') === 'pro' ? t.claudeProSuffix() : ''));
+
+  return (
+    <View style={styles.participantCard} accessibilityLabel={`${t.claude()}, ${line}`}>
+      <View style={styles.cardBody}>
+        <View style={styles.cardText}>
+          <Text style={styles.cardName} numberOfLines={1}>
+            {t.claude()}
+          </Text>
+          <Text style={[type.muted, styles.cardStatus]}>{line}</Text>
+        </View>
+        <Button
+          label={busy ? t.responding() : t.respond()}
+          style={styles.cardPing}
+          disabled={busy || !canAskClaude(channel, me)}
+          onPress={() => {
+            void respond();
+          }}
+        />
+      </View>
+    </View>
   );
 }
 

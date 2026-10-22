@@ -437,6 +437,14 @@ export const es: Strings = {
     pinging: () => 'Avisando\u2026',
     pinged: () => 'Avisado',
     ping: () => 'Avisar',
+    claude: () => 'Claude',
+    claudeReads: () => 'Lee el Grabado y aporta algo',
+    claudeProSuffix: () => ' \u00b7 Pro',
+    claudeAsked: (name: string) => `Pregunt\u00f3 ${name}`,
+    claudeAskedByYou: () => 'Has preguntado',
+    claudeStepIn: () => 'Entra para preguntar',
+    respond: () => 'Responder',
+    responding: () => 'Respondiendo\u2026',
     participantLabel: (
       name: string,
       self: boolean,
@@ -799,6 +807,12 @@ export const es: Strings = {
     transcriptionPro: () => 'Pro',
     transcriptionModelNote: () =>
       'Est\u00e1ndar es Universal-2. Pro es Universal-3.5 Pro, que cuesta un 40% m\u00e1s y entiende un cambio de idioma a mitad de frase. Se aplica a las transcripciones que se pidan a partir de ahora.',
+    responseModel: () => 'Modelo de respuesta',
+    responseStandard: () => 'Est\u00e1ndar',
+    responsePro: () => 'Pro',
+    responseModelNote: () =>
+      'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Se aplica a quien pulse Responder.',
+    responseModelWho: () => 'Solo pueden cambiarlo quienes llevan The Floor.',
     notifications: () => 'Notificaciones',
     podcast: () => 'Podcast',
     guestLinks: () => 'Enlaces de invitado',

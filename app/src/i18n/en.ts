@@ -591,6 +591,22 @@ export const en = {
     pinged: () => 'Pinged',
     ping: () => 'Ping',
     /**
+     * The Claude card, since 2026-10-22. *Respond* is a bare verb addressed to
+     * the card, as *Ping* is, and chosen against Spanish: *Responder* is the
+     * same word, where *prompt* has no verb that is not *ask* or wrong.
+     */
+    claude: () => 'Claude',
+    claudeReads: () => 'Reads the Record and adds to it',
+    /** On the card's line when the channel's *Response model* is *Pro*. */
+    claudeProSuffix: () => ' \u00b7 Pro',
+    /** While Claude is being asked, on every screen: who pressed. */
+    claudeAsked: (name: string) => `${name} asked`,
+    claudeAskedByYou: () => 'You asked',
+    /** Why *Respond* is grey: it is the paste rule. */
+    claudeStepIn: () => 'Step in to ask',
+    respond: () => 'Respond',
+    responding: () => 'Responding\u2026',
+    /**
      * The whole of what a screen reader says about one People card. No
      * seconds in it, deliberately: the clock beside the name ticks once a
      * second and a label carrying it would announce the card afresh each
@@ -1034,6 +1050,17 @@ export const en = {
     transcriptionPro: () => 'Pro',
     transcriptionModelNote: () =>
       'Standard is Universal-2. Pro is Universal-3.5 Pro, which costs about 40% more and handles a change of language mid-sentence. It applies to transcripts asked for from now on.',
+    /**
+     * The model *Respond* asks, since 2026-10-22: drawn for everybody, and
+     * greyed with `responseModelWho` for anybody without `debug`. *Pro* here
+     * is a grade of model, not *Pro (the subscription)*.
+     */
+    responseModel: () => 'Response model',
+    responseStandard: () => 'Standard',
+    responsePro: () => 'Pro',
+    responseModelNote: () =>
+      'Standard: faster and cheaper. Pro: a larger model, a little slower. It applies to whoever presses Respond.',
+    responseModelWho: () => 'Only the people who run The Floor can change it.',
     notifications: () => 'Notifications',
     /** A *public channel*, in the word a user meets: see GLOSSARY.md. */
     podcast: () => 'Podcast',

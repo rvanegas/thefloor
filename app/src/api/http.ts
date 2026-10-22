@@ -642,6 +642,14 @@ export const api = {
     }),
 
   /**
+   * *Respond* on the Claude card. Resolves once the reply is in the *Record*,
+   * which can take most of a minute, and rejects with the server's sentence
+   * when it is not. Since 2026-10-22.
+   */
+  askClaude: (token: string, channelId: string) =>
+    request<{ ok: true }>(`/channels/${channelId}/claude`, { method: 'POST', token }),
+
+  /**
    * Sets how loudly this channel may interrupt the person asking.
    *
    * Theirs alone, which is why there is no target: the server takes the actor

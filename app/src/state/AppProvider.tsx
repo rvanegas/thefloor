@@ -592,6 +592,12 @@ interface AppValue extends AppState {
    * since the screen was drawn, or somebody pinged them a moment ago.
    */
   ping: (channelId: string, targetId: string, text: string) => Promise<void>;
+  /**
+   * Asks Claude to respond, since 2026-10-22. The *Responding…* every screen
+   * shows comes from the channel's state, not from this promise; what this
+   * gives the screen that pressed is the sentence when it failed.
+   */
+  askClaude: (channelId: string) => Promise<void>;
   /** Where to donate, and what you have already given. */
   loadSupport: () => Promise<SupportView>;
   /**
@@ -2828,6 +2834,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           targetId,
           text || undefined
         );
+      },
+
+      askClaude: async (channelId) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        await api.askClaude(state.token, channelId);
       },
 
       /**

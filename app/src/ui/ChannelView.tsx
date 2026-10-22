@@ -90,6 +90,7 @@ import {
   WatchIcon,
 } from './icons';
 import {
+  ClaudeCard,
   FooterAction,
   GuestCard,
   MicrophoneSilent,
@@ -3572,6 +3573,25 @@ export function ChannelView({
             and a link. Members only — a guest's screen is not this one. See
             `InviteCard`.
           */}
+          {/*
+            **Claude, since 2026-10-22**: after the people and the invitations,
+            because it is neither, and before the way in. Under no label — it
+            is not a member, a guest or an invitation, and a fifth label for
+            one card is heavier than the card. Drawn only where the server
+            says it can answer, so a press never meets a 503. See
+            `ClaudeCard`.
+          */}
+          {view.claude ? (
+            <View style={styles.members}>
+              <ClaudeCard
+                channel={channel}
+                me={me}
+                nameOf={nameOf}
+                onRespond={() => app.askClaude(channel.id)}
+              />
+            </View>
+          ) : null}
+
           {/*
             On a locked channel the card goes, and nothing takes its place —
             Settings is where the lock is said. See `ChannelState.locked`.

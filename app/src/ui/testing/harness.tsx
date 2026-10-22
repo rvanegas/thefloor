@@ -329,6 +329,8 @@ export const mockApp = {
   // Resolves, which is what the card's wordless shortcut expects; the tests
   // about a refusal make it reject.
   ping: jest.fn(async () => {}),
+  // Resolves, as a reply posted would; the tests about a failure make it reject.
+  askClaude: jest.fn(async () => {}),
   // A channel with no guest links, which is every channel until somebody makes
   // one. The settings screen reads this when it opens, so a mock without it is
   // a screen that throws rather than a screen with an empty section.
@@ -822,6 +824,8 @@ export function showChannel(
     mayTranscribeLive?: boolean;
     /** Whether this reader may set a sitting to begin with it. */
     mayAutoTranscribe?: boolean;
+    /** Whether this server can ask Claude, which draws the Claude card. */
+    claude?: true;
   } = {}
 ) {
   const names: Record<string, string> = {
