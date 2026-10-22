@@ -3,13 +3,16 @@
 // Writes TestFlight's "What to Test" for a build, from the commits it carries.
 //
 //   bin/testflight-notes                  what the next upload would say; no API
-//   bin/testflight-notes --build 385      compose for build 385 and set it
+//   bin/testflight-notes --build 385      compose for build 385, set it, and
+//                                         distribute the build to testers
 //   bin/testflight-notes --build 385 --dry-run
 //                                         compose and print, set nothing
 //
 // bin/upload-ios runs the second form once the build is tagged, so a tester
 // opening TestFlight sees what changed rather than an empty field. Run it by
 // hand to rewrite the text for a build, or when the upload's own run gave up.
+// Re-running is safe: notes that already say this are left alone, and a group
+// that already has the build is not sent it again.
 //
 // **The notes are the commit subjects, filtered, and nothing is written by
 // hand.** A subject opens with a verb (AGENTS.md § *Branches*), and five of
@@ -18,21 +21,32 @@
 // the version: an Expo or LiveKit bump is exactly what a tester should poke at.
 // Recorded, Filed and Documented are about the repository and are dropped.
 //
-// **Only commits that touch `app/` or `core/`.** Those are what a build is made
-// of; a server or web change reaches a tester the minute it is deployed,
-// whichever build they hold, so listing it under a build would claim the build
-// brought it.
+// **Only commits that touch `app/`, `core/` or `server/`.** The first two are
+// what a build is made of. A server change strictly reaches a tester when it
+// is deployed, whichever build they hold, so it can land before or after the
+// build that mentions it; this assumes the deploy goes out with the upload,
+// which is the usual case, and lists it as what is new to test. Web changes
+// are not the app and are left out.
 //
 // The range is the previous `build/<n>` tag to `build/<n>`, the tags
 // bin/upload-ios makes. A bumped number that was never uploaded leaves no tag,
 // so its commits fall into the next build's notes, which is where testers
 // first meet them.
 //
+// **The notes have to be on the build before the testers are told about it**,
+// since TestFlight's email and push carry What to Test as it stands at the
+// moment of distribution, and a later edit reaches only somebody who opens the
+// app. So this sets the notes and then distributes: once the build is `VALID`
+// it adds it to every internal group that does not take every build by itself.
+// A group that does — "automatic distribution" in App Store Connect — is told
+// the instant processing finishes, whatever this has managed by then, and
+// this says so when it lost that race.
+//
 // **The build has to exist at Apple before it can carry text**, and it appears
 // a little while after the upload says it succeeded. So this waits for it —
-// up to --wait seconds, 900 by default — and retries the write while Apple is
-// still processing. Giving up is not fatal to anything: the build is uploaded
-// regardless, and running this again later finishes the job.
+// up to --wait seconds, 1800 by default — and retries the write while Apple is
+// still processing. Giving up leaves the build uploaded but undistributed;
+// running this again later finishes the job.
 
 const fs = require('fs');
 const os = require('os');
@@ -52,7 +66,7 @@ const BOOKKEEPING = /^Bumped (the )?(build number|version)\b/;
 // ---------------------------------------------------------------- arguments
 
 const argv = process.argv.slice(2);
-const opts = { build: null, dryRun: false, wait: 900 };
+const opts = { build: null, dryRun: false, wait: 1800 };
 while (argv.length) {
   const arg = argv.shift();
   if (arg === '--build') opts.build = String(argv.shift());
@@ -91,7 +105,7 @@ const previousTag = (rev) => git('describe', '--tags', '--match', 'build/*', '--
 
 function compose(from, to) {
   const subjects = (git('log', '--no-merges', '--reverse', '--format=%s',
-    from ? `${from}..${to}` : to, '--', 'app', 'core') || '')
+    from ? `${from}..${to}` : to, '--', 'app', 'core', 'server') || '')
     .split('\n')
     .filter((s) => USER_FACING.test(s) && !BOOKKEEPING.test(s));
 
@@ -99,7 +113,7 @@ function compose(from, to) {
   // revert; the tester needs to read it once.
   const lines = [...new Set(subjects)].map((s) => `• ${s}`);
   const since = from ? ` since build ${from.replace('build/', '')}` : '';
-  if (!lines.length) return `No changes to the app${since}.`;
+  if (!lines.length) return `No changes to the app or server${since}.`;
 
   // Cut at a whole line rather than mid-sentence, and say how many were left
   // out, so a long train reads as long rather than as finished.
@@ -207,7 +221,8 @@ const main = async () => {
 
   const deadline = Date.now() + opts.wait * 1000;
   let lastError = null;
-  let waiting = false;
+  let notedWhile = null;
+  let waitingFor = null;
   for (;;) {
     const build = (await must('GET', `/v1/builds?filter[app]=${app.id}`
       + `&filter[version]=${opts.build}&limit=1`)).data[0];
@@ -215,25 +230,52 @@ const main = async () => {
     if (state === 'FAILED' || state === 'INVALID') {
       die(`build ${opts.build} is ${state}; there is nothing for testers to install`);
     }
-    if (build) {
+    if (build && !notedWhile) {
       lastError = await setNotes(build.id, locale);
-      if (!lastError) return;
+      if (!lastError) notedWhile = state;
     }
+    if (notedWhile && state === 'VALID') return distribute(app.id, build.id, notedWhile);
     if (Date.now() >= deadline) {
-      die(build
-        ? `could not set the notes on build ${opts.build} (${state})`
-        : `Apple has not shown build ${opts.build} yet`,
-        ...(lastError ? [lastError] : []),
+      die(!build ? `Apple has not shown build ${opts.build} yet`
+        : !notedWhile ? `could not set the notes on build ${opts.build} (${state})`
+          : `build ${opts.build} is still ${state}, so it has not been distributed`,
+        ...(lastError && !notedWhile ? [lastError] : []),
         `bin/testflight-notes --build ${opts.build} again, once it has.`);
     }
-    if (!waiting) {
-      console.log(`  waiting for Apple to ${build ? 'take the notes' : 'show the build'}`
-        + ` (up to ${Math.round(opts.wait / 60)} min)`);
-      waiting = true;
+    const next = !build ? 'show the build' : !notedWhile ? 'take the notes' : 'finish processing';
+    if (next !== waitingFor) {
+      console.log(`  waiting for Apple to ${next} (up to ${Math.round(opts.wait / 60)} min)`);
+      waitingFor = next;
     }
     await sleep(30000);
   }
 };
+
+// Adds the build to each internal group that does not already take every
+// build, which is what sends the email; the notes are on it by now. A group
+// with automatic distribution was sent it when processing finished, so it is
+// only reported, and warned about if the notes arrived after that.
+async function distribute(appId, buildId, notedWhile) {
+  const groups = (await must('GET', `/v1/betaGroups?filter[app]=${appId}`
+    + '&filter[isInternalGroup]=true&limit=50')).data;
+  const holding = new Set((await must('GET', `/v1/betaGroups?filter[builds]=${buildId}&limit=50`))
+    .data.map((g) => g.id));
+  for (const group of groups) {
+    const name = group.attributes.name;
+    if (group.attributes.hasAccessToAllBuilds) {
+      if (notedWhile === 'VALID') {
+        console.log(`  ⚠ ${name} takes every build automatically, and was probably told about`,
+          `\n    this one before the notes were on it; turn that off to fix it for good`);
+      } else console.log(`  ${name} takes every build automatically; the notes were there first`);
+    } else if (holding.has(group.id)) {
+      console.log(`  ${name} already has build ${opts.build}`);
+    } else {
+      await must('POST', `/v1/betaGroups/${group.id}/relationships/builds`,
+        { data: [{ type: 'builds', id: buildId }] });
+      console.log(`✓ distributed build ${opts.build} to ${name}`);
+    }
+  }
+}
 
 // Patches the locale's record if there is one and creates it if not; returns
 // an error message rather than dying, for the loop above to retry.
