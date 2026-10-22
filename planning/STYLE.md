@@ -793,6 +793,19 @@ means *speaking*, driven by the room; the fill means *holds the floor*, driven
 by the reducer. They routinely disagree — a holder sitting silent, a
 self-muted person whose claim is running — so they may not share an edge.
 
+**The Claude card is a People card's shape with a person's marks taken out**,
+since 2026-10-22 — `ClaudeCard` in `channelCards.tsx`. The same
+`participantCard` and `cardBody` row, the name in `cardName` and one muted
+line, and on the right rail its *Respond* in `cardPing`, the ping's style
+literally. **No speaking dot, no floor fill, no border state, no press on the
+card**: each of those is a claim about a person, and none is true of it. Its
+busy state is a label rather than a mark — *Responding…*, greyed, on every
+screen while anybody's press is out, which is the busy-label rule below rather
+than an animation. It sits after the people and the invitations under no
+section label, wrapped in `members` for their gap. Measured against 375pt: the
+text column is about 190pt beside the busy button, so its *· Pro* line wraps
+to two, which `cardText` is built to do.
+
 **A card that gains a border in one state keeps a transparent one in the
 others.** Otherwise the state card is two pixels larger than its neighbours.
 ProfileView's `channel` and Home's `inviteQuiet` both do this.

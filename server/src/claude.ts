@@ -10,9 +10,8 @@ import { readableLines, type TranscriptLine } from './transcripts';
  * **Claude in a conversation**, since 2026-10-22: somebody present presses
  * *Respond* on the Claude card, and this reads the channel's *Record* as text,
  * asks Anthropic for one turn, and posts the answer into the *Record* as a
- * paste authored by `CLAUDE_ID`. The design, and every number below, is
- * planning/task/integrate-claude-into-conversation.md until the decision that
- * follows it.
+ * paste authored by `CLAUDE_ID`. The design, and the reason for every number
+ * below, is planning/decision/2026-10-22-claude-joins-the-conversation-as-a-paste-in-the-record.md.
  *
  * Optional in the way transcription is: without `ANTHROPIC_API_KEY` there is
  * no client, no card, no route that answers anything but 503, and nothing on

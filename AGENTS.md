@@ -62,7 +62,7 @@ for a day that most sessions never have, and reading it speculatively is the
 single most expensive thing this file used to imply.
 
 **`planning/CREDENTIALS.md`** is the second of that kind, split out the same
-day: the nine credentials, where each lives, what it can do and what losing it
+day: the credentials, where each lives, what it can do and what losing it
 costs. Read it before touching any of them, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.
 

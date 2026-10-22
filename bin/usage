@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 # What this box carried, read out of the two usage tables — and what it spent,
-# read out of the transcripts.
+# read out of the transcripts and, since 2026-10-22, Claude's ledger.
 #
 #   bin/usage                  every report, against the deployed server
 #   bin/usage minutes          one report
@@ -273,31 +273,56 @@ SQL
 usage_transcripts() {
   cat <<'SQL'
 .print ''
-.print '── Transcription spend, by month (all of it, not the 30-day window) ─'
+.print '── Provider spend, by month (all of it, not the 30-day window) ─'
 .print ''
 -- Recordings and the live transcript together, each priced as its own
 -- section below says: a recording's transcript by its length times its stems
 -- and by the model it was asked for, a live session by how long it was open.
+-- And Claude's *Respond* since 2026-10-22, priced from its token counts at
+-- the model that served it — Haiku 5.5 at $0.10 / $0.50 per million tokens
+-- in and out, five times that for a prompt past 100K tokens, and Sonnet 5.5
+-- at $2 / $10 — and split by grade, so what *Pro* costs against *Standard*
+-- is a column rather than an estimate. Re-check those figures against
+-- Anthropic's pricing page before quoting them anywhere.
 --
--- Needs live_sessions, a 2026-10-09 table. Against a database older than
--- that, this query and the live one error with `no such table` and the rest
--- of the report still prints.
-WITH spend AS (
+-- Needs live_sessions, a 2026-10-09 table, and claude_usage, a 2026-10-22
+-- one. Against a database older than either, this query errors with
+-- `no such table` and the rest of the report still prints.
+WITH claude AS (
+  SELECT at, grade,
+         CASE
+           WHEN model LIKE 'claude-haiku%' AND input_tokens > 100000
+             THEN (input_tokens * 0.50 + output_tokens * 2.50) / 1e6
+           WHEN model LIKE 'claude-haiku%'
+             THEN (input_tokens * 0.10 + output_tokens * 0.50) / 1e6
+           ELSE (input_tokens * 2.00 + output_tokens * 10.00) / 1e6
+         END AS usd
+  FROM claude_usage
+),
+spend AS (
   SELECT strftime('%Y-%m', requested_at / 1000, 'unixepoch') AS month,
          billed_ms / 3600000.0
            * CASE WHEN model = 'standard' THEN 0.15 ELSE 0.21 END AS recordings,
-         0 AS live
+         0 AS live, 0 AS claude_standard, 0 AS claude_pro
   FROM transcripts
   UNION ALL
   SELECT strftime('%Y-%m', opened_at / 1000, 'unixepoch'),
          0,
-         COALESCE(billed_seconds * 1000, closed_at - opened_at) / 3600000.0 * 0.15
+         COALESCE(billed_seconds * 1000, closed_at - opened_at) / 3600000.0 * 0.15,
+         0, 0
   FROM live_sessions
+  UNION ALL
+  SELECT strftime('%Y-%m', at / 1000, 'unixepoch'), 0, 0,
+         CASE WHEN grade = 'standard' THEN usd ELSE 0 END,
+         CASE WHEN grade = 'pro' THEN usd ELSE 0 END
+  FROM claude
 )
 SELECT month,
        ROUND(SUM(recordings), 2) AS recordings_usd,
        ROUND(SUM(live), 2) AS live_usd,
-       ROUND(SUM(recordings) + SUM(live), 2) AS usd
+       ROUND(SUM(claude_standard), 2) AS claude_standard_usd,
+       ROUND(SUM(claude_pro), 2) AS claude_pro_usd,
+       ROUND(SUM(recordings) + SUM(live) + SUM(claude_standard) + SUM(claude_pro), 2) AS usd
 FROM spend
 GROUP BY month
 ORDER BY month DESC;
@@ -376,6 +401,34 @@ SELECT COALESCE(a.identifier, t.requested_by) AS who,
        date(MAX(t.requested_at) / 1000, 'unixepoch') AS last_asked
 FROM transcripts t LEFT JOIN accounts a ON a.id = t.requested_by
 GROUP BY t.requested_by
+ORDER BY usd DESC;
+
+.print ''
+.print '── Who spent it, on Claude ─────────────────────────────────────'
+.print ''
+-- By the account that pressed *Respond*, null once that account is erased —
+-- the spend stays, who pressed goes. Every press is a row, failed or not;
+-- `posted` is how many put a reply in the Record, and `cut_off` how many of
+-- those stopped on max_tokens, which should stay near zero: if it does not,
+-- the allowance or the instruction is wrong. Average input calibrates the
+-- 3.5 characters a token the Record's budget is counted in.
+SELECT COALESCE(a.identifier, '(erased)') AS who,
+       c.grade,
+       COUNT(*) AS presses,
+       SUM(c.outcome = 'posted') AS posted,
+       SUM(c.stop_reason = 'max_tokens') AS cut_off,
+       CAST(AVG(c.input_tokens) AS INTEGER) AS avg_in,
+       CAST(AVG(c.output_tokens) AS INTEGER) AS avg_out,
+       ROUND(SUM(CASE
+         WHEN c.model LIKE 'claude-haiku%' AND c.input_tokens > 100000
+           THEN (c.input_tokens * 0.50 + c.output_tokens * 2.50) / 1e6
+         WHEN c.model LIKE 'claude-haiku%'
+           THEN (c.input_tokens * 0.10 + c.output_tokens * 0.50) / 1e6
+         ELSE (c.input_tokens * 2.00 + c.output_tokens * 10.00) / 1e6
+       END), 2) AS usd,
+       date(MAX(c.at) / 1000, 'unixepoch') AS last_pressed
+FROM claude_usage c LEFT JOIN accounts a ON a.id = c.account_id
+GROUP BY c.account_id, c.grade
 ORDER BY usd DESC;
 
 .print ''
@@ -717,7 +770,8 @@ peak         per day: most connections and most recording jobs at once
 egress       every stem asked for, by concurrency, and each refusal with
              what LiveKit said and whether the stem count is to blame
 bytes        recording bytes this server served, by kind
-transcripts  what transcription cost, recorded and live, and where the free minutes went
+transcripts  what transcription and Claude cost — recorded, live, Respond by grade —
+             and where the free minutes went
 nav          which of the four ways in and out of a channel people take —
              a share of taps and swipes, never of people; read the header
 listens      starts of each published episode, by strangers on the public

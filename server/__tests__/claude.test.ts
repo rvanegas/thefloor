@@ -252,10 +252,12 @@ async function room2(options: { paste?: boolean } = {}) {
   app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
   if (options.paste !== false) {
     clock += 1_000;
+    // The wire's shape, which carries text and has the clip minted from it —
+    // `as never` for clipboard.test.ts's reason.
     app.channels.dispatch(channelId, bob.account.id, {
       type: 'PASTE_CLIP',
       text: 'What should we call the project?',
-    });
+    } as never);
   }
   clock += 1_000;
   return { alice, bob, channelId };

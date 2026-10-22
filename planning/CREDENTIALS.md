@@ -1,6 +1,6 @@
 # Credentials
 
-The nine credentials this project holds, where each one lives, what it can do
+The ten credentials this project holds, where each one lives, what it can do
 and what losing it costs. **Count the bullets rather than trusting this
 sentence**: it said nine while the list held eight from 2026-09-01, when the
 Android upload key was added and the numeral was not, until the Firebase
@@ -16,7 +16,7 @@ reducer or the app's behaviour, which is most work.
 **Read this before touching any credential, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.**
 
-**The nine are what this project holds. § *The credential this project issues*
+**The ten are what this project holds. § *The credential this project issues*
 at the end is about one it mints** — the session token — and a place it is
 currently written down in clear.
 
@@ -46,14 +46,15 @@ here has to be read in order, and no entry depends on another.
 | Donations, `POST /donations/kofi` | Ko-fi webhook verification token |
 | Transcripts, and what `/privacy` claims | AssemblyAI |
 | Push on Android | Firebase service account |
+| Claude's *Respond*, and what `/privacy` claims about it | Anthropic |
 | Session tokens, and the journal | The credential this project issues |
 
 `bin/env-pull` / `bin/env-push` and `server/.env` are the closing paragraph of
-§ *The nine*; every key and setting is documented in `server/.env.example`.
+§ *The ten*; every key and setting is documented in `server/.env.example`.
 
 ---
 
-## The nine
+## The ten
 
 Deliberately separate, so no single leak is worse than it has to be:
 
@@ -326,6 +327,31 @@ Deliberately separate, so no single leak is worse than it has to be:
   back to the home copy, and takes `THEFLOOR_GOOGLE_SERVICES` over both. Both
   filenames are gitignored anyway — the pattern was added on the branch that
   built this, so a checkout of an older `master` does **not** ignore it.
+
+- **Anthropic** — `ANTHROPIC_API_KEY`, from
+  [platform.claude.com/settings/keys](https://platform.claude.com/settings/keys),
+  named `thefloor-server`. The tenth, added 2026-10-22 with Claude's *Respond*
+  — decision/2026-10-22-claude-joins-the-conversation-as-a-paste-in-the-record.md.
+  **A key issued for this server alone**, not one borrowed from another
+  project, so that revoking it touches nothing else.
+
+  **The second credential here that spends per use**, after AssemblyAI, and
+  the same kind of leak: somebody holding it spends the account's balance, at
+  about a cent a request on Haiku and twenty cents on Sonnet at the sizes this
+  server sends, until it is revoked. There is no per-key cap from this side;
+  **a spend limit on the Anthropic account, under Settings → Limits, is the
+  only one there is**, and is worth setting. It reads nothing this server
+  holds — Anthropic keeps no copy of the Record that this server could fetch
+  back with it.
+
+  **Setting it is a public act**, on AssemblyAI's terms exactly: `/privacy`'s
+  Claude section, and the clauses it qualifies, are conditional on this key,
+  and so is the Claude card. Set it, and push it, with the deploy that ships
+  the card, not before. Marked `# env-push: optional` in `server/.env.example`.
+
+  Rotating it is free: mint another, replace the line, `bin/env-push`, revoke
+  the old. Nothing stored depends on it — the replies are pastes here, and
+  `claude_usage` holds counts rather than anything keyed to the credential.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it
