@@ -11,8 +11,10 @@
 Planned 2026-10-22, and revised the same day with Rodrigo's answers: a key of
 the project's own rather than mdc's; the whole *Record*, not the room; open to
 everybody, not `debug`; the latest Haiku by default; an indicator on the card
-that everybody sees. The five steps above are the ask, and step 4's label is
-the one thing deliberately changed from it (§ 3 and 4).
+that everybody sees. Revised again with a channel setting, *Response model*,
+choosing between Haiku and Opus (§ *The response model*). The five steps above
+are the ask, and step 4's label is the one thing deliberately changed from it
+(§ 3 and 4).
 
 **The shape in one sentence:** a new route, `POST /channels/:id/claude`, reads
 the channel's *Record* as text, asks Anthropic for one contribution, and
@@ -26,10 +28,12 @@ applies the answer as a **paste authored by Claude** — so it enters the
   typed errors, retries and `usage` are worth the dependency, and the test seam
   is the same shape: the class takes something with `messages.create`, and
   tests pass a fake. `available()` is true only when the key is set.
-- **Model: `claude-haiku-5-5` by default**, overridable by `ANTHROPIC_MODEL`.
-  The choice goes through one seam, `modelFor(accountId)`, which returns the
-  default today. That is where *Pro (the subscription)* will later choose
-  another model; this task builds the seam and nothing behind it.
+- **The model is the channel's**, read from its *Response model* when the
+  button is pressed: *Standard* is `claude-haiku-5-5`, *Pro* is
+  `claude-opus-5-5`. One map in `claude.ts`, `RESPONSE_MODELS`, as
+  `ASSEMBLYAI_MODELS` is for transcription, and no environment override — a
+  setting that a page shows everybody should not be contradicted by a file on
+  the box. See § *The response model*.
 - **The key is `ANTHROPIC_API_KEY` in `~/.config/thefloor/server.env`** — the
   file every server credential is authored in, carried to the box by
   `bin/env-push`. It is a key issued for The Floor alone, and not mdc's, on
@@ -39,9 +43,9 @@ applies the answer as a **paste authored by Claude** — so it enters the
   name Anthropic.
 - **Paperwork in the same commit**: the tenth entry in CREDENTIALS.md (it
   spends per use, as AssemblyAI does; what a leak costs; rotating it is free,
-  since nothing stored depends on it), a row in its index, and
-  `ANTHROPIC_API_KEY=` and `ANTHROPIC_MODEL=` in `server/.env.example`, marked
-  `# env-push: optional`.
+  since nothing stored depends on it) and a row in its index.
+  `ANTHROPIC_API_KEY=` is already in `server/.env.example`, marked
+  `# env-push: optional`, since 2026-10-22.
 - **`/privacy` names Anthropic when the key is set, and only then** — the
   AssemblyAI rule exactly (`privacy.ts`). It says what leaves (the channel's
   *Record* as text, names as kept), that it is sent only when somebody presses
@@ -97,12 +101,67 @@ limit; the price is.
   which never approaches `MAX_CLIP_LENGTH` (8,000) — the reducer refuses
   rather than trims, so the server must never send it more. A reply that stops
   on `max_tokens` is cut back to its last full sentence.
-- **What a press costs**: at the cap, about **a cent** — 90K input is $0.009
-  and 1K output is $0.0005 — and a typical channel costs a tenth of that. So
-  opening it to everybody needs no quota on day one, only the meter. Prompt
+- **The same caps for both grades.** Opus 5.5 has no cliff at 100K — $4 per
+  million input and $20 per million output throughout — so the budget is
+  Haiku's reason applied to both, and one number rather than two keeps the
+  prompt the same whichever model reads it. Opus thinks always, with no way
+  to turn it off, so `effort: "low"` matters more there, not less.
+- **What a press costs**: on *Standard*, at the cap, about **a cent** — 90K
+  input is $0.009 and 1K output is $0.0005 — and a typical channel costs a
+  tenth of that. On *Pro*, at the cap, about **38 cents** — $0.36 and $0.02 —
+  and about four cents typically. So
+  opening it to everybody needs no quota on day one, only the meter and the
+  fact that only a `debug` account can choose *Pro*. Prompt
   caching would cut repeated presses in one channel further, since the
   *Record* is an append-only prefix until the cap starts trimming it. It is
   cheap to add later, and not worth adding before the meter says it matters.
+
+### The response model, a channel setting
+
+Added 2026-10-22 at Rodrigo's request: *transcription model*'s shape — a
+channel setting, *Standard* or *Pro* — with one difference, that everybody
+sees it.
+
+- **`ChannelState.responseModel: ResponseModel`**, with `ResponseModel =
+  'standard' | 'pro'` in `core/types.ts` beside `TranscriptionModel` — the same
+  union under its own name, since the two settings move independently and a
+  shared type would invite one to be read for the other. Default `standard`.
+  Persisted with the channel's durable settings, as `transcriptionModel` is
+  (`channels.ts`, the durable write and its restore with `?? 'standard'`).
+- **The channel's, whoever presses**, for `transcriptionModel`'s reason: the
+  reply is a shared artefact of the channel, so whoever presses *Respond* gets
+  the grade the channel was set to. Read at the press and written to the
+  `claude_usage` row then, so changing it later never changes what an earlier
+  reply was.
+- **Set by `SET_RESPONSE_MODEL`**, guarded in the reducer by `canEditChannel`
+  as `SET_TRANSCRIPTION_MODEL` is, and refused by the server before dispatch
+  for anybody without `debug` — the same check, `accounts.byId(userId)?.debug
+  === 1`, with *Only a debug account can choose the response model.* There is
+  no environment variable in it: `debug` is a column on the account, set with
+  `bin/db --write`, and it is what gates the transcription model too. **So
+  "only Rodrigo" holds exactly while only his accounts carry `debug`** — which
+  he accepted, 2026-10-22, rather than a gate of its own.
+- **Shown to everybody, settable by `debug` alone.** Where *Transcription
+  model* is drawn only for `debug` sessions, this is drawn in
+  `ChannelSettingsView` for every member as the same `Segmented` pair, greyed
+  for anybody who may not change it — the STYLE.md § *Words on controls* case
+  of a control that exists but is not yours, rather than one that does not
+  apply. A muted line under it says what each is (*Standard: faster and
+  cheaper. Pro: a larger model, slower.*), in the catalogue in both languages
+  — *Modelo de respuesta*, *Estándar*, *Pro*.
+- **The card says it too**, since that is where the press is: the muted line
+  under *Claude* reads *Reads the Record and adds to it · Pro* when the
+  channel is on *Pro*, and has no suffix on *Standard*.
+- **Pro is a grade, not the subscription.** GLOSSARY.md already separates
+  *Pro (the subscription)* from *Transcription model*'s *Pro*; *Response
+  model* gets the same caution in its entry, and the one-line list gains it.
+- **Refusals**: Opus 5.5 can decline in its safety categories
+  (`stop_reason: "refusal"`). The request for *Pro* carries the server-side
+  fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`),
+  which re-runs a declined request on a model that will answer, inside the
+  same call. Haiku has no server-side fallback, so a refusal there — and a
+  fallback that refuses as well — answers with a sentence (*Claude declined
+  to respond to this.*), writes no paste, and clears the indicator.
 
 ### 3 and 4. The card and its button
 
@@ -199,19 +258,22 @@ follows that pattern.
 - **`bin/usage transcripts` gains a column**: *Transcription spend, by month*
   becomes *Provider spend, by month*, with `claude_usd` beside
   `recordings_usd` and `live_usd`, priced from the token counts at the model's
-  rate (Haiku 5.5's, with the over-100K rate where `input_tokens` passed it).
+  rate, from the row's `model` — Haiku 5.5's, with the over-100K rate where
+  `input_tokens` passed it, or Opus 5.5's — and split by grade, so that what
+  *Pro* costs against *Standard* is a column rather than an estimate.
   *Who spent it* gains Claude's presses per account. The report's name and its
   `--list` line say *transcription and Claude*.
 - **Nothing on the wire and nothing the app reads**, which is `usage.ts`'s
   rule: the meter is instrumentation, queried from outside.
 
-This is also what calibrates the 3.5 characters a token and tells Pro's model
-choice what it would cost.
+This is also what calibrates the 3.5 characters a token, and what would say
+whether *Pro* could ever be offered more widely than `debug`.
 
 ### Compatibility and order
 
-Additive throughout: a new route, an optional view field, an optional
-`ChannelState` field, and a reserved author id. Old builds never see the card,
+Additive throughout: a new route, an optional view field, two new
+`ChannelState` fields (`claude` and `responseModel`, both read with a default
+where absent), a new action, and a reserved author id. Old builds never see the card,
 and a new build against an old server sees no `claude` flag and draws none.
 So the order is the ordinary one, with no shim and no SHIMS.md entry: deploy
 the server with the key unset, so `/privacy` stays silent; upload the build;
@@ -220,9 +282,13 @@ then set the key and `bin/env-push` once the build is in hand.
 ### Tests
 
 - `core`: the two guards (only somebody present may ask; not while one is in
-  flight), and that `CLAUDE_ANSWERED` clears whatever asked.
-- `claude.test.ts`, against a fake client: the request (model from
-  `modelFor`, `max_tokens`, effort, the system prompt's ingredients); trimming
+  flight), that `CLAUDE_ANSWERED` clears whatever asked, and that
+  `SET_RESPONSE_MODEL` is `canEditChannel`'s and changes nothing when it
+  would change nothing.
+- `claude.test.ts`, against a fake client: the request (the model from the
+  channel's `responseModel` through `RESPONSE_MODELS`, the fallback only on
+  *Pro*, `max_tokens`, effort, the system prompt's ingredients); a refusal
+  writing no paste; trimming
   oldest-first, with the begins-here line; Claude's earlier replies labelled
   in the transcript; a `max_tokens` stop cut to a sentence; an API error and a
   timeout each surfacing as one sentence, writing nothing and clearing the
@@ -231,9 +297,14 @@ then set the key and `bin/env-push` once the build is in hand.
   409; in flight → 409; success → a paste row authored by `CLAUDE_ID`, named
   *Claude*, inside its room's segments; the presser leaving mid-request still
   produces the row; every press, failed or not, writes exactly one
-  `claude_usage` row with its token counts and no text.
+  `claude_usage` row with its token counts and no text. `SET_RESPONSE_MODEL`
+  from an account without `debug` → 403 and no change; from one with it, the
+  next press asks `claude-opus-5-5` whoever presses, and the setting survives
+  a restart.
 - App: the card is drawn only with the flag, its button has the ping's style,
   and *Responding…* with who asked is shown on a screen that did not press.
+  *Response model* is drawn for every member, enabled only for `debug`, and
+  the card's line says *Pro* only on *Pro*.
 
 ### Not in this task
 
@@ -245,5 +316,7 @@ then set the key and `bin/env-push` once the build is in hand.
   glossary's own *seat*. The GLOSSARY entry for *Channel tabs* should say that
   *People* holds one card that is not a person, so the next reader does not
   take it for an oversight.
-- **Other models for Pro accounts**, behind `modelFor`.
+- **Who else may choose *Pro***. Until 2026-10-22 the plan held a per-account
+  seam for *Pro (the subscription)* to choose a model; the channel setting
+  replaced it, and widening who may set it is a change to one check.
 - **Prompt caching**, once the meter shows repeated presses.
