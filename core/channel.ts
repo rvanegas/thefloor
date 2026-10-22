@@ -2243,7 +2243,8 @@ export function canPasteClip(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
- * Whether `userId` may press *Respond* on the Claude card, since 2026-10-22.
+ * Whether `userId` may press Claude's *Respond*, on the *Record* bar, since
+ * 2026-10-22.
  *
  * **The paste rule, because a reply is a paste**: anybody present, member or
  * guest, in a community or not, with no `debug` gate — plus the one thing a
@@ -2252,7 +2253,7 @@ export function canPasteClip(state: ChannelState, userId: UserId): boolean {
  * and what the server's 409 is.
  *
  * Whether this server can ask Claude at all is not channel state, so it is
- * not here: an app draws no card where `ChannelView.claude` is absent.
+ * not here: an app draws no *Respond* where `ChannelView.claude` is absent.
  */
 export function canAskClaude(state: ChannelState, userId: UserId): boolean {
   return canPasteClip(state, userId) && !state.claude;

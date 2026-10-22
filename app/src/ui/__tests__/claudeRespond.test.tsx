@@ -15,6 +15,8 @@ import {
   render,
   resetHarness,
   showChannel,
+  showPeople,
+  showRecord,
   textOf,
 } from '../testing/harness';
 
@@ -27,11 +29,12 @@ jest.mock('../../state/AppProvider', () =>
 );
 
 /**
- * The Claude card on *People*, and the *Response model* setting, since
- * 2026-10-22. What is asserted is what the screen owes each reader: the card
- * only where the server can answer, *Responding…* on every screen while
- * anybody's press is out, the reason when a press fails, and the model on show
- * to everybody but settable by `debug` alone.
+ * Claude's *Respond* on the *Record* bar, and the *Response model* setting,
+ * since 2026-10-22. What is asserted is what the screen owes each reader: the
+ * control only where the server can answer and only on *Record* — never as a
+ * card on *People* — *Responding…* on every screen while anybody's press is
+ * out, the reason when a press fails, and the model on show to everybody but
+ * settable by `debug` alone.
  */
 
 beforeEach(resetHarness);
@@ -44,27 +47,40 @@ afterEach(() => {
 
 const here = () => reduce(channelOf(), { type: 'ENTER', userId: ME }, NOW);
 
-const people = () =>
-  (tree = render(
+const record = () => {
+  tree = render(
     <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
-  ));
+  );
+  showRecord(tree);
+  return tree;
+};
 
-describe('the Claude card', () => {
+const disabled = (button: { props: Record<string, any> }) =>
+  button.props.accessibilityState?.disabled ?? button.props.disabled;
+
+describe('Respond on the Record bar', () => {
   it('is not drawn where the server cannot ask Claude', () => {
     showChannel(here());
-    expect(textOf(people())).not.toContain('Reads the Record');
+    record();
     expect(findButton(tree!, 'Respond')).toBeUndefined();
   });
 
-  it('is drawn, with Respond in the ping’s place, where it can', async () => {
+  it('is on the Record bar, and not a card on People', () => {
     showChannel(here(), [], { claude: true });
-    people();
-    expect(textOf(tree!)).toContain('Claude');
-    expect(textOf(tree!)).toContain('Reads the Record and adds to it');
-    const respond = findButton(tree!, 'Respond');
-    expect(respond?.props.accessibilityState?.disabled ?? respond?.props.disabled).toBeFalsy();
+    record();
+    expect(findButton(tree!, 'Respond')).toBeDefined();
+    showPeople(tree!);
+    expect(findButton(tree!, 'Respond')).toBeUndefined();
+    expect(textOf(tree!)).not.toContain('Reads the Record');
+  });
+
+  it('asks Claude when pressed', async () => {
+    showChannel(here(), [], { claude: true });
+    record();
+    const respond = findButton(tree!, 'Respond')!;
+    expect(disabled(respond)).toBeFalsy();
     await act(async () => {
-      respond!.props.onPress();
+      respond.props.onPress();
     });
     expect(mockApp.askClaude).toHaveBeenCalledWith('sess_1');
   });
@@ -76,44 +92,42 @@ describe('the Claude card', () => {
       NOW
     );
     showChannel(asked, [], { claude: true });
-    people();
-    expect(textOf(tree!)).toContain('Responding…');
-    expect(textOf(tree!)).toContain('Dana Chu asked');
+    record();
+    expect(textOf(tree!)).toContain('Dana Chu asked Claude');
     // Grey on this screen too: the guard is the channel's, not the presser's.
-    const busy = findButton(tree!, 'Responding\u2026')!;
-    expect(busy.props.accessibilityState?.disabled ?? busy.props.disabled).toBe(true);
+    expect(disabled(findButton(tree!, 'Responding\u2026')!)).toBe(true);
   });
 
-  it('says You asked to the one who did', () => {
+  it('says You asked Claude to the one who did', () => {
     const asked = reduce(here(), { type: 'CLAUDE_ASKED', ask: { askedBy: ME, since: NOW } }, NOW);
     showChannel(asked, [], { claude: true });
-    expect(textOf(people())).toContain('You asked');
+    expect(textOf(record())).toContain('You asked Claude');
   });
 
   it('shows the sentence when a press fails', async () => {
     mockApp.askClaude.mockRejectedValueOnce(new Error('Claude took too long to respond.'));
     showChannel(here(), [], { claude: true });
-    people();
+    record();
     await act(async () => {
       findButton(tree!, 'Respond')!.props.onPress();
     });
     expect(textOf(tree!)).toContain('Claude took too long to respond.');
   });
 
-  it('is grey, and says why, for somebody who has stepped out', () => {
+  it('is grey for somebody who has stepped out', () => {
     const out = reduce(here(), { type: 'STEP_OUT', userId: ME }, NOW);
     showChannel(out, [], { claude: true });
-    people();
-    expect(textOf(tree!)).toContain('Step in to ask');
+    record();
+    expect(disabled(findButton(tree!, 'Respond')!)).toBe(true);
   });
 
-  it('says Pro on the card only when the channel is on Pro', () => {
+  it('says Pro beside Claude only when the channel is on Pro', () => {
     const pro = reduce(here(), { type: 'SET_RESPONSE_MODEL', userId: ME, responseModel: 'pro' }, NOW);
     showChannel(pro, [], { claude: true });
-    expect(textOf(people())).toContain('Reads the Record and adds to it · Pro');
+    expect(textOf(record())).toContain('Claude \u00b7 Pro');
     act(() => tree!.unmount());
     showChannel(here(), [], { claude: true });
-    expect(textOf(people())).not.toContain('· Pro');
+    expect(textOf(record())).not.toContain('\u00b7 Pro');
   });
 });
 

@@ -793,18 +793,6 @@ means *speaking*, driven by the room; the fill means *holds the floor*, driven
 by the reducer. They routinely disagree — a holder sitting silent, a
 self-muted person whose claim is running — so they may not share an edge.
 
-**The Claude card is a People card's shape with a person's marks taken out**,
-since 2026-10-22 — `ClaudeCard` in `channelCards.tsx`. The same
-`participantCard` and `cardBody` row, the name in `cardName` and one muted
-line, and on the right rail its *Respond* in `cardPing`, the ping's style
-literally. **No speaking dot, no floor fill, no border state, no press on the
-card**: each of those is a claim about a person, and none is true of it. Its
-busy state is a label rather than a mark — *Responding…*, greyed, on every
-screen while anybody's press is out, which is the busy-label rule below rather
-than an animation. It sits after the people and the invitations under no
-section label, wrapped in `members` for their gap. Measured against 375pt: the
-text column is about 190pt beside the busy button, so its *· Pro* line wraps
-to two, which `cardText` is built to do.
 
 **A card that gains a border in one state keeps a transparent one in the
 others.** Otherwise the state card is two pixels larger than its neighbours.
@@ -1361,6 +1349,21 @@ wide rather than 44 — about 328 of the **343** there, the screen less the
 measure's 16 a side. (359, the right edge's coordinate, was mistaken for the
 width once, and the glyph wrapped for another build.) The row still wraps, as
 a net rather than a layout.
+
+**Claude's *Respond* is a line under the row**, since 2026-10-22 —
+`ClaudeRespond` in `RecordTab.tsx`, drawn only where the server can ask
+Claude. The switches' grammar, a word then its control: *Claude* in
+`switchLabel`, with *· Pro* on a *Pro* channel, then *Respond* as a `Button`
+tightened to the People card ping's numbers (`respond`). **On a line of its
+own because the row is full** — a third glyph at 40 would take it past 343 —
+and it is an act about the log, so it sits where the reply lands rather than
+among the people. Its busy state is a label, *Responding…*, greyed on every
+screen while anybody's press is out; who asked, or why a press failed, is a
+muted line under it, the bar's line for its refusals. Grey while you are
+away, as the switches are, with no sentence. Measured against 375pt: about
+90 for the word and 126 for *Respondiendo…*, well inside 343. For its first
+day it was a card on *People* in a person's shape with the person's marks
+taken out, and still read as a person — which is the reason it is not one.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 

@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import {
+  canAskClaude,
   canPauseKeeping,
   canPlay,
   canSetDiarize,
@@ -693,6 +694,7 @@ export function KeepSwitches({
   mayTranscribeLive,
   trailing,
   note,
+  claude,
 }: {
   channelId: string;
   channel: ChannelState;
@@ -706,6 +708,11 @@ export function KeepSwitches({
   trailing?: React.ReactNode;
   /** A line under the row about `trailing` — why the last paste did nothing. */
   note?: React.ReactNode;
+  /**
+   * Claude's *Respond*, on a line of its own under the row, since
+   * 2026-10-22 — `ClaudeRespond`, absent where the server cannot ask Claude.
+   */
+  claude?: React.ReactNode;
 }) {
   const t = useText().channel;
   const app = useApp();
@@ -800,6 +807,7 @@ export function KeepSwitches({
             onChange={(on) => app.act(channelId, { type: 'SET_DIARIZE', on })}
           />
         ) : null}
+        {claude}
         {note}
         {keeping !== 'running' && plays.audio && refusal !== null ? (
           <Text style={type.muted}>
@@ -827,6 +835,84 @@ export function KeepSwitches({
         ) : null}
       </View>
     </View>
+  );
+}
+
+/**
+ * **Claude's *Respond*, a line under the *Record* bar**, since 2026-10-22: the
+ * word *Claude*, then its control, as each switch is its word then its switch
+ * — and on a line of its own, as *Several voices* is, because a third glyph
+ * does not fit the row on a 375-point phone. For one day it was a card on
+ * *People* in a person's shape, which read as a person; it is a control about
+ * the *Record*, so it is with the *Record*'s controls, and the reply lands in
+ * the log under it.
+ *
+ * Pressing it reads the channel's whole *Record* and posts one short turn from
+ * Claude into it, as a paste. **The busy state is the channel's**: while
+ * anybody's press is out, `channel.claude` makes every screen's button say
+ * *Responding…*, greyed by the same `canAskClaude` that refuses a second press
+ * at the server, with who asked as a muted line under it. This screen's own
+ * pending state covers only the instant before the snapshot arrives.
+ *
+ * Grey while you are away, like the switches, with no sentence: being away is
+ * said by the footer. A failure's sentence is the muted line until the next
+ * press — the bar's line for its refusals, as the paste's are.
+ */
+export function ClaudeRespond({
+  channel,
+  me,
+  nameOf,
+  onRespond,
+}: {
+  channel: ChannelState;
+  me: string;
+  nameOf: (id: string) => string;
+  onRespond: () => Promise<void>;
+}) {
+  const t = useText().channel;
+  const [pressing, setPressing] = React.useState(false);
+  const [failure, setFailure] = React.useState<string | null>(null);
+  // `?? null` for a server that predates the field.
+  const asked = channel.claude ?? null;
+  const busy = pressing || asked !== null;
+  const refused = !canAskClaude(channel, me);
+
+  const respond = async () => {
+    setPressing(true);
+    setFailure(null);
+    try {
+      await onRespond();
+    } catch (e) {
+      setFailure(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPressing(false);
+    }
+  };
+
+  const line = asked
+    ? asked.askedBy === me
+      ? t.claudeAskedByYou()
+      : t.claudeAsked(nameOf(asked.askedBy))
+    : failure;
+
+  return (
+    <>
+      <View style={styles.switchRow}>
+        <Text style={[styles.switchLabel, refused && !busy && styles.switchLabelRefused]}>
+          {/* One string, so it is one run of text to a screen reader. */}
+          {`${t.claude()}${(channel.responseModel ?? 'standard') === 'pro' ? t.claudeProSuffix() : ''}`}
+        </Text>
+        <Button
+          label={busy ? t.responding() : t.respond()}
+          style={styles.respond}
+          disabled={busy || refused}
+          onPress={() => {
+            void respond();
+          }}
+        />
+      </View>
+      {line ? <Text style={type.muted}>{line}</Text> : null}
+    </>
   );
 }
 
@@ -1167,6 +1253,13 @@ const styles = StyleSheet.create({
     marginVertical: (-31 * (1 - SWITCH_SCALE)) / 2,
   },
   switchLabelRefused: { color: colors.textFaint },
+  /**
+   * *Respond*, tightened as the People card's ping is — the same numbers —
+   * since `Button` is sized for a card of its own and this sits in a line of
+   * text. The ordinary fill: nothing on this bar but the recording's red is
+   * entitled to colour.
+   */
+  respond: { paddingVertical: spacing(0.5), paddingHorizontal: spacing(1), minHeight: 0 },
   warning: { color: colors.silenced, fontSize: 13 },
   pressed: { opacity: 0.6 },
 });

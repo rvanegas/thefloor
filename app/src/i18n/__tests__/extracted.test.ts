@@ -199,9 +199,9 @@ describe('the two languages', () => {
       // The response model's grade, the same word for the same reason — and,
       // like the one above, not the subscription below.
       'channelSettings.responsePro',
-      'channelCards.claudeProSuffix',
+      'channel.claudeProSuffix',
       // A name, and Anthropic's: Claude is Claude in every language.
-      'channelCards.claude',
+      'channel.claude',
       // The subscription's name — a different Pro from the grade above, and
       // the name it is sold under in the App Store, which is not translated
       // either. GLOSSARY.md, *Pro (the subscription)*.

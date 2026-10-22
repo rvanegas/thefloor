@@ -134,7 +134,7 @@ export interface PolicyOptions {
    * says so and every clause elsewhere that it qualifies. `transcription`'s
    * gate exactly, for its reason: the claim is true only where the credential
    * is, and unsetting `ANTHROPIC_API_KEY` retracts it in the same restart
-   * that takes the Claude card away. Since 2026-10-22.
+   * that takes *Respond* away. Since 2026-10-22.
    */
   claude?: string;
 }
@@ -283,7 +283,7 @@ unnoticed for far longer.</p>
   const claudeSection = claude
     ? `
 <h2>Claude</h2>
-<p>A channel's <em>People</em> tab has a card for Claude, an assistant made by
+<p>A channel's <em>Record</em> tab can ask Claude, an assistant made by
 ${claude}. It never speaks on its own: when somebody in the channel presses
 <em>Respond</em>, the channel's Record is sent to ${claude} as text — what has
 been said in it, as transcribed, and what has been pasted into it, with the
@@ -294,7 +294,7 @@ what the Record already says.</p>
 <p>The reply is kept in the channel's Record like anything pasted into it,
 under the name <em>Claude</em>, for everybody in the channel to read, and is
 deleted with the channel, on the same schedule as everything else in it. Every screen in the channel says <em>Responding…</em>
-on that card while the reply is being written.</p>
+on its <em>Respond</em> button while the reply is being written.</p>
 
 `
     : '';

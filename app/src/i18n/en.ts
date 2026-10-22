@@ -591,22 +591,6 @@ export const en = {
     pinged: () => 'Pinged',
     ping: () => 'Ping',
     /**
-     * The Claude card, since 2026-10-22. *Respond* is a bare verb addressed to
-     * the card, as *Ping* is, and chosen against Spanish: *Responder* is the
-     * same word, where *prompt* has no verb that is not *ask* or wrong.
-     */
-    claude: () => 'Claude',
-    claudeReads: () => 'Reads the Record and adds to it',
-    /** On the card's line when the channel's *Response model* is *Pro*. */
-    claudeProSuffix: () => ' \u00b7 Pro',
-    /** While Claude is being asked, on every screen: who pressed. */
-    claudeAsked: (name: string) => `${name} asked`,
-    claudeAskedByYou: () => 'You asked',
-    /** Why *Respond* is grey: it is the paste rule. */
-    claudeStepIn: () => 'Step in to ask',
-    respond: () => 'Respond',
-    responding: () => 'Responding\u2026',
-    /**
      * The whole of what a screen reader says about one People card. No
      * seconds in it, deliberately: the clock beside the name ticks once a
      * second and a label carrying it would announce the card afresh each
@@ -1427,6 +1411,21 @@ export const en = {
      * the transcriber does about it.
      */
     severalVoices: () => 'Several voices on my microphone',
+    /**
+     * *Respond*, on its own line under the *Record* bar, since 2026-10-22 —
+     * on *People* as a card for the first day, which read as a person. The
+     * word, then its control, as the switches are. *Respond* is a bare verb
+     * addressed to Claude, and chosen against Spanish: *Responder* is the
+     * same word, where *prompt* has no verb that is not *ask* or wrong.
+     */
+    claude: () => 'Claude',
+    /** After *Claude* when the channel's *Response model* is *Pro*. */
+    claudeProSuffix: () => ' \u00b7 Pro',
+    respond: () => 'Respond',
+    responding: () => 'Responding\u2026',
+    /** Under the bar while Claude is being asked, on every screen. */
+    claudeAsked: (name: string) => `${name} asked Claude`,
+    claudeAskedByYou: () => 'You asked Claude',
     roomsNothingYet: () =>
       'Nothing kept yet. What is recorded or transcribed here appears as a log, one room at a time.',
     paused: () => 'Paused',

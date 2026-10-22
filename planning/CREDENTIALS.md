@@ -346,7 +346,7 @@ Deliberately separate, so no single leak is worse than it has to be:
 
   **Setting it is a public act**, on AssemblyAI's terms exactly: `/privacy`'s
   Claude section, and the clauses it qualifies, are conditional on this key,
-  and so is the Claude card. Set it, and push it, with the deploy that ships
+  and so is *Respond* on the Record bar. Set it, and push it, with the deploy that ships
   the card, not before. Marked `# env-push: optional` in `server/.env.example`.
 
   Rotating it is free: mint another, replace the line, `bin/env-push`, revoke

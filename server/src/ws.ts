@@ -557,7 +557,7 @@ export function registerWebsocket(deps: {
   mayTranscribeLive?: (userId: string) => boolean;
   /** Whether this account may set *Record automatically*'s Text. */
   mayAutoTranscribe?: (userId: string) => boolean;
-  /** Whether this server can ask Claude, which draws the Claude card. */
+  /** Whether this server can ask Claude, which draws *Respond*. */
   claudeAvailable?: () => boolean;
   reachability: Reachability;
   preferences: NotificationPreferences;

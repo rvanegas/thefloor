@@ -314,7 +314,7 @@ export interface BuildOptions {
    */
   transcription?: TranscriptionProvider;
   /**
-   * Asks Claude for a turn in a conversation — *Respond* on the Claude card.
+   * Asks Claude for a turn in a conversation — *Respond*, on the *Record* bar.
    * Optional for `transcription`'s reasons, and the switch in the same way:
    * absent, there is no card, the route answers 503, and `/privacy` says
    * nothing about Anthropic. An `Anthropic` client in production; a fake in
@@ -4970,7 +4970,7 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * *Respond* on the Claude card, since 2026-10-22: reads the channel's
+   * *Respond* on the *Record* bar, since 2026-10-22: reads the channel's
    * *Record*, asks Claude for one turn, and posts it there as a paste. Answers
    * when the reply is posted or has failed, so the app can say which; every
    * screen meanwhile says *Responding…* from the channel's own state. Members

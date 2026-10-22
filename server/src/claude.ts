@@ -8,7 +8,7 @@ import { readableLines, type TranscriptLine } from './transcripts';
 
 /**
  * **Claude in a conversation**, since 2026-10-22: somebody present presses
- * *Respond* on the Claude card, and this reads the channel's *Record* as text,
+ * *Respond* on the *Record* bar, and this reads the channel's *Record* as text,
  * asks Anthropic for one turn, and posts the answer into the *Record* as a
  * paste authored by `CLAUDE_ID`. The design, and the reason for every number
  * below, is planning/decision/2026-10-22-claude-joins-the-conversation-as-a-paste-in-the-record.md.

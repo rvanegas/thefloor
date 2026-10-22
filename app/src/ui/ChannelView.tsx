@@ -90,7 +90,6 @@ import {
   WatchIcon,
 } from './icons';
 import {
-  ClaudeCard,
   FooterAction,
   GuestCard,
   MicrophoneSilent,
@@ -131,7 +130,7 @@ import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
-import { KeepSwitches, RecordTab } from './RecordTab';
+import { ClaudeRespond, KeepSwitches, RecordTab } from './RecordTab';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -3029,6 +3028,22 @@ export function ChannelView({
                 />
               }
               note={clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
+              /*
+                **Claude's *Respond*, since 2026-10-22** — a line under the
+                row, where the reply it asks for lands. Only where the server
+                says it can answer, so a press never meets a 503. See
+                `ClaudeRespond`.
+              */
+              claude={
+                view?.claude ? (
+                  <ClaudeRespond
+                    channel={channel}
+                    me={me}
+                    nameOf={nameOf}
+                    onRespond={() => app.askClaude(channel.id)}
+                  />
+                ) : null
+              }
             />
           </>
         ) : (
@@ -3573,25 +3588,6 @@ export function ChannelView({
             and a link. Members only — a guest's screen is not this one. See
             `InviteCard`.
           */}
-          {/*
-            **Claude, since 2026-10-22**: after the people and the invitations,
-            because it is neither, and before the way in. Under no label — it
-            is not a member, a guest or an invitation, and a fifth label for
-            one card is heavier than the card. Drawn only where the server
-            says it can answer, so a press never meets a 503. See
-            `ClaudeCard`.
-          */}
-          {view.claude ? (
-            <View style={styles.members}>
-              <ClaudeCard
-                channel={channel}
-                me={me}
-                nameOf={nameOf}
-                onRespond={() => app.askClaude(channel.id)}
-              />
-            </View>
-          ) : null}
-
           {/*
             On a locked channel the card goes, and nothing takes its place —
             Settings is where the lock is said. See `ChannelState.locked`.
