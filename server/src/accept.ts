@@ -19,7 +19,9 @@
  * **The scheme is fired on a tap, never on load**, which is the half of
  * Telegram's page that was not taken. Without the app it is still an *Allow*
  * prompt that errors, or Safari calling the address invalid — but only after
- * the page has said to install first, and the page then points at the install.
+ * the page has said to install first and warned of the error, and the page
+ * then names it and points at the install. *The browser*, never *Safari*, in
+ * the copy: Chrome and the rest fail differently, and Apple's wording moves.
  *
  * **Neither page tells anybody to find the link again.** An install used to
  * lose it; the tab is still open with the credential in its address, so coming
@@ -102,9 +104,9 @@ export function acceptBlock(options: {
   aside: string;
 }): string {
   const prereq = options.store
-    ? `<p class="prereq ios-only">Install The Floor on this iPhone first — it’s free — then come back here and ${options.verb}.</p>\n`
+    ? `<p class="prereq ios-only">Install The Floor on this iPhone first — it’s free — then come back here and ${options.verb}. ${options.label} opens the app, so without it the browser will show an error.</p>\n`
     : '';
-  return `${prereq}<p class="cta"><span class="missing">The Floor isn’t on this iPhone yet. Get the app, then tap ${options.label} again.</span><a id="accept" href="${options.href}">${options.label}</a>
+  return `${prereq}<p class="cta"><span class="missing">The browser couldn’t open The Floor: it isn’t on this iPhone yet. Get the app at the top, then come back here and tap ${options.label} again.</span><a id="accept" href="${options.href}">${options.label}</a>
 <span class="aside">${options.aside}</span></p>`;
 }
 
