@@ -4575,7 +4575,9 @@ back.
 **Held, it says so to the room.** *Hold & Accept* on an incoming call holds
 it, and the roster shows *On another call*. iOS leaves an app's held call held
 after the other call ends, so the module takes it off hold itself once no
-other call is up; `didActivate` follows and the engine restarts.
+other call is up. CallKit should then activate the session; when it
+deactivates it instead, the module activates it itself and the engine
+restarts.
 
 **It is not `CALL`**, the audio session configuration, and not the session
 want `call`. All three are about a phone holding a microphone, and none of

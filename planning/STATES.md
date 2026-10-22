@@ -1276,8 +1276,12 @@ came — and the app returning to the foreground restarted the engine against a
 session CallKit still had on hold: `playout frozen`, until a step-out and back.
 So `modules/reported-call` watches every call on the device (`CXCallObserver`)
 and asks for `CXSetHeldCallAction(onHold: false)` once no other call is up.
-CallKit's `didActivate` follows, which `LKRTCAudioSession` treats as the end of
-the interruption, and the engine restarts on a live session. The room is told
+CallKit's `didActivate` should follow, which `LKRTCAudioSession` treats as the
+end of the interruption, and the engine restarts on a live session. **It does
+not always**: on 2026-10-22, build 384, a `didDeactivate` came instead, and the
+roster said *Present* over a phone that heard nothing. Then the module ends the
+hold's interruption itself, as it ends the film's below — see
+`decision/2026-10-22-a-resume-that-deactivates-is-recovered-by-the-app.md`. The room is told
 both ways as `ON_ANOTHER_CALL` — GLOSSARY.md § *On another call*.
 
 **`LISTENING` under a call is interrupted at 480 seconds, and the app ends

@@ -88,6 +88,12 @@ public class ReportedCallModule: Module {
    * session, and by the call going.
    */
   fileprivate var interrupted = false
+  /**
+   * From the call coming off hold until CallKit next activates or deactivates
+   * the session — the stretch in which a deactivation means the resume did not
+   * bring the session back. See `recoverResume`.
+   */
+  fileprivate var resuming = false
   fileprivate var interruptionObserver: NSObjectProtocol?
   /**
    * Every call on the device, this app's and everybody else's — what tells a
@@ -142,9 +148,9 @@ public class ReportedCallModule: Module {
    * held call got no `held false` at all. WebRTC then restarted its engine on
    * the app's return to the foreground, against a session CallKit still had
    * on hold, and logged `playout frozen` until the person stepped out and in.
-   * Taking the call off hold here is what brings `didActivate`, and WebRTC
-   * treats that as the end of the interruption and restarts the engine on a
-   * session that is really live.
+   * Taking the call off hold here is meant to bring `didActivate`, which
+   * WebRTC treats as the end of the interruption — and does not always:
+   * `recoverResume` covers the time it brings `didDeactivate` instead.
    *
    * Asked as a transaction rather than assumed: CallKit may refuse it, and
    * then the call stays held and says so.
@@ -198,6 +204,39 @@ public class ReportedCallModule: Module {
     rtc.audioSessionDidActivate(session)
     emit("interruption ended by the app \(session.category.rawValue)/\(session.mode.rawValue)")
     return true
+  }
+
+  /**
+   * Brings the session back when CallKit answered a call coming off hold with
+   * `didDeactivate` rather than `didActivate`.
+   *
+   * **The resume does not always activate.** Seen 2026-10-22, build 384: the
+   * call this one was held for ended, `resumeIfAlone` took it off hold, and
+   * 230ms later CallKit deactivated the session — already deactivated by the
+   * hold — and never activated it. The roster said *Present* again and the
+   * phone heard nothing until a step-out and back. The guess is that
+   * the other call still had the audio, `resumeIfAlone` having asked the
+   * moment `CXCallObserver` said it ended; on 2026-10-20 a resume fifteen
+   * seconds after the hold got its `didActivate`.
+   *
+   * WebRTC stopped its engine at the hold's interruption and is still waiting
+   * for its end, so this is that interruption, ended the way
+   * `recoverInterruption` ends the film's. Tried at once and, refused, once
+   * more a second later, in case the other call's audio was still going away.
+   * Refused twice, `interrupted` stays set, and the next time the session
+   * becomes a call JavaScript asks again.
+   */
+  fileprivate func recoverResume() {
+    guard resuming else { return }
+    resuming = false
+    guard let id = callId, !held else { return }
+    interrupted = true
+    if recoverInterruption() { return }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+      guard self.callId == id, !self.held, !self.holdsSession else { return }
+      self.interrupted = true
+      _ = self.recoverInterruption()
+    }
   }
 
   /** Watches for the interruption `recoverInterruption` ends. Main queue. */
@@ -279,6 +318,7 @@ public class ReportedCallModule: Module {
         self.endingFromApp = false
         self.setHeld(false)
         self.interrupted = false
+        self.resuming = false
         let handle = CXHandle(type: .generic, value: channelId)
         let start = CXStartCallAction(call: id, handle: handle)
         start.isVideo = false
@@ -397,6 +437,7 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     module?.callChannel = nil
     module?.holdsSession = false
     module?.interrupted = false
+    module?.resuming = false
     module?.setHeld(false)
   }
 
@@ -414,6 +455,7 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     module.callChannel = nil
     module.endingFromApp = false
     module.interrupted = false
+    module.resuming = false
     // Told to JavaScript although the end is a step-out, which is what takes
     // the room's `onAnotherCall` away: `useReportedCall` keeps its own copy,
     // and one left saying held tells the room so again at the next step-in.
@@ -451,13 +493,15 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
   /**
    * *Hold & Accept* holds the call, and `resumeIfAlone` — or the person, from
    * the system's call list — takes it off hold. CallKit deactivates the
-   * session on the first and activates it on the second; the engine follows
-   * from `didActivate`, so all this does is tell the room.
+   * session on the first and should activate it on the second; the engine
+   * follows from `didActivate`. When a deactivation comes instead,
+   * `recoverResume` brings the session back.
    */
   func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
     guard let module else { action.fulfill(); return }
     module.emit("held \(action.isOnHold)")
     action.fulfill()
+    module.resuming = !action.isOnHold
     module.setHeld(action.isOnHold)
   }
 
@@ -479,6 +523,7 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     LKRTCAudioSession.sharedInstance().audioSessionDidActivate(audioSession)
     module?.holdsSession = true
     module?.interrupted = false
+    module?.resuming = false
     module?.emit("activated \(audioSession.category.rawValue)/\(audioSession.mode.rawValue)")
   }
 
@@ -486,5 +531,6 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     LKRTCAudioSession.sharedInstance().audioSessionDidDeactivate(audioSession)
     module?.holdsSession = false
     module?.emit("deactivated")
+    module?.recoverResume()
   }
 }
