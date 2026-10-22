@@ -8,157 +8,220 @@
 
 ## Plan
 
-Planned 2026-10-22. The five steps above are the ask; what follows is how each
-lands on what is already here, and the questions it leaves for Rodrigo.
+Planned 2026-10-22, and revised the same day with Rodrigo's answers: a key of
+the project's own rather than mdc's; the whole *Record*, not the room; open to
+everybody, not `debug`; the latest Haiku by default; an indicator on the card
+that everybody sees. The five steps above are the ask, and step 4's label is
+the one thing deliberately changed from it (§ 3 and 4).
 
 **The shape in one sentence:** a new route, `POST /channels/:id/claude`, reads
-the room's text, asks Anthropic for a contribution, and applies the answer as a
-**paste authored by Claude** — so it enters the *Record* the way every paste
-does, and nothing on the wire changes except an optional flag and the route.
+the channel's *Record* as text, asks Anthropic for one contribution, and
+applies the answer as a **paste authored by Claude** — so it enters the
+*Record* the way every paste does.
 
 ### 1. The client, and the credential
 
-- **`server/src/claude.ts`**, a class in `transcription.ts`'s idiom: an
-  injected `fetch` and `baseUrl`, `available()` true only when the key is set,
-  plain `POST /v1/messages` rather than `@anthropic-ai/sdk`. The server has no
-  provider SDK today; AssemblyAI is driven by `fetch`, and the test seam is the
-  injected function.
-- **Model from `ANTHROPIC_MODEL`**, defaulting to `claude-sonnet-5-5`. A reply
-  somebody is waiting for in a live room wants latency more than depth; Opus
-  is one setting away. `max_tokens` sized so the answer stays well under
-  `MAX_CLIP_LENGTH` (8,000 characters), which the reducer refuses rather than
-  trims — and the server trims at a paragraph boundary before it gets there.
-- **The key is `ANTHROPIC_API_KEY` in `~/.config/thefloor/server.env`**, not a
-  file of its own: that is where every server credential is authored, and
-  `bin/env-push` carries it to the box. Copied from mdc's config by hand
-  (mdc reads `anthropic_api_key` from its config file, or the environment). It
-  is the same key, and that is a choice: separate keys are the CREDENTIALS.md
-  principle, and a key of The Floor's own from console.anthropic.com is what
-  that principle asks for. **Open question 1.**
-- **Paperwork in the same commit**: the tenth entry in CREDENTIALS.md
-  (spends per use like AssemblyAI; what a leak costs; rotation is free), a row
-  in its index, `ANTHROPIC_API_KEY=` and `ANTHROPIC_MODEL=` in
-  `server/.env.example` marked `# env-push: optional`.
+- **`server/src/claude.ts`**, wrapping `@anthropic-ai/sdk`, the server's first
+  provider SDK. AssemblyAI is driven by hand-rolled `fetch`, but the SDK's
+  typed errors, retries and `usage` are worth the dependency, and the test seam
+  is the same shape: the class takes something with `messages.create`, and
+  tests pass a fake. `available()` is true only when the key is set.
+- **Model: `claude-haiku-5-5` by default**, overridable by `ANTHROPIC_MODEL`.
+  The choice goes through one seam, `modelFor(accountId)`, which returns the
+  default today. That is where *Pro (the subscription)* will later choose
+  another model; this task builds the seam and nothing behind it.
+- **The key is `ANTHROPIC_API_KEY` in `~/.config/thefloor/server.env`** — the
+  file every server credential is authored in, carried to the box by
+  `bin/env-push`. It is a key issued for The Floor alone, and not mdc's, on
+  CREDENTIALS.md's principle that no one leak is worse than it has to be.
+  **Put it in the file whenever, and push it only with the deploy that ships
+  this**: once the code is there, the key's presence is what makes `/privacy`
+  name Anthropic.
+- **Paperwork in the same commit**: the tenth entry in CREDENTIALS.md (it
+  spends per use, as AssemblyAI does; what a leak costs; rotating it is free,
+  since nothing stored depends on it), a row in its index, and
+  `ANTHROPIC_API_KEY=` and `ANTHROPIC_MODEL=` in `server/.env.example`, marked
+  `# env-push: optional`.
 - **`/privacy` names Anthropic when the key is set, and only then** — the
-  AssemblyAI rule exactly (`privacy.ts`): what leaves (the room's text, names
-  as spoken), that it is sent only when somebody presses *Prompt*, and and what
-  Anthropic's commercial terms say of retention — read them on the day rather
-  than from memory. Setting the key is therefore a public
-  act, and is done on the day the feature can be pressed.
+  AssemblyAI rule exactly (`privacy.ts`). It says what leaves (the channel's
+  *Record* as text, names as kept), that it is sent only when somebody presses
+  the button, and what Anthropic's commercial terms say of retention, read on
+  the day rather than from memory.
 
 ### 2. The prompt
 
-- **What "the record of transcripts" is, concretely**: the *current room* —
-  the open sitting — read in time order from its three sources: live lines
-  (`live.linesBefore`), batch transcripts of its recordings
-  (`transcripts.linesFor`, through `readableLines` so names are frozen ones),
-  and its pastes (`pastes.within`). Claude's own earlier replies are pastes
-  too, and go in as Claude's turns, so a second press continues rather than
-  repeats. **Open question 2** is whether it should reach further back than the
-  room.
+- **The whole *Record*, oldest first**, from its three sources: live lines
+  (`live.linesBefore`), the batch transcripts of recordings
+  (`transcripts.linesFor`, through `readableLines` so names are the frozen
+  ones) and pastes (`pastes.within`), laid out in rooms as the tab lays them
+  out — each room headed by its date and hours.
 - **Rendered as speaker-labelled prose** with wall-clock times, as the `txt`
-  export is, one block per speaker turn — the form a person reads, which is
-  also the form a model reads best.
-- **Bounded from the newest end**: a character budget (start at ~200k, well
-  inside the context window) that drops the oldest lines first and says so in
-  the prompt.
-- **The system prompt** says: you are Claude, a participant in a voice
-  conversation in an app called The Floor; what follows is a transcript of it
-  so far, made by speech recognition and so imperfect; contribute one turn
-  to it, as a person in the room would — briefly, in the language being
-  spoken, addressing people by name where it helps; plain text, no Markdown,
-  because the Record draws plain lines. Kept in `claude.ts` as one constant,
-  with a test that pins its ingredients rather than its wording.
-- **Nothing to read, nothing sent**: a room with no text answers 409 with a
-  sentence (*Nothing has been said in this room yet that Claude can read.*)
-  rather than prompting on an empty transcript.
+  export is, one block per speaker turn. Claude's earlier replies are pastes,
+  so they appear in it labelled *Claude*, and a second press continues the
+  conversation rather than repeating itself. All of it is one user message:
+  replaying the replies as assistant turns would buy nothing that the label
+  does not already give.
+- **Capped from the oldest end** at the input budget below. Whole rooms are
+  dropped first, then lines from the front of the oldest room kept, and the
+  prompt says where the record begins.
+- **The system prompt** says: you are Claude, taking part in a voice
+  conversation in an app called The Floor. What follows is its record so far,
+  made by speech recognition and so imperfect. Contribute one turn to it, as
+  somebody in the room would: briefly, in the language being spoken, by name
+  where that helps, and in plain text with no Markdown, since the *Record*
+  draws plain lines. It is one constant in `claude.ts`, with a test that pins
+  its ingredients rather than its wording.
+- **Nothing to read, nothing sent**: a channel whose *Record* holds no text
+  answers 409 with a sentence (*There is nothing in the Record yet for Claude
+  to read.*) rather than prompting on nothing.
+
+### The caps
+
+Shaped by the one cliff in Haiku 5.5's pricing. A prompt up to 100K tokens
+costs $0.10 per million input and $0.50 per million output, and a prompt past
+100K costs five times that. The context window is 1M, so the window is not the
+limit; the price is.
+
+- **Input: 90,000 tokens of *Record***, leaving headroom under 100K for the
+  system prompt and the room headings. Spoken conversation runs about
+  12–13K tokens an hour, so this is **about seven hours of talk** — most
+  channels' entire *Record*, and the most recent seven hours of the rest.
+  Measured as characters, about 3.5 to the token, rather than by a
+  `count_tokens` round trip before every press; `usage.input_tokens` is
+  logged to the meter and calibrates the ratio, which matters for Spanish.
+- **Output: `max_tokens: 1024`, `effort: "low"`**, with the system prompt
+  asking for at most about a hundred words. Haiku 5.5 thinks by default, and
+  `max_tokens` includes the thinking, so 1,024 is a ceiling on the whole
+  answer rather than its intended length; low effort is what makes a reply
+  arrive in the time a turn takes. 1,024 tokens is about 4,000 characters,
+  which never approaches `MAX_CLIP_LENGTH` (8,000) — the reducer refuses
+  rather than trims, so the server must never send it more. A reply that stops
+  on `max_tokens` is cut back to its last full sentence.
+- **What a press costs**: at the cap, about **a cent** — 90K input is $0.009
+  and 1K output is $0.0005 — and a typical channel costs a tenth of that. So
+  opening it to everybody needs no quota on day one, only the meter. Prompt
+  caching would cut repeated presses in one channel further, since the
+  *Record* is an append-only prefix until the cap starts trimming it. It is
+  cheap to add later, and not worth adding before the meter says it matters.
 
 ### 3 and 4. The card and its button
 
 - **Drawn after the members and invitations, before `InviteCard`**, as a card
   in `ParticipantCard`'s shape: the name *Claude*, a muted line under it
   (*Reads the Record and adds to it*), and on the right rail a `Button` with
-  `styles.cardPing` — the ping's style, literally — labelled `t.prompt()`,
-  `t.prompting()` while in flight.
-- **No section label over it.** It is not a member, guest or invitation, and
-  putting it under *Members* would make that word wrong; a fifth label for one
-  card is heavier than the card. **No presence dot, no clock, no profile** —
-  none of those is true of it.
+  `styles.cardPing` — the ping's style, literally.
+- **The label is *Respond* / *Responder*,** not *prompt*. On a card named
+  *Claude*, a bare verb is addressed to the card, as *Ping* is, so *Ask Claude*
+  says the name twice. *Respond* translates one to one into *Responder*, the
+  infinitive a Spanish button wants; *prompt* has no Spanish verb that is not
+  either *ask* or wrong. Busy, it reads *Responding…* / *Respondiendo…*. The
+  warmer alternative is *Your turn* / *Te toca*, idiomatic in both and fitting
+  an app about the floor. It is not recommended, because "turn" already names
+  a speaker's turn in a transcript.
+- **No section label over it.** It is not a member, guest or invitation, and a
+  fifth label for one card is heavier than the card. **No presence dot, no
+  clock, no profile** — none of those is true of it.
 - **Drawn only when the server says it can answer**: `ChannelView` gains an
-  optional `claude?: true`, set when the client is `available()` and this
-  viewer may prompt. Absent is the old server and the unconfigured one alike,
-  so the card never offers a press that 503s.
-- **Enabled only while you are present**, the paste rule (`canPasteClip`),
+  optional `claude?: true`, set when the client is `available()`. An old
+  server and an unconfigured one both leave it absent, so the card never
+  offers a press that 503s.
+- **Enabled for anybody present**, the paste rule (`canPasteClip`), and
   greyed otherwise in the STYLE.md § *Words on controls* sense — the action
-  exists, you are just not where it can be done.
-- **"prompt" was chosen in English only.** It translates poorly — *Preguntar*
-  is "ask", *Indicar* is wrong — so **open question 3**: keep *Prompt*, or
-  *Ask Claude*, which says the same in both languages. Either way the catalogue
-  gets the Spanish in the same commit, and GLOSSARY.md gets *Claude card* and
-  *Prompt* in Part One and Part Three, with the one-line list at the top.
+  exists, you are just not where it can be done. No `debug` gate.
+- **GLOSSARY.md and STYLE.md in the same commit**: *Claude card* and
+  *Respond* in Part One and Part Three and in the one-line list; the card in
+  § *Cards and rows*.
+
+### The indicator, which everybody sees
+
+- **It is channel state, because it has to reach every screen**:
+  `ChannelState.claude: { askedBy: UserId; since: number } | null`, set and
+  cleared by two server-assembled actions, `CLAUDE_ASKED` and
+  `CLAUDE_ANSWERED`. Their guards are in `core/` like every other, so the
+  greyed button and the 409 are computed by the same code. A build that
+  predates the field ignores it.
+- **Drawn as the button itself**, disabled and reading *Responding…* on every
+  screen, with the muted line saying who asked (*Ana asked*). No dot: the
+  speaking dot's filled state means *audible now*, and Claude is not audible.
+  No animation either: STYLE.md has none, and a busy label is what stands in
+  for it.
+- **It never outlives the request.** It is cleared on the answer, on the
+  failure, after a 60-second timeout, and on restore after a restart, since a
+  request in flight when the server stopped is gone. A stuck *Responding…*
+  would be the "On another call" bug again.
+- **One request in flight per channel** is the same state read from the other
+  side. A second press while it is set is refused by the guard, and the server
+  answers 409 *Claude is already responding.*
 
 ### 5. Into the Record
 
-- **The server applies `PASTE_CLIP` on the prompter's behalf with
-  `clip.authorId = CLAUDE_ID`** (`'claude'` in `core/constants.ts` — no
-  underscore, so no `newId` can mint it). The reducer guards the *acting* user
-  (`canPasteClip(state, action.userId)`), who is present; it does not tie the
-  author to the actor. Going through the reducer rather than writing the row
-  directly is what makes it arrive: `Pastes.follow` writes it, the snapshot
-  carries the new `clip.id`, and every open *Record* refetches on that key
-  (`ChannelView.tsx` `keptKey`). The length cap stays the reducer's.
+- **The server applies `PASTE_CLIP` on the presser's behalf, with
+  `clip.authorId = CLAUDE_ID`**: `'claude'` in `core/constants.ts`, with no
+  underscore, so no `newId` can mint it. The reducer guards the *acting* user
+  (`canPasteClip(state, action.userId)`), who is present, and does not tie
+  the author to the actor. Going through the reducer is what makes the reply
+  arrive: `Pastes.follow` writes the row, the snapshot carries the new
+  `clip.id`, and every open *Record* refetches on that key (`ChannelView.tsx`
+  `keptKey`). The length cap stays the reducer's.
+- **If the presser has left by the time the answer comes, it is applied as
+  the next present member**; if nobody is present, it is written straight to
+  `pastes` and appears in the *Record* on its next load. Losing a paid answer
+  because one person stepped out would be wrong in a room where others are
+  waiting for it.
 - **`Pastes`' `nameOf` resolves `CLAUDE_ID` to *Claude***, so the frozen
-  `display_name` is right and every build since 2026-10-15 draws the reply
+  `display_name` is right, and every build since 2026-10-15 draws the reply
   under Claude's name with no change. Builds before that draw it as their
-  *Clipboard*'s latest paste, author unresolved — acceptable, and needs no
-  shim.
+  *Clipboard*'s latest paste, author unresolved. That is acceptable, and needs
+  no shim.
 - **It is a paste, not live lines.** Lines are speech and belong to a text
-  segment; a reply made while nothing is being kept would have nowhere to go.
-  A paste is an instant that breaks nothing, is never deleted, and is copyable,
-  which is what a reply wants. A *Record* drawing that distinguishes it — a
-  glyph, not a colour (STYLE.md spends colours on meanings) — is a follow-up,
-  not this task.
-- **One prompt in flight per channel**, held in memory on the server; a second
-  press while one is out gets 409 *Claude is already answering.* No new
-  reducer state, so nobody else's card shows a spinner — **open question 4**.
-- **Not spoken.** The reply is text in the Record. Text-to-speech into the
+  segment, so a reply made while nothing is being kept would have nowhere to
+  go. A paste is an instant that breaks nothing, is never deleted and can be
+  copied, which is what a reply wants. A *Record* drawing that sets it apart —
+  a glyph, not a colour — is a follow-up, not this task.
+- **Not spoken.** The reply is text in the *Record*. Text-to-speech into the
   room is a different feature, with the floor rules to answer to.
 
-### Who may press, and what it costs
+### Metering
 
-- **Members who are present**; guests do not see the card — a guest's screen is not this
-  one, as `InviteCard`'s comment says. Recommended: **`debug` accounts only for the first build**, since it
-  spends money per press and has no meter — **open question 5**.
-- **Metered** through `UsageMeter` as a new kind (`claude`, input and output
-  tokens, account and channel), so `bin/usage` can say what it costs before
-  anybody decides whether it needs a cap.
+A new `UsageMeter` kind, `claude`, recording input and output tokens, the
+model, the account and the channel, so that `bin/usage` says what this costs
+before anybody decides it needs a quota — and so that Pro's model choice later
+has a number to be priced against.
 
 ### Compatibility and order
 
-Additive throughout: a new route, an optional field, a reserved author id. Old
-builds never see the card; a new build against an old server sees no `claude`
-flag and draws none. So the order is the ordinary one with no shim — deploy
-the server (with the key unset, so `/privacy` stays silent), upload the build,
-set the key once the build is in hand, `bin/env-push`. No SHIMS.md entry.
+Additive throughout: a new route, an optional view field, an optional
+`ChannelState` field, and a reserved author id. Old builds never see the card,
+and a new build against an old server sees no `claude` flag and draws none.
+So the order is the ordinary one, with no shim and no SHIMS.md entry: deploy
+the server with the key unset, so `/privacy` stays silent; upload the build;
+then set the key and `bin/env-push` once the build is in hand.
 
 ### Tests
 
-- `claude.test.ts`: the request body (model, system prompt ingredients,
-  budget trimming oldest-first, earlier replies as Claude's turns) against a
-  fake `fetch`; a non-200 and a timeout each surface as one sentence and write
-  nothing.
-- Route tests: absent key → no flag and 503; not present → 403; empty room →
-  409; concurrent → 409; success → a paste row authored by `CLAUDE_ID`, named
-  *Claude*, inside the room's segments.
-- App: the card is drawn only with the flag, and its button has the ping's
-  style.
+- `core`: the two guards (only somebody present may ask; not while one is in
+  flight), and that `CLAUDE_ANSWERED` clears whatever asked.
+- `claude.test.ts`, against a fake client: the request (model from
+  `modelFor`, `max_tokens`, effort, the system prompt's ingredients); trimming
+  oldest-first, with the begins-here line; Claude's earlier replies labelled
+  in the transcript; a `max_tokens` stop cut to a sentence; an API error and a
+  timeout each surfacing as one sentence, writing nothing and clearing the
+  indicator.
+- Route tests: no key → no flag and 503; not present → 403; empty *Record* →
+  409; in flight → 409; success → a paste row authored by `CLAUDE_ID`, named
+  *Claude*, inside its room's segments; the presser leaving mid-request still
+  produces the row.
+- App: the card is drawn only with the flag, its button has the ping's style,
+  and *Responding…* with who asked is shown on a screen that did not press.
 
-### Open questions for Rodrigo
+### Not in this task
 
-1. Reuse mdc's key, or issue one for The Floor? (Recommended: its own.)
-2. The current room only, or the channel's whole Record up to the budget?
-   (Recommended: the room.)
-3. *Prompt* or *Ask Claude*? (Recommended: *Ask Claude*, for Spanish.)
-4. Should everybody present see that Claude is answering? (Recommended: not
-   yet — it needs reducer state.)
-5. `debug` accounts only at first? (Recommended: yes.)
+- **Renaming the *People* tab.** It began as *Roster*, which did not
+  translate, then *Members*, which excluded guests, then *People*, which now
+  excludes Claude. *Room* and *Voice* are already glossary terms, so neither
+  is available. *Table* / *Mesa* collides with nothing, and carries the
+  glossary's own *seat* — a seat at the table, an invitation to it, Claude at
+  it. It deserves its own task, since a rename touches the glossary, the
+  catalogue and every place the tab is named.
+- **Other models for Pro accounts**, behind `modelFor`.
+- **Prompt caching**, once the meter shows repeated presses.
