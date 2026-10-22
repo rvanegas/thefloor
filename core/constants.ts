@@ -800,6 +800,15 @@ export const FAST_HEARTBEAT_BUILD = 110;
 export const MAX_CLIP_LENGTH = 8_000;
 
 /**
+ * The author of a paste that Claude wrote, since 2026-10-22: what
+ * `Clip.authorId` holds for a reply posted by *Respond*. No underscore, so
+ * nothing `newId` mints can ever equal it, and no account or guest can be
+ * mistaken for it. The server resolves it to *Claude* when it freezes the
+ * paste's name.
+ */
+export const CLAUDE_ID = 'claude';
+
+/**
  * The longest film title a party will keep.
  *
  * **A cap on somebody else's string**, which is the whole reason for it: the

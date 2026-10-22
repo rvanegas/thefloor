@@ -557,6 +557,8 @@ export function registerWebsocket(deps: {
   mayTranscribeLive?: (userId: string) => boolean;
   /** Whether this account may set *Record automatically*'s Text. */
   mayAutoTranscribe?: (userId: string) => boolean;
+  /** Whether this server can ask Claude, which draws the Claude card. */
+  claudeAvailable?: () => boolean;
   reachability: Reachability;
   preferences: NotificationPreferences;
   /** Where a guest's page should connect for audio. Absent without a media plane. */
@@ -1334,6 +1336,9 @@ export function registerWebsocket(deps: {
         // theirs to see. Everybody else's answer is nobody's business here.
         mayTranscribeLive: deps.mayTranscribeLive?.(connection.userId) ?? false,
         mayAutoTranscribe: deps.mayAutoTranscribe?.(connection.userId) ?? false,
+        // Absent rather than false where there is no key, as an old server
+        // sends nothing: one reading for both.
+        ...(deps.claudeAvailable?.() ? { claude: true as const } : {}),
         // The words that opened those windows, where there were any. The same
         // answer for everybody, like the windows themselves — see
         // `Channels.pingTexts` for why a sender's name travels with them.

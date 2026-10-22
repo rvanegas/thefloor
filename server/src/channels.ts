@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import {
   ATTENTION_ECHO_MS,
   ATTENTION_WINDOW_MS,
+  CLAUDE_ID,
   COHORT_CHANNEL_NAME,
   COHORT_REACH_FLOOR,
   COHORT_SIZE,
@@ -14,6 +15,7 @@ import {
   MAX_CHANNEL_GUESTS,
   MAX_CHANNEL_NAME_LENGTH,
   MAX_CHANNEL_PARTICIPANTS,
+  MAX_CLIP_LENGTH,
   MAX_NEARBY_CHANNELS,
   MAX_PING_TEXT_LENGTH,
   MAX_RECORDING_NAME_LENGTH,
@@ -27,6 +29,7 @@ import {
   startsTextWithAudio,
   isTranscribingLive,
   canAnswerKnock,
+  canAskClaude,
   canRequestSpeech,
   canClaimFloor,
   canDeleteChannel,
@@ -355,6 +358,8 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_DESCRIPTION',
   'SET_AUTO_RECORD',
   'SET_TRANSCRIPTION_MODEL',
+  // `debug` only, refused in `dispatch` beside the transcription model.
+  'SET_RESPONSE_MODEL',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
   'SET_SELF_MUTE',
@@ -1143,7 +1148,10 @@ export class ChannelRegistry {
     this.rooms = new Rooms(db);
     this.segmentLog = new Segments(db);
     this.rooms.segments = this.segmentLog;
-    this.pastes = new Pastes(db, (id) => this.displayName(id));
+    // Claude is nobody `accounts` knows, so its replies would freeze as
+    // whatever `displayName` says of a stranger. Named here, once, so every
+    // build that draws a paste's own name draws *Claude*.
+    this.pastes = new Pastes(db, (id) => (id === CLAUDE_ID ? 'Claude' : this.displayName(id)));
     this.rooms.pastes = this.pastes;
     this.trackRoot =
       trackRoot ??
@@ -2761,6 +2769,24 @@ export class ChannelRegistry {
         return {
           ok: false,
           error: 'Only a debug account can choose the transcription model.',
+          code: 'forbidden',
+        };
+      }
+    }
+
+    // The same rule for the same reason: *Pro* costs about twenty times what
+    // *Standard* does a press, and is the channel's whoever presses. Unlike
+    // the transcription model, the app draws this one for everybody — greyed
+    // for those it would refuse here.
+    if (action.type === 'SET_RESPONSE_MODEL') {
+      const model = (action as { responseModel?: unknown }).responseModel;
+      if (model !== 'standard' && model !== 'pro') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      if (this.accounts.byId(userId)?.debug !== 1) {
+        return {
+          ok: false,
+          error: 'Only a debug account can choose the response model.',
           code: 'forbidden',
         };
       }
@@ -7087,6 +7113,88 @@ export class ChannelRegistry {
     return { ok: true, channelId: door.channelId, knockId };
   }
 
+  /**
+   * Somebody pressed *Respond*: Claude is now being asked, and every screen
+   * says so. Refused — and the route answers with it — when they are not here
+   * or when Claude is already answering, by `canAskClaude`, the guard that
+   * greys the button. See claude.ts for the request itself.
+   */
+  askClaude(
+    channelId: string,
+    userId: string
+  ): { ok: true; channel: ChannelState } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel) return { ok: false, error: 'No such channel.', code: 'not_found' };
+    if (channel.claude) {
+      return { ok: false, error: 'Claude is already responding.', code: 'conflict' };
+    }
+    if (!canAskClaude(channel, userId)) {
+      return {
+        ok: false,
+        error: 'Step into the channel to ask Claude.',
+        code: 'forbidden',
+      };
+    }
+    return this.apply(channelId, userId, {
+      type: 'CLAUDE_ASKED',
+      ask: { askedBy: userId, since: this.now() },
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+  }
+
+  /**
+   * Claude has answered, failed or timed out: the card goes back to
+   * *Respond*. Idempotent, so the answer and the timeout can both call it.
+   */
+  claudeAnswered(channelId: string): void {
+    if (!this.channels.get(channelId)?.claude) return;
+    this.apply(channelId, '', {
+      type: 'CLAUDE_ANSWERED',
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+  }
+
+  /**
+   * Puts Claude's reply into the *Record*, as a paste authored by
+   * `CLAUDE_ID`, on behalf of whoever asked.
+   *
+   * **The reply is never trimmed** — Rodrigo's call, 2026-10-22. One over
+   * `MAX_CLIP_LENGTH` is `too_long` and is not posted, since the reducer
+   * would refuse it anyway; the prompt is what keeps replies short.
+   *
+   * Through the reducer while anybody is here, because that is what makes
+   * it arrive: `Pastes.follow` writes the row and every open *Record*
+   * refetches on the new `clip.id`. As the asker if they still are, or else
+   * as whoever is, since losing a paid answer because one person stepped out
+   * would be wrong in a room still waiting for it. With nobody here at all,
+   * written straight to the log, where the *Record* finds it on its next load.
+   */
+  postClaudeReply(
+    channelId: string,
+    askerId: string,
+    text: string
+  ): 'posted' | 'too_long' | 'empty' | 'gone' {
+    const channel = this.channels.get(channelId);
+    if (!channel) return 'gone';
+    if (text.trim().length === 0) return 'empty';
+    if (text.length > MAX_CLIP_LENGTH) return 'too_long';
+    const clip = {
+      id: newId('clip'),
+      authorId: CLAUDE_ID,
+      pastedAt: this.now(),
+      kind: 'text' as const,
+      text,
+    };
+    const actor = channel.present.includes(askerId) ? askerId : channel.present[0];
+    if (actor === undefined) {
+      this.pastes.write(channelId, clip);
+      return 'posted';
+    }
+    const applied = this.apply(channelId, actor, {
+      type: 'PASTE_CLIP',
+      clip,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    return applied.ok && applied.channel.clip?.id === clip.id ? 'posted' : 'gone';
+  }
+
   /** Takes a knock back, for a page that gave up waiting. */
   withdrawKnock(channelId: string, knockId: string): void {
     const channel = this.channels.get(channelId);
@@ -7889,6 +7997,10 @@ export class ChannelRegistry {
       autoTranscribe: channel.autoTranscribe ?? false,
       // Durable for the same reason: it is a setting somebody chose.
       transcriptionModel: channel.transcriptionModel,
+      // And this one, beside it. `claude`, the ask in flight, is not: the
+      // request dies with the process, and restoring it would leave the card
+      // saying *Responding…* to an answer that is never coming.
+      responseModel: channel.responseModel ?? 'standard',
       // Durable, unlike the knocks and guests it sits beside in the state, and
       // that is the reason a motion lives on `ChannelState` at all rather than
       // in this class's memory: it stands for a day — `REMOVAL_MOTION_WINDOW_MS`
@@ -8273,6 +8385,7 @@ export class ChannelRegistry {
       liveTranscriptionPaidBy?: string;
       autoTranscribe?: boolean;
       transcriptionModel?: ChannelState['transcriptionModel'];
+      responseModel?: ChannelState['responseModel'];
       initiator?: string;
       owner?: string;
       participants?: string[];
@@ -8340,6 +8453,7 @@ export class ChannelRegistry {
       autoTranscribe: durable.autoTranscribe ?? durable.liveTranscription ?? false,
       // The default on a row written before the field existed.
       transcriptionModel: durable.transcriptionModel ?? 'standard',
+      responseModel: durable.responseModel ?? 'standard',
       initiator: durable.initiator ?? row.initiator_id,
       ...(durable.owner !== undefined ? { owner: durable.owner } : {}),
       ...(durable.locked ? { locked: true as const } : {}),
@@ -8381,6 +8495,9 @@ export class ChannelRegistry {
       // field existed, which is an empty clipboard — the same thing those
       // channels had.
       clip: durable.clip ?? null,
+      // Never kept: a request to Claude in flight when the process stopped is
+      // gone, and the card must come back saying *Respond*.
+      claude: null,
       // Kept for the same reason the clipboard is, and brought back
       // **paused at its position** whatever the blob says. The clock ran on
       // through the restart with nobody driving it and every follower's page

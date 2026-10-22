@@ -164,11 +164,15 @@ export function createChannel(params: {
     // The cheap grade, which is what every transcript is asked for unless a
     // `debug` account has said otherwise.
     transcriptionModel: 'standard',
+    // Haiku, for the same reason: the cheap grade unless a `debug` account
+    // has said otherwise.
+    responseModel: 'standard',
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
     watch: initialWatchState(),
     clip: null,
+    claude: null,
     waiting: [],
     declaredNearbyAt: {},
     disconnectedAt: {},
@@ -219,6 +223,7 @@ export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new S
   'SET_DESCRIPTION',
   'SET_AUTO_RECORD',
   'SET_TRANSCRIPTION_MODEL',
+  'SET_RESPONSE_MODEL',
   'START_RECORDING',
   'PAUSE_RECORDING',
   'RESUME_RECORDING',
@@ -2238,6 +2243,22 @@ export function canPasteClip(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
+ * Whether `userId` may press *Respond* on the Claude card, since 2026-10-22.
+ *
+ * **The paste rule, because a reply is a paste**: anybody present, member or
+ * guest, in a community or not, with no `debug` gate — plus the one thing a
+ * paste does not need, that Claude is not already being asked. That second
+ * half is what greys the button on every screen while one request is out,
+ * and what the server's 409 is.
+ *
+ * Whether this server can ask Claude at all is not channel state, so it is
+ * not here: an app draws no card where `ChannelView.claude` is absent.
+ */
+export function canAskClaude(state: ChannelState, userId: UserId): boolean {
+  return canPasteClip(state, userId) && !state.claude;
+}
+
+/**
  * Whether `userId` may empty `ChannelState.clip`, the slot builds before 364
  * draw as their *Clipboard* tab — a shim, in SHIMS.md.
  *
@@ -2716,6 +2737,21 @@ function reduceAction(
     if (isLocked(state)) return state;
     if (state.knocks.some((knock) => knock.id === action.knock.id)) return state;
     return { ...state, knocks: [...state.knocks, action.knock] };
+  }
+
+  // Raised by the server too, and so above the wall for the same reason: the
+  // actor is inside the ask rather than on the action. `canAskClaude` is the
+  // whole of who may — being here is a stricter test than the wall's.
+  if (action.type === 'CLAUDE_ASKED') {
+    if (!canAskClaude(state, action.ask.askedBy)) return state;
+    return { ...state, claude: action.ask };
+  }
+
+  if (action.type === 'CLAUDE_ANSWERED') {
+    // `?? null` for a channel restored from before the field: absent and null
+    // are the same answer, and neither is a change.
+    if ((state.claude ?? null) === null) return state;
+    return { ...state, claude: null };
   }
 
   if (action.type === 'GUEST_ENTERED') {
@@ -3446,6 +3482,14 @@ function reduceAction(
       if (!canEditChannel(state, action.userId)) return state;
       if (action.transcriptionModel === state.transcriptionModel) return state;
       return { ...state, transcriptionModel: action.transcriptionModel };
+    }
+
+    case 'SET_RESPONSE_MODEL': {
+      // Guarded like `SET_TRANSCRIPTION_MODEL`, and for the same reason the
+      // `debug` half of the rule is the server's.
+      if (!canEditChannel(state, action.userId)) return state;
+      if (action.responseModel === (state.responseModel ?? 'standard')) return state;
+      return { ...state, responseModel: action.responseModel };
     }
 
     case 'CLAIM_FLOOR': {

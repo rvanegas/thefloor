@@ -128,11 +128,29 @@ export interface PolicyOptions {
    * rather than a feature.
    */
   pro?: boolean;
+  /**
+   * The name of the company that writes Claude's replies, when this server can
+   * ask for one — and nothing when it cannot, which withdraws the section that
+   * says so and every clause elsewhere that it qualifies. `transcription`'s
+   * gate exactly, for its reason: the claim is true only where the credential
+   * is, and unsetting `ANTHROPIC_API_KEY` retracts it in the same restart
+   * that takes the Claude card away. Since 2026-10-22.
+   */
+  claude?: string;
 }
+
+/**
+ * When the page last changed for a reader whose server can ask Claude. Later
+ * than `PRIVACY_UPDATED`, and shown in its place only where the Claude
+ * section is: one date per reader, and each the true one for the page that
+ * reader sees.
+ */
+export const CLAUDE_PRIVACY_UPDATED = '22 October 2026';
 
 export function privacyPage(options: PolicyOptions = {}): string {
   const { contactEmail, transcription, cohorts, pro } = options;
   const live = !!(options.liveTranscription && transcription);
+  const claude = options.claude ? escapeHtml(options.claude) : null;
   const contact = contactEmail
     ? `<a href="mailto:${escapeHtml(contactEmail)}">${escapeHtml(contactEmail)}</a>`
     : 'the support address on the app’s App Store listing';
@@ -254,6 +272,33 @@ a transcript by mistake leaves everything else exactly where it was and can go
 unnoticed for far longer.</p>
 `;
 
+  /*
+    Claude's section, on `transcriptionSending`'s rule: present only where the
+    server can actually send. **Nothing is claimed about what Anthropic does
+    with its copy, nor where it processes it** — the page describes what this
+    server does and stops, which is the rule the transcription section
+    learned the hard way. What this server does is send the Record, as text,
+    when somebody presses *Respond*, and keep the reply as a paste.
+  */
+  const claudeSection = claude
+    ? `
+<h2>Claude</h2>
+<p>A channel's <em>People</em> tab has a card for Claude, an assistant made by
+${claude}. It never speaks on its own: when somebody in the channel presses
+<em>Respond</em>, the channel's Record is sent to ${claude} as text — what has
+been said in it, as transcribed, and what has been pasted into it, with the
+name each was kept under, up to roughly the most recent seven hours of it — and
+${claude} returns one short reply. Nothing else is sent: not the audio, not who
+else is in the channel, not anything about the person who pressed it beyond
+what the Record already says.</p>
+<p>The reply is kept in the channel's Record like anything pasted into it,
+under the name <em>Claude</em>, for everybody in the channel to read, and is
+deleted with the channel, on the same schedule as everything else in it. Every screen in the channel says <em>Responding…</em>
+on that card while the reply is being written.</p>
+
+`
+    : '';
+
   return page({
     title: 'Privacy — The Floor',
     heading: 'Privacy',
@@ -264,7 +309,7 @@ unnoticed for far longer.</p>
         'the application collects little.',
       path: '/privacy',
     }),
-    standfirst: `The Floor · last updated ${PRIVACY_UPDATED}`,
+    standfirst: `The Floor · last updated ${claude ? CLAUDE_PRIVACY_UPDATED : PRIVACY_UPDATED}`,
     body: `
 <p>The Floor is for talking with people you already know. This
 page says what it stores, why, and for how long. It is short because the
@@ -377,12 +422,18 @@ written anywhere. Only a recording somebody deliberately started is stored${
       live ? ' — and, in a channel that has a live transcript switched on, the text described below' : ''
     }.</p>
 
-${transcriptionSection}
+${transcriptionSection}${claudeSection}
 <h2>What is not collected</h2>
 <p>There is no advertising, no third-party analytics${
-      provider
-        ? `, and no service anywhere that receives your activity — ${provider}, above, is sent audio ${live ? 'to be transcribed' : 'you asked to have transcribed'} and nothing else: not who you talked to, not when you were connected, not what you did in the application`
-        : ', and no service anywhere\nthat receives your activity'
+      claude
+        ? `, and no service anywhere that receives your activity — ${
+            provider
+              ? `${provider}, above, is sent audio ${live ? 'to be transcribed' : 'you asked to have transcribed'}, and `
+              : ''
+          }${claude}, above, is sent a channel’s Record when somebody in it presses Respond, and nothing else: not your contacts, not when you were connected, not what you did in the application`
+        : provider
+          ? `, and no service anywhere that receives your activity — ${provider}, above, is sent audio ${live ? 'to be transcribed' : 'you asked to have transcribed'} and nothing else: not who you talked to, not when you were connected, not what you did in the application`
+          : ', and no service anywhere\nthat receives your activity'
     }. Nothing about you is sold or shared for anyone
 else’s purposes, and nothing is used to profile you or to decide what you are
 shown. Your address book is never read — the contacts in The Floor are people
@@ -498,12 +549,18 @@ donations.${pro ? ' Apple sells Pro.' : ''}${
       provider
         ? ` ${provider} transcribes a recording when somebody asks it to${live ? ', and a channel\u2019s speech as it happens where its live transcript is on' : ''}.`
         : ''
-    } None of them are given
+    }${claude ? ` ${claude} writes Claude’s replies when somebody asks for one.` : ''} None of them are given
 anything beyond what their job requires${
-      provider
-        ? `, none of them but ${provider} receive your conversations, and that
+      claude
+        ? `, none of them but ${provider ? `${provider} and ` : ''}${claude} receive your conversations, and ${
+            provider
+              ? `${provider} receives only ${live ? 'what it is asked to transcribe' : 'the recording it was asked to transcribe'}, and `
+              : ''
+          }${claude} only the Record of a channel in which somebody asked Claude to respond`
+        : provider
+          ? `, none of them but ${provider} receive your conversations, and that
 one receives only ${live ? 'what it is asked to transcribe' : 'the recording it was asked to transcribe'}`
-        : ', and none of them receive your\nconversations'
+          : ', and none of them receive your\nconversations'
     } — the recording storage key used by the media server can only add
 files, not read them back.</p>
 

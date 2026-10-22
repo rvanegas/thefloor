@@ -74,6 +74,7 @@ import { openPage } from './open';
 import { privacyPage } from './privacy';
 import { booleanUnderEitherName, settingsForWire } from './settings-wire';
 import type { TranscriptionProvider } from './transcription';
+import { ClaudeResponder, databaseSources, type ClaudeClient } from './claude';
 import {
   formatTranscript,
   MEDIA_LABEL,
@@ -312,6 +313,16 @@ export interface BuildOptions {
    * absent credential has to mean absent feature rather than a broken one.
    */
   transcription?: TranscriptionProvider;
+  /**
+   * Asks Claude for a turn in a conversation — *Respond* on the Claude card.
+   * Optional for `transcription`'s reasons, and the switch in the same way:
+   * absent, there is no card, the route answers 503, and `/privacy` says
+   * nothing about Anthropic. An `Anthropic` client in production; a fake in
+   * tests.
+   */
+  claude?: ClaudeClient;
+  /** How long a press may wait on Claude. Tests shorten it. */
+  claudeTimeoutMs?: number;
   /**
    * Turns speech into text as it is spoken — the live transcript. Optional
    * for `transcription`'s reason, and needs `media` too: without a room to
@@ -1153,6 +1164,20 @@ export function buildApp(options: BuildOptions = {}): App {
     // eventually removes the transcript.
     onFailed: (recordingId) => accounts.refundTranscript(recordingId),
   });
+
+  // *Respond*, since 2026-10-22 — present only with a client, which is only
+  // with a key. See claude.ts.
+  const claude = options.claude
+    ? new ClaudeResponder({
+        client: options.claude,
+        channels,
+        sources: databaseSources(db, channels.rooms, transcripts),
+        db,
+        now,
+        timeoutMs: options.claudeTimeoutMs,
+        log: { warn: (details, message) => fastify.log.warn(details, message) },
+      })
+    : null;
 
   // Channels outlive the process that was holding them, so the first thing a
   // new one does is pick them up again — along with squaring the books on
@@ -2862,6 +2887,9 @@ export function buildApp(options: BuildOptions = {}): App {
       // Sold now, or subscribed to before: the same two conditions, for the
       // same reason. See PolicyOptions.pro.
       pro: pro.product !== null || pro.hasRecords(),
+      // Named only where the server can ask, on `transcription`'s rule. See
+      // PolicyOptions.claude.
+      claude: claude ? 'Anthropic' : undefined,
     });
   });
 
@@ -4942,6 +4970,29 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * *Respond* on the Claude card, since 2026-10-22: reads the channel's
+   * *Record*, asks Claude for one turn, and posts it there as a paste. Answers
+   * when the reply is posted or has failed, so the app can say which; every
+   * screen meanwhile says *Responding…* from the channel's own state. Members
+   * only, with the same 404 as the transcript routes beside it; being present
+   * is the guard's. See claude.ts.
+   */
+  fastify.post('/channels/:id/claude', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!channels.isMemberOf(id, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    if (!claude) {
+      return reply.code(503).send({ error: 'Claude is not available here.' });
+    }
+    const result = await claude.respond(id, account.id);
+    if (!result.ok) return reply.code(result.status).send({ error: result.error });
+    return { ok: true };
+  });
+
+  /**
    * A channel's live transcript, a page at a time, newest page first and
    * oldest line first within it — `before` is the `startAt` of the earliest
    * line already held, absent for the newest page. Members only, and the same
@@ -6284,6 +6335,7 @@ export function buildApp(options: BuildOptions = {}): App {
       liveLineNotifier,
       mayTranscribeLive,
       mayAutoTranscribe,
+      claudeAvailable: () => claude !== null,
       reachability,
       preferences,
       mediaUrl: options.mediaUrl,

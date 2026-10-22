@@ -11,7 +11,7 @@ import {
 import { NOTIFY_HEADER } from '../src/release';
 import { buildApp, type App } from '../src/app';
 import { toTransaction, type AppStoreVerifier } from '../src/appStore';
-import { PRIVACY_UPDATED } from '../src/privacy';
+import { CLAUDE_PRIVACY_UPDATED, PRIVACY_UPDATED } from '../src/privacy';
 import { MemoryTranscription } from '../src/transcription';
 
 /**
@@ -221,6 +221,59 @@ describe('The privacy policy', () => {
         transcription: new MemoryTranscription(),
       });
       expect((await fetchPolicy()).body).toContain(PRIVACY_UPDATED);
+    });
+  });
+
+  /**
+   * Claude's section, conditional on a client exactly as transcription's
+   * sending is on a provider — silence without one asserted as firmly as
+   * disclosure with one.
+   */
+  describe('Claude', () => {
+    const noClient = {} as never;
+
+    it('names nobody, and changes nothing, without a key', async () => {
+      app = buildApp({ dbPath: ':memory:' });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).not.toContain('Anthropic');
+      expect(page).not.toContain('<h2>Claude</h2>');
+      expect(page).toContain(PRIVACY_UPDATED);
+      expect(page).not.toContain(CLAUDE_PRIVACY_UPDATED);
+      expect(page).toContain('none of them receive your conversations');
+    });
+
+    it('says what is sent and kept, and narrows the claims it makes false', async () => {
+      app = buildApp({ dbPath: ':memory:', claude: noClient });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).toContain('<h2>Claude</h2>');
+      expect(page).toContain('an assistant made by Anthropic');
+      expect(page).toContain('presses <em>Respond</em>');
+      expect(page).toContain('Nothing else is sent');
+      expect(page).toContain('deleted with the channel');
+      // Nothing about Anthropic's copy, nor where it is processed: not
+      // checkable from here, which is this page's rule.
+      expect(page).not.toMatch(/Anthropic (keeps|retains|deletes|is asked to delete)/);
+      expect(page).not.toMatch(/Anthropic, in the/);
+      // The two sentences that are false the moment the Record leaves.
+      expect(page).not.toContain('no service anywhere that receives your activity.');
+      expect(page).not.toContain('none of them receive your conversations');
+      expect(page).toContain('none of them but Anthropic receive your conversations');
+      // And one date, the true one for this page.
+      expect(page).toContain(CLAUDE_PRIVACY_UPDATED);
+      expect(page).not.toContain(`last updated ${PRIVACY_UPDATED}`);
+    });
+
+    it('names both processors where both are configured', async () => {
+      app = buildApp({
+        dbPath: ':memory:',
+        transcription: new MemoryTranscription(),
+        claude: noClient,
+      });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      const provider = new MemoryTranscription().name;
+      expect(page).toContain(`none of them but ${provider} and Anthropic receive your conversations`);
+      expect(page).toContain(`${provider}, above, is sent audio`);
+      expect(page).toContain('Anthropic, above, is sent a channel’s Record');
     });
   });
 

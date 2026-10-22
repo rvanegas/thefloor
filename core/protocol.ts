@@ -2,7 +2,13 @@ import type { ImHandles } from './im';
 import type { AccountSettings } from './settings';
 import type { NotificationLevel } from './notifications';
 import type { Tried } from './tried';
-import type { ChannelState, Clip, TranscriptionModel, UserId } from './types';
+import type {
+  ChannelState,
+  Clip,
+  ResponseModel,
+  TranscriptionModel,
+  UserId,
+} from './types';
 import type { PlayerState, Rest, Rung } from './watch';
 
 /**
@@ -1224,6 +1230,15 @@ export interface ChannelView {
    */
   mayAutoTranscribe?: boolean;
   /**
+   * Present, and true, when this server can ask Claude — which is what draws
+   * the Claude card on *People*, since 2026-10-22. A fact about the server's
+   * configuration rather than the channel, so it is here rather than on
+   * `ChannelState`: absent from a server that predates it and from one with
+   * no `ANTHROPIC_API_KEY`, so the card is never offered where pressing it
+   * could only fail.
+   */
+  claude?: true;
+  /**
    * When this channel declared itself public, or null — which is every
    * channel that has not.
    *
@@ -1769,6 +1784,12 @@ export type ClientAction =
    * ships to the server before any build sends it.
    */
   | { type: 'SET_TRANSCRIPTION_MODEL'; transcriptionModel: TranscriptionModel }
+  /**
+   * Refused by the server from an account without `debug`, as the
+   * transcription model is — but an app draws it for everybody, greyed for
+   * those who may not change it. Unknown to a server that predates it.
+   */
+  | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   /**

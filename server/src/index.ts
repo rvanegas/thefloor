@@ -18,6 +18,7 @@ import {
   AssemblyAiTranscription,
   type TranscriptionProvider,
 } from './transcription';
+import Anthropic from '@anthropic-ai/sdk';
 import { AssemblyAiStreaming } from './streaming';
 
 // Node's own .env loader — no dependency. Resolved against the working
@@ -296,6 +297,16 @@ const streaming = assemblyAiKey
   : undefined;
 
 /**
+ * Claude, for *Respond* on the Claude card — optional and off by default, on
+ * transcription's terms exactly. **Setting this key is a public act**: it is
+ * what makes the privacy policy name Anthropic, so set it, and push it, with
+ * the deploy that ships the card. A key issued for this server alone; see
+ * planning/CREDENTIALS.md. It spends per press, about a cent on *Standard*.
+ */
+const anthropicKey = process.env.ANTHROPIC_API_KEY;
+const claude = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : undefined;
+
+/**
  * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
  * was retired on 2026-10-10: the mark is the `transcripts_unlimited` column
  * alone, set with
@@ -350,6 +361,7 @@ const app = buildApp({
   badgeSetter: pusher,
   transcription,
   streaming,
+  claude,
   freeTranscriptMinutes,
   logger: true,
 });
@@ -399,6 +411,8 @@ app.fastify
         // to find out which.
         transcription: transcription ? transcription.name : 'not configured',
         liveTranscription: streaming ? 'AssemblyAI streaming' : 'not configured',
+        // Worth a line for transcription's reason: it changes what /privacy says.
+        claude: claude ? 'Anthropic' : 'not configured',
         // Worth a line for the same reason `review` is: these decide what
         // anybody may spend, and reading .env is not how anybody should find
         // out. Everybody gets free minutes a week; the account marks that

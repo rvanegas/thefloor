@@ -281,6 +281,30 @@ export type RecordingStatus = 'idle' | 'recording' | 'paused';
  */
 export type TranscriptionModel = 'standard' | 'pro';
 
+/**
+ * The grade of model a channel's *Respond* asks, since 2026-10-22: `standard`
+ * is Haiku and the default, `pro` is Sonnet, both at low effort. The mapping
+ * is the server's, in `server/src/claude.ts`.
+ *
+ * **The same union as `TranscriptionModel` under its own name**, because the
+ * two settings move independently and a shared type would invite one to be
+ * read for the other. And *Pro* here is a grade of model, as it is there —
+ * not *Pro (the subscription)*.
+ */
+export type ResponseModel = 'standard' | 'pro';
+
+/**
+ * Claude being asked, while it is: who pressed *Respond*, and when. Channel
+ * state rather than the server's, because everybody present sees the card
+ * say *Responding…*, and the guard that refuses a second press is the one
+ * that greys the button. See `ChannelState.claude`.
+ */
+export interface ClaudeAsk {
+  askedBy: UserId;
+  /** Epoch milliseconds, minted by the server. */
+  since: number;
+}
+
 /** What the *Record* tab's two switches select. See `ChannelState.keep`. */
 export interface Keep {
   audio: boolean;
@@ -973,6 +997,18 @@ export interface ChannelState {
    * from a server that predates the field, which the app reads as `standard`.
    */
   transcriptionModel: TranscriptionModel;
+  /**
+   * The grade of model this channel's *Respond* asks. See `ResponseModel`.
+   *
+   * The channel's for `transcriptionModel`'s reason: a reply is a shared
+   * artefact of the channel, so whoever presses gets the grade the channel
+   * was set to. **Only a `debug` account may change it**, refused by the
+   * server before dispatch as `transcriptionModel` is — but unlike that one it
+   * is drawn for every member, so that everybody can see which model is
+   * answering. Absent on a snapshot from a server that predates it, which the
+   * app reads as `standard`.
+   */
+  responseModel: ResponseModel;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
@@ -994,6 +1030,16 @@ export interface ChannelState {
    * is also how the server sees that one happened (`Pastes.follow`).
    */
   clip: Clip | null;
+  /**
+   * Claude being asked to respond, or null while it is not. Since 2026-10-22.
+   *
+   * Set by `CLAUDE_ASKED` and cleared by `CLAUDE_ANSWERED`, both assembled by
+   * the server, which clears it on the answer, on the failure, on a timeout
+   * and on restore — **it must never outlive the request**, since a card
+   * stuck on *Responding…* refuses every press after it. Absent on a
+   * snapshot from a server that predates it, which reads as null.
+   */
+  claude: ClaudeAsk | null;
   /**
    * When each present user's last connection dropped. Absent means connected.
    *
@@ -1319,6 +1365,12 @@ export type ChannelAction =
       userId: UserId;
       transcriptionModel: TranscriptionModel;
     }
+  /**
+   * Chooses the grade of model for the channel's *Respond*. Guarded as
+   * `SET_TRANSCRIPTION_MODEL` is, and refused by the server, as that one is,
+   * from any account without `debug`.
+   */
+  | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
   /**
@@ -1542,6 +1594,19 @@ export type ChannelAction =
   /** Empties the channel's clipboard. */
   /** Empties `clip` and nothing in the *Record*; a shim to 364, SHIMS.md. */
   | { type: 'CLEAR_CLIP'; userId: UserId }
+  /**
+   * Somebody pressed *Respond*, and Claude is being asked. Raised by the
+   * server when the route is called, carrying the whole `ClaudeAsk` for the
+   * reason `PASTE_CLIP` carries a whole `Clip`: the moment is the server's to
+   * mint. Guarded by `canAskClaude`, so a second press is refused here and
+   * greyed on every screen by the same test.
+   */
+  | { type: 'CLAUDE_ASKED'; ask: ClaudeAsk }
+  /**
+   * Claude has answered, failed, or run out of time; either way the card goes
+   * back to *Respond*. Raised by the server only.
+   */
+  | { type: 'CLAUDE_ANSWERED' }
   /**
    * Somebody with a link is at the door. Raised by the server when a knock
    * arrives over HTTP, so that every member's screen shows the same queue.

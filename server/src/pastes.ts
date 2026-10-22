@@ -54,7 +54,12 @@ export class Pastes {
       .all(channelId, from, until) as unknown as PasteRow[];
   }
 
-  private write(channelId: string, clip: Clip): void {
+  /**
+   * Writes one paste to the log directly. `follow` is the ordinary way in;
+   * this is also called for a reply from Claude that arrives after everybody
+   * has left, when there is no transition for `follow` to see.
+   */
+  write(channelId: string, clip: Clip): void {
     this.db
       .prepare(
         `INSERT OR IGNORE INTO pastes

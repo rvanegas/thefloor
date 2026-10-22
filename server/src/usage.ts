@@ -555,6 +555,12 @@ export class UsageMeter {
     this.db
       .prepare('DELETE FROM pings WHERE sender_id = ? OR target_id = ?')
       .run(accountId, accountId);
+    // Nulled rather than deleted, unlike the rows above: Claude's ledger is
+    // spend, and what was spent stays spent when the presser goes. What goes
+    // is who pressed. See claude_usage in db.ts.
+    this.db
+      .prepare('UPDATE claude_usage SET account_id = NULL WHERE account_id = ?')
+      .run(accountId);
   }
 }
 

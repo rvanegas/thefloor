@@ -2135,6 +2135,35 @@ CREATE INDEX IF NOT EXISTS transcript_usage_account
 CREATE INDEX IF NOT EXISTS transcript_usage_recording
   ON transcript_usage(recording_id);
 
+-- What each press of *Respond* cost, since 2026-10-22: one row per press,
+-- failed or not, written when the answer or the failure comes back, and read
+-- by bin/usage's provider spend beside transcription's. A ledger like the
+-- one above: never swept, and outliving what it priced.
+--
+-- **No text.** The reply is in pastes and the prompt is the Record, so a
+-- copy here would be a second store of the conversation for no reason.
+-- account_id is who pressed, nulled by UsageMeter.forget rather than the
+-- row deleted, so an erased account's spend still adds up. grade is the
+-- channel's *Response model* at the press; model is what served it, which
+-- a refusal fallback can make different from what was asked.
+CREATE TABLE IF NOT EXISTS claude_usage (
+  id                 TEXT PRIMARY KEY,
+  at                 INTEGER NOT NULL,
+  channel_id         TEXT NOT NULL,
+  account_id         TEXT,
+  grade              TEXT NOT NULL,
+  model              TEXT NOT NULL,
+  input_tokens       INTEGER NOT NULL,
+  output_tokens      INTEGER NOT NULL,
+  cache_write_tokens INTEGER NOT NULL,
+  cache_read_tokens  INTEGER NOT NULL,
+  -- The API's own, or null where the request never answered.
+  stop_reason        TEXT,
+  -- 'posted' | 'too_long' | 'empty' | 'refused' | 'error' | 'timeout' | 'gone'
+  outcome            TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS claude_usage_at ON claude_usage(at);
+
 -- How loudly one channel may interrupt one person.
 --
 -- **Only the people who have changed it have a row.** Absence means
