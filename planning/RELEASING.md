@@ -43,7 +43,7 @@ overlap, and **nothing here is a synonym for any other line**:
 | --- | --- | --- | --- |
 | **land** | merge to `master`, **push**, delete the branch and worktree | nobody | `master` moves on the origin |
 | **deploy** | `bin/deploy` — server to the box | **everybody, within a minute** | `server/deployed.json`, `/healthz` |
-| **upload** | `bin/upload-ios` — archive, sign, send to App Store Connect | TestFlight testers, after processing | tag `build/<n>` |
+| **upload** | `bin/upload-ios` — archive, sign, send to App Store Connect, set What to Test from the commits (`bin/testflight-notes`) | TestFlight testers, after processing | tag `build/<n>` |
 | **submit** | `bin/submit-ios` prepares it; a person presses Submit | nobody yet | nothing local |
 | **release** | make an approved build downloadable | **everybody who updates**, over days | tag `released` moves |
 

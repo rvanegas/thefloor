@@ -1,0 +1,265 @@
+#!/usr/bin/env node
+//
+// Writes TestFlight's "What to Test" for a build, from the commits it carries.
+//
+//   bin/testflight-notes                  what the next upload would say; no API
+//   bin/testflight-notes --build 385      compose for build 385 and set it
+//   bin/testflight-notes --build 385 --dry-run
+//                                         compose and print, set nothing
+//
+// bin/upload-ios runs the second form once the build is tagged, so a tester
+// opening TestFlight sees what changed rather than an empty field. Run it by
+// hand to rewrite the text for a build, or when the upload's own run gave up.
+//
+// **The notes are the commit subjects, filtered, and nothing is written by
+// hand.** A subject opens with a verb (AGENTS.md § *Branches*), and five of
+// those verbs — Fixed, Added, Improved, Changed, Removed — describe something
+// a tester could notice. Bumped is kept too, except for the build number and
+// the version: an Expo or LiveKit bump is exactly what a tester should poke at.
+// Recorded, Filed and Documented are about the repository and are dropped.
+//
+// **Only commits that touch `app/` or `core/`.** Those are what a build is made
+// of; a server or web change reaches a tester the minute it is deployed,
+// whichever build they hold, so listing it under a build would claim the build
+// brought it.
+//
+// The range is the previous `build/<n>` tag to `build/<n>`, the tags
+// bin/upload-ios makes. A bumped number that was never uploaded leaves no tag,
+// so its commits fall into the next build's notes, which is where testers
+// first meet them.
+//
+// **The build has to exist at Apple before it can carry text**, and it appears
+// a little while after the upload says it succeeded. So this waits for it —
+// up to --wait seconds, 900 by default — and retries the write while Apple is
+// still processing. Giving up is not fatal to anything: the build is uploaded
+// regardless, and running this again later finishes the job.
+
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const crypto = require('crypto');
+const { execFileSync } = require('child_process');
+
+const ROOT = path.resolve(__dirname, '..');
+const HOST = 'https://api.appstoreconnect.apple.com';
+
+// The field's cap, the same as What's New's.
+const LIMIT = 4000;
+
+const USER_FACING = /^(Fixed|Added|Improved|Changed|Removed|Bumped) /;
+const BOOKKEEPING = /^Bumped (the )?(build number|version)\b/;
+
+// ---------------------------------------------------------------- arguments
+
+const argv = process.argv.slice(2);
+const opts = { build: null, dryRun: false, wait: 900 };
+while (argv.length) {
+  const arg = argv.shift();
+  if (arg === '--build') opts.build = String(argv.shift());
+  else if (arg === '--dry-run' || arg === '-n') opts.dryRun = true;
+  else if (arg === '--wait') opts.wait = Number(argv.shift());
+  else if (arg === '--help' || arg === '-h') {
+    const lines = fs.readFileSync(__filename, 'utf8').split('\n').slice(1);
+    for (const line of lines) {
+      if (!line.startsWith('//')) break;
+      console.log(line.replace(/^\/\/ ?/, ''));
+    }
+    process.exit(0);
+  } else die(`unknown argument ${arg}`);
+}
+if (opts.build !== null && !/^\d+$/.test(opts.build)) die('--build wants a build number');
+if (!Number.isFinite(opts.wait) || opts.wait < 0) die('--wait wants a number of seconds');
+
+function die(message, ...rest) {
+  console.error(`✗ ${message}`);
+  for (const line of rest) console.error(`  ${line}`);
+  process.exit(1);
+}
+
+function git(...args) {
+  try {
+    return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+  } catch {
+    return null;
+  }
+}
+
+// ----------------------------------------------------------------- compose
+
+// The newest build tag that is an ancestor of `rev`, not counting `rev`'s own.
+const previousTag = (rev) => git('describe', '--tags', '--match', 'build/*', '--abbrev=0', `${rev}^`);
+
+function compose(from, to) {
+  const subjects = (git('log', '--no-merges', '--reverse', '--format=%s',
+    from ? `${from}..${to}` : to, '--', 'app', 'core') || '')
+    .split('\n')
+    .filter((s) => USER_FACING.test(s) && !BOOKKEEPING.test(s));
+
+  // Duplicate subjects happen when a change is made and remade across a
+  // revert; the tester needs to read it once.
+  const lines = [...new Set(subjects)].map((s) => `• ${s}`);
+  const since = from ? ` since build ${from.replace('build/', '')}` : '';
+  if (!lines.length) return `No changes to the app${since}.`;
+
+  // Cut at a whole line rather than mid-sentence, and say how many were left
+  // out, so a long train reads as long rather than as finished.
+  let text = `What changed${since}:`;
+  for (let i = 0; i < lines.length; i++) {
+    const rest = lines.length - i - 1;
+    const tail = rest ? `\n…and ${rest} more` : '';
+    if ((`${text}\n${lines[i]}${tail}`).length > LIMIT) {
+      text += `\n…and ${lines.length - i} more`;
+      break;
+    }
+    text += `\n${lines[i]}`;
+  }
+  return text;
+}
+
+// ------------------------------------------------------------- preview only
+
+if (opts.build === null) {
+  const from = git('describe', '--tags', '--match', 'build/*', '--abbrev=0', 'HEAD');
+  console.log(`→ the next upload, from ${from || 'the beginning'} to HEAD\n`);
+  console.log(compose(from, 'HEAD'));
+  process.exit(0);
+}
+
+const tag = `build/${opts.build}`;
+if (!git('rev-parse', '--verify', '--quiet', `refs/tags/${tag}`)) {
+  die(`no ${tag} tag`, 'bin/upload-ios tags every build it uploads; without one there is',
+    'no saying which commits this build carries.');
+}
+const text = compose(previousTag(tag), tag);
+console.log(`→ What to Test for build ${opts.build}\n`);
+console.log(text.replace(/^/gm, '  '));
+console.log('');
+if (opts.dryRun) process.exit(0);
+
+// --------------------------------------------------------------------- auth
+
+// Its own directory, and that is not tidiness: the APNs key is a `.p8` under
+// ~/.config/thefloor too, both are ES256 private keys, and a glob cannot tell
+// them apart by content. bin/upload-ios and bin/submit-ios carry the same guard.
+const ASC_DIR = process.env.THEFLOOR_ASC_DIR || path.join(os.homedir(), '.config/thefloor/asc');
+const keys = fs.existsSync(ASC_DIR)
+  ? fs.readdirSync(ASC_DIR).filter((f) => /^AuthKey_.+\.p8$/.test(f))
+  : [];
+if (keys.length === 0) die(`no App Store Connect key in ${ASC_DIR}`,
+  'CREDENTIALS.md says where it lives and how to make another.');
+if (keys.length > 1) die(`more than one key in ${ASC_DIR}; cannot tell which is the release key`);
+
+const keyId = keys[0].replace(/^AuthKey_|\.p8$/g, '');
+const issuerId = (process.env.APP_STORE_CONNECT_ISSUER_ID
+  || fs.readFileSync(path.join(ASC_DIR, 'issuer-id'), 'utf8')).trim();
+
+// Minted per request rather than once: waiting on processing can outlast the
+// twenty minutes Apple allows a token.
+const token = () => {
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const iat = Math.floor(Date.now() / 1000);
+  const body = `${b64({ alg: 'ES256', kid: keyId, typ: 'JWT' })}.`
+    + b64({ iss: issuerId, iat, exp: iat + 1200, aud: 'appstoreconnect-v1' });
+  // ES256 wants the raw r||s pair; node signs DER unless told otherwise, and
+  // Apple answers 401 NOT_AUTHORIZED to a DER signature without saying why.
+  const sig = crypto.sign('sha256', Buffer.from(body), {
+    key: fs.readFileSync(path.join(ASC_DIR, keys[0])),
+    dsaEncoding: 'ieee-p1363',
+  });
+  return `${body}.${sig.toString('base64url')}`;
+};
+
+// Returns the error rather than dying on it, because while a build is still
+// processing a refused write is expected and the answer is to try again.
+async function api(method, endpoint, payload) {
+  const res = await fetch(HOST + endpoint, {
+    method,
+    headers: {
+      Authorization: `Bearer ${token()}`,
+      ...(payload ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(payload ? { body: JSON.stringify(payload) } : {}),
+  });
+  const raw = await res.text();
+  const body = raw ? JSON.parse(raw) : null;
+  if (res.ok) return { body };
+  const detail = (body?.errors || []).map((e) => `${e.title}: ${e.detail}`).join('\n  ');
+  return { error: `${method} ${endpoint} → ${res.status}\n  ${detail || raw.slice(0, 400)}` };
+}
+
+async function must(method, endpoint, payload) {
+  const { body, error } = await api(method, endpoint, payload);
+  if (error) die(error);
+  return body;
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// ------------------------------------------------------------------ write it
+
+const main = async () => {
+  const config = JSON.parse(fs.readFileSync(path.join(ROOT, 'app/app.json'), 'utf8')).expo;
+  const bundleId = config.ios.bundleIdentifier;
+
+  const app = (await must('GET', `/v1/apps?filter[bundleId]=${bundleId}`)).data[0];
+  if (!app) die(`no app in App Store Connect for ${bundleId}`);
+  const locale = app.attributes.primaryLocale || 'en-US';
+
+  const deadline = Date.now() + opts.wait * 1000;
+  let lastError = null;
+  let waiting = false;
+  for (;;) {
+    const build = (await must('GET', `/v1/builds?filter[app]=${app.id}`
+      + `&filter[version]=${opts.build}&limit=1`)).data[0];
+    const state = build?.attributes.processingState;
+    if (state === 'FAILED' || state === 'INVALID') {
+      die(`build ${opts.build} is ${state}; there is nothing for testers to install`);
+    }
+    if (build) {
+      lastError = await setNotes(build.id, locale);
+      if (!lastError) return;
+    }
+    if (Date.now() >= deadline) {
+      die(build
+        ? `could not set the notes on build ${opts.build} (${state})`
+        : `Apple has not shown build ${opts.build} yet`,
+        ...(lastError ? [lastError] : []),
+        `bin/testflight-notes --build ${opts.build} again, once it has.`);
+    }
+    if (!waiting) {
+      console.log(`  waiting for Apple to ${build ? 'take the notes' : 'show the build'}`
+        + ` (up to ${Math.round(opts.wait / 60)} min)`);
+      waiting = true;
+    }
+    await sleep(30000);
+  }
+};
+
+// Patches the locale's record if there is one and creates it if not; returns
+// an error message rather than dying, for the loop above to retry.
+async function setNotes(buildId, locale) {
+  const existing = await api('GET', `/v1/builds/${buildId}/betaBuildLocalizations`);
+  if (existing.error) return existing.error;
+  const record = existing.body.data.find((l) => l.attributes.locale === locale);
+
+  if (record && (record.attributes.whatsNew || '').trim() === text) {
+    console.log(`  What to Test for ${locale} already says this`);
+    return null;
+  }
+  const { error } = record
+    ? await api('PATCH', `/v1/betaBuildLocalizations/${record.id}`, {
+      data: { type: 'betaBuildLocalizations', id: record.id, attributes: { whatsNew: text } },
+    })
+    : await api('POST', '/v1/betaBuildLocalizations', {
+      data: {
+        type: 'betaBuildLocalizations',
+        attributes: { locale, whatsNew: text },
+        relationships: { build: { data: { type: 'builds', id: buildId } } },
+      },
+    });
+  if (error) return error;
+  console.log(`✓ set What to Test for ${locale} on build ${opts.build} (${text.length} characters)`);
+  return null;
+}
+
+main();

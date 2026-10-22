@@ -41,7 +41,7 @@ here has to be read in order, and no entry depends on another.
 | Recordings: writing them, or reading one back | `thefloor-egress`, `thefloor-server` |
 | A one-time code that never arrived | `thefloor-server` (SES, and the configuration-set trap) |
 | Push on iOS — and see `APNS_ENV` in AGENTS.md first | APNs auth key |
-| `bin/upload-ios`, `bin/submit-ios`, `bin/testflight` | App Store Connect API key |
+| `bin/upload-ios`, `bin/submit-ios`, `bin/testflight`, `bin/testflight-notes` | App Store Connect API key |
 | An Android release build, `bin/android` | Android upload key |
 | Donations, `POST /donations/kofi` | Ko-fi webhook verification token |
 | Transcripts, and what `/privacy` claims | AssemblyAI |

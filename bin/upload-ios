@@ -295,4 +295,17 @@ xcodebuild -exportArchive -archivePath "$ARCHIVE" \
 git tag -a "build/$BUILD" -m "iOS build $BUILD, uploaded to App Store Connect"
 echo "→ tagged build/$BUILD (git push origin build/$BUILD)"
 
+# What to Test, composed from the commits since the previous build/<n> tag, so
+# a tester opening TestFlight is told what changed. After the tag because the
+# tag is the range's end. It waits for Apple to show the build, and a failure
+# here is reported rather than fatal: the upload has happened either way, and
+# running the same command later finishes it.
+if [ ${#AUTH[@]} -gt 0 ]; then
+  echo "→ notes for testers"
+  bin/testflight-notes --build "$BUILD" \
+    || echo "  ✗ not set; bin/testflight-notes --build $BUILD to try again" >&2
+else
+  echo "→ no API key, so no notes for testers; write What to Test by hand" >&2
+fi
+
 echo "✓ processing in App Store Connect — TestFlight in a few minutes"
