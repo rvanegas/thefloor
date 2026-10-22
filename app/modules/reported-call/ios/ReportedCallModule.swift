@@ -94,6 +94,18 @@ public class ReportedCallModule: Module {
    * bring the session back. See `recoverResume`.
    */
   fileprivate var resuming = false
+  /**
+   * From `cycleHold` asking for the hold until CallKit next activates the
+   * session: a hold this module made to get the session back, which nobody
+   * else is told about. See `cycleHold`.
+   */
+  fileprivate var cycling = false
+  /**
+   * The call `cycleHold` has held and will resume once CallKit's
+   * `didDeactivate` for that hold lands, so the hold's deactivation can never
+   * be mistaken for the resume's.
+   */
+  fileprivate var resumeAfterDeactivate: UUID?
   fileprivate var interruptionObserver: NSObjectProtocol?
   /**
    * Every call on the device, this app's and everybody else's — what tells a
@@ -188,17 +200,22 @@ public class ReportedCallModule: Module {
    * stays where CallKit's own calls leave it. A held call is left alone:
    * CallKit deactivated that session deliberately, and taking the call off
    * hold is what brings it back.
+   *
+   * **Usually refused**, which is what `cycleHold` is for: five of six runs
+   * from 2026-10-15 to 2026-10-22 logged `Session activation failed` with the
+   * app in front. Refused, `interrupted` stays set.
    */
   fileprivate func recoverInterruption() -> Bool {
     guard interrupted, callId != nil, !held else { return false }
-    interrupted = false
     let session = AVAudioSession.sharedInstance()
     do {
       try session.setActive(true)
     } catch {
-      emit("interruption not recovered: \(error.localizedDescription)")
+      let code = (error as NSError).code
+      emit("interruption not recovered: \(error.localizedDescription) (\(code))")
       return false
     }
+    interrupted = false
     let rtc = LKRTCAudioSession.sharedInstance()
     rtc.audioSessionDidDeactivate(session)
     rtc.audioSessionDidActivate(session)
@@ -229,6 +246,7 @@ public class ReportedCallModule: Module {
   fileprivate func recoverResume() {
     guard resuming else { return }
     resuming = false
+    cycling = false
     guard let id = callId, !held else { return }
     interrupted = true
     if recoverInterruption() { return }
@@ -236,6 +254,67 @@ public class ReportedCallModule: Module {
       guard self.callId == id, !self.held, !self.holdsSession else { return }
       self.interrupted = true
       _ = self.recoverInterruption()
+    }
+  }
+
+  /**
+   * Gets the session back through CallKit when the app's own activation is
+   * refused, by holding the call and taking it straight off hold again.
+   *
+   * **The app cannot activate the session itself here, and CallKit can.**
+   * `recoverInterruption`'s `setActive` was refused five times in six from
+   * 2026-10-15 to 2026-10-22, every one a pause after the 480-second
+   * interruption, and every one cured ten seconds later by a step-out — whose
+   * new call CallKit activated at once, with the app in front. A hold and a
+   * resume is the other way CallKit sends `didDeactivate` and `didActivate`,
+   * the pair `recoverInterruption` imitates, and it leaves the call standing:
+   * no second Recents entry, nothing for CarPlay or the Watch to show but a
+   * moment's hold.
+   *
+   * **The room is not told**: `setHeld` is skipped for these, so the roster
+   * does not say *On another call* for a hold nobody took. A resume answered
+   * with `didDeactivate` goes to `recoverResume` like any other, and does not
+   * come back here, so this cannot loop.
+   *
+   * **The resume waits for the hold's `didDeactivate`**, so that deactivation
+   * cannot land inside the resume and read as the resume failing. When CallKit
+   * holds no session there is none to wait for, and the resume follows the
+   * hold at once. One that never comes is given a second, so the call cannot
+   * be left held.
+   */
+  fileprivate func cycleHold() {
+    guard interrupted, !cycling, !held, let id = callId else { return }
+    cycling = true
+    let waits = holdsSession
+    emit("holding and resuming, the app's activation was refused")
+    if waits { resumeAfterDeactivate = id }
+    controller.request(CXTransaction(action: CXSetHeldCallAction(call: id, onHold: true))) { error in
+      if let error {
+        self.cycling = false
+        self.resumeAfterDeactivate = nil
+        self.emit("hold refused: \(error.localizedDescription)")
+        return
+      }
+      if !waits { self.resumeCycle(id); return }
+      // Never left held: a deactivation that does not come is waited for for
+      // the second `recoverResume` already allows, and no longer.
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+        guard self.resumeAfterDeactivate == id else { return }
+        self.resumeAfterDeactivate = nil
+        self.emit("no deactivation for the app's hold, resuming anyway")
+        self.resumeCycle(id)
+      }
+    }
+  }
+
+  /** The second half of `cycleHold`. */
+  fileprivate func resumeCycle(_ id: UUID) {
+    guard cycling, callId == id else { cycling = false; return }
+    controller.request(CXTransaction(action: CXSetHeldCallAction(call: id, onHold: false))) { error in
+      if let error {
+        self.cycling = false
+        self.emit("resume refused: \(error.localizedDescription)")
+      }
     }
   }
 
@@ -319,6 +398,8 @@ public class ReportedCallModule: Module {
         self.setHeld(false)
         self.interrupted = false
         self.resuming = false
+        self.cycling = false
+        self.resumeAfterDeactivate = nil
         let handle = CXHandle(type: .generic, value: channelId)
         let start = CXStartCallAction(call: id, handle: handle)
         start.isVideo = false
@@ -400,10 +481,15 @@ public class ReportedCallModule: Module {
 
     /**
      * Ends an interruption that began during the call and never ended — see
-     * `recoverInterruption`. `false`, having done nothing, when there is none.
+     * `recoverInterruption`, and `cycleHold` when that is refused. `false`
+     * when there is none, and when it is left to CallKit's activation.
      */
     AsyncFunction("recoverInterruption") { (promise: Promise) in
-      DispatchQueue.main.async { promise.resolve(self.recoverInterruption()) }
+      DispatchQueue.main.async {
+        if self.recoverInterruption() { promise.resolve(true); return }
+        self.cycleHold()
+        promise.resolve(false)
+      }
     }
 
     /** Whether the call is held for another one, for a JavaScript that started listening late. */
@@ -438,6 +524,8 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     module?.holdsSession = false
     module?.interrupted = false
     module?.resuming = false
+    module?.cycling = false
+    module?.resumeAfterDeactivate = nil
     module?.setHeld(false)
   }
 
@@ -456,6 +544,8 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     module.endingFromApp = false
     module.interrupted = false
     module.resuming = false
+    module.cycling = false
+    module.resumeAfterDeactivate = nil
     // Told to JavaScript although the end is a step-out, which is what takes
     // the room's `onAnotherCall` away: `useReportedCall` keeps its own copy,
     // and one left saying held tells the room so again at the next step-in.
@@ -499,10 +589,11 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
    */
   func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
     guard let module else { action.fulfill(); return }
-    module.emit("held \(action.isOnHold)")
+    module.emit("held \(action.isOnHold)\(module.cycling ? " by the app" : "")")
     action.fulfill()
     module.resuming = !action.isOnHold
-    module.setHeld(action.isOnHold)
+    // `cycleHold`'s own hold is not one the room hears about.
+    if !module.cycling { module.setHeld(action.isOnHold) }
   }
 
   /**
@@ -524,6 +615,7 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     module?.holdsSession = true
     module?.interrupted = false
     module?.resuming = false
+    module?.cycling = false
     module?.emit("activated \(audioSession.category.rawValue)/\(audioSession.mode.rawValue)")
   }
 
@@ -531,6 +623,11 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     LKRTCAudioSession.sharedInstance().audioSessionDidDeactivate(audioSession)
     module?.holdsSession = false
     module?.emit("deactivated")
+    if let id = module?.resumeAfterDeactivate {
+      module?.resumeAfterDeactivate = nil
+      module?.resumeCycle(id)
+      return
+    }
     module?.recoverResume()
   }
 }

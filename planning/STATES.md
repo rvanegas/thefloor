@@ -1293,6 +1293,11 @@ phone logs `playout frozen` until a step-out and back. Becoming a call now
 asks `modules/reported-call` to end it, with the deactivate-and-activate pair
 a hold sends; `reported call interruption ended by the app` is the line. See
 `decision/2026-10-13-the-call-s-unended-interruption-is-ended-by-the-app.md`.
+**The app's own activation is usually refused**, five times in six, and then
+the module holds the call and resumes it so that CallKit sends the pair
+itself, without telling the room. The line is `holding and resuming`, and
+CallKit's `activated` ends it. See
+`decision/2026-10-22-a-refused-recovery-is-handed-to-callkit.md`.
 
 **The observer used to be handed a constant, and that cost the route.** It took
 `IDLE` as its playout value on the argument that an unrequested write could then

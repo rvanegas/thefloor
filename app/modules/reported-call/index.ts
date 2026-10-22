@@ -124,9 +124,11 @@ export function reportedCallIsHeld(): boolean {
 /**
  * Ends an interruption iOS began during the call and never ended, which leaves
  * WebRTC's engine stopped until it is told otherwise — iOS does this 480
- * seconds after a film takes the session. `true` when there was one and it was
- * ended; `false`, having done nothing, otherwise. See `recoverInterruption` in
- * `ios/ReportedCallModule.swift`.
+ * seconds after a film takes the session. `true` when there was one and the app
+ * ended it; `false` when there was none, and when the app's activation was
+ * refused and the module has handed it to CallKit with a hold and a resume,
+ * whose `didActivate` lands a moment later. See `recoverInterruption` and
+ * `cycleHold` in `ios/ReportedCallModule.swift`.
  */
 export async function recoverReportedCallInterruption(): Promise<boolean> {
   if (!native) return false;
