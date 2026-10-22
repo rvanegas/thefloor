@@ -12,8 +12,10 @@ Planned 2026-10-22, and revised the same day with Rodrigo's answers: a key of
 the project's own rather than mdc's; the whole *Record*, not the room; open to
 everybody, not `debug`; the latest Haiku by default; an indicator on the card
 that everybody sees. Revised again with a channel setting, *Response model*,
-choosing between Haiku and Sonnet — Opus until Rodrigo chose Sonnet at medium
-effort instead, the same day (§ *The response model*). The five steps above
+choosing between Haiku and Sonnet, both at low effort — Opus until Rodrigo
+chose Sonnet instead the same day, and at medium effort until he chose low,
+since a reply the room is waiting on is worth more now than better later
+(§ *The response model*). The five steps above
 are the ask, and step 4's label is the one thing deliberately changed from it
 (§ 3 and 4).
 
@@ -31,7 +33,7 @@ applies the answer as a **paste authored by Claude** — so it enters the
   tests pass a fake. `available()` is true only when the key is set.
 - **The model is the channel's**, read from its *Response model* when the
   button is pressed: *Standard* is `claude-haiku-5-5` at low effort, *Pro*
-  is `claude-sonnet-5-5` at medium. One map in `claude.ts`,
+  is `claude-sonnet-5-5` at low. One map in `claude.ts`,
   `RESPONSE_MODELS`, holding the model, the effort and the `max_tokens` for
   each grade, as `ASSEMBLYAI_MODELS` is for transcription, and no environment
   override — a
@@ -113,12 +115,16 @@ limit; the price is.
   default, and `max_tokens` includes the thinking, so 1,024 is a ceiling on
   the whole answer rather than its intended length; low effort is what makes
   a reply arrive in the time a turn takes.
-- **Output on *Pro*: `max_tokens: 4096`, `effort: "medium"`**, Rodrigo's
-  choice 2026-10-22. Medium thinks more, and at 1,024 the thinking could use
-  the whole allowance and leave no reply, which costs the press and writes
-  nothing. 4,096 leaves room to think; the reply asked for is the same hundred
-  words. Sonnet 5.5's effort defaults to `high`, so `medium` is sent
-  explicitly.
+- **Output on *Pro*: `max_tokens: 4096`, `effort: "low"`**, Rodrigo's choice
+  2026-10-22, over medium. Thinking is generated before the reply, so every
+  thinking token is added to the wait under *Responding…*, and a turn in a
+  live conversation is judgement rather than a chain of reasoning — so *Pro*'s
+  gain over *Standard* is meant to come from the larger model, not from
+  longer thought. 4,096 stays, as headroom: `max_tokens` is a ceiling, and
+  only tokens generated are billed, so the margin costs nothing and keeps a
+  reply from being cut off. Sonnet 5.5's effort defaults to `high`, so `low`
+  is sent explicitly. Effort is a per-grade value in `RESPONSE_MODELS`, so
+  trying medium later is a one-word change.
 - **No trimming, on either grade** — Rodrigo's call, 2026-10-22, in place of
   a sentence-boundary trim. The reply text is pasted as it came back (the
   thinking never is). Two consequences, both written down so neither is
@@ -144,11 +150,10 @@ limit; the price is.
   keeps the prompt the same whichever model reads it.
 - **What a press costs**: on *Standard*, at the cap, about **a cent** — 90K
   input is $0.009 and 1K output is $0.0005 — and a typical channel costs a
-  tenth of that. On *Pro*, at the cap, about **19 to 22 cents** — $0.18 of
-  input and up to $0.04 of output — and about three to four cents on a
-  typical channel, where the thinking is a larger share. The output figure
-  is a ceiling, not a measurement: how much medium actually thinks on this
-  task is what the meter's output tokens will say. So
+  tenth of that. On *Pro*, at the cap, about **19 cents** — $0.18 of input
+  and a cent or so of output, $0.04 only if it used the whole 4,096 — and
+  about two cents on a typical channel. How much low effort actually thinks
+  on this task is what the meter's output tokens will say. So
   opening it to everybody needs no quota on day one, only the meter and the
   fact that only a `debug` account can choose *Pro*. Prompt
   caching would cut repeated presses in one channel further, since the
@@ -186,7 +191,7 @@ sees it.
   for anybody who may not change it — the STYLE.md § *Words on controls* case
   of a control that exists but is not yours, rather than one that does not
   apply. A muted line under it says what each is (*Standard: faster and
-  cheaper. Pro: a larger model that thinks longer, slower.*), in the
+  cheaper. Pro: a larger model, a little slower.*), in the
   catalogue in both languages
   — *Modelo de respuesta*, *Estándar*, *Pro*.
 - **The card says it too**, since that is where the press is: the muted line
@@ -328,8 +333,8 @@ then set the key and `bin/env-push` once the build is in hand.
   would change nothing.
 - `claude.test.ts`, against a fake client: the request (the model from the
   channel's `responseModel` through `RESPONSE_MODELS`, the fallback only on
-  *Pro*, and each grade's `max_tokens` and effort — 1,024 and low, 4,096 and
-  medium — and the system prompt's ingredients, including the hundred-word
+  *Pro*, and each grade's `max_tokens` and effort — 1,024 and 4,096, both
+  low — and the system prompt's ingredients, including the hundred-word
   limit in the system prompt and again as the user message's last line); a
   refusal writing no paste; a reply over 8,000 characters writing no paste,
   answering *too long* and clearing the indicator, with `too_long` on its
