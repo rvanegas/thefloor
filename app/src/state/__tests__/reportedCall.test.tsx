@@ -189,6 +189,25 @@ describe('being held for another call', () => {
     expect(onAnotherCall).toHaveBeenCalledWith('chan-1', true);
   });
 
+  /**
+   * A call that ends while held is a step-out, and the module says `held
+   * false` as it goes. Before it did, this hook went on holding `true`, and
+   * the next step-in told the room *On another call* with nothing left to
+   * take it back.
+   */
+  it('does not carry a hold that ended with the call into the next step-in', () => {
+    const { systemHeld, onAnotherCall, update } = mount(stood());
+    act(() => systemHeld(true));
+    update(stood({ onAnotherCall: true }));
+
+    update(null);
+    act(() => systemHeld(false));
+    onAnotherCall.mockClear();
+
+    update(stood());
+    expect(onAnotherCall).not.toHaveBeenCalled();
+  });
+
   it('starts from what the module already knows', () => {
     const { onAnotherCall } = mount(stood(), true);
     expect(onAnotherCall).toHaveBeenCalledWith('chan-1', true);

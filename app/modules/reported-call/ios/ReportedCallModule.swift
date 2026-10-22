@@ -277,7 +277,7 @@ public class ReportedCallModule: Module {
         self.callChannel = channelId
         self.callMuted = false
         self.endingFromApp = false
-        self.held = false
+        self.setHeld(false)
         self.interrupted = false
         let handle = CXHandle(type: .generic, value: channelId)
         let start = CXStartCallAction(call: id, handle: handle)
@@ -322,6 +322,7 @@ public class ReportedCallModule: Module {
             self.provider?.reportCall(with: id, endedAt: Date(), reason: .remoteEnded)
             self.callId = nil
             self.callChannel = nil
+            self.setHeld(false)
           }
           promise.resolve(error == nil)
         }
@@ -413,9 +414,10 @@ private final class ProviderDelegate: NSObject, CXProviderDelegate, CXCallObserv
     module.callChannel = nil
     module.endingFromApp = false
     module.interrupted = false
-    // Not told to JavaScript: the end is a step-out, and leaving the room is
-    // what takes somebody off `onAnotherCall`.
-    module.held = false
+    // Told to JavaScript although the end is a step-out, which is what takes
+    // the room's `onAnotherCall` away: `useReportedCall` keeps its own copy,
+    // and one left saying held tells the room so again at the next step-in.
+    module.setHeld(false)
     module.emit("ended fromApp=\(fromApp)")
     // An End this app did not ask for — CarPlay, the Watch, End & Accept — is
     // the person stepping out.
