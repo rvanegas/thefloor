@@ -77,7 +77,7 @@ applies the answer as a **paste authored by Claude** — so it enters the
 
 ### The caps
 
-Shaped by the one cliff in Haiku 5.5's pricing. A prompt up to 100K tokens
+Adopted as recommended, 2026-10-22. Shaped by the one cliff in Haiku 5.5's pricing. A prompt up to 100K tokens
 costs $0.10 per million input and $0.50 per million output, and a prompt past
 100K costs five times that. The context window is 1M, so the window is not the
 limit; the price is.
@@ -110,14 +110,12 @@ limit; the price is.
   in `ParticipantCard`'s shape: the name *Claude*, a muted line under it
   (*Reads the Record and adds to it*), and on the right rail a `Button` with
   `styles.cardPing` — the ping's style, literally.
-- **The label is *Respond* / *Responder*,** not *prompt*. On a card named
-  *Claude*, a bare verb is addressed to the card, as *Ping* is, so *Ask Claude*
-  says the name twice. *Respond* translates one to one into *Responder*, the
-  infinitive a Spanish button wants; *prompt* has no Spanish verb that is not
-  either *ask* or wrong. Busy, it reads *Responding…* / *Respondiendo…*. The
-  warmer alternative is *Your turn* / *Te toca*, idiomatic in both and fitting
-  an app about the floor. It is not recommended, because "turn" already names
-  a speaker's turn in a transcript.
+- **The label is *Respond* / *Responder*,** not *prompt* — settled by
+  Rodrigo 2026-10-22. On a card named *Claude*, a bare verb is addressed to
+  the card, as *Ping* is, so *Ask Claude* would say the name twice. *Respond*
+  translates one to one into *Responder*, the infinitive a Spanish button
+  wants; *prompt* has no Spanish verb that is not either *ask* or wrong.
+  `t.respond()` and `t.responding()` in the catalogue.
 - **No section label over it.** It is not a member, guest or invitation, and a
   fifth label for one card is heavier than the card. **No presence dot, no
   clock, no profile** — none of those is true of it.
@@ -140,8 +138,9 @@ limit; the price is.
   `CLAUDE_ANSWERED`. Their guards are in `core/` like every other, so the
   greyed button and the 409 are computed by the same code. A build that
   predates the field ignores it.
-- **Drawn as the button itself**, disabled and reading *Responding…* on every
-  screen, with the muted line saying who asked (*Ana asked*). No dot: the
+- **Drawn as the button itself**, disabled and reading *Responding…* /
+  *Respondiendo…* on every screen — settled 2026-10-22 — with the muted line
+  saying who asked (*Ana asked* / *Preguntó Ana*). No dot: the
   speaking dot's filled state means *audible now*, and Claude is not audible.
   No animation either: STYLE.md has none, and a busy label is what stands in
   for it.
@@ -181,12 +180,33 @@ limit; the price is.
 - **Not spoken.** The reply is text in the *Record*. Text-to-speech into the
   room is a different feature, with the floor rules to answer to.
 
-### Metering
+### Metering, in the reports that already exist
 
-A new `UsageMeter` kind, `claude`, recording input and output tokens, the
-model, the account and the channel, so that `bin/usage` says what this costs
-before anybody decides it needs a quota — and so that Pro's model choice later
-has a number to be priced against.
+Rodrigo's call, also 2026-10-22: no new script and no new report — it goes
+where spend is already counted. Transcription's spend is read by
+`bin/usage transcripts` from tables of what the provider billed
+(`transcripts`, `live_sessions`, the `transcript_usage` ledger), and Claude
+follows that pattern.
+
+- **`claude_usage`, one row per press**, written when the answer (or the
+  failure) comes back: `at`, `channel_id`, `account_id`, `model`, the four
+  token counts from `usage` (input, output, cache write, cache read),
+  `stop_reason` and `outcome`. It holds **no text** — the reply is in
+  `pastes` and the prompt is the *Record*, so a copy here would be a second
+  store of conversation for no reason. Like `transcript_usage` it is a ledger
+  and outlives what it priced. `forget(accountId)` nulls the account, as it
+  does elsewhere.
+- **`bin/usage transcripts` gains a column**: *Transcription spend, by month*
+  becomes *Provider spend, by month*, with `claude_usd` beside
+  `recordings_usd` and `live_usd`, priced from the token counts at the model's
+  rate (Haiku 5.5's, with the over-100K rate where `input_tokens` passed it).
+  *Who spent it* gains Claude's presses per account. The report's name and its
+  `--list` line say *transcription and Claude*.
+- **Nothing on the wire and nothing the app reads**, which is `usage.ts`'s
+  rule: the meter is instrumentation, queried from outside.
+
+This is also what calibrates the 3.5 characters a token and tells Pro's model
+choice what it would cost.
 
 ### Compatibility and order
 
@@ -210,18 +230,20 @@ then set the key and `bin/env-push` once the build is in hand.
 - Route tests: no key → no flag and 503; not present → 403; empty *Record* →
   409; in flight → 409; success → a paste row authored by `CLAUDE_ID`, named
   *Claude*, inside its room's segments; the presser leaving mid-request still
-  produces the row.
+  produces the row; every press, failed or not, writes exactly one
+  `claude_usage` row with its token counts and no text.
 - App: the card is drawn only with the flag, its button has the ping's style,
   and *Responding…* with who asked is shown on a screen that did not press.
 
 ### Not in this task
 
-- **Renaming the *People* tab.** It began as *Roster*, which did not
-  translate, then *Members*, which excluded guests, then *People*, which now
-  excludes Claude. *Room* and *Voice* are already glossary terms, so neither
-  is available. *Table* / *Mesa* collides with nothing, and carries the
-  glossary's own *seat* — a seat at the table, an invitation to it, Claude at
-  it. It deserves its own task, since a rename touches the glossary, the
-  catalogue and every place the tab is named.
+- **Renaming the *People* tab — kept as *People* for now**, Rodrigo's call
+  2026-10-22. It began as *Roster*, which did not translate, then *Members*,
+  which excluded guests, then *People*, which now excludes Claude. If it
+  moves again: *Room* and *Voice* are already glossary terms, so neither is
+  available, and *Table* / *Mesa* collides with nothing and carries the
+  glossary's own *seat*. The GLOSSARY entry for *Channel tabs* should say that
+  *People* holds one card that is not a person, so the next reader does not
+  take it for an oversight.
 - **Other models for Pro accounts**, behind `modelFor`.
 - **Prompt caching**, once the meter shows repeated presses.
