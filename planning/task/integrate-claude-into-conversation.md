@@ -12,7 +12,8 @@ Planned 2026-10-22, and revised the same day with Rodrigo's answers: a key of
 the project's own rather than mdc's; the whole *Record*, not the room; open to
 everybody, not `debug`; the latest Haiku by default; an indicator on the card
 that everybody sees. Revised again with a channel setting, *Response model*,
-choosing between Haiku and Opus (§ *The response model*). The five steps above
+choosing between Haiku and Sonnet — Opus until Rodrigo chose Sonnet at medium
+effort instead, the same day (§ *The response model*). The five steps above
 are the ask, and step 4's label is the one thing deliberately changed from it
 (§ 3 and 4).
 
@@ -29,9 +30,11 @@ applies the answer as a **paste authored by Claude** — so it enters the
   is the same shape: the class takes something with `messages.create`, and
   tests pass a fake. `available()` is true only when the key is set.
 - **The model is the channel's**, read from its *Response model* when the
-  button is pressed: *Standard* is `claude-haiku-5-5`, *Pro* is
-  `claude-opus-5-5`. One map in `claude.ts`, `RESPONSE_MODELS`, as
-  `ASSEMBLYAI_MODELS` is for transcription, and no environment override — a
+  button is pressed: *Standard* is `claude-haiku-5-5` at low effort, *Pro*
+  is `claude-sonnet-5-5` at medium. One map in `claude.ts`,
+  `RESPONSE_MODELS`, holding the model, the effort and the `max_tokens` for
+  each grade, as `ASSEMBLYAI_MODELS` is for transcription, and no environment
+  override — a
   setting that a page shows everybody should not be contradicted by a file on
   the box. See § *The response model*.
 - **The key is `ANTHROPIC_API_KEY` in `~/.config/thefloor/server.env`** — the
@@ -93,23 +96,35 @@ limit; the price is.
   Measured as characters, about 3.5 to the token, rather than by a
   `count_tokens` round trip before every press; `usage.input_tokens` is
   logged to the meter and calibrates the ratio, which matters for Spanish.
-- **Output: `max_tokens: 1024`, `effort: "low"`**, with the system prompt
-  asking for at most about a hundred words. Haiku 5.5 thinks by default, and
-  `max_tokens` includes the thinking, so 1,024 is a ceiling on the whole
-  answer rather than its intended length; low effort is what makes a reply
-  arrive in the time a turn takes. 1,024 tokens is about 4,000 characters,
-  which never approaches `MAX_CLIP_LENGTH` (8,000) — the reducer refuses
-  rather than trims, so the server must never send it more. A reply that stops
-  on `max_tokens` is cut back to its last full sentence.
-- **The same caps for both grades.** Opus 5.5 has no cliff at 100K — $4 per
-  million input and $20 per million output throughout — so the budget is
-  Haiku's reason applied to both, and one number rather than two keeps the
-  prompt the same whichever model reads it. Opus thinks always, with no way
-  to turn it off, so `effort: "low"` matters more there, not less.
+- **Output on *Standard*: `max_tokens: 1024`, `effort: "low"`**, with the
+  system prompt asking for at most about a hundred words. Haiku 5.5 thinks by
+  default, and `max_tokens` includes the thinking, so 1,024 is a ceiling on
+  the whole answer rather than its intended length; low effort is what makes
+  a reply arrive in the time a turn takes.
+- **Output on *Pro*: `max_tokens: 4096`, `effort: "medium"`**, Rodrigo's
+  choice 2026-10-22. Medium thinks more, and at 1,024 the thinking could use
+  the whole allowance and leave no reply, which costs the press and writes
+  nothing. 4,096 leaves room to think; the reply asked for is the same hundred
+  words. Sonnet 5.5's effort defaults to `high`, so `medium` is sent
+  explicitly.
+- **The paste limit is enforced by the server, on both grades.** The reducer
+  refuses a paste over `MAX_CLIP_LENGTH` (8,000 characters) rather than
+  trimming it, so the server must never send it more. 1,024 tokens is about
+  4,000 characters and cannot reach it; 4,096 can, if the model ignores the
+  length it was asked for. So the reply text — the thinking is never pasted —
+  is cut back to its last full sentence under 8,000, and so is a reply that
+  stops on `max_tokens`.
+- **The same input budget for both grades.** Sonnet 5.5 has no cliff at 100K
+  — $2 per million input and $10 per million output throughout — so the
+  budget is Haiku's reason applied to both, and one number rather than two
+  keeps the prompt the same whichever model reads it.
 - **What a press costs**: on *Standard*, at the cap, about **a cent** — 90K
   input is $0.009 and 1K output is $0.0005 — and a typical channel costs a
-  tenth of that. On *Pro*, at the cap, about **38 cents** — $0.36 and $0.02 —
-  and about four cents typically. So
+  tenth of that. On *Pro*, at the cap, about **19 to 22 cents** — $0.18 of
+  input and up to $0.04 of output — and about three to four cents on a
+  typical channel, where the thinking is a larger share. The output figure
+  is a ceiling, not a measurement: how much medium actually thinks on this
+  task is what the meter's output tokens will say. So
   opening it to everybody needs no quota on day one, only the meter and the
   fact that only a `debug` account can choose *Pro*. Prompt
   caching would cut repeated presses in one channel further, since the
@@ -147,7 +162,8 @@ sees it.
   for anybody who may not change it — the STYLE.md § *Words on controls* case
   of a control that exists but is not yours, rather than one that does not
   apply. A muted line under it says what each is (*Standard: faster and
-  cheaper. Pro: a larger model, slower.*), in the catalogue in both languages
+  cheaper. Pro: a larger model that thinks longer, slower.*), in the
+  catalogue in both languages
   — *Modelo de respuesta*, *Estándar*, *Pro*.
 - **The card says it too**, since that is where the press is: the muted line
   under *Claude* reads *Reads the Record and adds to it · Pro* when the
@@ -155,11 +171,12 @@ sees it.
 - **Pro is a grade, not the subscription.** GLOSSARY.md already separates
   *Pro (the subscription)* from *Transcription model*'s *Pro*; *Response
   model* gets the same caution in its entry, and the one-line list gains it.
-- **Refusals**: Opus 5.5 can decline in its safety categories
+- **Refusals**: Sonnet 5.5 can decline in its safety categories
   (`stop_reason: "refusal"`). The request for *Pro* carries the server-side
-  fallback (`fallbacks: "default"`, beta `server-side-fallback-2026-07-01`),
-  which re-runs a declined request on a model that will answer, inside the
-  same call. Haiku has no server-side fallback, so a refusal there — and a
+  fallback in its `"default"` form (`fallbacks: "default"`, beta
+  `server-side-fallback-2026-07-01`) — the only form Sonnet 5.5 accepts, and
+  only on the Claude API, which is the one this server calls. It re-runs a
+  declined request on a model that will answer, inside the same call. Haiku has no server-side fallback, so a refusal there — and a
   fallback that refuses as well — answers with a sentence (*Claude declined
   to respond to this.*), writes no paste, and clears the indicator.
 
@@ -259,7 +276,7 @@ follows that pattern.
   becomes *Provider spend, by month*, with `claude_usd` beside
   `recordings_usd` and `live_usd`, priced from the token counts at the model's
   rate, from the row's `model` — Haiku 5.5's, with the over-100K rate where
-  `input_tokens` passed it, or Opus 5.5's — and split by grade, so that what
+  `input_tokens` passed it, or Sonnet 5.5's — and split by grade, so that what
   *Pro* costs against *Standard* is a column rather than an estimate.
   *Who spent it* gains Claude's presses per account. The report's name and its
   `--list` line say *transcription and Claude*.
@@ -287,8 +304,9 @@ then set the key and `bin/env-push` once the build is in hand.
   would change nothing.
 - `claude.test.ts`, against a fake client: the request (the model from the
   channel's `responseModel` through `RESPONSE_MODELS`, the fallback only on
-  *Pro*, `max_tokens`, effort, the system prompt's ingredients); a refusal
-  writing no paste; trimming
+  *Pro*, and each grade's `max_tokens` and effort — 1,024 and low, 4,096 and
+  medium — and the system prompt's ingredients); a refusal writing no paste;
+  a reply over 8,000 characters cut to a sentence under it; trimming
   oldest-first, with the begins-here line; Claude's earlier replies labelled
   in the transcript; a `max_tokens` stop cut to a sentence; an API error and a
   timeout each surfacing as one sentence, writing nothing and clearing the
@@ -299,7 +317,7 @@ then set the key and `bin/env-push` once the build is in hand.
   produces the row; every press, failed or not, writes exactly one
   `claude_usage` row with its token counts and no text. `SET_RESPONSE_MODEL`
   from an account without `debug` → 403 and no change; from one with it, the
-  next press asks `claude-opus-5-5` whoever presses, and the setting survives
+  next press asks `claude-sonnet-5-5` whoever presses, and the setting survives
   a restart.
 - App: the card is drawn only with the flag, its button has the ping's style,
   and *Responding…* with who asked is shown on a screen that did not press.
