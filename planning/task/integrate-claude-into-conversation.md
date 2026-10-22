@@ -78,6 +78,18 @@ applies the answer as a **paste authored by Claude** — so it enters the
   where that helps, and in plain text with no Markdown, since the *Record*
   draws plain lines. It is one constant in `claude.ts`, with a test that pins
   its ingredients rather than its wording.
+- **The length is an instruction, stated as a hard limit, and stated
+  twice.** Rodrigo's call, 2026-10-22: the server does not trim a reply, so
+  keeping it short is the prompt's job. The system prompt says that the reply
+  **must be at most 100 words** — two to four sentences — that this is a hard
+  limit and not a target, and why: it is one turn in a live conversation that
+  people are waiting on, read aloud or at a glance. The same sentence is
+  repeated as the last line of the user message, after the *Record*, where 90K
+  tokens of transcript would otherwise be the last thing read before the
+  answer. Both say the reason as well as the rule, because a model given the
+  reason applies the rule to the cases the rule did not name. Nothing in
+  either is untrue: it does not claim a longer reply will be cut, because it
+  will not be.
 - **Nothing to read, nothing sent**: a channel whose *Record* holds no text
   answers 409 with a sentence (*There is nothing in the Record yet for Claude
   to read.*) rather than prompting on nothing.
@@ -107,13 +119,23 @@ limit; the price is.
   nothing. 4,096 leaves room to think; the reply asked for is the same hundred
   words. Sonnet 5.5's effort defaults to `high`, so `medium` is sent
   explicitly.
-- **The paste limit is enforced by the server, on both grades.** The reducer
-  refuses a paste over `MAX_CLIP_LENGTH` (8,000 characters) rather than
-  trimming it, so the server must never send it more. 1,024 tokens is about
-  4,000 characters and cannot reach it; 4,096 can, if the model ignores the
-  length it was asked for. So the reply text — the thinking is never pasted —
-  is cut back to its last full sentence under 8,000, and so is a reply that
-  stops on `max_tokens`.
+- **No trimming, on either grade** — Rodrigo's call, 2026-10-22, in place of
+  a sentence-boundary trim. The reply text is pasted as it came back (the
+  thinking never is). Two consequences, both written down so neither is
+  mistaken for a bug:
+  - **A reply over `MAX_CLIP_LENGTH` (8,000 characters) is not posted.** The
+    reducer refuses such a paste rather than trimming it. 1,024 tokens is
+    about 4,000 characters and cannot reach it; 4,096 can, but only by
+    ignoring a hundred-word limit by a factor of twelve. The server checks the
+    length before dispatching, answers with a sentence (*Claude's reply was
+    too long to post.*), clears the indicator, and records `outcome:
+    'too_long'` on the usage row. The press is paid for and produces nothing,
+    which is the cost of not trimming.
+  - **A reply that stops on `max_tokens` is posted as it is**, ending
+    mid-sentence. It is visible and honest about what happened, and
+    `stop_reason` on the usage row counts how often it does. If that count is
+    not near zero, the allowance or the instruction is wrong, and the fix is
+    there rather than in a trim.
 - **The same input budget for both grades.** Sonnet 5.5 has no cliff at 100K
   — $2 per million input and $10 per million output throughout — so the
   budget is Haiku's reason applied to both, and one number rather than two
@@ -305,10 +327,13 @@ then set the key and `bin/env-push` once the build is in hand.
 - `claude.test.ts`, against a fake client: the request (the model from the
   channel's `responseModel` through `RESPONSE_MODELS`, the fallback only on
   *Pro*, and each grade's `max_tokens` and effort — 1,024 and low, 4,096 and
-  medium — and the system prompt's ingredients); a refusal writing no paste;
-  a reply over 8,000 characters cut to a sentence under it; trimming
+  medium — and the system prompt's ingredients, including the hundred-word
+  limit in the system prompt and again as the user message's last line); a
+  refusal writing no paste; a reply over 8,000 characters writing no paste,
+  answering *too long* and clearing the indicator, with `too_long` on its
+  usage row; a `max_tokens` stop posted unaltered; dropping the *Record*
   oldest-first, with the begins-here line; Claude's earlier replies labelled
-  in the transcript; a `max_tokens` stop cut to a sentence; an API error and a
+  in the transcript; an API error and a
   timeout each surfacing as one sentence, writing nothing and clearing the
   indicator.
 - Route tests: no key → no flag and 503; not present → 403; empty *Record* →
