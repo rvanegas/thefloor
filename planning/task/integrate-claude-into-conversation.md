@@ -125,8 +125,10 @@ limit; the price is.
   mistaken for a bug:
   - **A reply over `MAX_CLIP_LENGTH` (8,000 characters) is not posted.** The
     reducer refuses such a paste rather than trimming it. 1,024 tokens is
-    about 4,000 characters and cannot reach it; 4,096 can, but only by
-    ignoring a hundred-word limit by a factor of twelve. The server checks the
+    about 4,000 characters and cannot reach it; 4,096 can, but only with a
+    reply about twelve times the length asked for — a hundred words is about
+    650 characters. **There is no retry**: each press is one request, and a
+    reply that is too long is reported, not asked for again. The server checks the
     length before dispatching, answers with a sentence (*Claude's reply was
     too long to post.*), clears the indicator, and records `outcome:
     'too_long'` on the usage row. The press is paid for and produces nothing,
