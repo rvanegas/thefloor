@@ -2775,12 +2775,13 @@ export class ChannelRegistry {
     }
 
     // The same rule for the same reason: *Pro* costs about twenty times what
-    // *Standard* does a press, and is the channel's whoever presses. Unlike
+    // *Standard* does a press, *Max* at least twice *Pro*, and the grade is
+    // the channel's whoever presses. Unlike
     // the transcription model, the app draws this one for everybody — greyed
     // for those it would refuse here.
     if (action.type === 'SET_RESPONSE_MODEL') {
       const model = (action as { responseModel?: unknown }).responseModel;
-      if (model !== 'standard' && model !== 'pro') {
+      if (model !== 'standard' && model !== 'pro' && model !== 'max') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
       }
       if (this.accounts.byId(userId)?.debug !== 1) {

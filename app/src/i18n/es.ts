@@ -802,8 +802,9 @@ export const es: Strings = {
     responseModel: () => 'Modelo de respuesta',
     responseStandard: () => 'Est\u00e1ndar',
     responsePro: () => 'Pro',
+    responseMax: () => 'Max',
     responseModelNote: () =>
-      'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Se aplica a quien pregunte a Claude.',
+      'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
     responseModelWho: () => 'Solo pueden cambiarlo quienes llevan The Floor.',
     notifications: () => 'Notificaciones',
     podcast: () => 'Podcast',
@@ -1117,6 +1118,7 @@ export const es: Strings = {
     severalVoices: () => 'Varias voces en mi micr\u00f3fono',
     askClaude: () => 'Preguntar a Claude',
     claudeProSuffix: () => ' \u00b7 Pro',
+    claudeMaxSuffix: () => ' \u00b7 Max',
     replyBrief: () => 'Breve',
     replyMedium: () => 'Media',
     replyExtended: () => 'Extensa',

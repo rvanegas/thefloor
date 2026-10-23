@@ -131,6 +131,14 @@ describe('Ask Claude on the Record bar', () => {
     expect(disabled(findButton(tree!, 'Medium')!)).toBe(true);
   });
 
+  it('says Max beside Ask Claude on a Max channel', () => {
+    const max = reduce(here(), { type: 'SET_RESPONSE_MODEL', userId: ME, responseModel: 'max' }, NOW);
+    showChannel(max, [], { claude: true });
+    const text = textOf(record());
+    expect(text).toContain('Ask Claude \u00b7 Max');
+    expect(text).not.toContain('\u00b7 Pro');
+  });
+
   it('says Pro beside Claude only when the channel is on Pro', () => {
     const pro = reduce(here(), { type: 'SET_RESPONSE_MODEL', userId: ME, responseModel: 'pro' }, NOW);
     showChannel(pro, [], { claude: true });
@@ -161,9 +169,11 @@ describe('the response model', () => {
     open();
     expect(textOf(tree!)).toContain('Response model');
     expect(textOf(tree!)).toContain('Only the people who run The Floor can change it.');
-    const pro = findButton(tree!, 'Pro');
-    expect(pro).toBeDefined();
-    expect(pro!.props.accessibilityState?.disabled ?? pro!.props.disabled).toBe(true);
+    for (const label of ['Pro', 'Max']) {
+      const button = findButton(tree!, label);
+      expect(button).toBeDefined();
+      expect(button!.props.accessibilityState?.disabled ?? button!.props.disabled).toBe(true);
+    }
   });
 
   it('is settable by debug, and sends the choice', () => {
@@ -184,6 +194,14 @@ describe('the response model', () => {
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_RESPONSE_MODEL',
       responseModel: 'pro',
+    });
+    // Max is the response model's alone.
+    const max = findButton(tree!, 'Max')!;
+    expect(max.props.accessibilityState?.disabled ?? max.props.disabled).toBeFalsy();
+    act(() => max.props.onPress());
+    expect(mockApp.act).toHaveBeenLastCalledWith('sess_1', {
+      type: 'SET_RESPONSE_MODEL',
+      responseModel: 'max',
     });
   });
 

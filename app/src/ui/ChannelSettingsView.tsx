@@ -544,6 +544,7 @@ export function ChannelSettingsView({
               [
                 ['standard', t.responseStandard()],
                 ['pro', t.responsePro()],
+                ['max', t.responseMax()],
               ] as Array<[ResponseModel, string]>
             ).map(([value, label]) => (
               <Button

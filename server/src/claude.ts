@@ -30,7 +30,7 @@ export interface ResponseGrade {
   maxTokens: number;
   /**
    * Whether the request carries the server-side refusal fallback. Sonnet 5.5
-   * takes its `"default"` form on the Claude API; Haiku has none.
+   * and Opus 5.5 take its `"default"` form on the Claude API; Haiku has none.
    */
   fallback: boolean;
 }
@@ -46,11 +46,17 @@ export interface ResponseGrade {
  * a chain of reasoning. *Pro*'s gain is meant to come from the larger model.
  * Effort is sent explicitly because Sonnet 5.5 defaults to `high` and Haiku
  * 5.5 to `medium`.
+ *
+ * ***Max*, since 2026-10-22, is Opus 5.5 at medium** — Rodrigo's call, the
+ * one grade that buys thinking as well as size, and so the slowest under
+ * *Responding…*. Medium is Opus 5.5's own default, sent anyway so the table
+ * says it. Its ceiling is the largest because medium thinks the most.
  */
 export const RESPONSE_MODELS: Record<ResponseModel, ResponseGrade> = {
   // 2048 since *Extended*: 270 words is about 360 tokens before any thinking.
   standard: { model: 'claude-haiku-5-5', effort: 'low', maxTokens: 2048, fallback: false },
   pro: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 4096, fallback: true },
+  max: { model: 'claude-opus-5-5', effort: 'medium', maxTokens: 8192, fallback: true },
 };
 
 /** The beta that the refusal fallback's `"default"` form is under. */

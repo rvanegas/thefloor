@@ -283,15 +283,16 @@ export type TranscriptionModel = 'standard' | 'pro';
 
 /**
  * The grade of model a channel's *Ask Claude* asks, since 2026-10-22: `standard`
- * is Haiku and the default, `pro` is Sonnet, both at low effort. The mapping
- * is the server's, in `server/src/claude.ts`.
+ * is Haiku and the default, `pro` is Sonnet, both at low effort, and `max`,
+ * since the same day, Opus at medium. The mapping is the server's, in
+ * `server/src/claude.ts`.
  *
- * **The same union as `TranscriptionModel` under its own name**, because the
- * two settings move independently and a shared type would invite one to be
- * read for the other. And *Pro* here is a grade of model, as it is there —
- * not *Pro (the subscription)*.
+ * **Its own union, not `TranscriptionModel`'s**, because the two settings
+ * move independently and a shared type would invite one to be read for the
+ * other — which is also why the third grade went here alone. And *Pro* here
+ * is a grade of model, as it is there — not *Pro (the subscription)*.
  */
-export type ResponseModel = 'standard' | 'pro';
+export type ResponseModel = 'standard' | 'pro' | 'max';
 
 /**
  * How long a reply *Ask Claude* asks for, since 2026-10-22: one of three

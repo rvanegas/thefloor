@@ -131,7 +131,7 @@ caused; the list carries the meaning.
 - **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Response model** — A channel setting, *Standard* (Haiku) or *Pro* (Sonnet), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
+- **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
@@ -3072,11 +3072,13 @@ for.
 
 ## Response model
 
-**A channel setting, *Standard* or *Pro*, naming which model *Ask Claude*
-asks**, since 2026-10-22: *Standard* is Haiku, *Pro* is Sonnet, both at low
-effort — `RESPONSE_MODELS` in `server/src/claude.ts`. `responseModel` on
-`ChannelState`, of type `ResponseModel`, the same union as
-*Transcription model*'s under its own name, since the two move independently.
+**A channel setting, *Standard*, *Pro* or *Max*, naming which model *Ask
+Claude* asks**, since 2026-10-22: *Standard* is Haiku and *Pro* is Sonnet,
+both at low effort, and *Max*, added the same day, is Opus at medium —
+`RESPONSE_MODELS` in `server/src/claude.ts`. `responseModel` on
+`ChannelState`, of type `ResponseModel` — *Transcription model*'s union under
+its own name until *Max*, and now one grade longer, since the two move
+independently. *Max* is said beside *Ask Claude* as *Pro* is.
 
 **The channel's, whoever presses**, for the transcription model's reason, and
 written to the press's ledger row so a change never rewrites an earlier
@@ -3084,7 +3086,7 @@ reply. **Shown to every member, changeable only by a `debug` account** — the
 one way it differs from the transcription model, which only `debug` sees:
 which model is answering in a channel is something everybody in it may know.
 Its *Pro* is a grade of model, as that one's is, and never *Pro (the
-subscription)*.
+subscription)*; *Max* is a grade too, and the same word in Spanish.
 
 ## Username
 
@@ -5102,7 +5104,7 @@ are settled:
     Ask Claude            Preguntar a Claude
     Brief / Medium / Extended  Breve / Media / Extensa — of a *respuesta*
     Responding…           Respondiendo…
-    Response model        Modelo de respuesta — *Estándar* / *Pro*
+    Response model        Modelo de respuesta — *Estándar* / *Pro* / *Max*
     Floor Settings        Ajustes de The Floor
     Pro (the subscription) Pro — a name, the same in both
     Push notifications    Notificaciones push

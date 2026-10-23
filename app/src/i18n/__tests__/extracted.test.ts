@@ -200,8 +200,9 @@ describe('the two languages', () => {
       // like the one above, not the subscription below.
       'channelSettings.responsePro',
       'channel.claudeProSuffix',
-      // A name, and Anthropic's: Claude is Claude in every language.
-      'channel.claude',
+      // *Max*, the third grade, on the same reasoning.
+      'channelSettings.responseMax',
+      'channel.claudeMaxSuffix',
       // The subscription's name — a different Pro from the grade above, and
       // the name it is sold under in the App Store, which is not translated
       // either. GLOSSARY.md, *Pro (the subscription)*.

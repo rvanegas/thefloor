@@ -138,7 +138,7 @@ describe('the instructions', () => {
     }
   });
 
-  it('asks each grade’s model at low effort, with Pro’s headroom and fallback', () => {
+  it('asks Standard and Pro at low effort and Max at medium, with the larger two’s fallback', () => {
     expect(RESPONSE_MODELS.standard).toEqual({
       model: 'claude-haiku-5-5',
       effort: 'low',
@@ -149,6 +149,12 @@ describe('the instructions', () => {
       model: 'claude-sonnet-5-5',
       effort: 'low',
       maxTokens: 4096,
+      fallback: true,
+    });
+    expect(RESPONSE_MODELS.max).toEqual({
+      model: 'claude-opus-5-5',
+      effort: 'medium',
+      maxTokens: 8192,
       fallback: true,
     });
   });
@@ -504,15 +510,17 @@ describe('the response model', () => {
   it('is refused to an account without debug, and changes nothing', async () => {
     boot(fakeClient(() => reply('x')).client);
     const { alice, channelId } = await room2();
-    expect(choose(channelId, alice.account.id, 'pro')).toMatchObject({
-      ok: false,
-      code: 'forbidden',
-      error: 'Only a debug account can choose the response model.',
-    });
+    for (const grade of ['pro', 'max']) {
+      expect(choose(channelId, alice.account.id, grade)).toMatchObject({
+        ok: false,
+        code: 'forbidden',
+        error: 'Only a debug account can choose the response model.',
+      });
+    }
     expect(app.channels.get(channelId)!.responseModel).toBe('standard');
   });
 
-  it('refuses anything but the two grades, even from debug', async () => {
+  it('refuses anything but the three grades, even from debug', async () => {
     boot(fakeClient(() => reply('x')).client);
     const { alice, channelId } = await room2();
     makeDebug(alice.account.id);
@@ -546,5 +554,24 @@ describe('the response model', () => {
     boot(client);
     expect(app.channels.get(channelId)!.responseModel).toBe('pro');
     expect(app.channels.get(channelId)!.claude).toBeNull();
+  });
+
+  it('on Max, asks Opus at medium effort with the fallback, and ledgers the grade', async () => {
+    const { client, calls } = fakeClient(() => reply('Max answer.', { model: 'claude-opus-5-5' }));
+    boot(client);
+    const { alice, bob, channelId } = await room2();
+    makeDebug(alice.account.id);
+    expect(choose(channelId, alice.account.id, 'max')).toMatchObject({ ok: true });
+
+    expect((await press(channelId, bob.token, 'extended')).statusCode).toBe(200);
+    expect(calls[0].beta).toBe(true);
+    expect(calls[0].body).toMatchObject({
+      model: 'claude-opus-5-5',
+      max_tokens: 8192,
+      output_config: { effort: 'medium' },
+      betas: [FALLBACK_BETA],
+      fallbacks: 'default',
+    });
+    expect(usageRows()[0]).toMatchObject({ grade: 'max', model: 'claude-opus-5-5' });
   });
 });

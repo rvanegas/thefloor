@@ -1037,13 +1037,15 @@ export const en = {
     /**
      * The model *Ask Claude* asks, since 2026-10-22: drawn for everybody, and
      * greyed with `responseModelWho` for anybody without `debug`. *Pro* here
-     * is a grade of model, not *Pro (the subscription)*.
+     * is a grade of model, not *Pro (the subscription)*; *Max*, the third
+     * since the same day, is the largest model, thinking harder.
      */
     responseModel: () => 'Response model',
     responseStandard: () => 'Standard',
     responsePro: () => 'Pro',
+    responseMax: () => 'Max',
     responseModelNote: () =>
-      'Standard: faster and cheaper. Pro: a larger model, a little slower. It applies to whoever asks Claude.',
+      'Standard: faster and cheaper. Pro: a larger model, a little slower. Max: the largest model, thinking harder, and the slowest. It applies to whoever asks Claude.',
     responseModelWho: () => 'Only the people who run The Floor can change it.',
     notifications: () => 'Notifications',
     /** A *public channel*, in the word a user meets: see GLOSSARY.md. */
@@ -1423,6 +1425,8 @@ export const en = {
     askClaude: () => 'Ask Claude',
     /** After *Ask Claude* when the channel's *Response model* is *Pro*. */
     claudeProSuffix: () => ' \u00b7 Pro',
+    /** After *Ask Claude* when the channel's *Response model* is *Max*. */
+    claudeMaxSuffix: () => ' \u00b7 Max',
     /** The three lengths, 30, 90 and 270 words: of a reply, so feminine in Spanish. */
     replyBrief: () => 'Brief',
     replyMedium: () => 'Medium',

@@ -898,6 +898,11 @@ export function AskClaude({
       : t.claudeAsked(nameOf(asked.askedBy))
     : failure;
 
+  // The grade beside the words, on *Pro* or *Max*; *Standard* says nothing.
+  const grade = channel.responseModel ?? 'standard';
+  const gradeSuffix =
+    grade === 'pro' ? t.claudeProSuffix() : grade === 'max' ? t.claudeMaxSuffix() : '';
+
   const lengths: Array<[ReplyLength, string]> = [
     ['brief', t.replyBrief()],
     ['medium', t.replyMedium()],
@@ -917,11 +922,7 @@ export function AskClaude({
           {/* One string, so it is one run of text to a screen reader. No
               *· Pro* while busy, which would not fit beside the buttons and
               says nothing a press in flight can change. */}
-          {busy
-            ? t.responding()
-            : `${t.askClaude()}${
-                (channel.responseModel ?? 'standard') === 'pro' ? t.claudeProSuffix() : ''
-              }`}
+          {busy ? t.responding() : `${t.askClaude()}${gradeSuffix}`}
         </Text>
         {lengths.map(([length, label]) => (
           <Button
@@ -1287,9 +1288,10 @@ const styles = StyleSheet.create({
    * recording's red is entitled to colour.
    */
   length: { paddingVertical: spacing(0.5), paddingHorizontal: spacing(0.75), minHeight: 0 },
-  // The words give way before the buttons do: Spanish on a *Pro* channel,
-  // *Preguntar a Claude · Pro*, is 362, so it wraps rather than push the last
-  // button past the edge.
+  // The words give way before the buttons do: Spanish on a *Pro* or *Max*
+  // channel, *Preguntar a Claude · Pro* at 362 and *· Max* at 367, wraps
+  // rather than push the last button past the edge. *Ask Claude · Max* is
+  // 331, and fits.
   askLabel: { flexShrink: 1 },
   warning: { color: colors.silenced, fontSize: 13 },
   pressed: { opacity: 0.6 },
