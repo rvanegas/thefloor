@@ -39,7 +39,7 @@ caused; the list carries the meaning.
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
-- **Channel tabs** — The four views of a channel, one at a time: People, Record, Listen, Watch — *Clipboard* stood second until 2026-10-15, when pasting went into *Record*, and *Invite* after it until 2026-10-16, when the ways in became the *Invite card* on People; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18; *People* held a card for Claude on 2026-10-22 only, before *Respond* moved to the *Record* bar
+- **Channel tabs** — The four views of a channel, one at a time: People, Record, Listen, Watch — *Clipboard* stood second until 2026-10-15, when pasting went into *Record*, and *Invite* after it until 2026-10-16, when the ways in became the *Invite card* on People; the first was *Roster* until 2026-09-14, *Members* until 2026-09-22, and now labels its four groups — *Members*, *At the door*, *Guests*, *Invitations* — rather than naming one of them; the fourth was *Player* until 2026-09-18; *People* held a card for Claude on 2026-10-22 only, before *Ask Claude* moved to the *Record* bar
 - **Channels** — One of Home's two lists: conversations you can walk into, in three sections
 - **Chime** — The sound a device makes when somebody *else* crosses the boundary of the channel you are in: the rung they land on picks it — two notes rising for stepping in, the same two falling for stepping out, the same note twice going nowhere for stepping back to *nearby* — and a move that does not cross *present* makes no sound at all; see also *recording chime*, the fourth, which is about the room rather than about who is in it, and the *film chimes*, the fifth and sixth
 - **Film chimes** — The two sounds the *watch party* makes, since 2026-09-26: a falling octave (A5 A4) when the film starts playing, a rising one (A4 A5) when it stops. They say what happened to the *room's voice* rather than to the film — a run shuts every microphone in the room and a pause gives them back — which is why *play* falls the way *out* does; A4 is the only note under the presence chimes' register, and that is what keeps the pair from being heard as a variation on *in* and *out*. Everybody present hears both, including whoever pressed the button; a stop and a film running out sound like a pause, there being no third thing to say. On the device *watching here*, and only there, each is ordered against the *audio session*: the play chime is sounded first and the microphone released after it, the pause chime waits for the microphone to come back — a chime is played into the session this app holds, and a run is the length of time it does not hold one
@@ -48,7 +48,7 @@ caused; the list carries the meaning.
 - **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
-- **Respond** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the word *Claude*, then the button, as each switch is its word then its switch: Claude reads the channel's whole *Record* and posts one short turn into it, as a *paste* by *Claude*; while anybody's press is out every screen's button reads *Responding…*, with who asked under the bar. Open to anybody *present*, and never spoken. A card on *People* for its first day, which read as a person. `canAskClaude`; *prompt* in the ask that built it, renamed for Spanish
+- **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the channel's whole *Record* and posts one turn into it, as a *paste* by *Claude*, of at most 30, 90 or 270 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*, and never spoken. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
 - **Paste** — A piece of text somebody here put into the channel, kept in the *Record* as a *segment* of its own at the moment it was made — an instant, which breaks no other segment — for anybody to copy, and never deleted; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
@@ -131,7 +131,7 @@ caused; the list carries the meaning.
 - **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Response model** — A channel setting, *Standard* (Haiku) or *Pro* (Sonnet), naming which model *Respond* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
+- **Response model** — A channel setting, *Standard* (Haiku) or *Pro* (Sonnet), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
@@ -154,7 +154,7 @@ caused; the list carries the meaning.
 
 **Words that exist only in the codebase**
 
-- **`CLAUDE_ID`** — `'claude'`, the author of every *paste* *Respond* posted: no underscore, so no minted id can equal it, and resolved to *Claude* when the paste's name is frozen. `ChannelState.claude` is the ask in flight, `claude_usage` the ledger
+- **`CLAUDE_ID`** — `'claude'`, the author of every *paste* *Ask Claude* posted: no underscore, so no minted id can equal it, and resolved to *Claude* when the paste's name is frozen. `ChannelState.claude` is the ask in flight, `claude_usage` the ledger
 - **Address** — What a URL says: which list the tier is showing, and what is open over it
 - **Starting line** — The contact count an account's *introduction* began from, latched at its first Home snapshot and again on *Show the checklist again*; *get somebody here* ticks when the count has gone above it. Replaced *arrival (invited / alone)* on 2026-09-13
 - **Attention** — Whether somebody is at their app, and at a channel in it: frontmost on a phone, a hand on it in a browser, and never the audio. Two server-held clocks of different scope from one report — per person per channel, which the roster's *nearby* line counts, and per person, which is what *in the app now* means; *stepped out* counts presence instead. One window governs both, so a roster and a contact row cannot describe the same silence differently
@@ -376,7 +376,8 @@ another. A glyph and a word each, since 2026-09-12, built the way the channel
 *footer*'s controls are.
 
 **People held one card that was not a person for a day**, 2026-10-22: a card
-for Claude, which read as a person and went to the *Record* bar as *Respond*.
+for Claude, which read as a person and went to the *Record* bar as *Respond*,
+now *Ask Claude*.
 While it was there the tab's name was argued and kept — *Roster* did not
 translate, *Members* left out guests, *People* left out Claude — and that
 argument went with the card.
@@ -661,31 +662,42 @@ shown only to people the server places in the United States storefront — see
 `server/src/region.ts` for why that is a server decision rather than an app
 one.
 
-## Respond (Claude's)
+## Ask Claude
 
 **Claude's one control, on the *Record* bar**, since 2026-10-22: a line of its
 own under the row of the transport and the switches, as *Several voices on my
-microphone* is — the word *Claude*, with *· Pro* when the channel's *Response
-model* is *Pro*, then the *Respond* button. On a line of its own because a
-third glyph on the row does not fit a 375-point phone.
+microphone* is — the words *Ask Claude*, with *· Pro* when the channel's
+*Response model* is *Pro*, then three buttons, *Brief*, *Medium* and
+*Extended*. On a line of its own because a third glyph on the row does not fit
+a 375-point phone.
 
-**Respond** reads the channel's whole *Record* — what was said, as
+**Each button does the same thing and differs only in the length it asks
+for**: at most 30, 90 or 270 words — *Medium* nearest the hundred that every
+reply was before there were three. Chosen at the press, not set on the
+channel, so it is nowhere in `ChannelState`; it travels in the request as
+`length`, a `ReplyLength`, and `REPLY_WORD_LIMITS` in `server/src/claude.ts`
+holds the numbers. A request with none is *Medium*.
+
+**A press** reads the channel's whole *Record* — what was said, as
 transcribed, and what was pasted, Claude's own earlier replies among it — and
-posts one short turn from Claude into it as a *paste* authored by `CLAUDE_ID`,
+posts one turn from Claude into it as a *paste* authored by `CLAUDE_ID`,
 named *Claude*, which lands in the log under the bar. It is open to anybody
 *present*, the paste rule, and the model it asks is the channel's *Response
 model*. While anybody's press is out the channel says so: every screen's
-button reads *Responding…*, greyed, with who asked as a muted line under the
-bar, where a failed press's sentence goes too. The reply is text, never
-spoken, and is never trimmed — one too long for a paste is reported rather
-than posted.
+words read *Responding…*, all three buttons greyed, with who asked as a muted
+line under the bar, where a failed press's sentence goes too. The reply is
+text, never spoken, and is never trimmed — the length is the prompt's
+instruction, and one too long for a paste is reported rather than posted.
 
 **A card on *People* for its first day**, in a person's shape with a person's
 marks taken out, which read as a person; it is a control about the *Record*,
-so it went to the *Record*'s controls. *Prompt* in the ask that built it;
-*Respond* because a bare verb beside the name is addressed to Claude, as *Ping*
-is to a person, and translates one to one into *Responder*, where *prompt* has
-no Spanish verb that is not *ask* or wrong. Drawn only where the server holds
+so it went to the *Record*'s controls, as the word *Claude* and one button,
+*Respond*. *Prompt* in the ask that built it; *Respond* because a bare verb
+beside the name is addressed to Claude, as *Ping* is to a person. **It became
+*Ask Claude* the same day, when one button became three**: the buttons are
+lengths, adjectives of the reply, so the verb moved to the words before them.
+*Preguntar a Claude* in Spanish, and the lengths feminine, *Breve*, *Media*,
+*Extensa*, agreeing with *respuesta*. Drawn only where the server holds
 `ANTHROPIC_API_KEY` (`ChannelView.claude`).
 
 ## Close
@@ -3060,7 +3072,7 @@ for.
 
 ## Response model
 
-**A channel setting, *Standard* or *Pro*, naming which model *Respond*
+**A channel setting, *Standard* or *Pro*, naming which model *Ask Claude*
 asks**, since 2026-10-22: *Standard* is Haiku, *Pro* is Sonnet, both at low
 effort — `RESPONSE_MODELS` in `server/src/claude.ts`. `responseModel` on
 `ChannelState`, of type `ResponseModel`, the same union as
@@ -5087,7 +5099,9 @@ are settled:
     Leaderboard           Invitaciones
     Chip in               Contribuir
     Claude                Claude — a name, the same in both
-    Respond / Responding… Responder / Respondiendo…
+    Ask Claude            Preguntar a Claude
+    Brief / Medium / Extended  Breve / Media / Extensa — of a *respuesta*
+    Responding…           Respondiendo…
     Response model        Modelo de respuesta — *Estándar* / *Pro*
     Floor Settings        Ajustes de The Floor
     Pro (the subscription) Pro — a name, the same in both

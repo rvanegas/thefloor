@@ -1231,7 +1231,7 @@ export interface ChannelView {
   mayAutoTranscribe?: boolean;
   /**
    * Present, and true, when this server can ask Claude — which is what draws
-   * Claude's *Respond* on the *Record* bar, since 2026-10-22. A fact about the server's
+   * *Ask Claude* on the *Record* bar, since 2026-10-22. A fact about the server's
    * configuration rather than the channel, so it is here rather than on
    * `ChannelState`: absent from a server that predates it and from one with
    * no `ANTHROPIC_API_KEY`, so the card is never offered where pressing it

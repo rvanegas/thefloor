@@ -297,7 +297,7 @@ const streaming = assemblyAiKey
   : undefined;
 
 /**
- * Claude, for *Respond* on the *Record* bar — optional and off by default, on
+ * Claude, for *Ask Claude* on the *Record* bar — optional and off by default, on
  * transcription's terms exactly. **Setting this key is a public act**: it is
  * what makes the privacy policy name Anthropic, so set it, and push it, with
  * the deploy that ships the card. A key issued for this server alone; see

@@ -74,7 +74,13 @@ import { openPage } from './open';
 import { privacyPage } from './privacy';
 import { booleanUnderEitherName, settingsForWire } from './settings-wire';
 import type { TranscriptionProvider } from './transcription';
-import { ClaudeResponder, databaseSources, type ClaudeClient } from './claude';
+import {
+  ClaudeResponder,
+  databaseSources,
+  DEFAULT_REPLY_LENGTH,
+  isReplyLength,
+  type ClaudeClient,
+} from './claude';
 import {
   formatTranscript,
   MEDIA_LABEL,
@@ -314,7 +320,7 @@ export interface BuildOptions {
    */
   transcription?: TranscriptionProvider;
   /**
-   * Asks Claude for a turn in a conversation — *Respond*, on the *Record* bar.
+   * Asks Claude for a turn in a conversation — *Ask Claude*, on the *Record* bar.
    * Optional for `transcription`'s reasons, and the switch in the same way:
    * absent, there is no card, the route answers 503, and `/privacy` says
    * nothing about Anthropic. An `Anthropic` client in production; a fake in
@@ -1165,7 +1171,7 @@ export function buildApp(options: BuildOptions = {}): App {
     onFailed: (recordingId) => accounts.refundTranscript(recordingId),
   });
 
-  // *Respond*, since 2026-10-22 — present only with a client, which is only
+  // *Ask Claude*, since 2026-10-22 — present only with a client, which is only
   // with a key. See claude.ts.
   const claude = options.claude
     ? new ClaudeResponder({
@@ -4970,8 +4976,10 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * *Respond* on the *Record* bar, since 2026-10-22: reads the channel's
-   * *Record*, asks Claude for one turn, and posts it there as a paste. Answers
+   * *Ask Claude* on the *Record* bar, since 2026-10-22: reads the channel's
+   * *Record*, asks Claude for one turn, and posts it there as a paste. The
+   * body's `length` is which of the three buttons was pressed; none is
+   * *Medium*, for builds up to 387 (planning/SHIMS.md, gate 388). Answers
    * when the reply is posted or has failed, so the app can say which; every
    * screen meanwhile says *Responding…* from the channel's own state. Members
    * only, with the same 404 as the transcript routes beside it; being present
@@ -4987,7 +4995,11 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!claude) {
       return reply.code(503).send({ error: 'Claude is not available here.' });
     }
-    const result = await claude.respond(id, account.id);
+    const { length = DEFAULT_REPLY_LENGTH } = (request.body ?? {}) as { length?: unknown };
+    if (!isReplyLength(length)) {
+      return reply.code(400).send({ error: 'No such length.' });
+    }
+    const result = await claude.respond(id, account.id, length);
     if (!result.ok) return reply.code(result.status).send({ error: result.error });
     return { ok: true };
   });

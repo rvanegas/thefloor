@@ -26,6 +26,7 @@ import type {
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
+import type { ReplyLength } from '../../../core/types';
 import { useHelpSeen, type HelpSeen } from './useHelpSeen';
 import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
@@ -593,11 +594,12 @@ interface AppValue extends AppState {
    */
   ping: (channelId: string, targetId: string, text: string) => Promise<void>;
   /**
-   * Asks Claude to respond, since 2026-10-22. The *Responding…* every screen
-   * shows comes from the channel's state, not from this promise; what this
-   * gives the screen that pressed is the sentence when it failed.
+   * Asks Claude for a reply of one of three lengths, since 2026-10-22. The
+   * *Responding…* every screen shows comes from the channel's state, not from
+   * this promise; what this gives the screen that pressed is the sentence
+   * when it failed.
    */
-  askClaude: (channelId: string) => Promise<void>;
+  askClaude: (channelId: string, length: ReplyLength) => Promise<void>;
   /** Where to donate, and what you have already given. */
   loadSupport: () => Promise<SupportView>;
   /**
@@ -2836,9 +2838,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         );
       },
 
-      askClaude: async (channelId) => {
+      askClaude: async (channelId, length) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        await api.askClaude(state.token, channelId);
+        await api.askClaude(state.token, channelId, length);
       },
 
       /**

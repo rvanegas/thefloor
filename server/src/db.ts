@@ -2135,7 +2135,7 @@ CREATE INDEX IF NOT EXISTS transcript_usage_account
 CREATE INDEX IF NOT EXISTS transcript_usage_recording
   ON transcript_usage(recording_id);
 
--- What each press of *Respond* cost, since 2026-10-22: one row per press,
+-- What each press of *Ask Claude* cost, since 2026-10-22: one row per press,
 -- failed or not, written when the answer or the failure comes back, and read
 -- by bin/usage's provider spend beside transcription's. A ledger like the
 -- one above: never swept, and outliving what it priced.

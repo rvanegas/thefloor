@@ -63,6 +63,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 330 | `SharedDrift.withheld`, relayed for the readouts that still draw it | `core/protocol.ts`, `server/src/ws.ts` |
 | 336 | `POST /channels/community`, starting a community from nothing | `server/src/app.ts`, `server/src/channels.ts` |
 | 339 | `myEmailShown` sent as true, and the show/stop email routes | `core/protocol.ts`, `server/src/app.ts` |
+| 388 | *Ask Claude* with no `length` taken as *Medium* | `server/src/claude.ts`, `server/src/app.ts` |
 | 364 | `CLEAR_CLIP`, for the *Clipboard* tab | `core/channel.ts`, `core/types.ts`, `core/protocol.ts`, `server/src/channels.ts` |
 
 The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
@@ -968,3 +969,21 @@ goes through.
 
 Gate 339 because `build/338` is tagged and is the last build carrying the
 button.
+
+## Gate 388 — *Ask Claude* with no `length` taken as *Medium*
+
+*Respond* became three buttons on 2026-10-22, each sending `{ length }` to
+`POST /channels/:id/claude` — `decision/2026-10-22-ask-claude-in-three-lengths.md`.
+**Builds 386 and 387 draw the one *Respond* button and send no body**, so the
+route reads a missing `length` as `DEFAULT_REPLY_LENGTH`, *Medium*, the
+nearest of the three to the hundred words they were built against.
+
+**What goes at 388**: `DEFAULT_REPLY_LENGTH` and the `= DEFAULT_REPLY_LENGTH`
+defaults on the route's destructuring and on `ClaudeResponder.respond`, after
+which a missing `length` is the route's 400, and the *No length, as builds up
+to 387 send* assertion in `server/__tests__/claude.test.ts`, which then
+passes one. **What must not go with it**: `isReplyLength` and the 400 for a
+length there is no button for, which are validation rather than
+compatibility.
+
+Gate 388 because `build/387` is tagged and is the last build with one button.

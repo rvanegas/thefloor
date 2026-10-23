@@ -527,7 +527,7 @@ export function ChannelSettingsView({
       ) : null}
 
       {/*
-        **Which model Claude's *Respond* asks, since 2026-10-22** — the
+        **Which model *Ask Claude* asks, since 2026-10-22** — the
         transcription model's shape, with the one difference that it is drawn
         for everybody: which model is answering in a channel is something
         everybody in it may know. Settable only by `debug`, which the server

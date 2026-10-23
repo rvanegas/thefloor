@@ -8,9 +8,10 @@ import { buildApp, type App } from '../src/app';
 import {
   composeRecord,
   FALLBACK_BETA,
-  LENGTH_RULE,
+  lengthRule,
+  REPLY_WORD_LIMITS,
   RESPONSE_MODELS,
-  SYSTEM_PROMPT,
+  systemPrompt,
   userMessage,
   type ClaudeClient,
   type RecordSources,
@@ -18,7 +19,7 @@ import {
 import { MemoryMailer } from '../src/mail';
 
 /**
- * *Respond* on the Claude card: the Record read as text, one request, and the
+ * *Ask Claude* on the *Record* bar: the Record read as text, one request, and the
  * reply posted as a paste authored by Claude. The reducer's half — who may
  * ask, and that one ask is out at a time — is core's; this is the half only
  * the server has.
@@ -105,31 +106,43 @@ describe('the Record as Claude reads it', () => {
     expect(record.trimmed).toBe(true);
     expect(record.text).not.toContain('oldest');
     expect(record.text).toContain('newest');
-    expect(userMessage(record)).toContain('It begins partway through');
+    expect(userMessage(record, 'medium')).toContain('It begins partway through');
   });
 });
 
 describe('the instructions', () => {
-  it('states the hundred-word limit as a hard one, with its reason, twice', () => {
-    expect(SYSTEM_PROMPT).toContain('at most 100 words');
-    expect(SYSTEM_PROMPT).toContain('hard limit');
-    const message = userMessage({ text: 'x', trimmed: false });
-    expect(message.trim().endsWith(LENGTH_RULE)).toBe(true);
-    expect(LENGTH_RULE).toContain('waiting');
+  it('caps each length at 30, 90 and 270 words', () => {
+    expect(REPLY_WORD_LIMITS.brief.words).toBe(30);
+    expect(REPLY_WORD_LIMITS.medium.words).toBe(90);
+    expect(REPLY_WORD_LIMITS.extended.words).toBe(270);
   });
 
+  it.each(['brief', 'medium', 'extended'] as const)(
+    'states the %s limit as a hard one, with its reason, twice',
+    (length) => {
+      const words = REPLY_WORD_LIMITS[length].words;
+      expect(systemPrompt(length)).toContain(`at most ${words} words`);
+      expect(systemPrompt(length)).toContain('hard limit');
+      const message = userMessage({ text: 'x', trimmed: false }, length);
+      expect(message.trim().endsWith(lengthRule(length))).toBe(true);
+      expect(lengthRule(length)).toContain('waiting');
+    }
+  );
+
   it('asks for plain text in the language being spoken, and claims nothing untrue', () => {
-    expect(SYSTEM_PROMPT).toContain('plain text');
-    expect(SYSTEM_PROMPT).toContain('language being spoken');
-    // Nothing trims a reply, so nothing may say one will be cut.
-    expect(SYSTEM_PROMPT).not.toMatch(/\bcut\b|truncat/i);
+    for (const length of ['brief', 'medium', 'extended'] as const) {
+      expect(systemPrompt(length)).toContain('plain text');
+      expect(systemPrompt(length)).toContain('language being spoken');
+      // Nothing trims a reply, so nothing may say one will be cut.
+      expect(systemPrompt(length)).not.toMatch(/\bcut\b|truncat/i);
+    }
   });
 
   it('asks each grade’s model at low effort, with Pro’s headroom and fallback', () => {
     expect(RESPONSE_MODELS.standard).toEqual({
       model: 'claude-haiku-5-5',
       effort: 'low',
-      maxTokens: 1024,
+      maxTokens: 2048,
       fallback: false,
     });
     expect(RESPONSE_MODELS.pro).toEqual({
@@ -263,8 +276,13 @@ async function room2(options: { paste?: boolean } = {}) {
   return { alice, bob, channelId };
 }
 
-const press = (channelId: string, token: string) =>
-  app.fastify.inject({ method: 'POST', url: `/channels/${channelId}/claude`, headers: auth(token) });
+const press = (channelId: string, token: string, length?: unknown) =>
+  app.fastify.inject({
+    method: 'POST',
+    url: `/channels/${channelId}/claude`,
+    headers: auth(token),
+    ...(length === undefined ? {} : { payload: { length } }),
+  });
 
 const claudePastes = (channelId: string) =>
   app.db
@@ -276,7 +294,7 @@ const usageRows = () =>
     Record<string, unknown>
   >;
 
-describe('Respond', () => {
+describe('Ask Claude', () => {
   it('is not offered, and answers 503, without a key', async () => {
     boot();
     const { alice, channelId } = await room2();
@@ -307,13 +325,14 @@ describe('Respond', () => {
     expect(calls[0].beta).toBe(false);
     expect(calls[0].body).toMatchObject({
       model: 'claude-haiku-5-5',
-      max_tokens: 1024,
+      max_tokens: 2048,
       output_config: { effort: 'low' },
-      system: SYSTEM_PROMPT,
+      // No length, as builds up to 387 send: Medium.
+      system: systemPrompt('medium'),
     });
     const content = (calls[0].body.messages as Array<{ content: string }>)[0].content;
     expect(content).toContain('Bob (pasted): What should we call the project?');
-    expect(content.trim().endsWith(LENGTH_RULE)).toBe(true);
+    expect(content.trim().endsWith(lengthRule('medium'))).toBe(true);
     // The ledger.
     const rows = usageRows();
     expect(rows).toHaveLength(1);
@@ -328,8 +347,32 @@ describe('Respond', () => {
       outcome: 'posted',
     });
     expect(JSON.stringify(rows[0])).not.toContain('Lantern');
-    // And the card is back to Respond.
+    // And the bar is back to Ask Claude.
     expect(app.channels.get(channelId)!.claude).toBeNull();
+  });
+
+  it.each(['brief', 'medium', 'extended'] as const)(
+    'asks for a %s reply when that button is pressed',
+    async (length) => {
+      const { client, calls } = fakeClient(() => reply('Fine.'));
+      boot(client);
+      const { alice, channelId } = await room2();
+      expect((await press(channelId, alice.token, length)).statusCode).toBe(200);
+      expect(calls[0].body.system).toBe(systemPrompt(length));
+      const content = (calls[0].body.messages as Array<{ content: string }>)[0].content;
+      expect(content.trim().endsWith(lengthRule(length))).toBe(true);
+    }
+  );
+
+  it('refuses a length there is no button for, without asking anybody', async () => {
+    const { client, calls } = fakeClient(() => reply('Fine.'));
+    boot(client);
+    const { alice, channelId } = await room2();
+    for (const length of ['epic', 'toString', 30]) {
+      expect((await press(channelId, alice.token, length)).statusCode).toBe(400);
+    }
+    expect(calls).toHaveLength(0);
+    expect(usageRows()).toHaveLength(0);
   });
 
   it('says Responding on every screen while it is out, and refuses a second press', async () => {

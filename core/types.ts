@@ -282,7 +282,7 @@ export type RecordingStatus = 'idle' | 'recording' | 'paused';
 export type TranscriptionModel = 'standard' | 'pro';
 
 /**
- * The grade of model a channel's *Respond* asks, since 2026-10-22: `standard`
+ * The grade of model a channel's *Ask Claude* asks, since 2026-10-22: `standard`
  * is Haiku and the default, `pro` is Sonnet, both at low effort. The mapping
  * is the server's, in `server/src/claude.ts`.
  *
@@ -294,7 +294,15 @@ export type TranscriptionModel = 'standard' | 'pro';
 export type ResponseModel = 'standard' | 'pro';
 
 /**
- * Claude being asked, while it is: who pressed *Respond*, and when. Channel
+ * How long a reply *Ask Claude* asks for, since 2026-10-22: one of three
+ * buttons, *Brief*, *Medium* and *Extended*, chosen at each press rather than
+ * set on the channel. The word caps are the server's, in
+ * `server/src/claude.ts`; nothing trims a reply, so the cap is the prompt's.
+ */
+export type ReplyLength = 'brief' | 'medium' | 'extended';
+
+/**
+ * Claude being asked, while it is: who pressed *Ask Claude*, and when. Channel
  * state rather than the server's, because everybody present sees the card
  * say *Responding…*, and the guard that refuses a second press is the one
  * that greys the button. See `ChannelState.claude`.
@@ -998,7 +1006,7 @@ export interface ChannelState {
    */
   transcriptionModel: TranscriptionModel;
   /**
-   * The grade of model this channel's *Respond* asks. See `ResponseModel`.
+   * The grade of model this channel's *Ask Claude* asks. See `ResponseModel`.
    *
    * The channel's for `transcriptionModel`'s reason: a reply is a shared
    * artefact of the channel, so whoever presses gets the grade the channel
@@ -1366,7 +1374,7 @@ export type ChannelAction =
       transcriptionModel: TranscriptionModel;
     }
   /**
-   * Chooses the grade of model for the channel's *Respond*. Guarded as
+   * Chooses the grade of model for the channel's *Ask Claude*. Guarded as
    * `SET_TRANSCRIPTION_MODEL` is, and refused by the server, as that one is,
    * from any account without `debug`.
    */
@@ -1595,7 +1603,7 @@ export type ChannelAction =
   /** Empties `clip` and nothing in the *Record*; a shim to 364, SHIMS.md. */
   | { type: 'CLEAR_CLIP'; userId: UserId }
   /**
-   * Somebody pressed *Respond*, and Claude is being asked. Raised by the
+   * Somebody pressed *Ask Claude*, and Claude is being asked. Raised by the
    * server when the route is called, carrying the whole `ClaudeAsk` for the
    * reason `PASTE_CLIP` carries a whole `Clip`: the moment is the server's to
    * mint. Guarded by `canAskClaude`, so a second press is refused here and
@@ -1604,7 +1612,7 @@ export type ChannelAction =
   | { type: 'CLAUDE_ASKED'; ask: ClaudeAsk }
   /**
    * Claude has answered, failed, or run out of time; either way the card goes
-   * back to *Respond*. Raised by the server only.
+   * back to *Ask Claude*. Raised by the server only.
    */
   | { type: 'CLAUDE_ANSWERED' }
   /**

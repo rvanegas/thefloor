@@ -7114,7 +7114,7 @@ export class ChannelRegistry {
   }
 
   /**
-   * Somebody pressed *Respond*: Claude is now being asked, and every screen
+   * Somebody pressed *Ask Claude*: Claude is now being asked, and every screen
    * says so. Refused — and the route answers with it — when they are not here
    * or when Claude is already answering, by `canAskClaude`, the guard that
    * greys the button. See claude.ts for the request itself.
@@ -7143,7 +7143,7 @@ export class ChannelRegistry {
 
   /**
    * Claude has answered, failed or timed out: the card goes back to
-   * *Respond*. Idempotent, so the answer and the timeout can both call it.
+   * *Ask Claude*. Idempotent, so the answer and the timeout can both call it.
    */
   claudeAnswered(channelId: string): void {
     if (!this.channels.get(channelId)?.claude) return;
@@ -8496,7 +8496,7 @@ export class ChannelRegistry {
       // channels had.
       clip: durable.clip ?? null,
       // Never kept: a request to Claude in flight when the process stopped is
-      // gone, and the card must come back saying *Respond*.
+      // gone, and the card must come back saying *Ask Claude*.
       claude: null,
       // Kept for the same reason the clipboard is, and brought back
       // **paused at its position** whatever the blob says. The clock ran on

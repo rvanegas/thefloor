@@ -247,7 +247,7 @@ describe('The privacy policy', () => {
       const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
       expect(page).toContain('<h2>Claude</h2>');
       expect(page).toContain('an assistant made by Anthropic');
-      expect(page).toContain('presses <em>Respond</em>');
+      expect(page).toContain('presses one of its <em>Ask Claude</em> buttons');
       expect(page).toContain('Nothing else is sent');
       expect(page).toContain('deleted with the channel');
       // Nothing about Anthropic's copy, nor where it is processed: not

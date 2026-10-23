@@ -31,7 +31,7 @@ import type {
   SegmentView,
 } from '../../../core/protocol';
 import { intoBlocks, lettered, type TranscriptBlock } from '../../../core/transcript';
-import type { ChannelState, Keep } from '../../../core/types';
+import type { ChannelState, Keep, ReplyLength } from '../../../core/types';
 import { shareRecording, shareTextFile } from '../api/download';
 import { api } from '../api/http';
 import { copyText } from '../clipboard';
@@ -709,8 +709,8 @@ export function KeepSwitches({
   /** A line under the row about `trailing` — why the last paste did nothing. */
   note?: React.ReactNode;
   /**
-   * Claude's *Respond*, on a line of its own under the row, since
-   * 2026-10-22 — `ClaudeRespond`, absent where the server cannot ask Claude.
+   * *Ask Claude*, on a line of its own under the row, since 2026-10-22 —
+   * `AskClaude`, absent where the server cannot ask Claude.
    */
   claude?: React.ReactNode;
 }) {
@@ -839,18 +839,21 @@ export function KeepSwitches({
 }
 
 /**
- * **Claude's *Respond*, a line under the *Record* bar**, since 2026-10-22: the
- * word *Claude*, then its control, as each switch is its word then its switch
- * — and on a line of its own, as *Several voices* is, because a third glyph
- * does not fit the row on a 375-point phone. For one day it was a card on
- * *People* in a person's shape, which read as a person; it is a control about
- * the *Record*, so it is with the *Record*'s controls, and the reply lands in
- * the log under it.
+ * **Claude's *Ask Claude*, a line under the *Record* bar**, since 2026-10-22:
+ * the words *Ask Claude*, then three buttons, *Brief*, *Medium* and
+ * *Extended*, as each switch is its word then its switch — and on a line of
+ * its own, as *Several voices* is, because a third glyph does not fit the row
+ * on a 375-point phone. For one day it was a card on *People* in a person's
+ * shape, which read as a person; it is a control about the *Record*, so it is
+ * with the *Record*'s controls, and the reply lands in the log under it. It
+ * was one button, *Respond*, until the same day.
  *
- * Pressing it reads the channel's whole *Record* and posts one short turn from
- * Claude into it, as a paste. **The busy state is the channel's**: while
- * anybody's press is out, `channel.claude` makes every screen's button say
- * *Responding…*, greyed by the same `canAskClaude` that refuses a second press
+ * Every button does the same thing, and differs only in the length asked
+ * for — 30, 90 or 270 words, the server's `REPLY_WORD_LIMITS`. Pressing one
+ * reads the channel's whole *Record* and posts one turn from Claude into it,
+ * as a paste. **The busy state is the channel's**: while anybody's press is
+ * out, `channel.claude` makes every screen's words say *Responding…*, all
+ * three buttons greyed by the same `canAskClaude` that refuses a second press
  * at the server, with who asked as a muted line under it. This screen's own
  * pending state covers only the instant before the snapshot arrives.
  *
@@ -858,16 +861,16 @@ export function KeepSwitches({
  * said by the footer. A failure's sentence is the muted line until the next
  * press — the bar's line for its refusals, as the paste's are.
  */
-export function ClaudeRespond({
+export function AskClaude({
   channel,
   me,
   nameOf,
-  onRespond,
+  onAsk,
 }: {
   channel: ChannelState;
   me: string;
   nameOf: (id: string) => string;
-  onRespond: () => Promise<void>;
+  onAsk: (length: ReplyLength) => Promise<void>;
 }) {
   const t = useText().channel;
   const [pressing, setPressing] = React.useState(false);
@@ -877,11 +880,11 @@ export function ClaudeRespond({
   const busy = pressing || asked !== null;
   const refused = !canAskClaude(channel, me);
 
-  const respond = async () => {
+  const ask = async (length: ReplyLength) => {
     setPressing(true);
     setFailure(null);
     try {
-      await onRespond();
+      await onAsk(length);
     } catch (e) {
       setFailure(e instanceof Error ? e.message : String(e));
     } finally {
@@ -895,21 +898,42 @@ export function ClaudeRespond({
       : t.claudeAsked(nameOf(asked.askedBy))
     : failure;
 
+  const lengths: Array<[ReplyLength, string]> = [
+    ['brief', t.replyBrief()],
+    ['medium', t.replyMedium()],
+    ['extended', t.replyExtended()],
+  ];
+
   return (
     <>
       <View style={styles.switchRow}>
-        <Text style={[styles.switchLabel, refused && !busy && styles.switchLabelRefused]}>
-          {/* One string, so it is one run of text to a screen reader. */}
-          {`${t.claude()}${(channel.responseModel ?? 'standard') === 'pro' ? t.claudeProSuffix() : ''}`}
+        <Text
+          style={[
+            styles.switchLabel,
+            styles.askLabel,
+            refused && !busy && styles.switchLabelRefused,
+          ]}
+        >
+          {/* One string, so it is one run of text to a screen reader. No
+              *· Pro* while busy, which would not fit beside the buttons and
+              says nothing a press in flight can change. */}
+          {busy
+            ? t.responding()
+            : `${t.askClaude()}${
+                (channel.responseModel ?? 'standard') === 'pro' ? t.claudeProSuffix() : ''
+              }`}
         </Text>
-        <Button
-          label={busy ? t.responding() : t.respond()}
-          style={styles.respond}
-          disabled={busy || refused}
-          onPress={() => {
-            void respond();
-          }}
-        />
+        {lengths.map(([length, label]) => (
+          <Button
+            key={length}
+            label={label}
+            style={styles.length}
+            disabled={busy || refused}
+            onPress={() => {
+              void ask(length);
+            }}
+          />
+        ))}
       </View>
       {line ? <Text style={type.muted}>{line}</Text> : null}
     </>
@@ -1254,12 +1278,19 @@ const styles = StyleSheet.create({
   },
   switchLabelRefused: { color: colors.textFaint },
   /**
-   * *Respond*, tightened as the People card's ping is — the same numbers —
-   * since `Button` is sized for a card of its own and this sits in a line of
-   * text. The ordinary fill: nothing on this bar but the recording's red is
-   * entitled to colour.
+   * *Ask Claude*'s three buttons, tightened as the People card's ping is,
+   * and 6 a side rather than its 8, since `Button` is sized for a card of its
+   * own and this sits in a line of text with three of them. Measured at 15pt:
+   * *Ask Claude · Pro* and the three come to 326 of the 343 a 375-point phone
+   * has, *Preguntar a Claude* and *Breve Media Extensa* to 327; at 8 a side
+   * both were within 6. The ordinary fill: nothing on this bar but the
+   * recording's red is entitled to colour.
    */
-  respond: { paddingVertical: spacing(0.5), paddingHorizontal: spacing(1), minHeight: 0 },
+  length: { paddingVertical: spacing(0.5), paddingHorizontal: spacing(0.75), minHeight: 0 },
+  // The words give way before the buttons do: Spanish on a *Pro* channel,
+  // *Preguntar a Claude · Pro*, is 362, so it wraps rather than push the last
+  // button past the edge.
+  askLabel: { flexShrink: 1 },
   warning: { color: colors.silenced, fontSize: 13 },
   pressed: { opacity: 0.6 },
 });

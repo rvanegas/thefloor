@@ -29,9 +29,9 @@ jest.mock('../../state/AppProvider', () =>
 );
 
 /**
- * Claude's *Respond* on the *Record* bar, and the *Response model* setting,
- * since 2026-10-22. What is asserted is what the screen owes each reader: the
- * control only where the server can answer and only on *Record* — never as a
+ * *Ask Claude* on the *Record* bar, and the *Response model* setting, since
+ * 2026-10-22. What is asserted is what the screen owes each reader: the
+ * three buttons only where the server can answer and only on *Record* — never as a
  * card on *People* — *Responding…* on every screen while anybody's press is
  * out, the reason when a press fails, and the model on show to everybody but
  * settable by `debug` alone.
@@ -58,31 +58,38 @@ const record = () => {
 const disabled = (button: { props: Record<string, any> }) =>
   button.props.accessibilityState?.disabled ?? button.props.disabled;
 
-describe('Respond on the Record bar', () => {
+describe('Ask Claude on the Record bar', () => {
   it('is not drawn where the server cannot ask Claude', () => {
     showChannel(here());
     record();
-    expect(findButton(tree!, 'Respond')).toBeUndefined();
+    expect(findButton(tree!, 'Medium')).toBeUndefined();
   });
 
   it('is on the Record bar, and not a card on People', () => {
     showChannel(here(), [], { claude: true });
     record();
-    expect(findButton(tree!, 'Respond')).toBeDefined();
+    expect(findButton(tree!, 'Medium')).toBeDefined();
     showPeople(tree!);
-    expect(findButton(tree!, 'Respond')).toBeUndefined();
+    expect(findButton(tree!, 'Medium')).toBeUndefined();
     expect(textOf(tree!)).not.toContain('Reads the Record');
   });
 
-  it('asks Claude when pressed', async () => {
+  it('asks Claude for the length of the button pressed', async () => {
     showChannel(here(), [], { claude: true });
     record();
-    const respond = findButton(tree!, 'Respond')!;
-    expect(disabled(respond)).toBeFalsy();
-    await act(async () => {
-      respond.props.onPress();
-    });
-    expect(mockApp.askClaude).toHaveBeenCalledWith('sess_1');
+    expect(textOf(tree!)).toContain('Ask Claude');
+    for (const [label, length] of [
+      ['Brief', 'brief'],
+      ['Medium', 'medium'],
+      ['Extended', 'extended'],
+    ] as const) {
+      const button = findButton(tree!, label)!;
+      expect(disabled(button)).toBeFalsy();
+      await act(async () => {
+        button.props.onPress();
+      });
+      expect(mockApp.askClaude).toHaveBeenLastCalledWith('sess_1', length);
+    }
   });
 
   it('says Responding, and who asked, on a screen that did not press', () => {
@@ -94,8 +101,11 @@ describe('Respond on the Record bar', () => {
     showChannel(asked, [], { claude: true });
     record();
     expect(textOf(tree!)).toContain('Dana Chu asked Claude');
+    expect(textOf(tree!)).toContain('Responding\u2026');
     // Grey on this screen too: the guard is the channel's, not the presser's.
-    expect(disabled(findButton(tree!, 'Responding\u2026')!)).toBe(true);
+    for (const label of ['Brief', 'Medium', 'Extended']) {
+      expect(disabled(findButton(tree!, label)!)).toBe(true);
+    }
   });
 
   it('says You asked Claude to the one who did', () => {
@@ -109,7 +119,7 @@ describe('Respond on the Record bar', () => {
     showChannel(here(), [], { claude: true });
     record();
     await act(async () => {
-      findButton(tree!, 'Respond')!.props.onPress();
+      findButton(tree!, 'Medium')!.props.onPress();
     });
     expect(textOf(tree!)).toContain('Claude took too long to respond.');
   });
@@ -118,13 +128,13 @@ describe('Respond on the Record bar', () => {
     const out = reduce(here(), { type: 'STEP_OUT', userId: ME }, NOW);
     showChannel(out, [], { claude: true });
     record();
-    expect(disabled(findButton(tree!, 'Respond')!)).toBe(true);
+    expect(disabled(findButton(tree!, 'Medium')!)).toBe(true);
   });
 
   it('says Pro beside Claude only when the channel is on Pro', () => {
     const pro = reduce(here(), { type: 'SET_RESPONSE_MODEL', userId: ME, responseModel: 'pro' }, NOW);
     showChannel(pro, [], { claude: true });
-    expect(textOf(record())).toContain('Claude \u00b7 Pro');
+    expect(textOf(record())).toContain('Ask Claude \u00b7 Pro');
     act(() => tree!.unmount());
     showChannel(here(), [], { claude: true });
     expect(textOf(record())).not.toContain('\u00b7 Pro');

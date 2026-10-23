@@ -1035,7 +1035,7 @@ export const en = {
     transcriptionModelNote: () =>
       'Standard is Universal-2. Pro is Universal-3.5 Pro, which costs about 40% more and handles a change of language mid-sentence. It applies to transcripts asked for from now on.',
     /**
-     * The model *Respond* asks, since 2026-10-22: drawn for everybody, and
+     * The model *Ask Claude* asks, since 2026-10-22: drawn for everybody, and
      * greyed with `responseModelWho` for anybody without `debug`. *Pro* here
      * is a grade of model, not *Pro (the subscription)*.
      */
@@ -1043,7 +1043,7 @@ export const en = {
     responseStandard: () => 'Standard',
     responsePro: () => 'Pro',
     responseModelNote: () =>
-      'Standard: faster and cheaper. Pro: a larger model, a little slower. It applies to whoever presses Respond.',
+      'Standard: faster and cheaper. Pro: a larger model, a little slower. It applies to whoever asks Claude.',
     responseModelWho: () => 'Only the people who run The Floor can change it.',
     notifications: () => 'Notifications',
     /** A *public channel*, in the word a user meets: see GLOSSARY.md. */
@@ -1412,16 +1412,21 @@ export const en = {
      */
     severalVoices: () => 'Several voices on my microphone',
     /**
-     * *Respond*, on its own line under the *Record* bar, since 2026-10-22 —
-     * on *People* as a card for the first day, which read as a person. The
-     * word, then its control, as the switches are. *Respond* is a bare verb
-     * addressed to Claude, and chosen against Spanish: *Responder* is the
-     * same word, where *prompt* has no verb that is not *ask* or wrong.
+     * *Ask Claude*, on its own line under the *Record* bar, since 2026-10-22
+     * — on *People* as a card for the first day, which read as a person, and
+     * *Claude* then one *Respond* button until the same day. The words, then
+     * three buttons naming the length of the reply, as the switches are a
+     * word then a control. *Ask* rather than *Respond*, now that the buttons
+     * are adjectives: the verb has moved to the words before them, and is
+     * *Preguntar a Claude* in Spanish.
      */
-    claude: () => 'Claude',
-    /** After *Claude* when the channel's *Response model* is *Pro*. */
+    askClaude: () => 'Ask Claude',
+    /** After *Ask Claude* when the channel's *Response model* is *Pro*. */
     claudeProSuffix: () => ' \u00b7 Pro',
-    respond: () => 'Respond',
+    /** The three lengths, 30, 90 and 270 words: of a reply, so feminine in Spanish. */
+    replyBrief: () => 'Brief',
+    replyMedium: () => 'Medium',
+    replyExtended: () => 'Extended',
     responding: () => 'Responding\u2026',
     /** Under the bar while Claude is being asked, on every screen. */
     claudeAsked: (name: string) => `${name} asked Claude`,

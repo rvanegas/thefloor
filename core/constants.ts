@@ -801,7 +801,7 @@ export const MAX_CLIP_LENGTH = 8_000;
 
 /**
  * The author of a paste that Claude wrote, since 2026-10-22: what
- * `Clip.authorId` holds for a reply posted by *Respond*. No underscore, so
+ * `Clip.authorId` holds for a reply posted by *Ask Claude*. No underscore, so
  * nothing `newId` mints can ever equal it, and no account or guest can be
  * mistaken for it. The server resolves it to *Claude* when it freezes the
  * paste's name.

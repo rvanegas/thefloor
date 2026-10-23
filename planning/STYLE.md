@@ -1350,20 +1350,27 @@ measure's 16 a side. (359, the right edge's coordinate, was mistaken for the
 width once, and the glyph wrapped for another build.) The row still wraps, as
 a net rather than a layout.
 
-**Claude's *Respond* is a line under the row**, since 2026-10-22 —
-`ClaudeRespond` in `RecordTab.tsx`, drawn only where the server can ask
-Claude. The switches' grammar, a word then its control: *Claude* in
-`switchLabel`, with *· Pro* on a *Pro* channel, then *Respond* as a `Button`
-tightened to the People card ping's numbers (`respond`). **On a line of its
-own because the row is full** — a third glyph at 40 would take it past 343 —
-and it is an act about the log, so it sits where the reply lands rather than
-among the people. Its busy state is a label, *Responding…*, greyed on every
-screen while anybody's press is out; who asked, or why a press failed, is a
-muted line under it, the bar's line for its refusals. Grey while you are
-away, as the switches are, with no sentence. Measured against 375pt: about
-90 for the word and 126 for *Respondiendo…*, well inside 343. For its first
-day it was a card on *People* in a person's shape with the person's marks
-taken out, and still read as a person — which is the reason it is not one.
+***Ask Claude* is a line under the row**, since 2026-10-22 — `AskClaude` in
+`RecordTab.tsx`, drawn only where the server can ask Claude. The switches'
+grammar, words then their controls: *Ask Claude* in `switchLabel`, with
+*· Pro* on a *Pro* channel, then *Brief*, *Medium* and *Extended* as three
+`Button`s at the People card ping's vertical numbers but 6 a side rather than
+8 (`length`). **On a line of its own because the row is full** — a third
+glyph at 40 would take it past 343 — and it is an act about the log, so it
+sits where the reply lands rather than among the people. Its busy state is
+the words, which read *Responding…* with no *· Pro*, the three buttons greyed
+on every screen while anybody's press is out; who asked, or why a press
+failed, is a muted line under it, the bar's line for its refusals. Grey while
+you are away, as the switches are, with no sentence. **Measured at 15pt with
+the system font**, buttons at their text plus 12 and gaps of 6: *Ask Claude ·
+Pro* and the three come to 326 of 343, *Preguntar a Claude* with *Breve Media
+Extensa* to 327, *Responding…* to 306; at 8 a side the first two were within
+6, which is why the padding came down. Only Spanish on a *Pro* channel, 362,
+does not fit, and its words wrap (`askLabel` shrinks) rather than push the
+last button off the edge. For its first day it was a card on *People* in a
+person's shape with the person's marks taken out, and still read as a person
+— which is the reason it is not one; then one *Respond* button beside the
+word *Claude*, until the three lengths the same day.
 A card per entry was tried and is what this replaced: a transcript in boxes
 reads as a list of separate things, and it is one conversation.
 

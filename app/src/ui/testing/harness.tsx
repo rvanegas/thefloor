@@ -824,7 +824,7 @@ export function showChannel(
     mayTranscribeLive?: boolean;
     /** Whether this reader may set a sitting to begin with it. */
     mayAutoTranscribe?: boolean;
-    /** Whether this server can ask Claude, which draws *Respond*. */
+    /** Whether this server can ask Claude, which draws *Ask Claude*. */
     claude?: true;
   } = {}
 ) {

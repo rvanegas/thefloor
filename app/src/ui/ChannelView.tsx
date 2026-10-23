@@ -130,7 +130,7 @@ import { useText, type Strings } from '../i18n';
 import { describeChannel } from '../../../core/naming';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useCohortNotice } from './cohortNotice';
-import { ClaudeRespond, KeepSwitches, RecordTab } from './RecordTab';
+import { AskClaude, KeepSwitches, RecordTab } from './RecordTab';
 
 /** How far the skip buttons move, there being no scrubber to drag. */
 const SKIP_MS = 15_000;
@@ -3029,18 +3029,17 @@ export function ChannelView({
               }
               note={clipError ? <Text style={styles.warning}>{clipError}</Text> : null}
               /*
-                **Claude's *Respond*, since 2026-10-22** — a line under the
-                row, where the reply it asks for lands. Only where the server
-                says it can answer, so a press never meets a 503. See
-                `ClaudeRespond`.
+                ***Ask Claude*, since 2026-10-22** — a line under the row,
+                where the reply it asks for lands. Only where the server says
+                it can answer, so a press never meets a 503. See `AskClaude`.
               */
               claude={
                 view?.claude ? (
-                  <ClaudeRespond
+                  <AskClaude
                     channel={channel}
                     me={me}
                     nameOf={nameOf}
-                    onRespond={() => app.askClaude(channel.id)}
+                    onAsk={(length) => app.askClaude(channel.id, length)}
                   />
                 ) : null
               }

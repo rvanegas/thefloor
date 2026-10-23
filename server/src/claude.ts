@@ -2,13 +2,13 @@ import type Anthropic from '@anthropic-ai/sdk';
 
 import { CLAUDE_ID } from '../../core/constants';
 import type { RoomView, SegmentView } from '../../core/protocol';
-import type { ChannelState, ResponseModel } from '../../core/types';
+import type { ChannelState, ReplyLength, ResponseModel } from '../../core/types';
 import { newId, type Db } from './db';
 import { readableLines, type TranscriptLine } from './transcripts';
 
 /**
  * **Claude in a conversation**, since 2026-10-22: somebody present presses
- * *Respond* on the *Record* bar, and this reads the channel's *Record* as text,
+ * *Ask Claude* on the *Record* bar, and this reads the channel's *Record* as text,
  * asks Anthropic for one turn, and posts the answer into the *Record* as a
  * paste authored by `CLAUDE_ID`. The design, and the reason for every number
  * below, is planning/decision/2026-10-22-claude-joins-the-conversation-as-a-paste-in-the-record.md.
@@ -24,8 +24,8 @@ export interface ResponseGrade {
   effort: 'low' | 'medium' | 'high';
   /**
    * A ceiling on the whole answer, thinking included — never its intended
-   * length, which is the prompt's hundred words. Only tokens generated are
-   * billed, so headroom here costs nothing.
+   * length, which is the prompt's word cap — *Extended*'s 270 at the most.
+   * Only tokens generated are billed, so headroom here costs nothing.
    */
   maxTokens: number;
   /**
@@ -48,7 +48,8 @@ export interface ResponseGrade {
  * 5.5 to `medium`.
  */
 export const RESPONSE_MODELS: Record<ResponseModel, ResponseGrade> = {
-  standard: { model: 'claude-haiku-5-5', effort: 'low', maxTokens: 1024, fallback: false },
+  // 2048 since *Extended*: 270 words is about 360 tokens before any thinking.
+  standard: { model: 'claude-haiku-5-5', effort: 'low', maxTokens: 2048, fallback: false },
   pro: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 4096, fallback: true },
 };
 
@@ -75,7 +76,7 @@ export const RECORD_BUDGET_CHARS = Math.floor(RECORD_BUDGET_TOKENS * CHARS_PER_T
 
 /**
  * How long a room may wait on *Responding…* before the request is abandoned
- * and the card goes back to *Respond*. One request per press and no retry
+ * and the card goes back to *Ask Claude*. One request per press and no retry
  * of the press — the SDK's own retries of a failed connection fall inside
  * this, since they share its signal.
  */
@@ -87,28 +88,52 @@ export const CLAUDE_TIMEOUT_MS = 60_000;
  * prompt's job. Both statements give the reason as well as the rule, because
  * a model given the reason applies it to cases the rule did not name, and
  * neither claims that a longer reply will be cut, because it will not be.
+ *
+ * **Three caps since 2026-10-22, one per button**, each three times the one
+ * before. The sentences are a shape to aim at, which a word count alone does
+ * not give a model.
  */
-export const REPLY_WORD_LIMIT = 100;
+export const REPLY_WORD_LIMITS: Record<ReplyLength, { words: number; shape: string }> = {
+  brief: { words: 30, shape: 'one or two sentences' },
+  medium: { words: 90, shape: 'two to four sentences' },
+  extended: { words: 270, shape: 'a paragraph or two' },
+};
 
-export const LENGTH_RULE =
-  `Your reply must be at most ${REPLY_WORD_LIMIT} words — two to four sentences. ` +
-  'This is a hard limit, not a target: it is one turn in a live conversation ' +
-  'that people are waiting on, and they will read it at a glance.';
+/**
+ * What a press asks for when it names no length: *Medium*, nearest the
+ * hundred words every reply was before the three buttons. For builds up to
+ * 387, which send no body — planning/SHIMS.md, gate 388.
+ */
+export const DEFAULT_REPLY_LENGTH: ReplyLength = 'medium';
 
-export const SYSTEM_PROMPT = [
-  'You are Claude, taking part in a voice conversation among people using an ' +
-    'app called The Floor. You are given the record of the conversation so far: ' +
-    'what people said, transcribed by speech recognition and so imperfect — ' +
-    'words may be misheard and names misspelled — and what they pasted into ' +
-    'it, including your own earlier replies, which are labelled Claude. Times ' +
-    'are in UTC.',
-  'Contribute one turn to the conversation, as a thoughtful person in the room ' +
-    'would: respond to where the conversation is now, not to everything in it, ' +
-    'in the language being spoken, addressing people by name where that helps. ' +
-    'Write plain text, with no Markdown, lists or headings, because your reply ' +
-    'is shown as plain lines.',
-  LENGTH_RULE,
-].join('\n\n');
+export const isReplyLength = (value: unknown): value is ReplyLength =>
+  typeof value === 'string' && Object.prototype.hasOwnProperty.call(REPLY_WORD_LIMITS, value);
+
+export function lengthRule(length: ReplyLength): string {
+  const { words, shape } = REPLY_WORD_LIMITS[length];
+  return (
+    `Your reply must be at most ${words} words — ${shape}. ` +
+    'This is a hard limit, not a target: it is one turn in a live conversation ' +
+    'that people are waiting on, and they will read it at a glance.'
+  );
+}
+
+export function systemPrompt(length: ReplyLength): string {
+  return [
+    'You are Claude, taking part in a voice conversation among people using an ' +
+      'app called The Floor. You are given the record of the conversation so far: ' +
+      'what people said, transcribed by speech recognition and so imperfect — ' +
+      'words may be misheard and names misspelled — and what they pasted into ' +
+      'it, including your own earlier replies, which are labelled Claude. Times ' +
+      'are in UTC.',
+    'Contribute one turn to the conversation, as a thoughtful person in the room ' +
+      'would: respond to where the conversation is now, not to everything in it, ' +
+      'in the language being spoken, addressing people by name where that helps. ' +
+      'Write plain text, with no Markdown, lists or headings, because your reply ' +
+      'is shown as plain lines.',
+    lengthRule(length),
+  ].join('\n\n');
+}
 
 /** The Record, as one request will carry it. */
 export interface ComposedRecord {
@@ -257,12 +282,12 @@ export function composeRecord(
 }
 
 /** The user message: the *Record*, then the length rule again, last. */
-export function userMessage(record: ComposedRecord): string {
+export function userMessage(record: ComposedRecord, length: ReplyLength): string {
   const opening = record.trimmed
     ? 'The record of this conversation follows. It begins partway through: ' +
       'earlier conversation was left out for length.'
     : 'The record of this conversation so far follows.';
-  return `${opening}\n\n<record>\n${record.text}\n</record>\n\n${LENGTH_RULE}`;
+  return `${opening}\n\n<record>\n${record.text}\n</record>\n\n${lengthRule(length)}`;
 }
 
 /**
@@ -336,14 +361,18 @@ export interface ClaudeResponderOptions {
 }
 
 /**
- * One press of *Respond*, start to finish. The card says *Responding…* on
+ * One press of *Ask Claude*, start to finish. The card says *Responding…* on
  * every screen from the ask until `claudeAnswered` — which runs in `finally`,
  * whatever happened, so it can never outlive the request.
  */
 export class ClaudeResponder {
   constructor(private options: ClaudeResponderOptions) {}
 
-  async respond(channelId: string, userId: string): Promise<ClaudeResult> {
+  async respond(
+    channelId: string,
+    userId: string,
+    length: ReplyLength = DEFAULT_REPLY_LENGTH
+  ): Promise<ClaudeResult> {
     const { channels, now } = this.options;
     const channel = channels.get(channelId);
     if (!channel) return { ok: false, status: 404, error: 'No such channel.' };
@@ -377,7 +406,7 @@ export class ClaudeResponder {
     let outcome: ClaudeOutcome = 'error';
     let response: Anthropic.Message | Anthropic.Beta.Messages.BetaMessage | undefined;
     try {
-      response = await this.request(ask, record, controller.signal);
+      response = await this.request(ask, record, length, controller.signal);
       if (response.stop_reason === 'refusal') {
         outcome = 'refused';
       } else {
@@ -403,13 +432,14 @@ export class ClaudeResponder {
   private request(
     ask: ResponseGrade,
     record: ComposedRecord,
+    length: ReplyLength,
     signal: AbortSignal
   ): Promise<Anthropic.Message | Anthropic.Beta.Messages.BetaMessage> {
     const body = {
       model: ask.model,
       max_tokens: ask.maxTokens,
-      system: SYSTEM_PROMPT,
-      messages: [{ role: 'user' as const, content: userMessage(record) }],
+      system: systemPrompt(length),
+      messages: [{ role: 'user' as const, content: userMessage(record, length) }],
       output_config: { effort: ask.effort },
     };
     if (!ask.fallback) return this.options.client.messages.create(body, { signal });
