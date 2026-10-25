@@ -105,6 +105,17 @@ Deliberately separate, so no single leak is worse than it has to be:
   which failed with a message naming a resource nothing in this codebase asks
   for. Worth knowing before scoping an SES policy anywhere else.
 
+  **Since 2026-10-25 every send names its own set, `thefloor`**
+  (`SES_CONFIGURATION_SET` in `server/src/mail.ts`), which reports bounces
+  and complaints to the `ses-alerts` SNS topic apart from famdirectorio's,
+  the other sender on the identity (rvanegas-site SITE.md, Phase 5). The
+  policy lists both sets, and the order of the change was the trap again:
+  `thefloor` was added to the policy first, then named in the code and
+  deployed, and only after a code arrived was the identity's default changed.
+  A message that names a set is checked against that set, not the default.
+  Reversing any two of those steps fails sign-in. The policy as attached is
+  `~/src/rvanegas-site/iam/thefloor-server.json`.
+
 - **APNs auth key** — a `.p8`, team-scoped, valid for both the sandbox and
   production environments, held by the server so it can sign its own provider
   JWTs. Apple offers the download **exactly once**; there is no recovery, only

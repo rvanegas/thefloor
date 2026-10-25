@@ -143,6 +143,20 @@ export function isPlausibleIdentifier(identifier: string): boolean {
   return isEmailAddress(id) || isPhoneNumber(id);
 }
 
+/**
+ * The SES configuration set every send names, since 2026-10-25. The rvanegas.co
+ * identity is shared with famdirectorio's family mailings, and one bad mailing
+ * of theirs could get SES to pause the account and with it these codes. Naming
+ * a set of our own keeps our bounces and complaints, and where they are
+ * reported, apart from theirs (rvanegas-site SITE.md, Phase 5).
+ *
+ * **It is a permission as well as a label.** SES checks `ses:SendEmail` on the
+ * set a message goes through, so thefloor-server's policy has to list this one
+ * — the configuration-set trap in planning/CREDENTIALS.md, which is also why
+ * naming it here has to deploy before the identity's default set changes.
+ */
+export const SES_CONFIGURATION_SET = 'thefloor';
+
 export interface SesMailerOptions {
   from: string;
   region: string;
@@ -164,6 +178,7 @@ export class SesMailer implements Mailer {
     await this.client.send(
       new SendEmailCommand({
         FromEmailAddress: this.options.from,
+        ConfigurationSetName: SES_CONFIGURATION_SET,
         Destination: { ToAddresses: [to] },
         Content: {
           Simple: {
@@ -188,6 +203,7 @@ export class SesMailer implements Mailer {
     await this.client.send(
       new SendEmailCommand({
         FromEmailAddress: this.options.from,
+        ConfigurationSetName: SES_CONFIGURATION_SET,
         Destination: { ToAddresses: [to] },
         Content: {
           Simple: {
@@ -208,6 +224,7 @@ export class SesMailer implements Mailer {
     await this.client.send(
       new SendEmailCommand({
         FromEmailAddress: this.options.from,
+        ConfigurationSetName: SES_CONFIGURATION_SET,
         Destination: { ToAddresses: [to] },
         Content: {
           Simple: {
