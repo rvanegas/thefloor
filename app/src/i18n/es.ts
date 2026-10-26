@@ -1224,8 +1224,6 @@ export const es: Strings = {
       'Lo que pongas lo oye todo el mundo, y queda en la grabaci\u00f3n.',
     recordRefusedOwner: () =>
       'Solo quien es responsable de esta comunidad puede grabar.',
-    recordRefusedFilm: () =>
-      'Hay algo puesto para ver juntos. P\u00e1ralo en la pesta\u00f1a Ver para grabar.',
     recordRefusedSilent: () =>
       'No hay ning\u00fan micr\u00f3fono abierto ni nada sonando, as\u00ed que no hay nada que grabar.',
     stop: () => 'Parar',
@@ -1275,8 +1273,8 @@ export const es: Strings = {
       'Entra para manejar la pel\u00edcula. Lo que ve todo el mundo es cosa de quien est\u00e1 aqu\u00ed.',
     stepInToStartAParty: () =>
       'Entra para empezar a ver algo juntos. Lo que ve todo el mundo es cosa de quien est\u00e1 aqu\u00ed.',
-    pauseTheRecordingFirst: () =>
-      'Desactiva antes Audio en la pesta\u00f1a Grabado: ver algo juntos no se graba.',
+    playingStopsTheRecording: () =>
+      'Si pones la pel\u00edcula, se detiene la grabaci\u00f3n: ver algo juntos no se graba.',
     theyDecideWhichFilm: (holder: string) =>
       `${holder} tiene la palabra, as\u00ed que cambiar la pel\u00edcula es cosa suya. Cualquiera que est\u00e9 aqu\u00ed puede manejarla.`,
     youDecideWhichFilm: () =>

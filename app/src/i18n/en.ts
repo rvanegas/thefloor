@@ -1545,8 +1545,6 @@ export const en = {
     everyoneHearsAndItIsKept: () =>
       'Whatever you play, everyone hears — and it is kept in the recording.',
     recordRefusedOwner: () => 'Only the owner can record in this community.',
-    recordRefusedFilm: () =>
-      'Something is loaded to watch together. Stop it on the Watch tab to record.',
     recordRefusedSilent: () =>
       'Nobody\u2019s microphone is open and nothing is playing, so there is nothing to record.',
     stop: () => 'Stop',
@@ -1594,8 +1592,8 @@ export const en = {
       'Step in to drive the film. What everybody is watching is for whoever is here.',
     stepInToStartAParty: () =>
       'Step in to start a watch party. What everybody is watching is for whoever is here.',
-    pauseTheRecordingFirst: () =>
-      'Switch Audio off on the Record tab first — a watch party is not recorded.',
+    playingStopsTheRecording: () =>
+      'Playing the film stops the recording — a watch party is not recorded.',
     // The floor's two sentences on *this* card, which are narrower than the
     // Listen card's pair and must stay that way: a claim decides which film is
     // on, and `canControlWatch` deliberately lets anybody in the room drive

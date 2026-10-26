@@ -1080,18 +1080,26 @@ function recordingStartable(state: ChannelState, userId: UserId): boolean {
   return (
     state.status === 'active' &&
     state.recording.status === 'idle' &&
-    // The mirror of `canStartWatch`'s clause. A recording made while a watch
-    // party is loaded would be missing the thing everybody was reacting to,
-    // and nothing in the file would say so.
-    //
-    // **Loaded, not running**, and this is the last rule that reads the party
-    // that way — said through `watchPartyIsOn` rather than inlined, so the one
-    // rule left on that predicate is visibly the one it documents. The floor
-    // stopped asking it on 2026-09-24; see `watchIsPlaying`.
-    !watchPartyIsOn(state) &&
+    // **A film no longer refuses a recording, since 2026-10-26** — it is
+    // paused by it instead; see `preemptFilmOrRecording`. So whether there is
+    // anything to capture is asked of the room as it will be once the film
+    // has paused, its mute having lifted with it.
     isPresent(state, userId) &&
-    capturable(state)
+    capturable(withFilmPaused(state))
   );
+}
+
+/**
+ * The channel as a recording starting now would leave it: the film, if one is
+ * running, paused — which lifts the party mute, that being keyed on the run.
+ * A view for the guards to ask `capturable` of, and nothing that is stored;
+ * the reducer pauses the film for real, with a position, in
+ * `preemptFilmOrRecording`.
+ */
+function withFilmPaused(state: ChannelState): ChannelState {
+  return watchIsPlaying(state)
+    ? { ...state, watch: { ...state.watch, status: 'paused' } }
+    : state;
 }
 
 /**
@@ -1104,12 +1112,13 @@ function recordingStartable(state: ChannelState, userId: UserId): boolean {
  * a run already going is the header's pill. What is left are the refusals
  * nothing else on the screen explains, which a person standing in the room
  * alone met as a dead button — a film still loaded from an earlier evening
- * was the one that was noticed, on 2026-10-09.
+ * was the one that was noticed, on 2026-10-09, and since 2026-10-26 a film
+ * refuses nothing, being paused by the recording instead.
  *
  * Read off the same clauses `canStartRecording` is, in its order, so the
  * sentence and the grey cannot name different rules.
  */
-export type RecordingRefusal = 'owner' | 'film' | 'silent';
+export type RecordingRefusal = 'owner' | 'silent';
 
 export function recordingRefusal(
   state: ChannelState,
@@ -1118,8 +1127,7 @@ export function recordingRefusal(
   if (state.status !== 'active' || state.recording.status !== 'idle') return null;
   if (!isPresent(state, userId)) return null;
   if (!holdsTheControls(state, userId)) return 'owner';
-  if (watchPartyIsOn(state)) return 'film';
-  if (!capturable(state)) return 'silent';
+  if (!capturable(withFilmPaused(state))) return 'silent';
   return null;
 }
 
@@ -1214,7 +1222,7 @@ export function keepingOf(state: ChannelState): Keeping {
 
 /** Whether the audio could begin now, for whoever is asking. */
 function audioCouldBegin(state: ChannelState, userId: UserId): boolean {
-  return !watchPartyIsOn(state) && isPresent(state, userId) && capturable(state);
+  return isPresent(state, userId) && capturable(withFilmPaused(state));
 }
 
 /**
@@ -1241,8 +1249,8 @@ export function canSetKeep(state: ChannelState, userId: UserId, next: Keep): boo
 
 /**
  * Whether `userId` may press Play: nothing running, and all of what Play
- * would begin (`keepForPlay` — both, when nothing is selected) able to begin — the audio capturable with no film
- * loaded (`recordingRefusal` says which), the text the room's to switch.
+ * would begin (`keepForPlay` — both, when nothing is selected) able to begin — the audio capturable once
+ * any film has paused (`recordingRefusal` says why not), the text the room's to switch.
  * **All or nothing**, so that what runs is what the switches show; whether
  * the text has a payer is the route's.
  */
@@ -1388,6 +1396,12 @@ function applyKeep(
 
 export function autoRecordStarter(state: ChannelState): UserId | null {
   if (!state.autoRecord) return null;
+  // **The one place the Record button and the automatic start differ**, since
+  // 2026-10-26. Pressing Record over a running film pauses it, which is a
+  // person choosing the room over the film; nobody chose this, and a start
+  // that paused the film would be undone by the next press of play, which
+  // ends the run — and the run would start again.
+  if (watchIsPlaying(state)) return null;
   return state.present.find((id) => recordingStartable(state, id)) ?? null;
 }
 
@@ -1679,16 +1693,8 @@ export function canPauseRecording(
  * one that cannot refuse the person who is not there. See
  * `canPauseRecording`.
  *
- * **And it carries `canStartRecording`'s party clause, since 2026-09-23.**
- * Putting capture back on is starting a run for every purpose this rule has:
- * what resumes is a recording of a room watching a film, missing the film.
- * The clause was on the start alone, which was enough only because the two
- * *loaded*-level fences hold each other shut — a run cannot begin while a
- * party is loaded, and a party cannot begin unless the run is `idle`, which
- * a paused one is not. So the pair is unreachable today and this changes
- * nothing that can be pressed. It is here for the day somebody relaxes the
- * other clause and finds that resume was the way around it. See
- * `canPlayWatch`, which is the same argument in the other direction.
+ * A film does not refuse it, since 2026-10-26: resuming over a running film
+ * pauses the film, as starting does. See `preemptFilmOrRecording`.
  */
 export function canResumeRecording(
   state: ChannelState,
@@ -1697,7 +1703,6 @@ export function canResumeRecording(
   return (
     state.status === 'active' &&
     state.recording.status === 'paused' &&
-    state.watch.party === null &&
     isPresent(state, userId) &&
     holdsTheControls(state, userId)
   );
@@ -1773,12 +1778,13 @@ export function canStopRecording(state: ChannelState, userId: UserId): boolean {
  * **A watch party is a mode the channel is in, not a thing it is carrying**,
  * and since 2026-09-18 it is exclusive. It governed three rules on that
  * reading — no floor claimed, no recording begun, no track put on while one
- * is loaded — and it governs **one** of them now: the recording.
+ * is loaded — and it governs **none** of them now. The recording was the last,
+ * until 2026-10-26: a run and a running film now end each other, whichever
+ * began last winning (`preemptFilmOrRecording`), so a film merely loaded
+ * refuses nothing.
  *
  * The three came apart because they were never the same rule, only the same
- * predicate. A recording made alongside a party would be missing the thing
- * everybody is reacting to, whether or not the film is between scenes — that
- * is about the film being *loaded*, so it asks this. The track went first, on
+ * predicate. The track went first, on
  * 2026-09-20: two things loaded is somebody lining the next one up, and only
  * two things *playing* is the failure. See `watchIsPlaying`.
  *
@@ -1828,11 +1834,10 @@ export function watchPartyIsOn(state: ChannelState): boolean {
  * exclusivity was never meant to produce: a room that may neither be quieted
  * by the film nor by anybody in it. See `canClaimFloor`.
  *
- * `watchPartyIsOn` remains the question for the one rule that is about the
- * film being *a mode the channel is in* rather than about sound: no recording
- * may be begun while one is loaded, paused or not, because a recording
- * alongside a party would be missing the thing everybody is reacting to
- * whether or not the film is between scenes.
+ * **A recording asks this too, since 2026-10-26**, having refused itself
+ * while a film was merely loaded. It is not refused at all now: a run and a
+ * running film are kept apart by whichever began last ending the other — see
+ * `preemptFilmOrRecording`.
  */
 export function watchIsPlaying(state: ChannelState): boolean {
   return state.watch.status === 'playing';
@@ -2049,58 +2054,34 @@ export function canControlWatch(
 }
 
 /**
- * Whether `userId` may set the film running, which is the one thing on that
- * transport a recording refuses.
- *
- * **`canControlWatch` plus no run, and the *plus* is the whole of it.** The
- * other four actions the transport carries stay on the shared guard
- * deliberately: pausing, seeking, the room's mute and stopping are how
- * somebody gets *out* of a party, and a rule that held all five for the
- * length of a run would trap a channel inside a film it could not put down.
- * A run can go for an hour. Refusing play refuses the thing the exclusivity
- * is about — a film and a recording running at once — and refuses nothing
- * else.
- *
- * That makes it the mirror of `canStartWatch`, which asks the same question
- * at the other edge, and of the clause `canStartRecording` and
- * `canResumeRecording` carry going the other way.
- *
- * **It changes nothing that can be pressed today**, for the reason spelt out
- * under `canResumeRecording`: no run can be going while a party is loaded, so
- * the state this refuses is unreachable. It exists because the two clauses
- * holding it shut are both on *loaded* rather than on *playing* — and if the
- * recording one is ever relaxed to `watchIsPlaying`, as the two audio guards
- * were on 2026-09-20, this is the gap that opens. Loading a film, pausing it,
- * starting a run and pressing play would put both on at once, which is the
- * state every one of these guards exists to prevent.
- *
- * `isRecordingActive` rather than `status !== 'idle'`: a paused run is still
- * a run, and resuming it is one tap.
+ * Whether `userId` may set the film running: `canControlWatch`, and nothing
+ * more since 2026-10-26. A recording in progress no longer refuses it —
+ * pressing play stops the run instead, by `preemptFilmOrRecording`. Kept as
+ * its own name because the app asks it of the play button.
  */
 export function canPlayWatch(state: ChannelState, userId: UserId): boolean {
-  return canControlWatch(state, userId) && !isRecordingActive(state.recording);
+  return canControlWatch(state, userId);
 }
 
 /**
  * Whether `userId` may start a watch party.
  *
  * Being in the room — see `mayPutSomethingOn`, which `canLoadTrack` shares —
- * **and** no recording in progress, **and** no track playing. The two are mutually exclusive because a
- * party is watched on YouTube's own player with its own audio, which The Floor
- * never touches — so a recording made alongside one would be a recording of
- * people reacting to something it does not contain, and could not be made to
- * contain without extracting audio the terms forbid extracting.
+ * **and** no track playing.
  *
- * Refused rather than resolved in the party's favour: the alternative is that
- * one tap silently ends a run somebody may be speaking on the strength of.
- * `canStartRecording` carries the mirror clause, so both buttons grey with a
- * reason rather than either surprising anyone.
+ * **A recording no longer refuses it, since 2026-10-26.** A party is watched
+ * on YouTube's own player with its own audio, which The Floor never touches,
+ * so a recording made alongside a running film would be of people reacting to
+ * something it does not contain. That is still true, and still prevented —
+ * but by the later of the two ending the earlier rather than by refusing
+ * either: see `preemptFilmOrRecording`. A film starts paused, so loading one
+ * ends nothing.
  */
 export function canStartWatch(state: ChannelState, userId: UserId): boolean {
   // Not over a track that is playing — `canLoadTrack`'s mirror, and the same
   // sentence in the other direction. See `watchIsPlaying`.
   if (trackIsPlaying(state)) return false;
-  return mayPutSomethingOn(state, userId) && state.recording.status === 'idle';
+  return mayPutSomethingOn(state, userId);
 }
 
 /**
@@ -3900,8 +3881,40 @@ export function reduce(
   now: number
 ): ChannelState {
   return liftSpentEnforcement(
-    restartOnTextChange(state, reduceAction(state, action, now), action, now)
+    preemptFilmOrRecording(
+      state,
+      restartOnTextChange(state, reduceAction(state, action, now), action, now),
+      now
+    )
   );
+}
+
+/**
+ * **A recording and a running film are never on together, and the later one
+ * wins**, since 2026-10-26. Until then each refused the other — a film loaded
+ * greyed Record, a run in progress greyed play — which met somebody who
+ * wanted the other thing with a dead button and nothing on it to say which
+ * thing to put down first.
+ *
+ * So a film set running over a recording stops the recording, as Stop would:
+ * both forms end and the selection stays, ready for the next Play. And audio
+ * beginning over a running film pauses the film where it is, rather than
+ * unloading it, so nobody loses their place. A held run is left alone — it is
+ * capturing nothing, and resuming it pauses the film in its turn.
+ *
+ * Asked after every action rather than in the branches, because audio begins
+ * by five of them (Record, Resume, Play, the switches, an automatic start)
+ * and a branch that forgot to would be a run of a room watching a film,
+ * missing the film.
+ */
+function preemptFilmOrRecording(
+  before: ChannelState,
+  after: ChannelState,
+  now: number
+): ChannelState {
+  if (after.recording.status !== 'recording' || !watchIsPlaying(after)) return after;
+  if (!watchIsPlaying(before)) return stopKeeping(after, now);
+  return { ...after, watch: watchPause(after.watch, now) };
 }
 
 /** Whether the live transcript is running: on, and not held. */

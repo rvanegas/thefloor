@@ -5,6 +5,7 @@ import {
   microphoneNeeded,
 } from '../micNeeded';
 import {
+  autoRecordStarter,
   canControlPlayback,
   canControlWatch,
   canLoadTrack,
@@ -627,79 +628,108 @@ describe('a channel attends to one thing', () => {
     expect(canControlWatch(paused, A)).toBe(true);
   });
 
-  it('refuses a party while a recording is running', () => {
-    const s = reduce(
-      joined(),
-      { type: 'START_RECORDING', userId: A, runId: 'run1' },
-      T0
+  // **A run and a running film end each other, the later winning**, since
+  // 2026-10-26; until then each refused the other. See
+  // `preemptFilmOrRecording`.
+  const recording = () =>
+    reduce(joined(), { type: 'START_RECORDING', userId: A, runId: 'run1' }, T0);
+
+  it('loads a party over a recording, which goes on', () => {
+    const s = recording();
+    expect(canStartWatch(s, A)).toBe(true);
+    const loaded = reduce(
+      s,
+      { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL },
+      T0 + 1_000
     );
-    expect(canStartWatch(s, A)).toBe(false);
-    expect(
-      reduce(s, { type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL }, T0)
-        .watch.party
-    ).toBeNull();
+    expect(loaded.watch.party?.videoId).toBe(VIDEO);
+    expect(loaded.watch.status).toBe('paused');
+    expect(loaded.recording.status).toBe('recording');
   });
 
-  it('refuses a recording while a party is loaded', () => {
+  it('records while a party sits paused, leaving it paused', () => {
     const s = watching();
-    expect(canStartRecording(s, A)).toBe(false);
-    expect(
-      reduce(s, { type: 'START_RECORDING', userId: A, runId: 'run1' }, T0)
-        .recording.status
-    ).toBe('idle');
+    expect(canStartRecording(s, A)).toBe(true);
+    expect(recordingRefusal(s, A)).toBeNull();
+    const after = reduce(s, { type: 'START_RECORDING', userId: A, runId: 'run1' }, T0);
+    expect(after.recording.status).toBe('recording');
+    expect(after.watch.status).toBe('paused');
+    expect(after.watch.party).not.toBeNull();
   });
 
-  it('lets a recording start again once the party is stopped', () => {
+  it('stops a recording when the film is played over it', () => {
+    const s = apply(recording(), [
+      [{ type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL }, T0 + 1_000],
+      [{ type: 'WATCH_READY', userId: A, durationMs: LENGTH }, T0 + 1_000],
+    ]);
+    expect(canPlayWatch(s, A)).toBe(true);
+    const played = apply(s, play(A, T0 + 2_000));
+    expect(played.watch.status).toBe('playing');
+    expect(played.recording.status).toBe('idle');
+    // Filed, as a Stop would file it.
+    expect(played.lastRecording?.runId).toBe('run1');
+  });
+
+  it('pauses the film, where it is, when a recording begins over it', () => {
+    const s = apply(watching(), play(A, T0));
+    expect(s.watch.status).toBe('playing');
+    // The film's mute is what would have left nothing to capture; it lifts
+    // with the pause, so the guard asks of the room as the pause will leave it.
+    expect(canStartRecording(s, A)).toBe(true);
+    const after = reduce(
+      s,
+      { type: 'START_RECORDING', userId: A, runId: 'run1' },
+      T0 + 30_000
+    );
+    expect(after.recording.status).toBe('recording');
+    expect(after.watch.status).toBe('paused');
+    expect(after.watch.party?.videoId).toBe(VIDEO);
+    expect(watchPositionMs(after.watch, T0 + 60_000)).toBe(
+      watchPositionMs(after.watch, T0 + 30_000)
+    );
+    expect(watchPositionMs(after.watch, T0 + 30_000)).toBeGreaterThan(0);
+  });
+
+  it('pauses the film when Play on the Record tab begins audio over it', () => {
+    const s = apply(watching(), play(A, T0));
+    const after = reduce(
+      s,
+      { type: 'PLAY_KEEPING', userId: A, runId: 'run1' },
+      T0 + 1_000
+    );
+    expect(after.recording.status).toBe('recording');
+    expect(after.watch.status).toBe('paused');
+  });
+
+  it('leaves a held run held when the film plays, and pauses the film on resume', () => {
+    const s = apply(recording(), [
+      [{ type: 'PAUSE_RECORDING', userId: A }, T0 + 1_000],
+      [{ type: 'START_WATCH', userId: A, videoId: VIDEO, url: URL }, T0 + 1_000],
+      [{ type: 'WATCH_READY', userId: A, durationMs: LENGTH }, T0 + 1_000],
+      ...play(A, T0 + 2_000),
+    ]);
+    expect(s.watch.status).toBe('playing');
+    expect(s.recording.status).toBe('paused');
+    expect(canResumeRecording(s, A)).toBe(true);
+    const resumed = reduce(
+      s,
+      { type: 'RESUME_RECORDING', userId: A, runId: 'run2' },
+      T0 + 3_000
+    );
+    expect(resumed.recording.status).toBe('recording');
+    expect(resumed.watch.status).toBe('paused');
+  });
+
+  it('never starts a recording automatically over a running film', () => {
+    const paused = { ...watching(), autoRecord: true };
+    expect(autoRecordStarter(paused)).not.toBeNull();
+    const running = { ...apply(watching(), play(A, T0)), autoRecord: true };
+    expect(autoRecordStarter(running)).toBeNull();
+  });
+
+  it('lets a recording start once the party is stopped, as before', () => {
     const s = reduce(watching(), { type: 'STOP_WATCH', userId: A }, T0 + 1_000);
     expect(canStartRecording(s, A)).toBe(true);
-  });
-
-  /**
-   * **The two below describe a state no sequence of actions reaches**, and
-   * that is the point of them. A run cannot begin while a party is loaded and
-   * a party cannot begin unless the run is `idle`, so the pair is fenced off
-   * by two clauses that are both about a film being *loaded*. Relax either
-   * one to *playing*, as the two audio guards were relaxed on 2026-09-20, and
-   * these are the two doors it opens.
-   *
-   * So the state is spliced together from two halves that are each a real
-   * reducer's output, rather than pressed into existence — which is the only
-   * way to write a test for a guard whose job is to still be right after
-   * somebody changes the rule standing in front of it.
-   */
-  const withRun = (base: ChannelState, steps: Array<[ChannelAction, number]>) =>
-    ({ ...base, recording: apply(joined(), steps).recording }) as ChannelState;
-
-  it('refuses to play a film beside a run, and nothing else on the transport', () => {
-    const s = withRun(watching(), [
-      [{ type: 'START_RECORDING', userId: A, runId: 'run1' }, T0],
-    ]);
-    expect(canPlayWatch(s, A)).toBe(false);
-    expect(
-      reduce(s, { type: 'WATCH_PLAY', userId: A }, T0 + 1_000).watch.status
-    ).toBe('paused');
-    // The four ways out stay open for the length of the run. A rule that held
-    // all five would trap the channel inside a film it could not put down.
-    expect(canControlWatch(s, A)).toBe(true);
-    expect(
-      reduce(s, { type: 'STOP_WATCH', userId: A }, T0 + 1_000).watch.party
-    ).toBeNull();
-  });
-
-  it('refuses to resume a run beside a loaded party, as it refuses to start one', () => {
-    const s = withRun(watching(), [
-      [{ type: 'START_RECORDING', userId: A, runId: 'run1' }, T0],
-      [{ type: 'PAUSE_RECORDING', userId: A }, T0 + 1_000],
-    ]);
-    expect(canResumeRecording(s, A)).toBe(false);
-    expect(
-      reduce(s, { type: 'RESUME_RECORDING', userId: A }, T0 + 2_000).recording
-        .status
-    ).toBe('paused');
-    // And it comes back with the party, which is the same escape starting one
-    // has.
-    const stopped = reduce(s, { type: 'STOP_WATCH', userId: A }, T0 + 2_000);
-    expect(canResumeRecording(stopped, A)).toBe(true);
   });
 });
 
@@ -992,9 +1022,10 @@ describe('the end of the room', () => {
   });
 
   it('lets the next person in record by themselves', () => {
+    // With the film still loaded too, since 2026-10-26: it refuses nothing.
     const before = reduce(emptied(), { type: 'ENTER', userId: A }, T0);
-    expect(recordingRefusal(before, A)).toBe('film');
-    expect(canStartRecording(before, A)).toBe(false);
+    expect(recordingRefusal(before, A)).toBeNull();
+    expect(canStartRecording(before, A)).toBe(true);
 
     const after = reduce(
       reduce(emptied(), { type: 'ROOM_ENDED' }, T0),

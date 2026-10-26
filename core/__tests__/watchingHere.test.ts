@@ -860,8 +860,9 @@ describe('a channel with a film on', () => {
     expect(canControlPlayback(playingFilm(), A)).toBe(false);
   });
 
-  it('refuses a recording, as it always did', () => {
-    expect(canStartRecording(withFilm(), A)).toBe(false);
+  it('allows a recording, which pauses a running film, since 2026-10-26', () => {
+    expect(canStartRecording(withFilm(), A)).toBe(true);
+    expect(canStartRecording(playingFilm(), A)).toBe(true);
   });
 
   it('lets anybody in the room drive, claim or no claim', () => {

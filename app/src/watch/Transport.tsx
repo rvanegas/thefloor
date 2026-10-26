@@ -48,10 +48,8 @@ export function WatchTransport({
   /** Whether this person may drive the film at all. */
   mayControl: boolean;
   /**
-   * Whether they may *start* it, which is the narrower of the two.
-   *
-   * Pause is the way out and is never refused for a run; play is. See
-   * `canPlayWatch`.
+   * Whether they may *start* it. The same as `mayControl` since a run stopped
+   * refusing play on 2026-10-26; see `canPlayWatch`.
    */
   mayPlay: boolean;
   /**

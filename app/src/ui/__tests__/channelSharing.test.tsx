@@ -590,29 +590,24 @@ describe('Channel, watching together', () => {
     act(() => tree.unmount());
   });
 
-  it('greys Record while a party runs, and gives no reason for it', () => {
-    // Audio selected, so the film is what refuses Start, since 2026-10-11.
+  it('leaves Record live while a party is loaded', () => {
+    // Since 2026-10-26 a film refuses no recording: starting one pauses a
+    // running film instead. See `preemptFilmOrRecording`.
     showChannel({ ...watching(), keep: { audio: true, text: false } });
-    // On *Recordings*, which is where recording is. The reason used to travel
-    // with the button, the party being a tab away; it left on 2026-09-13 with
-    // the rest of the prose under the transport, which is now failure and
-    // nothing else. What survives is the refusal itself, and the word under
-    // the glyph saying what is being refused.
     const tree = openOnPeople();
     showRecord(tree);
-    expect(findButton(tree, 'Start')!.props.accessibilityState.disabled).toBe(true);
-    expect(textOf(tree)).not.toContain('Stop the watch party to record');
+    expect(findButton(tree, 'Start')!.props.accessibilityState.disabled).toBe(false);
     act(() => tree.unmount());
   });
 
-  it('refuses a party with the reason while a recording runs', () => {
+  it('warns that playing the film stops a recording that runs', () => {
     showChannel(
       channelOf((s) =>
         reduce(s, { type: 'START_RECORDING', userId: ME, runId: 'run1' }, NOW)
       )
     );
     const tree = open();
-    expect(textOf(tree)).toContain('Switch Audio off on the Record tab first');
+    expect(textOf(tree)).toContain('Playing the film stops the recording');
     act(() => tree.unmount());
   });
 

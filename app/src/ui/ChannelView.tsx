@@ -1908,13 +1908,10 @@ export function ChannelView({
   const watchAt = watchPositionMs(watch, now);
   const mayControlWatch = canControlWatch(channel, me);
   /**
-   * Play alone, which is the one thing on the transport a run refuses.
-   *
-   * Separate from `mayControlWatch` because the other four controls beside it
-   * are the ways out of a party and stay available for the length of any run
-   * — see `canPlayWatch`. Read here rather than inferred from the recording
-   * state so the greyed button and the reducer are one rule, which is what
-   * every guard on this screen does.
+   * Play alone. The same as `mayControlWatch` since 2026-10-26, a run no
+   * longer refusing it — pressing play over one stops it — but still read
+   * from its own guard, `canPlayWatch`, so the greyed button and the reducer
+   * stay one rule, which is what every guard on this screen does.
    */
   const mayPlayWatch = canPlayWatch(channel, me);
   const mayStartWatch = canStartWatch(channel, me);
@@ -4503,12 +4500,14 @@ export function ChannelView({
                     party
                     ? t.stepInToDriveTheFilm()
                     : t.stepInToStartAParty()
-                  : recordingLive
-                    ? // Said out loud rather than left as a dead button. The two are
-                      // exclusive because the video's sound never reaches The Floor,
-                      // so a recording made alongside one would be missing the thing
-                      // everybody was reacting to.
-                      t.pauseTheRecordingFirst()
+                  : channel.recording.status === 'recording'
+                    ? // Said before the press rather than discovered after it:
+                      // playing the film ends the run, since 2026-10-26, because
+                      // the video's sound never reaches The Floor and a recording
+                      // alongside it would be missing the thing everybody was
+                      // reacting to. A held run is not ended, so not said. See
+                      // `preemptFilmOrRecording`.
+                      t.playingStopsTheRecording()
                     : theyHoldFloor
                       ? // **Reachable since 2026-09-24**, and narrowed in the
                         // same breath. A claim could not be made over a film

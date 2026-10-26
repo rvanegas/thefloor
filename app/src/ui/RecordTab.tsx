@@ -813,9 +813,7 @@ export function KeepSwitches({
           <Text style={type.muted}>
             {refusal === 'owner'
               ? t.recordRefusedOwner()
-              : refusal === 'film'
-                ? t.recordRefusedFilm()
-                : t.recordRefusedSilent()}
+              : t.recordRefusedSilent()}
           </Text>
         ) : keeping !== 'running' && textWanting && isPresent(channel, me) ? (
           <Text style={type.muted}>{t.playRefusedText()}</Text>

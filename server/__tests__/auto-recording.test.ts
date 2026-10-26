@@ -229,7 +229,7 @@ describe('a channel that records and transcribes itself', () => {
     ]);
   });
 
-  it('keeps the text waiting while a loaded film refuses the audio, and begins both when it goes', async () => {
+  it('begins both on arrival with a film still loaded, which refuses nothing since 2026-10-26', async () => {
     const { alice, channelId } = await both();
     // An earlier sitting that ended with a film still loaded.
     app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
@@ -245,18 +245,34 @@ describe('a channel that records and transcribes itself', () => {
     const from = segments(channelId).length;
 
     app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
-    expect(channel(channelId).recording.status).toBe('idle');
-    expect(channel(channelId).liveTranscription).toBe(false);
-    expect(segments(channelId).slice(from)).toEqual([]);
-
-    clock += 30_000;
-    app.channels.dispatch(channelId, alice.id, { type: 'STOP_WATCH' } as never);
     const state = channel(channelId);
     expect(state.recording.status).toBe('recording');
     expect(state.liveTranscription).toBe(true);
     expect(segments(channelId).slice(from)).toEqual([
       { started_at: clock, ended_at: null, recording_id: state.recording.runId, text: 1 },
     ]);
+  });
+
+  it('stops the automatic run when the film is played, and does not start it again under the film', async () => {
+    const { alice, channelId } = await both();
+    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
+    expect(channel(channelId).recording.status).toBe('recording');
+    app.channels.dispatch(channelId, alice.id, {
+      type: 'START_WATCH',
+      url: 'https://youtu.be/dQw4w9WgXcQ',
+    } as never);
+    expect(channel(channelId).recording.status).toBe('recording');
+
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.id, { type: 'WATCH_PLAY' } as never);
+    expect(channel(channelId).watch.status).toBe('playing');
+    expect(channel(channelId).recording.status).toBe('idle');
+    expect(channel(channelId).liveTranscription).toBe(false);
+
+    clock += 30_000;
+    app.channels.tick();
+    expect(channel(channelId).watch.status).toBe('playing');
+    expect(channel(channelId).recording.status).toBe('idle');
   });
 
   it('still begins the text on arrival where only Text is automatic', async () => {

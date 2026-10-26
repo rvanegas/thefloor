@@ -1345,9 +1345,7 @@ export class ChannelRegistry {
           ? 'Step in to record.'
           : refusal === 'owner'
             ? 'Only the owner of this community can change what it keeps.'
-            : refusal === 'film'
-              ? 'Not while a film is loaded.'
-              : refusal === 'silent'
+            : refusal === 'silent'
                 ? 'There is nothing to record yet.'
                 : 'Already recording.',
         code: 'forbidden',
