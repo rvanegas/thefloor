@@ -1,0 +1,9 @@
+Ask Claude, on the Record tab under the record button, has three buttons: Brief, Medium and Extended. Claude reads the channel's Record and its reply is added to the Record under its name, for everybody in the channel. While it answers, the buttons read Responding… on every screen.
+
+Transcribe, and agreeing to publish a recording, are available the moment the recording stops.
+
+Sharing a recording's Text hands over a .txt file, named as its audio is.
+
+Paste on the Watch tab says what to copy when the clipboard is empty.
+
+The room is heard again as soon as a long film ends. A phone call taken off hold brings the channel's sound back, and On another call goes as soon as the call ends.
