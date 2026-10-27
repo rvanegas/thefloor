@@ -119,3 +119,103 @@ the library — after everybody in it has agreed.
 - A per-channel switch, so a channel that has nothing to do with his writing
   never pays for lookups?
 - Does a reply cite the library visibly, and how, in a paste?
+
+## Plan
+
+Planned 2026-10-27 against `claude.ts` as it stood at `769ffd7c`.
+**Server-only**: nothing on the wire changes, so no shim and no build. It
+reaches people with a deploy and the token in `server/.env`, and Ask Claude
+works exactly as before until the token is set, the way it is absent without
+`ANTHROPIC_API_KEY`.
+
+### The open questions, answered as recommendations
+
+- **Pressing, not present.** Pressing means the reply is Rodrigo's own act, so
+  showing his writing to the room is his choice. Present would put his library
+  into a reply somebody else asked for. Easy to widen later; hard to take back
+  once a paste has quoted him.
+- **All three grades.** The setting is debug-only, so this already means
+  whatever Rodrigo picked. Haiku's tool use is the thing to watch on the first
+  real presses, not a reason to forbid it ahead of time.
+- **No per-channel switch yet.** The system prompt tells Claude not to look
+  things up on every press. The ledger column below shows whether that holds;
+  add a switch if it doesn't.
+- **Cite by name, in plain text.** The paste is plain lines with no Markdown,
+  so: *"as you wrote in On Attention, March"*, with the document's title as the
+  library gives it. No paths and no links.
+
+### Steps, in order, each with its tests in `server/__tests__/claude.test.ts`
+
+1. **Configuration.** `index.ts` reads `MDC_URL` (default
+   `https://mdc.rvanegas.co/mcp`) and `MDC_TOKEN`, then passes
+   `library?: { url, token, identifiers }` through `AppOptions` to
+   `ClaudeResponderOptions`. `identifiers` is a new `MDC_IDENTIFIERS`, matched
+   the way `cohortHosts()` (`channels.ts:2141`) matches: resolved through
+   `accounts.byIdentifier` on every press, not once at boot. Use a separate
+   variable rather than reusing `COHORT_HOST_IDENTIFIERS`, because the two
+   lists mean different things and only happen to name the same person today.
+   Test: no token means the request carries no `mcp_servers`, whoever presses.
+2. **Who gets it.** `respond()` decides `library = !!options.library &&
+   identifiers resolve to userId`, and passes it to `request()`. Test: the same
+   channel and grade, pressed by Rodrigo and by somebody else, yields one body
+   with the toolset and one without.
+3. **The request.** `request(ask, record, length, signal, library)` takes the
+   beta endpoint when `ask.fallback || library`. The betas list is
+   `MCP_BETA` and/or `FALLBACK_BETA`, and the body gets `mcp_servers` and
+   `mcp_toolset` as above. Export `MCP_BETA = 'mcp-client-2025-11-20'` and the
+   enabled tool names as constants beside `FALLBACK_BETA`, so a test can assert
+   that `edit_file` and `append_turn` stay disabled. Before writing this,
+   **confirm the field names against the current MCP connector docs**: the
+   shape in this file was written from memory of the beta, and the beta has
+   renamed things once already (`tool_configuration` → `mcp_toolset`).
+4. **The prompt.** `systemPrompt(length, library: boolean)` adds one paragraph
+   only when `library` is true, so the plain prompt and its existing test stay
+   the same. The paragraph says: the library is the presser's own writing; use
+   it when the conversation turns to something he has written about, not
+   otherwise; read `guide` first; name any document drawn on by its title. The
+   reply's word limit includes nothing of the working.
+5. **The reply text.** Take the `text` blocks after the last `mcp_tool_result`
+   (or after the last `mcp_tool_use` if a result is missing), and all of them
+   when there was no tool call. This is a pure function, `replyText(content)`,
+   exported for a test with a scripted content array: working text, then
+   tool_use, then tool_result, then the answer. Only the answer is posted.
+6. **mdc down.** If a library request throws and the abort did not fire, retry
+   once with the same body minus `mcp_servers`/toolset, inside the same timer,
+   and log a warning naming mdc. Don't retry on a timeout: the budget is
+   already spent. Two cases the tests script with the fake client: an API error
+   (the connector couldn't reach the server), and a response whose
+   `mcp_tool_result` has `is_error`. The second needs nothing, since the model
+   just answers without it. Check against the live API which of the two an
+   unreachable mdc actually produces.
+7. **Time.** `CLAUDE_TIMEOUT_MS` is 60 s for one model turn. A library press is
+   several, so give it `CLAUDE_LIBRARY_TIMEOUT_MS = 120_000`. The card already
+   says *Responding…* for as long as it takes. Leave `maxTokens` alone until
+   `stop_reason = 'max_tokens'` shows up on library rows. Also check whether
+   the connector can end on `pause_turn`, as server tools do, because
+   `respond()` would currently post whatever text came before it.
+8. **The ledger.** Add `library_calls INTEGER` to `claude_usage` (null when the
+   library was not offered, else the count of `mcp_tool_use` blocks), using the
+   usual `ALTER TABLE … ADD COLUMN` migration and with the comment above the
+   table extended. This is what answers the per-channel-switch question and
+   what `bin/usage` can price. `usage.input_tokens` already includes tool
+   results, so token counting needs no change.
+9. **Privacy.** `/privacy` says of a press that *"Nothing else is sent."* While
+   the library is on, Claude sends search terms drawn from the Record to a
+   server the operator runs, and the reply may quote the operator's own
+   writing. Add one sentence, present only when `library` is configured (as
+   the Claude section is present only with a client), and bump
+   `CLAUDE_PRIVACY_UPDATED`. **This is Rodrigo's wording to approve**, and it
+   goes in before the token is set on the box.
+10. **Paperwork in the same commit.** Add `MDC_TOKEN` to
+    `planning/CREDENTIALS.md` (its row in § *What to read, and when*, and an
+    entry with how it's minted and revoked), add *library* to GLOSSARY.md if
+    the word reaches a user (it does, through the privacy sentence), and turn
+    this file into a dated decision when the work ships.
+
+### Then, by hand
+
+Mint the token on `commons` (`scripts/add_token.py rodvandur`, note "The
+Floor"), add it with `bin/env-push`, and deploy. Make three presses on a
+channel whose Record touches something in the library and three on one that
+doesn't, then read `library_calls`, latency and input tokens off the ledger
+before deciding anything about grades or a switch.
