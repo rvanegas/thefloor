@@ -11,16 +11,24 @@ that mdc's `SERVER.md` (Phases 5 and after) is heading towards.
 ## What mdc offers
 
 mdc serves an **MCP server** at `https://mdc.rvanegas.co/mcp` (streamable
-HTTP, live since 2026-10-27), the tools `mdc reply` gives the model:
+HTTP, live since 2026-10-27), the reading tools `mdc reply` gives the model:
 
 - `guide` — how the library is organized and the rules for the rest; the
   other descriptions tell the model to read it first.
 - `list_documents(query?)`, `lookup_term(term)` — find documents by title,
   summary or index term, with summaries and related terms.
 - `read_document(path)`, `read_file(name)` — read one in full.
-- `edit_file(name, old_str, new_str)` — edit a `.document.md` or
-  `.argument.md`, keeping numbered versions.
-- `append_turn(name, speaker, text)` — add a turn to a `.chat.md`.
+
+**It writes nothing**, since mdc `43be338` (2026-10-27, not yet deployed when
+this was written): `edit_file` went back to `mdc reply` alone, and
+`append_turn` was withdrawn — claude.ai edits with its own documents, and a
+conversation reaches the library whole through its export and `mdc import`.
+
+**Its guide asks for a citation convention The Floor does not use**: a reply
+ends with `## Related` (library titles, as `| *Title*`) and `## References`
+(other works, as `| Author (year) *Title*`), additions only. That suits a
+`.chat.md`, where `mdc reply` and `mdc import` gather them into the chat's own
+sections; a paste is plain lines. See *Decided* and steps 7 and 8.
 
 It accepts a **bearer token** minted for an mdc user (mdc's
 `scripts/add_token.py <user>`; only the hash is kept, in `users.toml` on the
@@ -47,7 +55,7 @@ this.options.client.beta.messages.create(
     tools: [{
       type: 'mcp_toolset',
       mcp_server_name: 'mdc',
-      // Reading only: see "Read, not write" below.
+      // An allowlist although mdc now writes nothing: see "Read, not write".
       default_config: { enabled: false },
       configs: {
         guide: { enabled: true },
@@ -97,125 +105,158 @@ and claude.ai is a later plan (mdc's `TODO.md`). So:
 - **One token, `MDC_TOKEN` in `server/.env`**, minted for `rodvandur` with the
   note "The Floor"; recorded in `planning/CREDENTIALS.md`, revoked by deleting
   its line in mdc's `users.toml`.
-- **Offered only when Rodrigo's account presses** (by sign-in address, as
-  `COHORT_HOST_IDENTIFIERS` names accounts), so nobody else's press reads his
-  library. Whether it should also apply when he is merely *present* is open:
-  the reply lands in a Record everybody in the room reads.
+- **Offered only in a channel whose *Library* toggle is on** — off by default,
+  turned on only by an account `MDC_IDENTIFIERS` names (his), and then for
+  every press in that channel, whoever presses. Turning it on is his consent
+  to his writing reaching that room's Record; see *Decided* below.
 
 ## Read, not write
 
-`edit_file` and `append_turn` are left off. A conversation is not where
-Rodrigo's documents get edited, and a write from a room several people are
-in is a consent question like publishing
+mdc's server no longer offers a write, so nothing has to be switched off. **The
+toolset is still an allowlist of the five**, because mdc's `SERVER.md` names
+tools for later (`analyze`, `audit`, `new_session`), and a tool mdc adds
+should reach a room only by a decision here, not by a deploy there. A write
+from a room several people are in would be a consent question like publishing
 (`decision/2026-09-21-nothing-is-published-until-everybody-in-it-has-agreed.md`).
-`append_turn` is the interesting one later: it could keep a conversation, or
-its digest (`a-digest-of-each-call-and-of-the-channel.md`), as a `.chat.md` in
-the library — after everybody in it has agreed.
 
-## Open questions
+Keeping a conversation, or its digest
+(`a-digest-of-each-call-and-of-the-channel.md`), in the library is still the
+interesting later step — but by the route mdc chose for claude.ai: an export
+of the whole, brought in by `mdc import`, after everybody in it has agreed,
+not a write per turn.
 
-- Present, or pressing (above)?
-- Which grades get the library: all three, or `pro` and `max` only?
-- A per-channel switch, so a channel that has nothing to do with his writing
-  never pays for lookups?
-- Does a reply cite the library visibly, and how, in a paste?
+## Decided
+
+Rodrigo's answers, 2026-10-27:
+
+- **A per-channel toggle, off by default.** Only when it is on does Claude
+  consult the library, and then on **every** press in the channel, whoever
+  presses. Neither *pressing* nor *present* — the channel is the unit.
+- **Pro and Max only.** On *Standard* the toggle changes nothing; the plain
+  call stays plain and fast.
+- **Citation by title, in plain words**: *as you wrote in On Attention, in
+  March*. No paths, no links — a paste is plain lines.
+- **No Related or References section in a reply**, whatever mdc's guide asks.
+  A library document is named inline, as above; a work outside the library is
+  cited inline in plain words too — *as James put it in 1890*.
+- **A document's own Related titles are his implicit recommendations.**
+  Claude follows them with `read_document` only when needed, not as a matter
+  of course, but weighs them as his judgement of what is relevant.
+
+Not asked, and assumed: **only an account `MDC_IDENTIFIERS` names may flip
+it**, since it is his library; anybody else sees it greyed with the sentence
+that says why, as *Response model* is for anybody without `debug`. Change
+that before step 3 if it is wrong.
 
 ## Plan
 
-Planned 2026-10-27 against `claude.ts` as it stood at `769ffd7c`.
-**Server-only**: nothing on the wire changes, so no shim and no build. It
-reaches people with a deploy and the token in `server/.env`, and Ask Claude
-works exactly as before until the token is set, the way it is absent without
-`ANTHROPIC_API_KEY`.
+Planned 2026-10-27 against `769ffd7c`. **A wire change, done in the ordinary
+order**: server deployed first, then a build. It is additive — a new optional
+field and a new action, no rename — so an old client simply never draws the
+toggle, an old server is never sent the action by a client that cannot see
+it, and **there is no shim and no SHIMS.md entry**. Until `MDC_TOKEN` is on
+the box the toggle is not drawn and nothing changes.
 
-### The open questions, answered as recommendations
-
-- **Pressing, not present.** Pressing means the reply is Rodrigo's own act, so
-  showing his writing to the room is his choice. Present would put his library
-  into a reply somebody else asked for. Easy to widen later; hard to take back
-  once a paste has quoted him.
-- **All three grades.** The setting is debug-only, so this already means
-  whatever Rodrigo picked. Haiku's tool use is the thing to watch on the first
-  real presses, not a reason to forbid it ahead of time.
-- **No per-channel switch yet.** The system prompt tells Claude not to look
-  things up on every press. The ledger column below shows whether that holds;
-  add a switch if it doesn't.
-- **Cite by name, in plain text.** The paste is plain lines with no Markdown,
-  so: *"as you wrote in On Attention, March"*, with the document's title as the
-  library gives it. No paths and no links.
-
-### Steps, in order, each with its tests in `server/__tests__/claude.test.ts`
+Each step's tests go beside the precedent's: `core/__tests__/claude.test.ts`
+for the reducer, `server/__tests__/claude.test.ts` for the rest.
 
 1. **Configuration.** `index.ts` reads `MDC_URL` (default
-   `https://mdc.rvanegas.co/mcp`) and `MDC_TOKEN`, then passes
-   `library?: { url, token, identifiers }` through `AppOptions` to
-   `ClaudeResponderOptions`. `identifiers` is a new `MDC_IDENTIFIERS`, matched
-   the way `cohortHosts()` (`channels.ts:2141`) matches: resolved through
-   `accounts.byIdentifier` on every press, not once at boot. Use a separate
-   variable rather than reusing `COHORT_HOST_IDENTIFIERS`, because the two
-   lists mean different things and only happen to name the same person today.
-   Test: no token means the request carries no `mcp_servers`, whoever presses.
-2. **Who gets it.** `respond()` decides `library = !!options.library &&
-   identifiers resolve to userId`, and passes it to `request()`. Test: the same
-   channel and grade, pressed by Rodrigo and by somebody else, yields one body
-   with the toolset and one without.
-3. **The request.** `request(ask, record, length, signal, library)` takes the
-   beta endpoint when `ask.fallback || library`. The betas list is
-   `MCP_BETA` and/or `FALLBACK_BETA`, and the body gets `mcp_servers` and
-   `mcp_toolset` as above. Export `MCP_BETA = 'mcp-client-2025-11-20'` and the
-   enabled tool names as constants beside `FALLBACK_BETA`, so a test can assert
-   that `edit_file` and `append_turn` stay disabled. Before writing this,
-   **confirm the field names against the current MCP connector docs**: the
-   shape in this file was written from memory of the beta, and the beta has
-   renamed things once already (`tool_configuration` → `mcp_toolset`).
-4. **The prompt.** `systemPrompt(length, library: boolean)` adds one paragraph
-   only when `library` is true, so the plain prompt and its existing test stay
-   the same. The paragraph says: the library is the presser's own writing; use
-   it when the conversation turns to something he has written about, not
-   otherwise; read `guide` first; name any document drawn on by its title. The
-   reply's word limit includes nothing of the working.
-5. **The reply text.** Take the `text` blocks after the last `mcp_tool_result`
-   (or after the last `mcp_tool_use` if a result is missing), and all of them
-   when there was no tool call. This is a pure function, `replyText(content)`,
-   exported for a test with a scripted content array: working text, then
-   tool_use, then tool_result, then the answer. Only the answer is posted.
-6. **mdc down.** If a library request throws and the abort did not fire, retry
-   once with the same body minus `mcp_servers`/toolset, inside the same timer,
-   and log a warning naming mdc. Don't retry on a timeout: the budget is
-   already spent. Two cases the tests script with the fake client: an API error
-   (the connector couldn't reach the server), and a response whose
-   `mcp_tool_result` has `is_error`. The second needs nothing, since the model
-   just answers without it. Check against the live API which of the two an
-   unreachable mdc actually produces.
-7. **Time.** `CLAUDE_TIMEOUT_MS` is 60 s for one model turn. A library press is
-   several, so give it `CLAUDE_LIBRARY_TIMEOUT_MS = 120_000`. The card already
-   says *Responding…* for as long as it takes. Leave `maxTokens` alone until
-   `stop_reason = 'max_tokens'` shows up on library rows. Also check whether
-   the connector can end on `pause_turn`, as server tools do, because
-   `respond()` would currently post whatever text came before it.
-8. **The ledger.** Add `library_calls INTEGER` to `claude_usage` (null when the
-   library was not offered, else the count of `mcp_tool_use` blocks), using the
-   usual `ALTER TABLE … ADD COLUMN` migration and with the comment above the
-   table extended. This is what answers the per-channel-switch question and
-   what `bin/usage` can price. `usage.input_tokens` already includes tool
-   results, so token counting needs no change.
-9. **Privacy.** `/privacy` says of a press that *"Nothing else is sent."* While
-   the library is on, Claude sends search terms drawn from the Record to a
-   server the operator runs, and the reply may quote the operator's own
-   writing. Add one sentence, present only when `library` is configured (as
-   the Claude section is present only with a client), and bump
-   `CLAUDE_PRIVACY_UPDATED`. **This is Rodrigo's wording to approve**, and it
-   goes in before the token is set on the box.
-10. **Paperwork in the same commit.** Add `MDC_TOKEN` to
-    `planning/CREDENTIALS.md` (its row in § *What to read, and when*, and an
-    entry with how it's minted and revoked), add *library* to GLOSSARY.md if
-    the word reaches a user (it does, through the privacy sentence), and turn
-    this file into a dated decision when the work ships.
+   `https://mdc.rvanegas.co/mcp`), `MDC_TOKEN` and `MDC_IDENTIFIERS`, and
+   passes `library?: { url, token, identifiers }` through `AppOptions`.
+   `MDC_IDENTIFIERS` is resolved through `accounts.byIdentifier` at every use,
+   as `cohortHosts()` is (`channels.ts:2141`) — not once at boot — and kept
+   separate from `COHORT_HOST_IDENTIFIERS`, which means something else and
+   happens to name the same person today.
+2. **The state, in core.** `ChannelState.library: boolean` (`types.ts`, beside
+   `responseModel`), `false` in the initial state (`channel.ts:169`); action
+   `SET_LIBRARY { library: boolean }` in `types.ts` and `protocol.ts`, listed
+   at `channel.ts:226`, reduced as `SET_RESPONSE_MODEL` is at `channel.ts:3469`
+   (no-op when unchanged). Read `?? false` everywhere, since restored rows
+   predate it.
+3. **The guard and the durable row, in `channels.ts`.** Beside the
+   `SET_RESPONSE_MODEL` guard (`:2780`): refuse a non-boolean as `invalid`,
+   and anybody whom `MDC_IDENTIFIERS` does not resolve to as `forbidden`, with
+   the sentence the app shows. Persist and restore it where `responseModel` is
+   (`:8002`, `:8387`, `:8455`), with the column added by the usual
+   `ALTER TABLE … ADD COLUMN` in `db.ts`. Also refuse it as `invalid` when
+   the server has no `library` configured, so the state cannot claim what it
+   cannot do.
+4. **The app.** A card in `ChannelSettingsView.tsx` after *Response model*,
+   drawn only where the view says the server has a library (a
+   `libraryAvailable` beside `claudeAvailable`, `app.ts:6350`, carried the way
+   `view.claude` is). One switch; disabled for anybody but the library's owner
+   with a *who* sentence; a note that it applies on Pro and Max. Words in
+   `en.ts` and `es.ts` together, chosen for translation; the control's shape
+   per STYLE.md, measured against 375pt; *Library* into GLOSSARY.md, list
+   and entry. Whether the server tells the app *you* are the owner (a field
+   on the account view) or the app just tries and shows the refusal is a
+   small choice for this step — prefer the field, since STYLE.md greys a
+   refusal a rule can name.
+5. **Who gets it at a press.** `respond()` computes `library =
+   !!options.library && channel.library && grade !== 'standard'`, and passes
+   it to `request()`. Tests: toggle off → no `mcp_servers` on any grade;
+   toggle on → Standard without, Pro and Max with, **whoever presses**.
+6. **The request.** `request(…, library)` takes the beta endpoint when
+   `ask.fallback || library` (today identical, since Pro and Max are the
+   fallback grades, but say both). Betas `MCP_BETA` and/or `FALLBACK_BETA`;
+   `mcp_servers` and the `mcp_toolset` as above. Export `MCP_BETA` and the
+   enabled tool names beside `FALLBACK_BETA`, so a test can pin the allowlist
+   to exactly the five reading tools. **Confirm the field names and
+   beta id against the current MCP connector docs before writing this** — the
+   shape here is from memory, and the beta has renamed things once
+   (`tool_configuration` → `mcp_toolset`).
+7. **The prompt.** `systemPrompt(length, library)` adds one paragraph only
+   when on, so the existing test stands: the library is Rodrigo's own writing
+   (named — the presser may be somebody else now); consult it when the
+   conversation turns to something he has written about, not on every press;
+   read `guide` first; name any document drawn on by its title, in plain
+   words; the word limit covers the reply only. **It overrides the guide's
+   citation convention in so many words** — the model reads `guide` after
+   the system prompt and would otherwise follow it: no `## Related` or
+   `## References` section, every citation inline in plain words, a work
+   outside the library by author and year. And a document's Related titles
+   are his implicit recommendations, to follow when the question needs more
+   than the document gives.
+8. **The reply text.** `replyText(content)`, pure and exported: the `text`
+   blocks after the last `mcp_tool_result` (or `mcp_tool_use`, if a result is
+   missing), all of them when there was no tool call. Test with a scripted
+   array — working, use, result, answer — that only the answer is posted.
+   **Then drop a trailing `## Related` or `## References` section** — from
+   its heading to the end — in case the model followed the guide anyway:
+   the paste is plain lines and the heading would arrive as literal `##`.
+   Test that an answer ending in both is posted without them, and that
+   inline citations are untouched.
+9. **mdc down.** A library request that throws without the abort firing is
+   retried once without `mcp_servers`/toolset, inside the same timer, with a
+   warning naming mdc; a timeout is not retried. An `mcp_tool_result` with
+   `is_error` needs nothing. Check against the live API which of the two an
+   unreachable mdc produces, and whether the connector can end on
+   `pause_turn` as server tools do — `respond()` would post the text before it.
+10. **Time.** `CLAUDE_LIBRARY_TIMEOUT_MS = 120_000` for a library request; the
+    card says *Responding…* throughout. `maxTokens` untouched until library
+    rows show `max_tokens`.
+11. **The ledger.** `claude_usage.library_calls INTEGER` — null when not
+    offered, else the count of `mcp_tool_use` blocks — with the table's
+    comment extended. `usage.input_tokens` already counts tool results.
+12. **Privacy.** `/privacy` says of a press *"Nothing else is sent."* In a
+    channel with the toggle on, search terms drawn from the Record go to a
+    server the operator runs, and the reply may quote the operator's writing.
+    One sentence, present only where `library` is configured, and a bump of
+    `CLAUDE_PRIVACY_UPDATED`. **Rodrigo's wording to approve**, deployed
+    before the token is set.
+13. **Paperwork, same commits.** `MDC_TOKEN` in `planning/CREDENTIALS.md` (its
+    row in § *What to read, and when*, and an entry: minted by
+    `scripts/add_token.py`, revoked by deleting its line in `users.toml`);
+    GLOSSARY.md and STYLE.md per step 4; this file becomes a dated decision
+    when it ships.
 
 ### Then, by hand
 
-Mint the token on `commons` (`scripts/add_token.py rodvandur`, note "The
-Floor"), add it with `bin/env-push`, and deploy. Make three presses on a
-channel whose Record touches something in the library and three on one that
-doesn't, then read `library_calls`, latency and input tokens off the ledger
-before deciding anything about grades or a switch.
+Deploy mdc first if it is still behind `43be338` — the allowlist would keep
+its write tools out regardless, but the guide they leave behind still tells
+Claude to call `append_turn`. Mint the token on `commons`
+(`scripts/add_token.py rodvandur`, note "The Floor"), `bin/env-push`, deploy
+the server; upload a build with the toggle.
+On Pro, three presses in a channel whose Record touches the library and three
+in one that does not, both toggled on; read `library_calls`, latency and input
+tokens off the ledger.
