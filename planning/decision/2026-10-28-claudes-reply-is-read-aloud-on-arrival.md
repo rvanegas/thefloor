@@ -12,7 +12,7 @@ after it is pasted."
 `useClaudeReadAloud`, mounted in `App.tsx` beside the chimes for their reason:
 somebody who walked back to Home is still in the room. It keys on
 `ChannelState.clip.id`, which already carries the latest paste in full, so
-there is no fetch and no wire change. The first look at a channel is taken as
+there is no fetch. The one wire change is `Clip.voices`, below. The first look at a channel is taken as
 read, `usePresenceChime`'s rule, and leaving the room stops the voice.
 
 **No switch.** The ask named one behaviour and no preference, so there is
@@ -20,22 +20,62 @@ nothing to turn off. If one is wanted, it is a phone's setting rather than the
 account's — the voices are installed on the phone — and the card has to say so,
 per `HomeSettingsView`'s one-scope paragraph.
 
-**Local, never into the call, and the session untouched.** A phone on its
-speaker with its microphone open can still carry the voice into the call —
-what the chimes already do. Every phone present reading the same reply at
-once is the price of no switch, and the first thing to look at if it grates.
+**Local, never into the call, and the session untouched.** Each phone reads to
+its own listener. Every phone present reading the same reply at once is the
+price of no switch, and the first thing to look at if it grates.
 
-**The synthesizer renders and an `AVAudioPlayer` plays.** Build 395 used
-`AVSpeechSynthesizer.speak` with the app's session, and Rodrigo heard it only
-in the earpiece while `CALL` held `defaultToSpeaker` and the chimes were on the
-loudspeaker. Why is not established; the likeliest account is that synthesis
-plays from a system service that does not take the session's route. So from the
-build after 395, `write(_:toBufferCallback:)` renders each reply to a file and a
-player in this process plays it, the film chimes' path. The cost is the render
-before the first word, about a second for a long reply. **If this is ever
-reverted to `speak`, check the route on a phone first.**
+**The synthesizer renders; the call's own engine plays.** Build 395 used
+`AVSpeechSynthesizer.speak`, and Rodrigo heard it only in the earpiece while
+`CALL` held `defaultToSpeaker`. Build 396 rendered with
+`write(_:toBufferCallback:)` and played the file through an `AVAudioPlayer`,
+the film chimes' path, which fixed the route and then failed three ways on a
+phone: **faint**, **stopping after a few sentences**, and **heard by everybody
+else through whoever's microphone was open**. The first and third are one
+cause: to the voice processing the call runs, a player in the app is *other
+audio*, which iOS ducks, and which the echo canceller cannot remove, its
+reference being only what the engine itself plays.
+
+So from build 397 the reply plays on **an `AVAudioPlayerNode` on the main mixer
+of LiveKit's own `AVAudioEngine`** (`CallEngine.swift` in
+`app/modules/read-aloud`): mixed with the call at its level, and cancelled from
+the microphone like the voices beside it. **It therefore never reaches a
+recording**, which is track egress of what the microphone sends; on build 396
+it could, by the same leak that carried it into the call. The engine is not
+public and takes one delegate, which `@livekit/react-native-webrtc` already is,
+so its observer class's `configureOutputFromSource`, `willStartEngine`,
+`didStopEngine` and `willReleaseEngine` are **replaced at module creation**,
+each calling the original first. The engine wires `source → mainMixerNode →
+outputNode` itself and then calls `configureOutputFromSource` with the mixer
+(`audio_engine_device.mm`, m144, LiveKitWebRTC 144.7559.15) — the moment it
+expects the graph to be extended. **A LiveKit upgrade that renames any of them
+turns this off rather than breaking anything**: speech falls back to the
+player, and the log says which selector was missing. Check that line after
+every LiveKit bump. The player remains the path while the engine is not playing
+out at all, as alone in a room.
+
+**The stop after a few sentences is not established.** Two accounts fitted and
+the code could not choose: `write` ended early, the first empty buffer having
+been taken as the end; or the player was stopped when LiveKit restarted the
+engine, as it does when somebody takes the floor. Both are now handled rather
+than chosen between — a render ends only a quarter of a second after an empty
+buffer with nothing following, and the engine stopping mid-sentence is waited
+for a second and a half and resumed from the half-second it was in — and both
+are reported: **every line the reader writes starts `read-aloud` in the
+diagnostics log**, which ships to the server. `empties` above 1 on a
+`rendered` line is the first account; `engine stopped during` is the second.
+
+**A sentence at a time**, split by `NLTokenizer`: the first plays while the
+rest render, which also takes the second off the time to the first word.
 
 ## Which voice
+
+**The asker's**, at Rodrigo's word, from build 397: a press of *Ask Claude*
+sends the voice the asker's phone would read each language in (`askerVoices`),
+the server carries it onto the reply as `Clip.voices`, and **every phone reads
+in it where it has that voice installed**, and in its own choice where it has
+not. Identifiers are the same across phones for the same voice, so only an
+install is needed. An asker on an older build sends none, and each phone then
+reads in its own. What follows is how a phone's own choice is made.
 
 **The language the reply is written in**, which is the conversation's, since
 Claude answers in that. Built first on the app's language, and changed the

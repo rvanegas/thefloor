@@ -410,6 +410,37 @@ describe('Ask Claude', () => {
     }
   );
 
+  it('carries the asker\u2019s voices onto the reply, for every phone to read it in', async () => {
+    const { client } = fakeClient(() => reply('Fine.'));
+    boot(client);
+    const { alice, channelId } = await room2();
+    const voices = { en: 'com.apple.voice.enhanced.en-US.Allison', es: 'com.apple.voice.premium.es-MX.Paulina' };
+    const res = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/claude`,
+      headers: auth(alice.token),
+      payload: { length: 'brief', voices },
+    });
+    expect(res.statusCode).toBe(200);
+    expect(app.channels.get(channelId)!.clip?.voices).toEqual(voices);
+  });
+
+  it('posts the reply without voices it cannot read, rather than refusing the press', async () => {
+    for (const voices of ['Allison', ['en'], { english: 'x' }, { en: '' }, { en: 'x'.repeat(201) }]) {
+      const { client } = fakeClient(() => reply('Fine.'));
+      boot(client);
+      const { alice, channelId } = await room2();
+      const res = await app.fastify.inject({
+        method: 'POST',
+        url: `/channels/${channelId}/claude`,
+        headers: auth(alice.token),
+        payload: { length: 'brief', voices },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(app.channels.get(channelId)!.clip).not.toHaveProperty('voices');
+    }
+  });
+
   it('refuses a length there is no button for, without asking anybody', async () => {
     const { client, calls } = fakeClient(() => reply('Fine.'));
     boot(client);

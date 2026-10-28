@@ -180,6 +180,25 @@ export const DEFAULT_REPLY_LENGTH: ReplyLength = 'medium';
 export const isReplyLength = (value: unknown): value is ReplyLength =>
   typeof value === 'string' && Object.prototype.hasOwnProperty.call(REPLY_WORD_LIMITS, value);
 
+/**
+ * The asker's voices as a press sends them, or undefined for anything else —
+ * an object of at most a few two- or three-letter subtags, each naming an
+ * identifier of a sensible length. Never refused: a press with voices this
+ * cannot read is still a press, and every phone then reads in its own.
+ */
+export function readVoices(value: unknown): Record<string, string> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value).filter(
+    ([language, voice]) =>
+      /^[a-z]{2,3}$/.test(language) &&
+      typeof voice === 'string' &&
+      voice.length > 0 &&
+      voice.length <= 200
+  );
+  if (entries.length === 0 || entries.length > 4) return undefined;
+  return Object.fromEntries(entries) as Record<string, string>;
+}
+
 export function lengthRule(length: ReplyLength): string {
   const { words, shape } = REPLY_WORD_LIMITS[length];
   return (
@@ -466,7 +485,8 @@ export interface ClaudeChannels {
   postClaudeReply(
     channelId: string,
     askerId: string,
-    text: string
+    text: string,
+    voices?: Record<string, string>
   ): 'posted' | 'too_long' | 'empty' | 'gone';
 }
 
@@ -551,7 +571,9 @@ export class ClaudeResponder {
   async respond(
     channelId: string,
     userId: string,
-    length: ReplyLength = DEFAULT_REPLY_LENGTH
+    length: ReplyLength = DEFAULT_REPLY_LENGTH,
+    /** The asker's, carried onto the reply for every phone to read it in. */
+    voices?: Record<string, string>
   ): Promise<ClaudeResult> {
     const { channels, now } = this.options;
     const channel = channels.get(channelId);
@@ -595,7 +617,12 @@ export class ClaudeResponder {
       if (response.stop_reason === 'refusal') {
         outcome = 'refused';
       } else {
-        outcome = channels.postClaudeReply(channelId, userId, replyText(response.content));
+        outcome = channels.postClaudeReply(
+          channelId,
+          userId,
+          replyText(response.content),
+          voices
+        );
       }
     } catch (error) {
       outcome = controller.signal.aborted ? 'timeout' : 'error';

@@ -79,6 +79,7 @@ import {
   databaseSources,
   DEFAULT_REPLY_LENGTH,
   isReplyLength,
+  readVoices,
   type ClaudeClient,
   type LibraryOptions,
 } from './claude';
@@ -5004,7 +5005,8 @@ export function buildApp(options: BuildOptions = {}): App {
    * when the reply is posted or has failed, so the app can say which; every
    * screen meanwhile says *Responding…* from the channel's own state. Members
    * only, with the same 404 as the transcript routes beside it; being present
-   * is the guard's. See claude.ts.
+   * is the guard's. See claude.ts. `voices`, since build 397, is the asker's
+   * read-aloud voice per language, carried onto the reply (`Clip.voices`).
    */
   fastify.post('/channels/:id/claude', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -5016,11 +5018,14 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!claude) {
       return reply.code(503).send({ error: 'Claude is not available here.' });
     }
-    const { length = DEFAULT_REPLY_LENGTH } = (request.body ?? {}) as { length?: unknown };
+    const { length = DEFAULT_REPLY_LENGTH, voices } = (request.body ?? {}) as {
+      length?: unknown;
+      voices?: unknown;
+    };
     if (!isReplyLength(length)) {
       return reply.code(400).send({ error: 'No such length.' });
     }
-    const result = await claude.respond(id, account.id, length);
+    const result = await claude.respond(id, account.id, length, readVoices(voices));
     if (!result.ok) return reply.code(result.status).send({ error: result.error });
     return { ok: true };
   });

@@ -11,22 +11,29 @@ import NaturalLanguage
  arrived in iOS 16, and a wrapper that reports only Default and Enhanced draws
  the best voice a phone can have as the worst.
 
- **It never touches the audio session.** The synthesizer only renders — see
- `speak` — and an `AVAudioPlayer` in this process plays the result through
- whatever the call has configured. Nothing here writes a category, an option or
- an active state: the three components that already configure the session are
- planning/POSTMORTEM-echo.md, and a fourth is not wanted. Nothing is sent into
- the call either: each phone reads to its own listener.
+ **It never touches the audio session.** The synthesizer only renders, and the
+ call's own engine plays the result (`CallEngine`, `Reader`). Nothing here
+ writes a category, an option or an active state: the three components that
+ already configure the session are planning/POSTMORTEM-echo.md, and a fourth is
+ not wanted. Nothing is sent into the call either: each phone reads to its own
+ listener, and the echo canceller keeps it out of the microphone.
  */
 public class ReadAloudModule: Module {
-  private lazy var synthesizer: AVSpeechSynthesizer = {
-    let synthesizer = AVSpeechSynthesizer()
-    synthesizer.usesApplicationAudioSession = true
-    return synthesizer
-  }()
-
   public func definition() -> ModuleDefinition {
     Name("ReadAloud")
+
+    Events("onReport")
+
+    /**
+     The engine hook goes in before any call can configure an engine, and its
+     report is the first line: installed, or which selector this LiveKit lacks.
+     */
+    OnCreate {
+      CallEngine.shared.report = { [weak self] line in
+        self?.sendEvent("onReport", ["line": line])
+      }
+      CallEngine.shared.install()
+    }
 
     /**
      Every voice installed for a language, by its two-letter subtag — `es`
@@ -81,128 +88,37 @@ public class ReadAloudModule: Module {
       return ["language": best.key.rawValue, "confidence": best.value]
     }
 
+    /** What the engine hook found at creation, for the diagnostics log. */
+    Function("hook") { () -> String in
+      CallEngine.shared.status
+    }
+
     /**
-     Rendered to a file, then played by an `AVAudioPlayer` in this process —
-     **not** `speak(_:)`.
-
-     **`speak(_:)` came out of the earpiece**, build 395, with `CALL` holding
-     `defaultToSpeaker` and the chimes beside it on the loudspeaker. Why is not
-     established — the likeliest account is that recent iOS plays synthesis
-     from a system service rather than this process, and that playback does not
-     take the route the session's options choose. What is established is the
-     other side: an `AVAudioPlayer` here is the film chimes' path (`playThroughPlayer`
-     in audio-route), which is heard on the loudspeaker under the same session,
-     so speech takes it too: `write` hands back the audio, nothing is played
-     until it is all in, and the player follows whatever route the call has.
-
-     The cost is the render before the first word — faster than real time, so
-     about a second for a long reply. **Queued behind anything still being
-     spoken** rather than cutting it off: two replies in quick succession are
-     two things somebody asked to hear.
+     Rendered and played by `Reader`, on the call's engine where it is playing
+     out — see `CallEngine` for why there — and queued behind anything still
+     being read rather than cutting it off.
      */
     AsyncFunction("speak") { (text: String, voice: String?, language: String) -> Bool in
-      let utterance = AVSpeechUtterance(string: text)
-      utterance.voice =
-        voice.flatMap { AVSpeechSynthesisVoice(identifier: $0) }
-        ?? AVSpeechSynthesisVoice(language: language)
-      self.render(utterance)
+      self.reader.speak(text, voice: voice, language: language)
       return true
     }.runOnQueue(.main)
 
     AsyncFunction("stop") { () -> Bool in
-      self.generation += 1
-      self.queue.removeAll()
-      self.player?.stop()
-      self.player = nil
-      return self.synthesizer.stopSpeaking(at: .immediate)
+      self.reader.stop()
+      return true
     }.runOnQueue(.main)
   }
 
-  /** Bumped by `stop`, so a render still under way when somebody leaves is dropped. */
-  private var generation = 0
-  private var queue: [URL] = []
-  private var player: AVAudioPlayer?
-  private lazy var finish = PlayerFinish { [weak self] in self?.playNext() }
-
-  /**
-   One utterance into one file in the caches directory, then onto the queue.
-
-   **The end is a buffer of no frames**, which is how `write` says it is done;
-   the file is released there, which is what closes it, before it is played.
-   */
-  private func render(_ utterance: AVSpeechUtterance) {
-    let started = generation
-    let url = FileManager.default.temporaryDirectory
-      .appendingPathComponent("read-aloud-\(UUID().uuidString).caf")
-    var file: AVAudioFile?
-    var done = false
-    synthesizer.write(utterance) { [weak self] buffer in
-      guard !done, let pcm = buffer as? AVAudioPCMBuffer else { return }
-      if pcm.frameLength == 0 {
-        done = true
-        let wrote = file != nil
-        file = nil
-        DispatchQueue.main.async {
-          guard let self, wrote, started == self.generation else {
-            try? FileManager.default.removeItem(at: url)
-            return
-          }
-          self.queue.append(url)
-          if self.player == nil { self.playNext() }
-        }
-        return
-      }
-      do {
-        if file == nil {
-          file = try AVAudioFile(
-            forWriting: url,
-            settings: pcm.format.settings,
-            commonFormat: pcm.format.commonFormat,
-            interleaved: pcm.format.isInterleaved
-          )
-        }
-        try file?.write(from: pcm)
-      } catch {
-        done = true
-        file = nil
-        try? FileManager.default.removeItem(at: url)
-      }
-    }
-  }
-
-  private func playNext() {
-    if let previous = player?.url { try? FileManager.default.removeItem(at: previous) }
-    player = nil
-    while !queue.isEmpty {
-      let url = queue.removeFirst()
-      if let next = try? AVAudioPlayer(contentsOf: url) {
-        next.delegate = finish
-        player = next
-        if next.play() { return }
-        player = nil
-      }
-      try? FileManager.default.removeItem(at: url)
-    }
-  }
+  private lazy var reader: Reader = {
+    let reader = Reader()
+    reader.report = { [weak self] line in self?.sendEvent("onReport", ["line": line]) }
+    return reader
+  }()
 
   private static func qualityName(_ quality: AVSpeechSynthesisVoiceQuality) -> String {
     if #available(iOS 16.0, *) {
       if quality == .premium { return "premium" }
     }
     return quality == .enhanced ? "enhanced" : "default"
-  }
-}
-
-/** The player's delegate, which a `Module` cannot be, being no `NSObject`. */
-final class PlayerFinish: NSObject, AVAudioPlayerDelegate {
-  private let then: () -> Void
-  init(_ then: @escaping () -> Void) { self.then = then }
-
-  func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
-    DispatchQueue.main.async(execute: then)
-  }
-
-  func audioPlayerDecodeErrorDidOccur(_ player: AVAudioPlayer, error: Error?) {
-    DispatchQueue.main.async(execute: then)
   }
 }

@@ -5,7 +5,9 @@ import type { LanguagePreference } from '../../../core/settings';
 import type { ChannelState } from '../../../core/types';
 import {
   detectLanguage,
+  engineHook,
   installedVoices,
+  onReadAloudReport,
   speak,
   stopSpeaking,
   type DetectedLanguage,
@@ -14,6 +16,7 @@ import {
 } from '../../modules/read-aloud';
 import { deviceRegion } from '../api/region';
 import { storage } from '../state/storage';
+import { recordEvent } from './diagnostics';
 
 /**
  * Claude's replies, read aloud the moment they land, and nothing else.
@@ -160,6 +163,23 @@ export async function chooseVoice(
   await storage.set(VOICE_KEYS[language], identifier).catch(() => undefined);
 }
 
+/**
+ * The voice this phone would read each language in now, by subtag — what a
+ * press of *Ask Claude* sends, so that **every phone reads the reply in the
+ * asker's voice** where it has that voice installed. Undefined where this
+ * build cannot speak or has no voice for either language.
+ */
+export function askerVoices(): Record<string, string> | undefined {
+  const found: Record<string, string> = {};
+  for (const language of Object.keys(VOICE_KEYS) as SpokenLanguage[]) {
+    const voices = installedVoices(language);
+    if (!voices) return undefined;
+    const voice = bestVoice(voices, localeFor(language), chosenVoices[language] ?? null);
+    if (voice) found[language] = voice.identifier;
+  }
+  return Object.keys(found).length > 0 ? found : undefined;
+}
+
 export interface LanguageVoices {
   language: SpokenLanguage;
   /** The voice a reply in this language would be read in now. */
@@ -251,14 +271,18 @@ export function useReadAloudVoices(languages: readonly SpokenLanguage[]): {
  * **In the language the reply is written in** (`replyLocale`), with
  * `fallback` — the app's — only where the text will not say.
  *
- * **Local, and never into the call**, as every chime is: each phone reads to
- * its own listener. A phone on its speaker with its microphone open may carry
- * the voice into the call as well, which is the chimes' standing too.
+ * **In the asker's voice** (`Clip.voices`, from `askerVoices`) where this
+ * phone has it installed, and in this phone's own choice where it has not.
+ *
+ * **Local, and never into the call**: each phone reads to its own listener,
+ * on the call's own audio engine, so the echo canceller keeps it out of the
+ * microphone — see `ios/CallEngine.swift` in modules/read-aloud. What the
+ * native half does with each reply goes to the diagnostics log as it happens.
  */
 export function useClaudeReadAloud(
   live: ChannelState | null,
   fallback: string,
-  say: (text: string, locale: string) => void = sayWithBestVoice,
+  say: (text: string, locale: string, voices?: Record<string, string>) => void = sayWithBestVoice,
   hush: () => void = stopSpeaking,
   detect: (text: string) => DetectedLanguage | null = detectLanguage
 ): void {
@@ -289,15 +313,47 @@ export function useClaudeReadAloud(
 
     const { clip: pasted, fallback: otherwise, detect: recognize } = latest.current;
     if (pasted?.authorId !== CLAUDE_ID) return;
-    say(pasted.text, replyLocale(pasted.text, otherwise, recognize));
+    const locale = replyLocale(pasted.text, otherwise, recognize);
+    if (pasted.voices) say(pasted.text, locale, pasted.voices);
+    else say(pasted.text, locale);
   }, [channelId, clipId, say, hush]);
 
   useEffect(() => () => hush(), [hush]);
+
+  // Mounted once, above every screen, for the life of the app — so the
+  // native half's lines reach the log whether or not the panel is open.
+  useEffect(() => {
+    const hook = engineHook();
+    if (hook) recordEvent(`read-aloud engine hook ${hook}`);
+    return onReadAloudReport(recordEvent);
+  }, []);
 }
 
-function sayWithBestVoice(text: string, locale: string): void {
+/**
+ * The voice a reply is read in on this phone: **the asker's**, where this
+ * phone has it installed; else this phone's own rule, `bestVoice`.
+ */
+export function readingVoice(
+  installed: readonly Voice[],
+  locale: string,
+  asked: string | undefined,
+  own: string | null
+): Voice | null {
+  const theirs = asked && installed.find((voice) => voice.identifier === asked);
+  return theirs || bestVoice(installed, locale, own);
+}
+
+function sayWithBestVoice(
+  text: string,
+  locale: string,
+  voices?: Record<string, string>
+): void {
   const language = languageOf(locale);
-  const voices = installedVoices(language) ?? [];
-  const chosen = chosenVoices[language] ?? null;
-  speak(text, bestVoice(voices, locale, chosen)?.identifier ?? null, locale);
+  const voice = readingVoice(
+    installedVoices(language) ?? [],
+    locale,
+    voices?.[language],
+    chosenVoices[language] ?? null
+  );
+  speak(text, voice?.identifier ?? null, locale);
 }

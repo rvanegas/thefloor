@@ -646,12 +646,19 @@ export const api = {
    * *Ask Claude*, on the *Record* bar, for a reply of one of three lengths.
    * Resolves once the reply is in the *Record*, which can take most of a
    * minute — up to two where the channel consults its library — and rejects
-   * with the server's sentence when it is not. Since 2026-10-22.
+   * with the server's sentence when it is not. Since 2026-10-22. `voices` is
+   * the asker's read-aloud voice per language, which every phone reads the
+   * reply in where it has it (`askerVoices`).
    */
-  askClaude: (token: string, channelId: string, length: ReplyLength) =>
+  askClaude: (
+    token: string,
+    channelId: string,
+    length: ReplyLength,
+    voices?: Record<string, string>
+  ) =>
     request<{ ok: true }>(`/channels/${channelId}/claude`, {
       method: 'POST',
-      body: { length },
+      body: voices ? { length, voices } : { length },
       token,
     }),
 

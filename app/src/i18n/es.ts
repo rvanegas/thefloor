@@ -662,7 +662,7 @@ export const es: Strings = {
     readAloudChoice: (voice: string, quality: 'enhanced' | 'premium') =>
       `${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'})`,
     readAloudChoiceNote: () =>
-      'La voz que eliges en los Ajustes de iOS no se comparte con las apps, así que elígela también aquí. Esta elección es de este teléfono, porque las voces están instaladas en él.',
+      'La voz que eliges en los Ajustes de iOS no se comparte con las apps, así que elígela también aquí. Esta elección es de este teléfono, porque las voces están instaladas en él, y cuando le preguntas a Claude, todos oyen la respuesta con ella si su teléfono también la tiene.',
     readAloudBasicVoice: (language: 'en' | 'es') =>
       `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: solo la voz b\u00e1sica, que suena rob\u00f3tica`,
     readAloudHowTo: (newerSettings: boolean) =>

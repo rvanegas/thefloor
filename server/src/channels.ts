@@ -7205,7 +7205,8 @@ export class ChannelRegistry {
   postClaudeReply(
     channelId: string,
     askerId: string,
-    text: string
+    text: string,
+    voices?: Record<string, string>
   ): 'posted' | 'too_long' | 'empty' | 'gone' {
     const channel = this.channels.get(channelId);
     if (!channel) return 'gone';
@@ -7217,6 +7218,7 @@ export class ChannelRegistry {
       pastedAt: this.now(),
       kind: 'text' as const,
       text,
+      ...(voices ? { voices } : {}),
     };
     const actor = channel.present.includes(askerId) ? askerId : channel.present[0];
     if (actor === undefined) {

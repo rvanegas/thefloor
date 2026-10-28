@@ -6,6 +6,7 @@ import type { ChannelState } from '../../../../core/types';
 import type { Voice } from '../../../modules/read-aloud';
 import {
   bestVoice,
+  readingVoice,
   replyLocale,
   speechLocale,
   useClaudeReadAloud,
@@ -79,6 +80,31 @@ describe('useClaudeReadAloud', () => {
     const probe = mount(channel);
     probe.update(paste(channel, { text: 'Hello, room.' }));
     expect(probe.say.mock.calls).toEqual([['Hello, room.', 'en-US']]);
+  });
+
+  it('hands on the asker’s voices with the reply', () => {
+    const channel = joined();
+    const probe = mount(channel);
+    const voices = { en: 'com.apple.voice.enhanced.en-US.Allison' };
+    probe.update(
+      reduce(
+        channel,
+        {
+          type: 'PASTE_CLIP',
+          userId: ME,
+          clip: {
+            id: 'clip_1',
+            authorId: CLAUDE_ID,
+            pastedAt: NOW + 1_000,
+            kind: 'text',
+            text: 'Hello, room.',
+            voices,
+          },
+        },
+        NOW + 1_000
+      )
+    );
+    expect(probe.say.mock.calls).toEqual([['Hello, room.', 'en-US', voices]]);
   });
 
   it('says nothing for somebody else’s paste', () => {
@@ -204,5 +230,24 @@ describe('speechLocale', () => {
   it('is the bare language when the phone speaks another', () => {
     expect(speechLocale('es', 'en-US')).toBe('es');
     expect(speechLocale('system', 'fr-FR')).toBe('en');
+  });
+});
+
+describe('readingVoice', () => {
+  const voice = (identifier: string, quality: Voice['quality'] = 'enhanced'): Voice => ({
+    identifier,
+    name: identifier,
+    language: 'en-US',
+    quality,
+  });
+  const installed = [voice('Allison'), voice('Ava', 'premium'), voice('Aaron')];
+
+  it('reads in the asker’s voice where this phone has it', () => {
+    expect(readingVoice(installed, 'en-US', 'Allison', 'Aaron')?.identifier).toBe('Allison');
+  });
+
+  it('reads in this phone’s own choice where it has not', () => {
+    expect(readingVoice(installed, 'en-US', 'Samantha', 'Aaron')?.identifier).toBe('Aaron');
+    expect(readingVoice(installed, 'en-US', undefined, null)?.identifier).toBe('Ava');
   });
 });

@@ -862,7 +862,7 @@ export const en = {
      * lets an app read it.
      */
     readAloudChoiceNote: () =>
-      'The voice you choose in iOS Settings is not shared with apps, so choose it here too. This choice is this phone’s, since the voices are installed on it.',
+      'The voice you choose in iOS Settings is not shared with apps, so choose it here too. This choice is this phone’s, since the voices are installed on it, and when you ask Claude, everybody hears the reply in it if their phone has it too.',
     readAloudBasicVoice: (language: 'en' | 'es') =>
       `${language === 'es' ? 'Spanish' : 'English'}: only the basic voice, which sounds robotic`,
     readAloudHowTo: (newerSettings: boolean) =>

@@ -32,6 +32,11 @@ interface NativeReadAloud {
   language(text: string): DetectedLanguage | null;
   speak(text: string, voice: string | null, language: string): Promise<boolean>;
   stop(): Promise<boolean>;
+  hook(): string;
+  addListener(
+    event: 'onReport',
+    listener: (payload: { line: string }) => void
+  ): { remove(): void };
 }
 
 function load(): NativeReadAloud | null {
@@ -78,4 +83,31 @@ export function speak(text: string, voice: string | null, language: string): voi
 
 export function stopSpeaking(): void {
   void native?.stop().catch(() => undefined);
+}
+
+/**
+ * What the native half found when it hooked the call's audio engine —
+ * `installed`, or which selector this LiveKit lacks — and null where there is
+ * no module. See `ios/CallEngine.swift`.
+ */
+export function engineHook(): string | null {
+  if (!native) return null;
+  try {
+    return native.hook();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Each line the native half reports as it renders and plays — every one
+ * beginning `read-aloud` — for the diagnostics log. Returns its unsubscribe.
+ */
+export function onReadAloudReport(listener: (line: string) => void): () => void {
+  try {
+    const sub = native?.addListener('onReport', ({ line }) => listener(line));
+    return () => sub?.remove();
+  } catch {
+    return () => {};
+  }
 }

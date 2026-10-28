@@ -32,6 +32,7 @@ import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
 import { recordEvent } from '../audio/diagnostics';
 import { startShippingDiagnostics } from '../audio/shipping';
+import { askerVoices } from '../audio/readAloud';
 import {
   currentDrift,
   DRIFT_REPORT_MS,
@@ -2840,7 +2841,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       askClaude: async (channelId, length) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        await api.askClaude(state.token, channelId, length);
+        await api.askClaude(state.token, channelId, length, askerVoices());
       },
 
       /**

@@ -444,6 +444,15 @@ export interface Clip {
    */
   kind: 'text';
   text: string;
+  /**
+   * On a reply from Claude only: the voice the asker's phone reads each
+   * language in, by two-letter subtag — an `AVSpeechSynthesisVoice`
+   * identifier, such as `com.apple.voice.enhanced.en-US.Allison`. **Every
+   * phone reads the reply in it where it has that voice installed**, and in
+   * its own choice where it has not. Absent where the asker's build predates
+   * it, and then each phone reads in its own.
+   */
+  voices?: Record<string, string>;
 }
 
 export type PlaybackStatus = 'idle' | 'playing' | 'paused';
