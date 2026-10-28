@@ -20,12 +20,20 @@ nothing to turn off. If one is wanted, it is a phone's setting rather than the
 account's — the voices are installed on the phone — and the card has to say so,
 per `HomeSettingsView`'s one-scope paragraph.
 
-**Local, never into the call.** `usesApplicationAudioSession` is left true, so
-the synthesizer plays through the session the call configured rather than
-reconfiguring it, and `mixToTelephonyUplink` stays false. A phone on its
+**Local, never into the call, and the session untouched.** A phone on its
 speaker with its microphone open can still carry the voice into the call —
 what the chimes already do. Every phone present reading the same reply at
 once is the price of no switch, and the first thing to look at if it grates.
+
+**The synthesizer renders and an `AVAudioPlayer` plays.** Build 395 used
+`AVSpeechSynthesizer.speak` with the app's session, and Rodrigo heard it only
+in the earpiece while `CALL` held `defaultToSpeaker` and the chimes were on the
+loudspeaker. Why is not established; the likeliest account is that synthesis
+plays from a system service that does not take the session's route. So from the
+build after 395, `write(_:toBufferCallback:)` renders each reply to a file and a
+player in this process plays it, the film chimes' path. The cost is the render
+before the first word, about a second for a long reply. **If this is ever
+reverted to `speak`, check the route on a phone first.**
 
 ## Which voice
 
