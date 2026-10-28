@@ -1239,6 +1239,19 @@ export interface ChannelView {
    */
   claude?: true;
   /**
+   * Present, and true, when this server has a library *Ask Claude* may
+   * consult, and Claude to consult it — which is what draws the *Library*
+   * card on *Channel Settings*. The server's configuration, as `claude` is,
+   * and absent from a server that predates it.
+   */
+  libraryAvailable?: true;
+  /**
+   * Whether this connection's own account owns that library, and so may
+   * switch it — about the reader, like `mayTranscribeLive`. Optional, read
+   * as no; the card is drawn for everybody, greyed for anybody but the owner.
+   */
+  mayChangeLibrary?: boolean;
+  /**
    * When this channel declared itself public, or null — which is every
    * channel that has not.
    *

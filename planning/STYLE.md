@@ -613,6 +613,12 @@ repeated the header's pill, which is what says in red that what is said is
 being kept; the switch says only what was chosen. A refused switch is the
 platform's grey and its word goes to `textFaint`.
 
+**One alone on *Channel Settings*' *Library* card, since 2026-10-27**:
+*Consult*, under *Response model*, the same `KeepSwitch` in the same row
+style as *Record automatically*'s pair. Drawn for everybody where the server
+has a library, refused — the platform's grey, its word `textFaint` — for
+anybody but the library's owner, with the sentence that says so under it.
+
 **A third under the pair, since 2026-10-16**: *Several voices on my
 microphone*, the same `KeepSwitch` on a line of its own under the row — a
 third on the row does not fit 375 points — and drawn only while you are here,

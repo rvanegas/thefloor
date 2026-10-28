@@ -1047,6 +1047,19 @@ export const en = {
     responseModelNote: () =>
       'Standard: faster and cheaper. Pro: a larger model, a little slower. Max: the largest model, thinking harder, and the slowest. It applies to whoever asks Claude.',
     responseModelWho: () => 'Only the people who run The Floor can change it.',
+    /**
+     * Whether *Ask Claude* may consult the server's library, since
+     * 2026-10-27: drawn for everybody, greyed with `libraryWho` for anybody
+     * but the library's owner. A *library* of writing, not the app's own
+     * recordings; see GLOSSARY.md.
+     */
+    library: () => 'Library',
+    libraryConsult: () => 'Consult',
+    libraryNote: () =>
+      'When on, Claude may draw on the library owner’s own writing while it answers, and names any piece it quotes. It applies on Pro and Max, to whoever asks Claude.',
+    libraryWho: () => 'Only the library’s owner can switch it on or off.',
+    libraryStepIn: () =>
+      'Step in to change this. What Claude may quote is for whoever is in the conversation.',
     notifications: () => 'Notifications',
     /** A *public channel*, in the word a user meets: see GLOSSARY.md. */
     podcast: () => 'Podcast',

@@ -559,6 +559,10 @@ export function registerWebsocket(deps: {
   mayAutoTranscribe?: (userId: string) => boolean;
   /** Whether this server can ask Claude, which draws *Ask Claude*. */
   claudeAvailable?: () => boolean;
+  /** Whether this server has a library for Claude to consult, which draws *Library*. */
+  libraryAvailable?: () => boolean;
+  /** Whether this account owns that library, and so may switch it. */
+  mayChangeLibrary?: (userId: string) => boolean;
   reachability: Reachability;
   preferences: NotificationPreferences;
   /** Where a guest's page should connect for audio. Absent without a media plane. */
@@ -1339,6 +1343,14 @@ export function registerWebsocket(deps: {
         // Absent rather than false where there is no key, as an old server
         // sends nothing: one reading for both.
         ...(deps.claudeAvailable?.() ? { claude: true as const } : {}),
+        // The same reading for the library, and whether the reader owns it,
+        // which is theirs alone like `mayTranscribeLive`.
+        ...(deps.libraryAvailable?.()
+          ? {
+              libraryAvailable: true as const,
+              mayChangeLibrary: deps.mayChangeLibrary?.(connection.userId) ?? false,
+            }
+          : {}),
         // The words that opened those windows, where there were any. The same
         // answer for everybody, like the windows themselves — see
         // `Channels.pingTexts` for why a sender's name travels with them.

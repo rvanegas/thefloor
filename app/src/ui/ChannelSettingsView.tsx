@@ -181,6 +181,9 @@ export function ChannelSettingsView({
   const transcriptionModel = channel.transcriptionModel ?? 'standard';
   /** `?? 'standard'` again. See `ChannelState.responseModel`. */
   const responseModel = channel.responseModel ?? 'standard';
+  /** `?? false`: a channel from a server before the switch never had it on. */
+  const library = channel.library ?? false;
+  const mayChangeLibrary = view?.mayChangeLibrary ?? false;
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
   /**
@@ -562,6 +565,37 @@ export function ChannelSettingsView({
           </View>
           <Text style={type.muted}>{t.responseModelNote()}</Text>
           {app.debug ? null : <Text style={type.muted}>{t.responseModelWho()}</Text>}
+        </Card>
+      ) : null}
+
+      {/*
+        **Whether *Ask Claude* may consult the library, since 2026-10-27** —
+        the response model's terms, under it because it qualifies it: drawn
+        for everybody, since what a reply may quote is something everybody in
+        the channel may know, and switchable only by the library's owner,
+        which the server enforces; anybody else gets it grey with the sentence
+        that says why. One `KeepSwitch`, as *Record automatically* draws its
+        pair. Drawn only where the server has a library and Claude to read it.
+      */}
+      {view?.libraryAvailable ? (
+        <Card style={styles.stack}>
+          <Text style={type.heading}>{t.library()}</Text>
+          <View style={styles.autoSwitches}>
+            <KeepSwitch
+              label={t.libraryConsult()}
+              on={library}
+              refused={!mayEdit || !mayChangeLibrary}
+              onChange={(on) => app.act(channel.id, { type: 'SET_LIBRARY', library: on })}
+            />
+          </View>
+          <Text style={type.muted}>{t.libraryNote()}</Text>
+          {!mayChangeLibrary ? (
+            <Text style={type.muted}>{t.libraryWho()}</Text>
+          ) : !mayEdit ? (
+            <Text style={type.muted}>
+              {community && !owner ? t.ownerOnly() : t.libraryStepIn()}
+            </Text>
+          ) : null}
         </Card>
       ) : null}
 

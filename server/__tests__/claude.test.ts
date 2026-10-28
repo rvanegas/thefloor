@@ -1,3 +1,4 @@
+import WebSocket from 'ws';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -560,6 +561,51 @@ describe('the library switch', () => {
     ({ alice, channelId } = await room2());
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: false, code: 'invalid' });
     expect(app.channels.get(channelId)!.library).toBe(false);
+  });
+
+  it('tells every reader the switch is there, and only its owner that it is theirs', async () => {
+    const firstView = async (token: string, channelId: string) => {
+      const address = app.fastify.server.address() as { port: number };
+      const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws?token=${token}`);
+      const received: Array<Record<string, unknown>> = [];
+      socket.on('message', (raw) => received.push(JSON.parse(String(raw))));
+      await new Promise((resolve) => socket.once('open', resolve));
+      socket.send(JSON.stringify({ type: 'watch.channel', channelId }));
+      for (let n = 0; n < 500; n++) {
+        const found = received.find((m) => m.type === 'channel');
+        if (found) {
+          socket.close();
+          return found.view as Record<string, unknown>;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      throw new Error('no channel message arrived');
+    };
+
+    boot(fakeClient(() => reply('x')).client, undefined, LIBRARY);
+    await app.fastify.listen({ port: 0, host: '127.0.0.1' });
+    let { alice, bob, channelId } = await room2();
+    expect(await firstView(alice.token, channelId)).toMatchObject({
+      libraryAvailable: true,
+      mayChangeLibrary: true,
+    });
+    expect(await firstView(bob.token, channelId)).toMatchObject({
+      libraryAvailable: true,
+      mayChangeLibrary: false,
+    });
+
+    // Claude without a library: neither field, as an old server sends neither.
+    app.channels.stop();
+    await app.fastify.close();
+    rmSync(dir, { recursive: true, force: true });
+    dir = mkdtempSync(join(tmpdir(), 'thefloor-claude-'));
+    boot(fakeClient(() => reply('x')).client);
+    await app.fastify.listen({ port: 0, host: '127.0.0.1' });
+    ({ alice, channelId } = await room2());
+    const plain = await firstView(alice.token, channelId);
+    expect(plain.claude).toBe(true);
+    expect(plain).not.toHaveProperty('libraryAvailable');
+    expect(plain).not.toHaveProperty('mayChangeLibrary');
   });
 
   it('names its owners by address, so an owner who signs up later is one', async () => {

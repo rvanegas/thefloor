@@ -6359,6 +6359,8 @@ export function buildApp(options: BuildOptions = {}): App {
       mayTranscribeLive,
       mayAutoTranscribe,
       claudeAvailable: () => claude !== null,
+      libraryAvailable: () => claude !== null && !!options.library,
+      mayChangeLibrary: (userId) => channels.libraryOwners().includes(userId),
       reachability,
       preferences,
       mediaUrl: options.mediaUrl,

@@ -806,6 +806,14 @@ export const es: Strings = {
     responseModelNote: () =>
       'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
     responseModelWho: () => 'Solo pueden cambiarlo quienes llevan The Floor.',
+    library: () => 'Biblioteca',
+    libraryConsult: () => 'Consultar',
+    // *Dueño*, the shorter word, and the masculine is accepted here.
+    libraryNote: () =>
+      'Si está activada, Claude puede apoyarse en los escritos del dueño de la biblioteca al responder, y nombra cualquier texto que cite. Se aplica en Pro y Max, a quien pregunte a Claude.',
+    libraryWho: () => 'Solo el dueño de la biblioteca puede activarla o desactivarla.',
+    libraryStepIn: () =>
+      'Entra para cambiar esto. Lo que Claude puede citar es cosa de quien está en la conversación.',
     notifications: () => 'Notificaciones',
     podcast: () => 'Podcast',
     guestLinks: () => 'Enlaces de invitado',
