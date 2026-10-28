@@ -12,6 +12,7 @@ import {
   LIBRARY_TOOLS,
   libraryFor,
   MCP_BETA,
+  replyText,
   lengthRule,
   REPLY_WORD_LIMITS,
   RESPONSE_MODELS,
@@ -528,6 +529,51 @@ describe('Ask Claude', () => {
   });
 });
 
+describe('what a response posts', () => {
+  const text = (t: string) => ({ type: 'text', text: t });
+  const use = { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'mdc', input: {} };
+  const result = { type: 'mcp_tool_result', tool_use_id: 'u', is_error: false, content: [] };
+
+  it('is all of its text when nothing was looked up, and never the thinking', () => {
+    expect(replyText([{ type: 'thinking' }, text('Call it '), text('Lantern.')])).toBe(
+      'Call it Lantern.'
+    );
+  });
+
+  it('is only what follows the last lookup, without the working before it', () => {
+    expect(
+      replyText([
+        text('Let me look that up.'),
+        use,
+        result,
+        text('Checking one more.'),
+        use,
+        result,
+        text('As you wrote in On Attention, it is a kind of will.'),
+      ])
+    ).toBe('As you wrote in On Attention, it is a kind of will.');
+  });
+
+  it('starts after a lookup whose result never came back', () => {
+    expect(replyText([text('Looking.'), use, text('The answer.')])).toBe('The answer.');
+  });
+
+  it('drops a Related or References section the guide asked for, and keeps inline citations', () => {
+    const answer = 'As James put it in 1890, and as you wrote in On Attention, it is will.';
+    expect(
+      replyText([
+        text(`${answer}\n\n## Related\n\n| *On Attention*\n\n## References\n\n| James (1890) *Principles*`),
+      ])
+    ).toBe(answer);
+    expect(replyText([text(`${answer}\n\nReferences:\nJames (1890) Principles`)])).toBe(answer);
+    expect(replyText([text(`${answer}\n### Related\n| *On Attention*`)])).toBe(answer);
+  });
+
+  it('is nothing at all when the sections were all there was', () => {
+    expect(replyText([use, result, text('## Related\n\n| *On Attention*')])).toBe('');
+  });
+});
+
 describe('which presses consult the library', () => {
   const LIB: LibraryOptions = { url: 'https://mdc.example/mcp', token: 't', identifiers: [] };
   const grades = ['standard', 'pro', 'max'] as const;
@@ -605,6 +651,34 @@ describe('a press with the library', () => {
     const { calls, bob, channelId } = await setUp('pro');
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
     expect(calls[0].body.system).toBe(systemPrompt('medium', { owner: 'Alice' }));
+  });
+
+  it('posts only the answer after the lookups, as Claude', async () => {
+    const answer = 'As you wrote in On Attention, Alice, it is a kind of will.';
+    const fake = fakeClient(() =>
+      reply('', {
+        model: 'claude-sonnet-5-5',
+        content: [
+          { type: 'text', text: 'Let me look that up.' },
+          { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'mdc', input: {} },
+          { type: 'mcp_tool_result', tool_use_id: 'u', is_error: false, content: [] },
+          { type: 'text', text: `${answer}\n\n## Related\n\n| *On Attention*` },
+        ],
+      })
+    );
+    boot(fake.client, undefined, LIBRARY);
+    const { alice, bob, channelId } = await room2();
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_RESPONSE_MODEL',
+      responseModel: 'pro',
+    } as never);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
+
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(claudePastes(channelId)).toEqual([
+      expect.objectContaining({ display_name: 'Claude', text: answer }),
+    ]);
   });
 
   it('tells Claude nothing of it with the switch off', async () => {

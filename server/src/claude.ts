@@ -199,6 +199,38 @@ export function libraryRule(owner: string | null): string {
   ].join(' ');
 }
 
+/** A line that heads a Related or References section, however it is marked. */
+const CITATION_HEADING = /^[ \t]*(?:#{1,6}[ \t]*)?(?:Related|References)[ \t]*:?[ \t]*$/im;
+
+/**
+ * What a response posts: its text blocks, and nothing else — the thinking is
+ * never posted, nor a fallback's switch-point block — **after the last
+ * library lookup**. A press that consulted the library returns `mcp_tool_use`
+ * and `mcp_tool_result` blocks with Claude's working between them ("let me
+ * look that up"); only what follows the last of them is the answer. A
+ * response with no lookup is all of its text, as before.
+ *
+ * Then **from a Related or References heading to the end is dropped**, in
+ * case the model followed mdc's guide rather than the prompt: a paste is
+ * plain lines, and the heading would arrive as a literal `##`. Inline
+ * citations are untouched.
+ */
+export function replyText(
+  content: ReadonlyArray<{ type: string; text?: string }>
+): string {
+  let start = 0;
+  content.forEach((block, i) => {
+    if (block.type === 'mcp_tool_use' || block.type === 'mcp_tool_result') start = i + 1;
+  });
+  const text = content
+    .slice(start)
+    .flatMap((block) => (block.type === 'text' ? [block.text ?? ''] : []))
+    .join('')
+    .trim();
+  const heading = CITATION_HEADING.exec(text);
+  return heading ? text.slice(0, heading.index).trim() : text;
+}
+
 export function systemPrompt(length: ReplyLength, library?: { owner: string | null }): string {
   return [
     'You are Claude, taking part in a voice conversation among people using an ' +
@@ -540,13 +572,7 @@ export class ClaudeResponder {
       if (response.stop_reason === 'refusal') {
         outcome = 'refused';
       } else {
-        // Every text block, and nothing else: the thinking is never posted,
-        // nor a fallback's switch-point block.
-        const text = response.content
-          .flatMap((block) => (block.type === 'text' ? [block.text] : []))
-          .join('')
-          .trim();
-        outcome = channels.postClaudeReply(channelId, userId, text);
+        outcome = channels.postClaudeReply(channelId, userId, replyText(response.content));
       }
     } catch (error) {
       outcome = controller.signal.aborted ? 'timeout' : 'error';
