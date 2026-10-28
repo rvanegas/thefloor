@@ -1045,7 +1045,10 @@ export function buildApp(options: BuildOptions = {}): App {
     // reason they can undo, and the next build they run says so.
     (userId) =>
       accounts.byId(userId)?.notifications === 'granted' &&
-      devices.tokensFor([userId]).length > 0
+      devices.tokensFor([userId]).length > 0,
+    // A library with no Claude to consult it is no library: nobody may switch
+    // one on that no press could reach.
+    options.claude && options.library ? options.library.identifiers : null
   );
 
   // **Every step-out the server makes takes the card down with it** — the

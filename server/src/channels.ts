@@ -360,6 +360,8 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_TRANSCRIPTION_MODEL',
   // `debug` only, refused in `dispatch` beside the transcription model.
   'SET_RESPONSE_MODEL',
+  // The library's owner only, refused in `dispatch` beside the response model.
+  'SET_LIBRARY',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
   'SET_SELF_MUTE',
@@ -1132,7 +1134,15 @@ export class ChannelRegistry {
      * behaves the way it did before the gate existed, which is what keeps the
      * several dozen tests that construct one directly saying what they meant.
      */
-    private reachable: (userId: string) => boolean = () => true
+    private reachable: (userId: string) => boolean = () => true,
+    /**
+     * Who owns the library *Ask Claude* may consult, by sign-in address — the
+     * only accounts that may switch a channel's library on or off. `null`
+     * when this server has no library, or no Claude to consult it, and then
+     * nobody may. Addresses and resolved at every use, as `cohortHostIdentifiers`
+     * is; see `libraryOwners`. See `LibraryOptions` in claude.ts.
+     */
+    private libraryOwnerIdentifiers: readonly string[] | null = null
   ) {
     this.usage = new UsageMeter(db, () => this.now());
     this.mixes = new Mixer(
@@ -2144,6 +2154,13 @@ export class ChannelRegistry {
       .filter((id): id is string => !!id);
   }
 
+  /** The library's owners as account ids, resolved now for `cohortHosts`'s reason. */
+  libraryOwners(): string[] {
+    return (this.libraryOwnerIdentifiers ?? [])
+      .map((identifier) => this.accounts.byIdentifier(identifier)?.id)
+      .filter((id): id is string => !!id);
+  }
+
   /**
    * The cohort still taking arrivals, and the number the next one would carry.
    *
@@ -2786,6 +2803,25 @@ export class ChannelRegistry {
         return {
           ok: false,
           error: 'Only a debug account can choose the response model.',
+          code: 'forbidden',
+        };
+      }
+    }
+
+    // The library is its owner's writing, and switching it on is consent to
+    // that writing reaching this room's Record — so the owner's alone, whoever
+    // the channel belongs to, and on top of the reducer's channel guard. A
+    // server without a library refuses it as no action at all, so the state
+    // can never claim a switch that reaches nothing.
+    if (action.type === 'SET_LIBRARY') {
+      const on = (action as { library?: unknown }).library;
+      if (typeof on !== 'boolean' || this.libraryOwnerIdentifiers === null) {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      if (!this.libraryOwners().includes(userId)) {
+        return {
+          ok: false,
+          error: 'Only the library’s owner can switch it on or off.',
           code: 'forbidden',
         };
       }

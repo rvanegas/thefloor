@@ -1790,6 +1790,13 @@ export type ClientAction =
    * those who may not change it. Unknown to a server that predates it.
    */
   | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
+  /**
+   * Refused by the server from anybody who does not own its library, and from
+   * every account on a server that has none. Unknown to a server that
+   * predates it, which an app never sends it to: such a server never offers
+   * the switch.
+   */
+  | { type: 'SET_LIBRARY'; library: boolean }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   /**

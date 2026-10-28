@@ -14,6 +14,7 @@ import {
   systemPrompt,
   userMessage,
   type ClaudeClient,
+  type LibraryOptions,
   type RecordSources,
 } from '../src/claude';
 import { MemoryMailer } from '../src/mail';
@@ -225,7 +226,7 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-function boot(client?: ClaudeClient, timeoutMs?: number): App {
+function boot(client?: ClaudeClient, timeoutMs?: number, library?: LibraryOptions): App {
   app = buildApp({
     dbPath: join(dir, 'thefloor.db'),
     mailer: new MemoryMailer(),
@@ -233,6 +234,7 @@ function boot(client?: ClaudeClient, timeoutMs?: number): App {
     roomCloseGraceMs: 0,
     claude: client,
     claudeTimeoutMs: timeoutMs,
+    library,
   });
   return app;
 }
@@ -497,6 +499,78 @@ describe('Ask Claude', () => {
     await press(channelId, alice.token);
     app.channels.usage.forget(alice.account.id);
     expect(usageRows()[0]).toMatchObject({ account_id: null, input_tokens: 1200 });
+  });
+});
+
+describe('the library switch', () => {
+  const LIBRARY: LibraryOptions = {
+    url: 'https://mdc.example/mcp',
+    token: 'secret',
+    identifiers: ['alice@example.com'],
+  };
+
+  const set = (channelId: string, userId: string, library: unknown) =>
+    app.channels.dispatch(channelId, userId, { type: 'SET_LIBRARY', library } as never);
+
+  it('is switched by the library’s owner, and survives a restart', async () => {
+    const { client } = fakeClient(() => reply('x'));
+    boot(client, undefined, LIBRARY);
+    const { alice, channelId } = await room2();
+    expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
+    expect(app.channels.get(channelId)!.library).toBe(true);
+
+    app.channels.stop();
+    await app.fastify.close();
+    boot(client, undefined, LIBRARY);
+    expect(app.channels.get(channelId)!.library).toBe(true);
+    expect(set(channelId, alice.account.id, false)).toMatchObject({ ok: true });
+    expect(app.channels.get(channelId)!.library).toBe(false);
+  });
+
+  it('is refused, by name, to anybody else in the room, and changes nothing', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, LIBRARY);
+    const { bob, channelId } = await room2();
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(bob.account.id);
+    expect(set(channelId, bob.account.id, true)).toMatchObject({
+      ok: false,
+      code: 'forbidden',
+      error: 'Only the library’s owner can switch it on or off.',
+    });
+    expect(app.channels.get(channelId)!.library).toBe(false);
+  });
+
+  it('refuses anything but true or false, even from the owner', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, LIBRARY);
+    const { alice, channelId } = await room2();
+    for (const value of ['yes', undefined, 1]) {
+      expect(set(channelId, alice.account.id, value)).toMatchObject({ ok: false, code: 'invalid' });
+    }
+  });
+
+  it('is no action at all on a server without a library, or without Claude to consult one', async () => {
+    boot(fakeClient(() => reply('x')).client);
+    let { alice, channelId } = await room2();
+    expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: false, code: 'invalid' });
+
+    app.channels.stop();
+    await app.fastify.close();
+    rmSync(dir, { recursive: true, force: true });
+    dir = mkdtempSync(join(tmpdir(), 'thefloor-claude-'));
+    boot(undefined, undefined, LIBRARY);
+    ({ alice, channelId } = await room2());
+    expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: false, code: 'invalid' });
+    expect(app.channels.get(channelId)!.library).toBe(false);
+  });
+
+  it('names its owners by address, so an owner who signs up later is one', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, {
+      ...LIBRARY,
+      identifiers: ['carol@example.com', 'alice@example.com'],
+    });
+    const { alice } = await room2();
+    expect(app.channels.libraryOwners()).toEqual([alice.account.id]);
+    const carol = await signIn('carol@example.com', 'Carol');
+    expect(app.channels.libraryOwners()).toEqual([carol.account.id, alice.account.id]);
   });
 });
 
