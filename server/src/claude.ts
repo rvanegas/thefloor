@@ -489,7 +489,7 @@ const FAILURES: Record<Exclude<ClaudeOutcome, 'posted'>, { status: number; error
  * let Claude consult through the Messages API's MCP connector: Anthropic's
  * servers call mdc, not this one. Reading only. Present only with a token,
  * and then only in a channel whose *Library* switch is on, on Pro and Max.
- * See planning/task/claude-draws-on-the-mdc-library-through-mcp.md.
+ * See planning/decision/2026-10-27-claude-consults-its-owner-s-library-channel-by-channel.md.
  */
 export interface LibraryOptions {
   /** mdc's MCP server, `https://mdc.rvanegas.co/mcp` in production. */

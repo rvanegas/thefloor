@@ -369,7 +369,8 @@ Deliberately separate, so no single leak is worse than it has to be:
   library at `MDC_URL`, minted on `commons` by mdc's
   `scripts/add_token.py rodvandur` with the note "The Floor". The eleventh,
   added 2026-10-27 —
-  task/claude-draws-on-the-mdc-library-through-mcp.md. **This server never
+  decision/2026-10-27-claude-consults-its-owner-s-library-channel-by-channel.md.
+  **This server never
   presents it**: it goes in the Messages request, and Anthropic's servers call
   mdc with it, so it travels to Anthropic on every library press, as the
   Record does.
