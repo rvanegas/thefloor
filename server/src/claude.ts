@@ -171,7 +171,35 @@ export function lengthRule(length: ReplyLength): string {
   );
 }
 
-export function systemPrompt(length: ReplyLength): string {
+/**
+ * What a press that consults the library is told about it, beside the rest of
+ * the system prompt. `owner` is the library's owner by display name, or null
+ * where none has signed in yet; named because whoever presses may be anybody
+ * in the channel, and a reply should be able to say whose writing it quotes.
+ *
+ * **It overrides mdc's guide on citation in so many words**: the guide, read
+ * after this, asks for `## Related` and `## References` sections, which suit
+ * a library chat and not a paste of plain lines.
+ */
+export function libraryRule(owner: string | null): string {
+  const who = owner ?? 'the library’s owner';
+  const whose = owner ? `${owner}’s` : 'the library owner’s';
+  return [
+    `You can consult a library through the mdc tools: ${whose} own writing — essays, notes and ` +
+      `conversations, dated and indexed by term. It is ${whose} whoever asked you, and ${who} may ` +
+      'or may not be in this conversation. Consult it only when the conversation turns to ' +
+      `something ${who} has written about; most turns need nothing from it. Read the guide tool ` +
+      'before the others.',
+    `Treat the titles in a document’s Related section as ${whose} own recommendations of what ` +
+      'bears on it, and follow them when the question needs more than the document gives.',
+    'When your reply draws on a document, name it by its title in plain words. The guide asks ' +
+      'for Related and References sections at the end of a reply: do not write them here. Cite ' +
+      'everything inline instead, and a work outside the library by its author and year. Only ' +
+      'your final answer is shown, and the word limit is for it alone.',
+  ].join(' ');
+}
+
+export function systemPrompt(length: ReplyLength, library?: { owner: string | null }): string {
   return [
     'You are Claude, taking part in a voice conversation among people using an ' +
       'app called The Floor. You are given the record of the conversation so far: ' +
@@ -184,6 +212,9 @@ export function systemPrompt(length: ReplyLength): string {
       'in the language being spoken, addressing people by name where that helps. ' +
       'Write plain text, with no Markdown, lists or headings, because your reply ' +
       'is shown as plain lines.',
+    // Only where the press consults the library, so every other prompt is
+    // byte for byte what it was.
+    ...(library ? [libraryRule(library.owner)] : []),
     lengthRule(length),
   ].join('\n\n');
 }
@@ -449,6 +480,11 @@ export interface ClaudeResponderOptions {
   timeoutMs?: number;
   /** Absent, no press consults a library. See `LibraryOptions`. */
   library?: LibraryOptions;
+  /**
+   * The library's owner by display name, asked at each press that consults
+   * it, for the prompt to name; null when none has signed in.
+   */
+  libraryOwner?: () => string | null;
   log?: { warn(details: object, message: string): void };
 }
 
@@ -534,7 +570,10 @@ export class ClaudeResponder {
     const body = {
       model: ask.model,
       max_tokens: ask.maxTokens,
-      system: systemPrompt(length),
+      system: systemPrompt(
+        length,
+        library ? { owner: this.options.libraryOwner?.() ?? null } : undefined
+      ),
       messages: [{ role: 'user' as const, content: userMessage(record, length) }],
       output_config: { effort: ask.effort },
     };

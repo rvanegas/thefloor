@@ -143,6 +143,28 @@ describe('the instructions', () => {
     }
   });
 
+  it('says nothing of a library unless the press consults one', () => {
+    for (const length of ['brief', 'medium', 'extended'] as const) {
+      expect(systemPrompt(length)).not.toMatch(/library|mdc|Related/);
+      expect(systemPrompt(length, undefined)).toBe(systemPrompt(length));
+    }
+  });
+
+  it('names the library’s owner, keeps citation inline against mdc’s guide, and keeps the limit', () => {
+    const prompt = systemPrompt('medium', { owner: 'Rodrigo' });
+    expect(prompt).toContain('Rodrigo’s own writing');
+    expect(prompt).toContain('only when the conversation turns to something Rodrigo has written about');
+    expect(prompt).toContain('Read the guide tool');
+    expect(prompt).toContain('Related section as Rodrigo’s own recommendations');
+    expect(prompt).toContain('do not write them here');
+    expect(prompt).toContain('by its title in plain words');
+    expect(prompt).toContain('plain text');
+    expect(prompt).toContain(lengthRule('medium'));
+    expect(prompt).not.toMatch(/\bcut\b|truncat/i);
+    // Before anybody it names has signed in, it still makes sense.
+    expect(systemPrompt('medium', { owner: null })).toContain('the library owner’s own writing');
+  });
+
   it('asks Standard and Pro at low effort and Max at medium, with the larger two’s fallback', () => {
     expect(RESPONSE_MODELS.standard).toEqual({
       model: 'claude-haiku-5-5',
@@ -577,6 +599,18 @@ describe('a press with the library', () => {
       'read_file',
     ]);
     for (const tool of LIBRARY_TOOLS) expect(configs[tool]).toEqual({ enabled: true });
+  });
+
+  it('tells Claude whose library it is, whoever presses', async () => {
+    const { calls, bob, channelId } = await setUp('pro');
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls[0].body.system).toBe(systemPrompt('medium', { owner: 'Alice' }));
+  });
+
+  it('tells Claude nothing of it with the switch off', async () => {
+    const { calls, bob, channelId } = await setUp('pro', false);
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls[0].body.system).toBe(systemPrompt('medium'));
   });
 
   it('hands it over on Max too', async () => {

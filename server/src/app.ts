@@ -1192,6 +1192,11 @@ export function buildApp(options: BuildOptions = {}): App {
         now,
         timeoutMs: options.claudeTimeoutMs,
         library: options.library,
+        // The first owner who has signed in, by the name the room knows them by.
+        libraryOwner: () => {
+          const id = channels.libraryOwners()[0];
+          return id ? (accounts.byId(id)?.display_name ?? null) : null;
+        },
         log: { warn: (details, message) => fastify.log.warn(details, message) },
       })
     : null;
