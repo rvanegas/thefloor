@@ -48,7 +48,7 @@ caused; the list carries the meaning.
 - **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
-- **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the channel's whole *Record* and posts one turn into it, as a *paste* by *Claude*, of at most 30, 90 or 270 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*, and never spoken. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
+- **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the channel's whole *Record* and posts one turn into it, as a *paste* by *Claude*, of at most 50, 150 or 450 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*, and never spoken. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
 - **Paste** — A piece of text somebody here put into the channel, kept in the *Record* as a *segment* of its own at the moment it was made — an instant, which breaks no other segment — for anybody to copy, and never deleted; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
@@ -673,8 +673,8 @@ microphone* is — the words *Ask Claude*, with *· Pro* when the channel's
 a 375-point phone.
 
 **Each button does the same thing and differs only in the length it asks
-for**: at most 30, 90 or 270 words — *Medium* nearest the hundred that every
-reply was before there were three. Chosen at the press, not set on the
+for**: at most 50, 150 or 450 words — *Medium* the middle one, and what a
+request with no length gets. Chosen at the press, not set on the
 channel, so it is nowhere in `ChannelState`; it travels in the request as
 `length`, a `ReplyLength`, and `REPLY_WORD_LIMITS` in `server/src/claude.ts`
 holds the numbers. A request with none is *Medium*.

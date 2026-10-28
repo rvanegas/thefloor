@@ -24,7 +24,7 @@ export interface ResponseGrade {
   effort: 'low' | 'medium' | 'high';
   /**
    * A ceiling on the whole answer, thinking included — never its intended
-   * length, which is the prompt's word cap — *Extended*'s 270 at the most.
+   * length, which is the prompt's word cap — *Extended*'s 450 at the most.
    * Only tokens generated are billed, so headroom here costs nothing.
    */
   maxTokens: number;
@@ -53,8 +53,8 @@ export interface ResponseGrade {
  * says it. Its ceiling is the largest because medium thinks the most.
  */
 export const RESPONSE_MODELS: Record<ResponseModel, ResponseGrade> = {
-  // 2048 since *Extended*: 270 words is about 360 tokens before any thinking.
-  standard: { model: 'claude-haiku-5-5', effort: 'low', maxTokens: 2048, fallback: false },
+  // 3072 since *Extended* became 450 words, about 600 tokens before any thinking.
+  standard: { model: 'claude-haiku-5-5', effort: 'low', maxTokens: 3072, fallback: false },
   pro: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 4096, fallback: true },
   max: { model: 'claude-opus-5-5', effort: 'medium', maxTokens: 8192, fallback: true },
 };
@@ -160,19 +160,19 @@ export const CLAUDE_LIBRARY_TIMEOUT_MS = 120_000;
  * a model given the reason applies it to cases the rule did not name, and
  * neither claims that a longer reply will be cut, because it will not be.
  *
- * **Three caps since 2026-10-22, one per button**, each three times the one
- * before. The sentences are a shape to aim at, which a word count alone does
+ * **Three caps since 2026-10-22, one per button** — 30, 90 and 270 until
+ * 2026-10-27, when Rodrigo made them 50, 150 and 450. The sentences are a shape to aim at, which a word count alone does
  * not give a model.
  */
 export const REPLY_WORD_LIMITS: Record<ReplyLength, { words: number; shape: string }> = {
-  brief: { words: 30, shape: 'one or two sentences' },
-  medium: { words: 90, shape: 'two to four sentences' },
-  extended: { words: 270, shape: 'a paragraph or two' },
+  brief: { words: 50, shape: 'two or three sentences' },
+  medium: { words: 150, shape: 'a short paragraph' },
+  extended: { words: 450, shape: 'a few paragraphs' },
 };
 
 /**
- * What a press asks for when it names no length: *Medium*, nearest the
- * hundred words every reply was before the three buttons. For builds up to
+ * What a press asks for when it names no length: *Medium*, the
+ * middle of the three, as builds before the three buttons asked for a hundred. For builds up to
  * 387, which send no body — planning/SHIMS.md, gate 388.
  */
 export const DEFAULT_REPLY_LENGTH: ReplyLength = 'medium';

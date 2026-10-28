@@ -1440,7 +1440,7 @@ export const en = {
     claudeProSuffix: () => ' \u00b7 Pro',
     /** After *Ask Claude* when the channel's *Response model* is *Max*. */
     claudeMaxSuffix: () => ' \u00b7 Max',
-    /** The three lengths, 30, 90 and 270 words: of a reply, so feminine in Spanish. */
+    /** The three lengths, 50, 150 and 450 words: of a reply, so feminine in Spanish. */
     replyBrief: () => 'Brief',
     replyMedium: () => 'Medium',
     replyExtended: () => 'Extended',

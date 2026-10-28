@@ -847,7 +847,7 @@ export function KeepSwitches({
  * was one button, *Respond*, until the same day.
  *
  * Every button does the same thing, and differs only in the length asked
- * for — 30, 90 or 270 words, the server's `REPLY_WORD_LIMITS`. Pressing one
+ * for — 50, 150 or 450 words, the server's `REPLY_WORD_LIMITS`. Pressing one
  * reads the channel's whole *Record* and posts one turn from Claude into it,
  * as a paste. **The busy state is the channel's**: while anybody's press is
  * out, `channel.claude` makes every screen's words say *Responding…*, all

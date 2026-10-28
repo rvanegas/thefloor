@@ -976,7 +976,8 @@ button.
 `POST /channels/:id/claude` — `decision/2026-10-22-ask-claude-in-three-lengths.md`.
 **Builds 386 and 387 draw the one *Respond* button and send no body**, so the
 route reads a missing `length` as `DEFAULT_REPLY_LENGTH`, *Medium*, the
-nearest of the three to the hundred words they were built against.
+middle of the three — 150 words since 2026-10-27, against the hundred they
+were built for.
 
 **What goes at 388**: `DEFAULT_REPLY_LENGTH` and the `= DEFAULT_REPLY_LENGTH`
 defaults on the route's destructuring and on `ClaudeResponder.respond`, after

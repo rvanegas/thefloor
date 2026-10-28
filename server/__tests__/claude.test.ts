@@ -122,10 +122,10 @@ describe('the Record as Claude reads it', () => {
 });
 
 describe('the instructions', () => {
-  it('caps each length at 30, 90 and 270 words', () => {
-    expect(REPLY_WORD_LIMITS.brief.words).toBe(30);
-    expect(REPLY_WORD_LIMITS.medium.words).toBe(90);
-    expect(REPLY_WORD_LIMITS.extended.words).toBe(270);
+  it('caps each length at 50, 150 and 450 words', () => {
+    expect(REPLY_WORD_LIMITS.brief.words).toBe(50);
+    expect(REPLY_WORD_LIMITS.medium.words).toBe(150);
+    expect(REPLY_WORD_LIMITS.extended.words).toBe(450);
   });
 
   it.each(['brief', 'medium', 'extended'] as const)(
@@ -175,7 +175,7 @@ describe('the instructions', () => {
     expect(RESPONSE_MODELS.standard).toEqual({
       model: 'claude-haiku-5-5',
       effort: 'low',
-      maxTokens: 2048,
+      maxTokens: 3072,
       fallback: false,
     });
     expect(RESPONSE_MODELS.pro).toEqual({
@@ -371,7 +371,7 @@ describe('Ask Claude', () => {
     expect(calls[0].beta).toBe(false);
     expect(calls[0].body).toMatchObject({
       model: 'claude-haiku-5-5',
-      max_tokens: 2048,
+      max_tokens: 3072,
       output_config: { effort: 'low' },
       // No length, as builds up to 387 send: Medium.
       system: systemPrompt('medium'),
