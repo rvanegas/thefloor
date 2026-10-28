@@ -19,6 +19,7 @@ import { useRecordingChime } from './src/audio/useRecordingChime';
 import { useFilmHandover } from './src/audio/useFilmHandover';
 import { useFilmTakesMicrophone } from './src/audio/useFilmTakesMicrophone';
 import { useWatchChime } from './src/audio/useWatchChime';
+import { speechLocale, useClaudeReadAloud } from './src/audio/readAloud';
 import { useSilencedNudge } from './src/audio/useSilencedNudge';
 import { useSpeakingReport } from './src/audio/useSpeakingReport';
 import { useUnheardReport } from './src/audio/useUnheardReport';
@@ -495,6 +496,16 @@ function Root() {
    * See `useWatchChime`.
    */
   useWatchChime(live, me, undefined, undefined, filmTakes);
+
+  /**
+   * Claude's reply, read aloud as it lands — the only thing this app speaks.
+   *
+   * Here for the reason the cues above are: a reply spoken only to whoever is
+   * looking at the *Record* misses everybody who walked back to Home and is
+   * still in the room. In the app's language, with the best voice the phone
+   * has for it; Floor Settings says which that is. See `useClaudeReadAloud`.
+   */
+  useClaudeReadAloud(live, speechLocale(app.language));
 
   /**
    * Says this device is being attended, which is all a client does about

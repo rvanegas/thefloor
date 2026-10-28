@@ -837,6 +837,19 @@ export const en = {
     audioOutput: () => 'Audio output',
     chooseWhereSoundComesOut: () => 'Choose where sound comes out',
     chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
+    readAloud: () => 'Read aloud',
+    /**
+     * **Settings' own words for the path, which iOS 26 renamed** — *Spoken
+     * Content* became *Read & Speak* — so the version picks. The quality is
+     * named as the Voices list labels it, which is what somebody is matching
+     * against with their finger.
+     */
+    readAloudVoice: (voice: string, quality: 'enhanced' | 'premium') =>
+      `Claude\u2019s replies are read aloud as they arrive, in ${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'}).`,
+    readAloudBasicVoice: () =>
+      'Claude\u2019s replies are read aloud as they arrive, in the basic English voice, which sounds robotic.',
+    readAloudHowTo: (newerSettings: boolean, onlyPremium: boolean) =>
+      `For a more natural voice, open Settings \u203a Accessibility \u203a ${newerSettings ? 'Read & Speak' : 'Spoken Content'} \u203a Voices \u203a English, choose a voice, and download its ${onlyPremium ? 'Premium' : 'Enhanced or Premium'} version. It is used here as soon as it has downloaded.`,
     on: () => 'On',
     off: () => 'Off',
     diagnostics: () => 'Diagnostics',

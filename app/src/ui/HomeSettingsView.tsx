@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
+import { speechLocale, useReadAloudVoice } from '../audio/readAloud';
 import { showRoutePicker } from '../audio/routePicker';
 import { mayHoldToken } from '../push';
 import { useApp } from '../state/AppProvider';
@@ -301,6 +302,26 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           </Card>
         </>
       ) : null}
+
+      {/*
+        **Which voice Claude's replies are read in, and how to get a better
+        one**, since 2026-10-28. Under *Audio output* because it is the same
+        near miss: it is about this phone — the voices are installed on it, not
+        on the account — and it stores nothing, so there is no second scope to
+        admit. It reports and advises; there is no switch, the reading being
+        the one thing the app speaks and not a preference. See
+        `useClaudeReadAloud`.
+
+        **The download cannot be started from here, or linked to.** iOS has no
+        API for either, and the only Settings URL a public app may open is its
+        own page. So the card says the path in Settings' own words, and asks
+        again when the app comes back to the foreground — which is when
+        somebody who followed it finds out whether it took.
+
+        Not drawn where this build cannot speak: telling somebody to download a
+        voice nothing here would use is advice to waste a few hundred megabytes.
+      */}
+      <ReadAloudSection />
 
       {/*
         *Labs* was here, a switch for the unfinished parts of the app, and has
@@ -917,3 +938,30 @@ const styles = StyleSheet.create({
   },
   error: { color: colors.danger, fontSize: 13 },
 });
+
+/** The *Read aloud* card. See the comment where it is drawn. */
+function ReadAloudSection() {
+  const app = useApp();
+  const t = useText().homeSettings;
+  const { available, voice } = useReadAloudVoice(speechLocale(app.language));
+  if (Platform.OS !== 'ios' || !available) return null;
+  const good = voice && voice.quality !== 'default' ? voice.quality : null;
+  const newerSettings = parseInt(String(Platform.Version), 10) >= 26;
+  return (
+    <>
+      <SectionLabel>{t.readAloud()}</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.body}>
+          {good && voice
+            ? t.readAloudVoice(voice.name, good)
+            : t.readAloudBasicVoice()}
+        </Text>
+        {good === 'premium' ? null : (
+          <Text style={type.muted}>
+            {t.readAloudHowTo(newerSettings, good === 'enhanced')}
+          </Text>
+        )}
+      </Card>
+    </>
+  );
+}
