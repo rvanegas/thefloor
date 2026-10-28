@@ -2915,6 +2915,8 @@ export function buildApp(options: BuildOptions = {}): App {
       // Named only where the server can ask, on `transcription`'s rule. See
       // PolicyOptions.claude.
       claude: claude ? 'Anthropic' : undefined,
+      // Only beside Claude, on its rule. See PolicyOptions.library.
+      library: claude !== null && !!options.library,
     });
   });
 

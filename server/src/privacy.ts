@@ -137,7 +137,22 @@ export interface PolicyOptions {
    * that takes *Ask Claude* away. Since 2026-10-22.
    */
   claude?: string;
+  /**
+   * Whether this server can give Claude a library — one person's writing,
+   * which a channel's *Library* switch lets a press consult. Meaningful only
+   * with `claude`, and its paragraph sits inside that section; the same gate
+   * for the same reason, so unsetting `MDC_TOKEN` retracts it in the restart
+   * that takes the switch away. Since 2026-10-27.
+   */
+  library?: boolean;
 }
+
+/**
+ * When the page last changed for a reader whose server can give Claude a
+ * library, on `CLAUDE_PRIVACY_UPDATED`'s terms: shown only where that
+ * paragraph is.
+ */
+export const LIBRARY_PRIVACY_UPDATED = '27 October 2026';
 
 /**
  * When the page last changed for a reader whose server can ask Claude. Later
@@ -280,6 +295,17 @@ unnoticed for far longer.</p>
     learned the hard way. What this server does is send the Record, as text,
     when somebody presses one of the *Ask Claude* buttons, and keep the reply as a paste.
   */
+  // Inside Claude's section, and only where both are: a library with no
+  // Claude to consult it is nothing that can happen to a reader. Nothing is
+  // claimed about what that server keeps of a search, which is not checkable
+  // from here — this page's rule, as for Anthropic.
+  const library = !!(claude && options.library);
+  const libraryParagraph = `<p>This server can also give Claude a library: one person's own writing,
+kept on a server the people who run The Floor keep. In a channel where that
+person has switched it on, Claude may look things up in it while writing a
+reply — the words it searches with, drawn from the Record, go to that
+server — and the reply may quote what it finds.</p>
+`;
   const claudeSection = claude
     ? `
 <h2>Claude</h2>
@@ -295,7 +321,7 @@ what the Record already says.</p>
 under the name <em>Claude</em>, for everybody in the channel to read, and is
 deleted with the channel, on the same schedule as everything else in it. Every screen in the channel says <em>Responding…</em>
 in place of <em>Ask Claude</em> while the reply is being written.</p>
-
+${library ? libraryParagraph : ''}
 `
     : '';
 
@@ -309,7 +335,9 @@ in place of <em>Ask Claude</em> while the reply is being written.</p>
         'the application collects little.',
       path: '/privacy',
     }),
-    standfirst: `The Floor · last updated ${claude ? CLAUDE_PRIVACY_UPDATED : PRIVACY_UPDATED}`,
+    standfirst: `The Floor · last updated ${
+      library ? LIBRARY_PRIVACY_UPDATED : claude ? CLAUDE_PRIVACY_UPDATED : PRIVACY_UPDATED
+    }`,
     body: `
 <p>The Floor is for talking with people you already know. This
 page says what it stores, why, and for how long. It is short because the

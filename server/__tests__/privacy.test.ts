@@ -11,7 +11,7 @@ import {
 import { NOTIFY_HEADER } from '../src/release';
 import { buildApp, type App } from '../src/app';
 import { toTransaction, type AppStoreVerifier } from '../src/appStore';
-import { CLAUDE_PRIVACY_UPDATED, PRIVACY_UPDATED } from '../src/privacy';
+import { CLAUDE_PRIVACY_UPDATED, LIBRARY_PRIVACY_UPDATED, PRIVACY_UPDATED } from '../src/privacy';
 import { MemoryTranscription } from '../src/transcription';
 
 /**
@@ -261,6 +261,42 @@ describe('The privacy policy', () => {
       // And one date, the true one for this page.
       expect(page).toContain(CLAUDE_PRIVACY_UPDATED);
       expect(page).not.toContain(`last updated ${PRIVACY_UPDATED}`);
+    });
+
+    const library = { url: 'https://mdc.example/mcp', token: 't', identifiers: [] };
+
+    it('says nothing of a library without one, and keeps Claude’s date', async () => {
+      app = buildApp({ dbPath: ':memory:', claude: noClient });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).not.toContain('library');
+      expect(page).toContain(CLAUDE_PRIVACY_UPDATED);
+      expect(page).not.toContain(LIBRARY_PRIVACY_UPDATED);
+    });
+
+    it('says nothing of a library with no Claude to consult it', async () => {
+      app = buildApp({ dbPath: ':memory:', library });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).not.toContain('library');
+      expect(page).toContain(PRIVACY_UPDATED);
+    });
+
+    it('says what a library sends, and where, inside Claude’s section, with its own date', async () => {
+      app = buildApp({ dbPath: ':memory:', claude: noClient, library });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      const claudeAt = page.indexOf('<h2>Claude</h2>');
+      const nextAt = page.indexOf('<h2>', claudeAt + 1);
+      const at = page.indexOf('This server can also give Claude a library');
+      expect(at).toBeGreaterThan(claudeAt);
+      expect(at).toBeLessThan(nextAt);
+      expect(page).toContain("one person's own writing");
+      expect(page).toContain('the words it searches with, drawn from the Record, go to that server');
+      expect(page).toContain('the reply may quote what it finds');
+      // Nothing about what that server keeps of a search: not checkable here.
+      expect(page).not.toMatch(/(keeps|retains|deletes|stores) (the|your|a) search/);
+      expect(page).toContain(`last updated ${LIBRARY_PRIVACY_UPDATED}`);
+      expect(page).not.toContain(`last updated ${CLAUDE_PRIVACY_UPDATED}`);
+      // The Record paragraph above it still stands as written.
+      expect(page).toContain('Nothing else is sent');
     });
 
     it('names both processors where both are configured', async () => {
