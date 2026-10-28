@@ -19,8 +19,7 @@ HTTP, live since 2026-10-27), the reading tools `mdc reply` gives the model:
   summary or index term, with summaries and related terms.
 - `read_document(path)`, `read_file(name)` — read one in full.
 
-**It writes nothing**, since mdc `43be338` (2026-10-27, not yet deployed when
-this was written): `edit_file` went back to `mdc reply` alone, and
+**It writes nothing**, since mdc `43be338` (deployed 2026-10-27): `edit_file` went back to `mdc reply` alone, and
 `append_turn` was withdrawn — claude.ai edits with its own documents, and a
 conversation reaches the library whole through its export and `mdc import`.
 
@@ -252,9 +251,7 @@ for the reducer, `server/__tests__/claude.test.ts` for the rest.
 
 ### Then, by hand
 
-Deploy mdc first if it is still behind `43be338` — the allowlist would keep
-its write tools out regardless, but the guide they leave behind still tells
-Claude to call `append_turn`. Mint the token on `commons`
+Mint the token on `commons`
 (`scripts/add_token.py rodvandur`, note "The Floor"), `bin/env-push`, deploy
 the server; upload a build with the toggle.
 On Pro, three presses in a channel whose Record touches the library and three
