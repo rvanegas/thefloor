@@ -9,6 +9,7 @@ import { buildApp, type App } from '../src/app';
 import {
   composeRecord,
   FALLBACK_BETA,
+  libraryFor,
   lengthRule,
   REPLY_WORD_LIMITS,
   RESPONSE_MODELS,
@@ -500,6 +501,29 @@ describe('Ask Claude', () => {
     await press(channelId, alice.token);
     app.channels.usage.forget(alice.account.id);
     expect(usageRows()[0]).toMatchObject({ account_id: null, input_tokens: 1200 });
+  });
+});
+
+describe('which presses consult the library', () => {
+  const LIB: LibraryOptions = { url: 'https://mdc.example/mcp', token: 't', identifiers: [] };
+  const grades = ['standard', 'pro', 'max'] as const;
+
+  it('is none while the channel’s switch is off, on every grade', () => {
+    for (const grade of grades) expect(libraryFor(LIB, { library: false }, grade)).toBeUndefined();
+  });
+
+  it('is none on Standard even with it on, and the library on Pro and Max', () => {
+    expect(libraryFor(LIB, { library: true }, 'standard')).toBeUndefined();
+    expect(libraryFor(LIB, { library: true }, 'pro')).toBe(LIB);
+    expect(libraryFor(LIB, { library: true }, 'max')).toBe(LIB);
+  });
+
+  it('is none on a server without one, whatever the channel says', () => {
+    for (const grade of grades) expect(libraryFor(undefined, { library: true }, grade)).toBeUndefined();
+  });
+
+  it('reads a channel from before the switch as off', () => {
+    expect(libraryFor(LIB, {} as { library: boolean }, 'max')).toBeUndefined();
   });
 });
 

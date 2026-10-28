@@ -377,6 +377,22 @@ export interface LibraryOptions {
   identifiers: string[];
 }
 
+/**
+ * The library a press consults, or none: only where this server has one,
+ * the channel's *Library* switch is on, and the grade is *Pro* or *Max* —
+ * *Standard* stays the plain, fast call. **Whoever presses**: the switch is
+ * the channel's, as the grade is, and the owner's consent was given when it
+ * was turned on, so who asks is deliberately not an argument here.
+ */
+export function libraryFor(
+  library: LibraryOptions | undefined,
+  channel: Pick<ChannelState, 'library'>,
+  grade: ResponseModel
+): LibraryOptions | undefined {
+  if (!library || !(channel.library ?? false) || grade === 'standard') return undefined;
+  return library;
+}
+
 export interface ClaudeResponderOptions {
   client: ClaudeClient;
   channels: ClaudeChannels;
@@ -430,12 +446,14 @@ export class ClaudeResponder {
     // changing the setting later never changes what an earlier reply was.
     const grade = channel.responseModel ?? 'standard';
     const ask = RESPONSE_MODELS[grade];
+    // Read at the press with the grade, for the same reason.
+    const library = libraryFor(this.options.library, channel, grade);
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? CLAUDE_TIMEOUT_MS);
     let outcome: ClaudeOutcome = 'error';
     let response: Anthropic.Message | Anthropic.Beta.Messages.BetaMessage | undefined;
     try {
-      response = await this.request(ask, record, length, controller.signal);
+      response = await this.request(ask, record, length, controller.signal, library);
       if (response.stop_reason === 'refusal') {
         outcome = 'refused';
       } else {
@@ -462,7 +480,10 @@ export class ClaudeResponder {
     ask: ResponseGrade,
     record: ComposedRecord,
     length: ReplyLength,
-    signal: AbortSignal
+    signal: AbortSignal,
+    // What `libraryFor` decided. Not yet part of the request: the MCP
+    // connector fields arrive with step 6 of the library's task.
+    _library?: LibraryOptions
   ): Promise<Anthropic.Message | Anthropic.Beta.Messages.BetaMessage> {
     const body = {
       model: ask.model,
