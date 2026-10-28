@@ -138,6 +138,21 @@ describe('bestVoice', () => {
     ).toBe('Zoe');
   });
 
+  it('takes the voice chosen on this phone over a better one', () => {
+    const voices = [
+      voice('Aaron', 'enhanced'),
+      voice('Allison', 'enhanced'),
+      voice('Zoe', 'premium'),
+    ];
+    expect(bestVoice(voices, 'en-US', 'en-US.Allison')?.name).toBe('Allison');
+  });
+
+  it('forgets a chosen voice that is no longer installed', () => {
+    expect(
+      bestVoice([voice('Aaron', 'enhanced')], 'en-US', 'en-US.Allison')?.name
+    ).toBe('Aaron');
+  });
+
   it('is null with nothing installed', () => {
     expect(bestVoice([], 'en-US')).toBeNull();
   });

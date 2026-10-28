@@ -53,8 +53,20 @@ transcript does not have and which describes the speech rather than the
 reply; and a channel setting, wrong whenever a conversation changes language.
 
 Then the phone's region where the phone speaks that language (`localeFor`),
-and among the installed voices the best quality, the region, then the name
-(`bestVoice`).
+and **the voice chosen for it on *Floor Settings***, or else among the
+installed voices the best quality, the region, then the name (`bestVoice`).
+
+**The choice is the app's because iOS's cannot be read.** Rodrigo selected
+Allison (Enhanced) under Settings › Accessibility and was read to by Aaron,
+which sorts first among equals. That selection belongs to Speak Selection and
+no public API hands it to an app; `voiceWithLanguage:` promises only "enhanced
+quality voice if available". So the card lists the Enhanced and Premium voices
+for each language as buttons, where there are two or more, and says the iOS
+choice is not shared. **Kept in this phone's keychain**
+(`thefloor.readAloud.en`, `.es`), not on the account, since an identifier from
+one phone names nothing on another — the second scope *Floor Settings* warns
+about, admitted on the card. A chosen voice since deleted falls back to the
+rule above.
 
 **A local module, `app/modules/read-aloud`, rather than `expo-speech`.** The
 card needs `AVSpeechSynthesisVoice.quality` in all three values; Premium

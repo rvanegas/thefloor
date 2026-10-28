@@ -52,6 +52,10 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.tabsAtFoot',
   'thefloor.labs',
   'thefloor.chimeAmplitude',
+  // The voice chosen per language on Floor Settings — `readAloud.ts`. This
+  // phone's, since the voices are installed on it.
+  'thefloor.readAloud.en',
+  'thefloor.readAloud.es',
   'thefloor.notifications.launches',
   'thefloor.notifications.conversed',
   'thefloor.notifications.pitched',

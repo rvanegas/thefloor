@@ -852,6 +852,17 @@ export const en = {
       quality: 'enhanced' | 'premium'
     ) =>
       `${language === 'es' ? 'Spanish' : 'English'}: ${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'})`,
+    readAloudLanguage: (language: 'en' | 'es'): string =>
+      language === 'es' ? 'Spanish' : 'English',
+    readAloudChoice: (voice: string, quality: 'enhanced' | 'premium') =>
+      `${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'})`,
+    /**
+     * **Says why the voice chosen in iOS Settings is not the one here**, since
+     * that is what somebody who just chose one there expects: nothing public
+     * lets an app read it.
+     */
+    readAloudChoiceNote: () =>
+      'The voice you choose in iOS Settings is not shared with apps, so choose it here too. This choice is this phone’s, since the voices are installed on it.',
     readAloudBasicVoice: (language: 'en' | 'es') =>
       `${language === 'es' ? 'Spanish' : 'English'}: only the basic voice, which sounds robotic`,
     readAloudHowTo: (newerSettings: boolean) =>

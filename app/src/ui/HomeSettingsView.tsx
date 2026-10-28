@@ -309,12 +309,13 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
 
       {/*
         **Which voice Claude's replies are read in, and how to get a better
-        one**, since 2026-10-28. Under *Audio output* because it is the same
-        near miss: it is about this phone — the voices are installed on it, not
-        on the account — and it stores nothing, so there is no second scope to
-        admit. It reports and advises; there is no switch, the reading being
-        the one thing the app speaks and not a preference. See
-        `useClaudeReadAloud`.
+        one**, since 2026-10-28. Under *Audio output* because it is about this
+        phone — the voices are installed on it, not on the account. **It is the
+        second scope the paragraph at the top of this file warns about, and
+        says so on the card**: which voice reads is kept in this phone's
+        keychain, an identifier from one phone naming nothing on another. It
+        has no switch, the reading being the one thing the app speaks and not
+        a preference. See `useClaudeReadAloud` and `chooseVoice`.
 
         **The download cannot be started from here, or linked to.** iOS has no
         API for either, and the only Settings URL a public app may open is its
@@ -951,22 +952,53 @@ function ReadAloudSection() {
   const languages: SpokenLanguage[] = speechLocale(app.language).startsWith('es')
     ? ['es', 'en']
     : ['en', 'es'];
-  const found = useReadAloudVoices(languages);
+  const { found, choose } = useReadAloudVoices(languages);
   if (Platform.OS !== 'ios' || found === null) return null;
   const newerSettings = parseInt(String(Platform.Version), 10) >= 26;
   const allPremium = found.every(({ voice }) => voice?.quality === 'premium');
+  const anyChoice = found.some(({ choices }) => choices.length > 1);
   return (
     <>
       <SectionLabel>{t.readAloud()}</SectionLabel>
       <Card style={styles.stack}>
         <Text style={type.body}>{t.readAloudNote()}</Text>
-        {found.map(({ language, voice }) => (
-          <Text key={language} style={type.body}>
-            {voice && voice.quality !== 'default'
-              ? t.readAloudVoice(language, voice.name, voice.quality)
-              : t.readAloudBasicVoice(language)}
-          </Text>
-        ))}
+        {/*
+          **A choice only where there is one**: two or more Enhanced or
+          Premium voices for a language are buttons down the page, the one in
+          use primary, as every choice on this screen is drawn; one or none is
+          a line saying what reads. Down rather than across, for STYLE.md §
+          *A choice of more than three goes down the page*, a phone with
+          several voices downloaded being exactly that.
+        */}
+        {found.map(({ language, voice, choices }) =>
+          choices.length > 1 ? (
+            <View key={language} style={styles.stack}>
+              <Text style={type.body}>{t.readAloudLanguage(language)}</Text>
+              {choices.map((choice) => (
+                <Button
+                  key={choice.identifier}
+                  label={t.readAloudChoice(
+                    choice.name,
+                    choice.quality === 'premium' ? 'premium' : 'enhanced'
+                  )}
+                  variant={
+                    voice?.identifier === choice.identifier ? 'primary' : 'default'
+                  }
+                  onPress={() => choose(language, choice.identifier)}
+                />
+              ))}
+            </View>
+          ) : (
+            <Text key={language} style={type.body}>
+              {voice && voice.quality !== 'default'
+                ? t.readAloudVoice(language, voice.name, voice.quality)
+                : t.readAloudBasicVoice(language)}
+            </Text>
+          )
+        )}
+        {anyChoice ? (
+          <Text style={type.muted}>{t.readAloudChoiceNote()}</Text>
+        ) : null}
         {allPremium ? null : (
           <Text style={type.muted}>{t.readAloudHowTo(newerSettings)}</Text>
         )}

@@ -657,6 +657,12 @@ export const es: Strings = {
       quality: 'enhanced' | 'premium'
     ) =>
       `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: ${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'})`,
+    readAloudLanguage: (language: 'en' | 'es') =>
+      language === 'es' ? 'Español' : 'Inglés',
+    readAloudChoice: (voice: string, quality: 'enhanced' | 'premium') =>
+      `${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'})`,
+    readAloudChoiceNote: () =>
+      'La voz que eliges en los Ajustes de iOS no se comparte con las apps, así que elígela también aquí. Esta elección es de este teléfono, porque las voces están instaladas en él.',
     readAloudBasicVoice: (language: 'en' | 'es') =>
       `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: solo la voz b\u00e1sica, que suena rob\u00f3tica`,
     readAloudHowTo: (newerSettings: boolean) =>

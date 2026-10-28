@@ -13,6 +13,7 @@ import {
   type VoiceQuality,
 } from '../../modules/read-aloud';
 import { deviceRegion } from '../api/region';
+import { storage } from '../state/storage';
 
 /**
  * Claude's replies, read aloud the moment they land, and nothing else.
@@ -86,11 +87,24 @@ export function replyLocale(
 const RANK: Record<VoiceQuality, number> = { default: 0, enhanced: 1, premium: 2 };
 
 /**
- * The voice a reply will be read in: the best quality installed, then the one
- * in the phone's own region, then by name so the answer is stable. Null when
+ * The voice a reply will be read in: **the one chosen on Floor Settings**, while
+ * it is still installed; otherwise the best quality installed, then the one in
+ * the phone's own region, then by name so the answer is stable. Null when
  * nothing is installed for the language, which leaves the choice to iOS.
+ *
+ * **The choice is this app's because iOS's cannot be read.** The voice picked
+ * under Settings › Accessibility is Speak Selection's, and nothing public
+ * hands it to an app — `voiceWithLanguage:` promises only "enhanced quality if
+ * available", and Rodrigo selected Allison and was given Aaron, which sorts
+ * first.
  */
-export function bestVoice(voices: readonly Voice[], locale: string): Voice | null {
+export function bestVoice(
+  voices: readonly Voice[],
+  locale: string,
+  chosen: string | null = null
+): Voice | null {
+  const picked = chosen && voices.find((voice) => voice.identifier === chosen);
+  if (picked) return picked;
   const exact = (voice: Voice) =>
     voice.language.toLowerCase() === locale.toLowerCase() ? 1 : 0;
   const sorted = [...voices].sort(
@@ -110,8 +124,58 @@ function languageOf(locale: string): string {
 export type SpokenLanguage = 'en' | 'es';
 
 /**
+ * Where each language's chosen voice is kept: **this phone's**, in its
+ * keychain, since the voices are installed on the phone rather than on the
+ * account — an identifier from one phone names nothing on another.
+ */
+const ENGLISH_VOICE_KEY = 'thefloor.readAloud.en';
+const SPANISH_VOICE_KEY = 'thefloor.readAloud.es';
+export const VOICE_KEYS: Record<SpokenLanguage, string> = {
+  en: ENGLISH_VOICE_KEY,
+  es: SPANISH_VOICE_KEY,
+};
+
+/**
+ * The chosen identifiers, read once from storage and then held here, so that
+ * a reply read the moment it lands does not wait on the keychain.
+ */
+let chosenVoices: Partial<Record<string, string>> = {};
+const loadedVoices: Promise<void> = (async () => {
+  for (const language of Object.keys(VOICE_KEYS) as SpokenLanguage[]) {
+    try {
+      const id = await storage.get(VOICE_KEYS[language]);
+      if (id) chosenVoices = { ...chosenVoices, [language]: id };
+    } catch {
+      // Unreadable is unchosen: the best installed voice reads instead.
+    }
+  }
+})();
+
+/** Makes `identifier` the voice for `language` on this phone. */
+export async function chooseVoice(
+  language: SpokenLanguage,
+  identifier: string
+): Promise<void> {
+  chosenVoices = { ...chosenVoices, [language]: identifier };
+  await storage.set(VOICE_KEYS[language], identifier).catch(() => undefined);
+}
+
+export interface LanguageVoices {
+  language: SpokenLanguage;
+  /** The voice a reply in this language would be read in now. */
+  voice: Voice | null;
+  /**
+   * What may be chosen among: the Enhanced and Premium voices installed. The
+   * basic ones are left out, being the robotic sound the card exists to get
+   * somebody away from — and a list of every basic voice is a page long.
+   */
+  choices: Voice[];
+}
+
+/**
  * What Floor Settings draws: for each language, the voice a reply in it would
- * be read in now — or null for the whole where this build cannot speak.
+ * be read in now and what else may be chosen — or null for the whole where
+ * this build cannot speak.
  *
  * **Both languages, not the app's**, because the reply's language decides the
  * voice, and a Spanish reply reaches a phone set to English as readily as an
@@ -121,29 +185,51 @@ export type SpokenLanguage = 'en' | 'es';
  * card's whole advice is to go to Settings and download a voice, and the
  * person who did is the one coming back to see whether it took.
  */
-export function useReadAloudVoices(
-  languages: readonly SpokenLanguage[]
-): Array<{ language: SpokenLanguage; voice: Voice | null }> | null {
+export function useReadAloudVoices(languages: readonly SpokenLanguage[]): {
+  found: LanguageVoices[] | null;
+  choose: (language: SpokenLanguage, identifier: string) => void;
+} {
   const key = languages.join(',');
-  const look = () => {
-    const found: Array<{ language: SpokenLanguage; voice: Voice | null }> = [];
+  const look = (): LanguageVoices[] | null => {
+    const found: LanguageVoices[] = [];
     for (const language of languages) {
       const voices = installedVoices(language);
       if (voices === null) return null;
-      found.push({ language, voice: bestVoice(voices, localeFor(language)) });
+      const locale = localeFor(language);
+      found.push({
+        language,
+        voice: bestVoice(voices, locale, chosenVoices[language] ?? null),
+        choices: voices
+          .filter((voice) => voice.quality !== 'default')
+          .sort(
+            (a, b) =>
+              RANK[b.quality] - RANK[a.quality] || a.name.localeCompare(b.name)
+          ),
+      });
     }
     return found;
   };
-  const [state, setState] = useState(look);
+  const [found, setFound] = useState(look);
   useEffect(() => {
-    setState(look());
-    const subscription = AppState.addEventListener('change', (next) => {
-      if (next === 'active') setState(look());
+    let live = true;
+    setFound(look());
+    void loadedVoices.then(() => {
+      if (live) setFound(look());
     });
-    return () => subscription.remove();
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') setFound(look());
+    });
+    return () => {
+      live = false;
+      subscription.remove();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
-  return state;
+  const choose = (language: SpokenLanguage, identifier: string) => {
+    void chooseVoice(language, identifier);
+    setFound(look());
+  };
+  return { found, choose };
 }
 
 /**
@@ -210,6 +296,8 @@ export function useClaudeReadAloud(
 }
 
 function sayWithBestVoice(text: string, locale: string): void {
-  const voices = installedVoices(languageOf(locale)) ?? [];
-  speak(text, bestVoice(voices, locale)?.identifier ?? null, locale);
+  const language = languageOf(locale);
+  const voices = installedVoices(language) ?? [];
+  const chosen = chosenVoices[language] ?? null;
+  speak(text, bestVoice(voices, locale, chosen)?.identifier ?? null, locale);
 }
