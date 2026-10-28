@@ -155,6 +155,33 @@ describe('the live transcript, sitting by sitting', () => {
   });
 
   /*
+    **A restart ends the sitting**, since 2026-10-28. A channel is revived
+    with nobody present and the transcript as stored, and the first arrival
+    opens a new sitting — switches and transcript both, so the two cannot
+    come back saying different things.
+  */
+  it('ends across a restart, the first arrival opening a new sitting', () => {
+    const revived = {
+      ...on(fresh()),
+      present: [],
+      liveTranscriptionPaused: true,
+      liveTranscriptionPaidBy: B,
+    };
+    const back = come(revived);
+    expect(back.keep?.text).toBe(false);
+    expect(back.liveTranscription).toBe(false);
+    expect(back.liveTranscriptionPaused).toBe(false);
+    expect(back.liveTranscriptionPaidBy).toBeUndefined();
+    expect(isTranscribingLive(back)).toBe(false);
+
+    const asked = come({ ...revived, autoTranscribe: true });
+    expect(asked.keep?.text).toBe(true);
+    expect(asked.liveTranscription).toBe(true);
+    expect(asked.liveTranscriptionPaused).toBe(false);
+    expect(asked.liveTranscriptionPaidBy).toBeUndefined();
+  });
+
+  /*
     **With Audio automatic too, the text waits for it**, since 2026-10-10:
     kept both ways, the two must begin one segment together, so the arrival
     leaves the text off and the automatic start begins both.

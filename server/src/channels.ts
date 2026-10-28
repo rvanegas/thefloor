@@ -8024,8 +8024,10 @@ export class ChannelRegistry {
       // stop a channel recording itself.
       autoRecord: channel.autoRecord,
       liveTranscription: channel.liveTranscription ?? false,
-      // With the switch it belongs to, so a restart mid-sitting keeps the
-      // bill where it was rather than moving it to the house.
+      // With the switch it belongs to. Neither outlives a restart's first
+      // arrival any more, which opens a new sitting and sets the transcript
+      // from `autoTranscribe` (2026-10-28); `revive` still reads the switch
+      // for that setting's fallback on rows written before it.
       ...(channel.liveTranscriptionPaidBy
         ? { liveTranscriptionPaidBy: channel.liveTranscriptionPaidBy }
         : {}),

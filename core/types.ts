@@ -957,7 +957,9 @@ export interface ChannelState {
    * sitting began with it through `autoTranscribe`.
    *
    * Here rather than in the server's memory so that a restart mid-sitting
-   * does not quietly move the bill to the house. The server reads it to meter
+   * did not quietly move the bill to the house — moot since 2026-10-28,
+   * when a restart began ending the sitting and with it the transcript,
+   * this included, at the first arrival. The server reads it to meter
    * the sessions and to switch the text off when the minutes run out; the
    * reducer only carries it, set with `SET_LIVE_TRANSCRIPTION` and cleared
    * whenever the text stops.

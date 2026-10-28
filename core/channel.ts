@@ -3010,10 +3010,18 @@ function reduceAction(
         // live transcript the channel asks for — unless it asks for the audio
         // too, when the text waits to begin with it. See `autoTranscribe` and
         // `startsTextWithAudio`.
+        //
+        // **And without one it begins with the transcript off**, whatever
+        // the state says: the room emptying turned it off already, so this
+        // matters only for a channel revived after a restart, which comes
+        // back with nobody present and the transcript as it was stored. A
+        // restart ends the sitting, since 2026-10-28 — left on, it ran on the
+        // house under switches that the line above had just turned off.
+        // See decision/2026-10-28-a-restart-ends-the-sitting.md.
         ...(state.present.length === 0 ? { keep: keepForSitting(state) } : {}),
-        ...(state.present.length === 0 && state.autoTranscribe && !startsTextWithAudio(state)
+        ...(state.present.length === 0
           ? {
-              liveTranscription: true,
+              liveTranscription: !!state.autoTranscribe && !startsTextWithAudio(state),
               liveTranscriptionPaused: false,
               // On the house: only an unlimited account may set it.
               liveTranscriptionPaidBy: undefined,
