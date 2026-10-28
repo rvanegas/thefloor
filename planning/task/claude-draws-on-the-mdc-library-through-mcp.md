@@ -238,6 +238,13 @@ for the reducer, `server/__tests__/claude.test.ts` for the rest.
    `is_error` needs nothing. Check against the live API which of the two an
    unreachable mdc produces, and whether the connector can end on
    `pause_turn` as server tools do — `respond()` would post the text before it.
+   **Done 2026-10-27**, both ways, since this could not reach the live API: a
+   failure is retried without the library, an errored lookup is Claude's to
+   answer around. `pause_turn` — which the API reference confirms for the
+   connector, after ten rounds — is resumed by sending the paused content
+   back, at most `LIBRARY_CONTINUATIONS` (2) times, with usage summed for the
+   ledger. **Still to see on the box**: which of the two an mdc that is down
+   actually produces, on the first press after a deliberate stop.
 10. **Time.** `CLAUDE_LIBRARY_TIMEOUT_MS = 120_000` for a library request; the
     card says *Responding…* throughout. `maxTokens` untouched until library
     rows show `max_tokens`.

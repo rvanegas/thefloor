@@ -9,6 +9,7 @@ import { buildApp, type App } from '../src/app';
 import {
   composeRecord,
   FALLBACK_BETA,
+  LIBRARY_CONTINUATIONS,
   LIBRARY_TOOLS,
   libraryFor,
   MCP_BETA,
@@ -604,9 +605,14 @@ describe('a press with the library', () => {
     identifiers: ['alice@example.com'],
   };
 
-  const setUp = async (grade: 'standard' | 'pro' | 'max', on = true) => {
-    const fake = fakeClient(() => reply('From the library.'));
-    boot(fake.client, undefined, LIBRARY);
+  const setUp = async (
+    grade: 'standard' | 'pro' | 'max',
+    on = true,
+    answer: (call: Call) => Promise<unknown> | unknown = () => reply('From the library.'),
+    timeoutMs?: number
+  ) => {
+    const fake = fakeClient(answer);
+    boot(fake.client, timeoutMs, LIBRARY);
     const people = await room2();
     const { alice, channelId } = people;
     app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
@@ -679,6 +685,79 @@ describe('a press with the library', () => {
     expect(claudePastes(channelId)).toEqual([
       expect.objectContaining({ display_name: 'Claude', text: answer }),
     ]);
+  });
+
+  it('asks once more without mdc when a request with it fails, and posts that answer', async () => {
+    const { calls, bob, channelId } = await setUp('pro', true, (call) => {
+      if (call.body.mcp_servers) throw new Error('mdc unreachable');
+      return reply('Without the library.', { model: 'claude-sonnet-5-5' });
+    });
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls).toHaveLength(2);
+    expect(calls[0].body).toHaveProperty('mcp_servers');
+    expect(calls[1].body).not.toHaveProperty('mcp_servers');
+    expect(calls[1].body).not.toHaveProperty('tools');
+    expect(calls[1].body).toMatchObject({ betas: [FALLBACK_BETA] });
+    expect(calls[1].body.system).toBe(systemPrompt('medium'));
+    expect(claudePastes(channelId)).toEqual([
+      expect.objectContaining({ text: 'Without the library.' }),
+    ]);
+  });
+
+  it('asks nothing again when the library was not in it', async () => {
+    const { calls, alice, channelId } = await setUp('pro', false, () => {
+      throw new Error('down');
+    });
+    expect((await press(channelId, alice.token)).statusCode).toBe(502);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('asks nothing again after a timeout, the time being spent', async () => {
+    const { calls, alice, channelId } = await setUp('pro', true, () => new Promise(() => {}), 30);
+    expect((await press(channelId, alice.token)).statusCode).toBe(504);
+    expect(calls).toHaveLength(1);
+    expect(usageRows()[0]).toMatchObject({ outcome: 'timeout' });
+  });
+
+  it('resumes a paused turn with what it returned, and ledgers both halves', async () => {
+    const working = [
+      { type: 'text', text: 'Let me look that up.' },
+      { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'mdc', input: {} },
+      { type: 'mcp_tool_result', tool_use_id: 'u', is_error: false, content: [] },
+    ];
+    let n = 0;
+    const { calls, bob, channelId } = await setUp('pro', true, () =>
+      n++ === 0
+        ? reply('', { model: 'claude-sonnet-5-5', stop_reason: 'pause_turn', content: working })
+        : reply('As you wrote, it is will.', { model: 'claude-sonnet-5-5' })
+    );
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls).toHaveLength(2);
+    const messages = calls[1].body.messages as Array<{ role: string; content: unknown }>;
+    expect(messages).toHaveLength(2);
+    expect(messages[1]).toEqual({ role: 'assistant', content: working });
+    expect(calls[1].body).toHaveProperty('mcp_servers');
+    expect(claudePastes(channelId)).toEqual([
+      expect.objectContaining({ text: 'As you wrote, it is will.' }),
+    ]);
+    expect(usageRows()).toHaveLength(1);
+    expect(usageRows()[0]).toMatchObject({ input_tokens: 2400, output_tokens: 160, outcome: 'posted' });
+  });
+
+  it('stops resuming after two continuations, and says Claude had nothing to add', async () => {
+    const paused = reply('', {
+      model: 'claude-sonnet-5-5',
+      stop_reason: 'pause_turn',
+      content: [
+        { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'mdc', input: {} },
+        { type: 'mcp_tool_result', tool_use_id: 'u', is_error: false, content: [] },
+      ],
+    });
+    const { calls, bob, channelId } = await setUp('pro', true, () => paused);
+    const res = await press(channelId, bob.token);
+    expect(calls).toHaveLength(1 + LIBRARY_CONTINUATIONS);
+    expect(res.statusCode).toBe(422);
+    expect(res.json().error).toBe('Claude had nothing to add.');
   });
 
   it('tells Claude nothing of it with the switch off', async () => {

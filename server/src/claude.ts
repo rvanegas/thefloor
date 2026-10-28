@@ -62,6 +62,16 @@ export const RESPONSE_MODELS: Record<ResponseModel, ResponseGrade> = {
 /** The beta that the refusal fallback's `"default"` form is under. */
 export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
+/** Either response type, the plain endpoint's or the beta's. */
+type Reply = Anthropic.Message | Anthropic.Beta.Messages.BetaMessage;
+
+/**
+ * How many times a press resumes a turn the connector paused — each pause
+ * being ten rounds of lookups already. A turn still paused after these posts
+ * what it has, which is likely nothing, and says so as an empty reply does.
+ */
+export const LIBRARY_CONTINUATIONS = 2;
+
 /** The beta the Messages API's MCP connector is under. See `libraryRequest`. */
 export const MCP_BETA = 'mcp-client-2025-11-20';
 
@@ -568,7 +578,7 @@ export class ClaudeResponder {
     let outcome: ClaudeOutcome = 'error';
     let response: Anthropic.Message | Anthropic.Beta.Messages.BetaMessage | undefined;
     try {
-      response = await this.request(ask, record, length, controller.signal, library);
+      response = await this.consult(ask, record, length, controller.signal, library, channelId);
       if (response.stop_reason === 'refusal') {
         outcome = 'refused';
       } else {
@@ -585,14 +595,89 @@ export class ClaudeResponder {
     return outcome === 'posted' ? { ok: true } : { ok: false, ...FAILURES[outcome] };
   }
 
+  /**
+   * A press's request, start to finish, within the press's one timer.
+   *
+   * **mdc unreachable is not a failed press.** A request that consulted the
+   * library and failed — without the timer having fired — is asked once more
+   * without it, and nothing in the reply says so; the warning names mdc, so
+   * the log does. A timeout is not retried: the time is already spent. A
+   * lookup that merely errored comes back as an `mcp_tool_result` with
+   * `is_error`, which Claude answers around and needs nothing here.
+   */
+  private async consult(
+    ask: ResponseGrade,
+    record: ComposedRecord,
+    length: ReplyLength,
+    signal: AbortSignal,
+    library: LibraryOptions | undefined,
+    channelId: string
+  ): Promise<Reply> {
+    try {
+      return await this.resumed(ask, record, length, signal, library);
+    } catch (error) {
+      if (!library || signal.aborted) throw error;
+      this.options.log?.warn(
+        { err: error, channel: channelId, mdc: library.url },
+        'claude request with the mdc library failed; asking without it'
+      );
+      return this.resumed(ask, record, length, signal, undefined);
+    }
+  }
+
+  /**
+   * One request, resumed while the connector says `pause_turn` — its
+   * server-side loop stops after ten rounds of lookups, and is continued by
+   * sending back what it returned. At most `LIBRARY_CONTINUATIONS` times.
+   * Returns the last response with **every** response's content and usage,
+   * so the reply is read from the whole of it and the ledger counts all of
+   * what was spent.
+   */
+  private async resumed(
+    ask: ResponseGrade,
+    record: ComposedRecord,
+    length: ReplyLength,
+    signal: AbortSignal,
+    library: LibraryOptions | undefined
+  ): Promise<Reply> {
+    let content: Reply['content'] = [];
+    const usage = {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    };
+    for (let round = 0; ; round++) {
+      const response = await this.request(
+        ask,
+        record,
+        length,
+        signal,
+        library,
+        round > 0 ? content : undefined
+      );
+      content = [...content, ...response.content] as Reply['content'];
+      usage.input_tokens += response.usage?.input_tokens ?? 0;
+      usage.output_tokens += response.usage?.output_tokens ?? 0;
+      usage.cache_creation_input_tokens += response.usage?.cache_creation_input_tokens ?? 0;
+      usage.cache_read_input_tokens += response.usage?.cache_read_input_tokens ?? 0;
+      const paused = (response.stop_reason as string) === 'pause_turn';
+      if (!paused || round >= LIBRARY_CONTINUATIONS) {
+        return { ...response, content, usage: { ...response.usage, ...usage } } as Reply;
+      }
+    }
+  }
+
   private request(
     ask: ResponseGrade,
     record: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
     // What `libraryFor` decided: the library this press may consult, if any.
-    library?: LibraryOptions
-  ): Promise<Anthropic.Message | Anthropic.Beta.Messages.BetaMessage> {
+    library?: LibraryOptions,
+    // What a paused turn returned so far, sent back to resume it.
+    previous?: Reply['content']
+  ): Promise<Reply> {
     const body = {
       model: ask.model,
       max_tokens: ask.maxTokens,
@@ -600,7 +685,13 @@ export class ClaudeResponder {
         length,
         library ? { owner: this.options.libraryOwner?.() ?? null } : undefined
       ),
-      messages: [{ role: 'user' as const, content: userMessage(record, length) }],
+      messages: [
+        { role: 'user' as const, content: userMessage(record, length) },
+        // The response's own blocks, as the API asks a paused turn back.
+        ...(previous
+          ? [{ role: 'assistant' as const, content: previous as unknown as Anthropic.ContentBlockParam[] }]
+          : []),
+      ],
       output_config: { effort: ask.effort },
     };
     // Either reason takes the beta endpoint. Today they coincide — the
