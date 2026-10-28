@@ -2379,6 +2379,62 @@ describe('Channel, watching together', () => {
       act(() => tree.unmount());
     });
 
+    it('is not put up for the round trip a step-out takes', () => {
+      /*
+        **The flash it was reported as.** Stepping out clears `standingIn` at
+        once and the snapshot saying so lands a round trip later, and in
+        between the device showing the film read as one holding it without
+        the room — the television, drawn for a moment over whichever tab
+        was up.
+      */
+      showChannel(watching());
+      mockApp.screenFor = 'sess_1';
+      const tree = openOnPeople();
+      expect(findTab(tree, 'Watch')).toBeDefined();
+
+      mockApp.standingIn = null;
+      act(() => tree.update(
+          <ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />
+        ));
+      expect(textOf(tree)).not.toContain('Watching');
+      expect(findTab(tree, 'Watch')).toBeDefined();
+      act(() => tree.unmount());
+    });
+
+    it('is put up once another device of yours is holding the room', () => {
+      // Displacement, which leaves the way a step-out does and is the one
+      // departure the television is the right answer to.
+      showChannel(watching());
+      mockApp.screenFor = 'sess_1';
+      const tree = openOnPeople();
+
+      mockApp.standingIn = null;
+      act(() => tree.update(
+          <ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />
+        ));
+      mockApp.standingElsewhere = ['sess_1'];
+      act(() => tree.update(
+          <ChannelView
+            channelId="sess_1"
+            audio={AUDIO}
+            onClose={() => {}}
+            onExit={() => {}}
+          />
+        ));
+      expect(textOf(tree)).toContain('Watching');
+      act(() => tree.unmount());
+    });
+
     it('is the ordinary channel screen once the room is on this device too', () => {
       // The single-device case, which is what every other test here is, and
       // the state pressing *In* above arrives at.

@@ -610,6 +610,40 @@ export function ChannelView({
    */
   const steppedIn = amHere && app.standingIn === channelId;
   /**
+   * Whether this device has just given up the room and the snapshot saying
+   * so has not arrived yet.
+   *
+   * **The two halves of `steppedIn` arrive a round trip apart on the way
+   * out.** `standingIn` is cleared the moment the departure is sent — see
+   * `Realtime.act` — while `amHere` is the server's and holds until its
+   * answer lands. In between, a device showing the film read as one that was
+   * showing it *without* holding the room, which is the definition of
+   * `secondDevice` — so stepping out from any tab put the television up for
+   * a round trip before the screen came back, a flash of the film where
+   * there had been the roster.
+   *
+   * Derived from `standingIn` going rather than set by the Step Out button,
+   * because the lock screen, the call ending and *Nearby* all leave the same
+   * way. It ends on the snapshot, on stepping back in, or on another of this
+   * account's devices holding the room — that last being displacement, where
+   * the television is the right answer and only waited for the server to
+   * say who has the room now.
+   *
+   * Adjusted during render rather than in an effect, so that the render that
+   * first sees `standingIn` go is already the one that knows why.
+   */
+  const [leaving, setLeaving] = useState(false);
+  const [wasSteppedIn, setWasSteppedIn] = useState(steppedIn);
+  if (wasSteppedIn !== steppedIn) {
+    setWasSteppedIn(steppedIn);
+    setLeaving(!steppedIn && amHere);
+  } else if (
+    leaving &&
+    (!amHere || app.standingElsewhere.includes(channelId))
+  ) {
+    setLeaving(false);
+  }
+  /**
    * Whether this device is showing the party's film.
    *
    * **Being in the room is part of it, and is a precondition rather than a
@@ -661,7 +695,7 @@ export function ChannelView({
    *
    * See `planning/decision/2026-09-20-the-second-device-is-a-television.md`.
    */
-  const secondDevice = screenIsHere && !steppedIn;
+  const secondDevice = screenIsHere && !steppedIn && !leaving;
   const screenSaid = (channel?.watchingHere ?? []).includes(me);
   /**
    * Whether the film is on one of this account's *other* devices.
