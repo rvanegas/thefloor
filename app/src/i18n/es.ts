@@ -18,7 +18,11 @@ import type { Strings } from './index';
  * argument: a message that would need one is a message that has the rule
  * wrong.
  *
- * **This replaced its opposite on 2026-09-26** — *nothing agrees with a
+ * **And the shorter wording wins, since 2026-10-27** — *el dueño*, not *quien
+ * es responsable*; no article, *ningún* or *le* that adds nothing. An article
+ * the English chose on purpose stays.
+ *
+ * **The masculine rule replaced its opposite on 2026-09-26** — *nothing agrees with a
  * person's gender*, under which the copy was built from constructions that
  * take none. It was not being kept: `availability.lastSeen` below reads
  * *Visto*, which agrees, and is drawn under a name on every contact row. A
@@ -109,7 +113,7 @@ export const es: Strings = {
   leaderboard: {
     title: () => 'Invitaciones',
     whatTheNumberMeans: () =>
-      'Todas las personas que se registraron con la invitaci\u00f3n de esa persona, m\u00e1s todas las que ellas invitaron despu\u00e9s, hasta el final.',
+      'Todos los que se registraron con su invitaci\u00f3n, m\u00e1s todos los que estos invitaron despu\u00e9s, hasta el final.',
     nobodyYet: () => 'Todav\u00eda nadie ha tra\u00eddo a nadie aqu\u00ed.',
   },
   podcasts: {
@@ -137,7 +141,7 @@ export const es: Strings = {
     yourQuestions: () => 'Tus preguntas',
     answer: () => 'Respuesta',
     askedNotAnswered: (since: string) =>
-      `Preguntado hace ${since} \u00b7 sin responder todav\u00eda`,
+      `Preguntado hace ${since} \u00b7 sin respuesta`,
   },
   auth: {
     brand: () => 'The Floor',
@@ -197,7 +201,7 @@ export const es: Strings = {
     couldNotPlay: (code: number) =>
       `YouTube no ha podido reproducir este v\u00eddeo (${code}).`,
     gaveUp: () =>
-      'La pel\u00edcula ha dejado de responder en este dispositivo. Pausa y vuelve a reproducir para intentarlo de nuevo.',
+      'La pel\u00edcula ya no responde en este dispositivo. Pausa y reproduce para reintentarlo.',
   },
   availability: {
     inTheAppNow: () => 'En la app ahora',
@@ -232,8 +236,8 @@ export const es: Strings = {
     cancel: () => 'Cancelar',
     toGenerateAnInviteLink: () => 'Para generar un enlace de invitaci\u00f3n,',
     chooseAUsername: () => 'Elige un nombre de usuario',
-    shareInviteLink: () => 'Compartir el enlace de invitaci\u00f3n',
-    copyInviteLink: () => 'Copiar el enlace de invitaci\u00f3n',
+    shareInviteLink: () => 'Compartir enlace de invitaci\u00f3n',
+    copyInviteLink: () => 'Copiar enlace de invitaci\u00f3n',
     contactInvite: (link: string) => `Hablemos en The Floor: ${link}`,
     linkCopied: () =>
       'Invitaci\u00f3n copiada. Sirve una vez, para la primera persona que la abra.',
@@ -423,10 +427,10 @@ export const es: Strings = {
     muted: () => ' · silenciado',
     hasTheFloorSuffix: () => ' · tiene la palabra',
     /**
-     * *Responsable* rather than *due\u00f1o* or *propietario*, which are
-     * gendered; *el/la responsable* is one word for anybody. See GLOSSARY.md.
+     * *Due\u00f1o*, the short word, since 2026-10-27: the generic masculine is
+     * the catalogue's rule, and *responsable* was the old rule's dodge. See GLOSSARY.md.
      */
-    ownerSuffix: () => ' · responsable',
+    ownerSuffix: () => ' · due\u00f1o',
     watching: () => ' · viendo',
     // *Sin ver* rather than *no está viendo*, on `invited`'s reasoning a few
     // lines up: naming the absence is what keeps a suffix a suffix in Spanish,
@@ -451,7 +455,7 @@ export const es: Strings = {
       }${
         watching === null ? '' : watching ? ' Viendo.' : ' Sin ver.'
       }${speaking ? ' Hablando.' : ''}${openable ? ' Ver perfil.' : ''}`,
-    ownerAsksPeopleIn: () => 'Solo quien es responsable de la comunidad puede invitar a gente.',
+    ownerAsksPeopleIn: () => 'Solo el due\u00f1o de la comunidad puede invitar a gente.',
     stepInToAskAnybodyIn: () =>
       'Entra para invitar a alguien. Una invitaci\u00f3n cae en medio de lo que se est\u00e9 diciendo, as\u00ed que es de quien lo est\u00e9 diciendo.',
     memberOrGuestFull: (cap: number) =>
@@ -532,7 +536,7 @@ export const es: Strings = {
     thatDidNotWork: () => 'Eso no ha funcionado.',
     noThanks: () => 'No, gracias',
     clipboard: () => 'Lo \u00faltimo pegado',
-    nothingOnTheClipboard: () => 'Todav\u00eda no se ha pegado nada.',
+    nothingOnTheClipboard: () => 'Nada pegado todav\u00eda.',
     pasteMine: () => 'Pegar el m\u00edo',
     yourNameHere: () => 'Tu nombre aqu\u00ed',
     whatYouAreCalledHere: () =>
@@ -622,8 +626,8 @@ export const es: Strings = {
       'No hay servidor configurado, as\u00ed que no hay pol\u00edtica que mostrar.',
     couldNotOpenPrivacy: () =>
       'No se ha podido abrir la pol\u00edtica de privacidad',
-    nothingElseSignedIn: () => 'No hab\u00eda nada m\u00e1s con la sesi\u00f3n iniciada',
-    otherDevicesSignedOut: () => 'Se ha cerrado la sesi\u00f3n en otros dispositivos',
+    nothingElseSignedIn: () => 'No hab\u00eda nada m\u00e1s con sesi\u00f3n iniciada',
+    otherDevicesSignedOut: () => 'Sesi\u00f3n cerrada en otros dispositivos',
     signedOutBody: (sessions: number) =>
       sessions === 0
         ? 'Este es el \u00fanico dispositivo con la sesi\u00f3n iniciada en tu cuenta.'
@@ -773,7 +777,7 @@ export const es: Strings = {
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 aqu\u00ed puede cambiarlo. No se puede dejar vac\u00edo mientras este canal sea un podcast o una comunidad: cada uno se encuentra por su nombre, y un canal sin nombre se lista por qui\u00e9n est\u00e1 dentro.',
     renameCommunity: () =>
       'Todos los del canal ven este nombre, y solo t\u00fa puedes cambiarlo. No se puede dejar vac\u00edo, y cambiarlo restablece el enlace de la comunidad: el anterior deja de funcionar para todos los que lo tengan.',
-    ownerOnly: () => 'Esto solo lo cambia quien es responsable de la comunidad.',
+    ownerOnly: () => 'Esto solo lo cambia el due\u00f1o de la comunidad.',
     renamePrivate: () =>
       'Todos los del canal ven este nombre, y cualquiera que est\u00e9 aqu\u00ed puede cambiarlo. D\u00e9jalo vac\u00edo para volver a listar qui\u00e9n est\u00e1 aqu\u00ed.',
     description: () => 'Descripci\u00f3n',
@@ -808,7 +812,7 @@ export const es: Strings = {
     responseModelWho: () => 'Solo pueden cambiarlo quienes llevan The Floor.',
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
-    // *Dueño*, the shorter word, and the masculine is accepted here.
+    // *Dueño*, as for a community's owner: see `ownerSuffix`.
     libraryNote: () =>
       'Si está activada, Claude puede apoyarse en los escritos del dueño de la biblioteca al responder, y nombra cualquier texto que cite. Se aplica en Pro y Max, a quien pregunte a Claude.',
     libraryWho: () => 'Solo el dueño de la biblioteca puede activarla o desactivarla.',
@@ -821,12 +825,12 @@ export const es: Strings = {
     communityLink: () => 'Enlace de la comunidad',
     isACommunity: () => 'Este canal es una comunidad',
     communityOwnerWhat: (members: number) =>
-      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Eres responsable de ella: solo t\u00fa invitas a gente, decides qu\u00e9 suena y qu\u00e9 se graba, le pones nombre y descripci\u00f3n, tienes el enlace, expulsas a un miembro y puedes borrarla para todos. No puedes salir de ella.`,
+      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Eres su due\u00f1o: solo t\u00fa invitas a gente, decides qu\u00e9 suena y qu\u00e9 se graba, le pones nombre y descripci\u00f3n, tienes el enlace, expulsas a un miembro y puedes borrarla para todos. No puedes salir de ella.`,
     communityMemberWhat: (members: number) =>
-      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Solo quien es responsable invita a gente, decide qu\u00e9 suena y qu\u00e9 se graba, le pone nombre y descripci\u00f3n, tiene el enlace, expulsa a miembros y puede borrarla para todos. Los dem\u00e1s pueden pedir la palabra, silenciarse, pegar en Grabado y avisar a un contacto.`,
+      `Cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie, y lo que se dice y se graba en ella queda entre sus miembros. Solo el due\u00f1o invita a gente, decide qu\u00e9 suena y qu\u00e9 se graba, le pone nombre y descripci\u00f3n, tiene el enlace, expulsa a miembros y puede borrarla para todos. Los dem\u00e1s pueden pedir la palabra, silenciarse, pegar en Grabado y avisar a un contacto.`,
     makeCommunity: () => 'Convertir el canal en una comunidad',
     makeCommunityNote: (members: number) =>
-      `Una comunidad es un canal al que cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie; lo que se dice y se graba en ella queda entre sus miembros. No hay nadie m\u00e1s aqu\u00ed, as\u00ed que puedes convertir este: ser\u00edas responsable: solo t\u00fa invitar\u00edas a gente, decidir\u00edas qu\u00e9 suena y qu\u00e9 se graba, le pondr\u00edas nombre, expulsar\u00edas a gente y podr\u00edas borrarla para todos, y no podr\u00edas salir de ella. No se puede volver a hacer un canal corriente.`,
+      `Una comunidad es un canal al que cualquiera con su enlace puede unirse, hasta ${members} miembros, sin ser contacto de nadie; lo que se dice y se graba en ella queda entre sus miembros. No hay nadie m\u00e1s aqu\u00ed, as\u00ed que puedes convertir este: ser\u00edas su due\u00f1o: solo t\u00fa invitar\u00edas a gente, decidir\u00edas qu\u00e9 suena y qu\u00e9 se graba, le pondr\u00edas nombre, expulsar\u00edas a gente y podr\u00edas borrarla para todos, y no podr\u00edas salir de ella. No se puede volver a hacer un canal corriente.`,
     communityNeedsName: () =>
       'Una comunidad necesita un nombre, porque su enlace se lee de \u00e9l. Este pasa a ser el nombre del canal.',
     makeIt: () => 'Convertirlo',
@@ -843,7 +847,7 @@ export const es: Strings = {
     isLocked: () => 'Este canal est\u00e1 cerrado',
     lockedWhat: () =>
       'Nadie nuevo puede unirse, ni como miembro ni como invitado. No se puede volver a abrir.',
-    lockOwnersAlone: () => 'Solo quien es responsable de la comunidad puede cerrarla.',
+    lockOwnersAlone: () => 'Solo el due\u00f1o de la comunidad puede cerrarla.',
     lockStepIn: () => 'Hay alguien en este canal. Entra para cerrarlo.',
     making: () => 'Convirtiendo\u2026',
     couldNotMakeCommunity: () => 'No se ha podido convertir en comunidad.',
@@ -868,7 +872,7 @@ export const es: Strings = {
     turnOnLink: () => 'Activar con un enlace nuevo',
     couldNotReadLink: () => 'No se ha podido leer el enlace.',
     ownerCannotLeave: () =>
-      'Eres responsable de esta comunidad, as\u00ed que no puedes salir de ella. Si la borras, se acaba para todos.',
+      'Eres el due\u00f1o de esta comunidad, as\u00ed que no puedes salir de ella. Si la borras, se acaba para todos.',
     communityDeleteBody: (members: number, recordings: string | null) =>
       recordings === null
         ? `Se acaba para sus ${members} miembros, y no se le pregunta a nadie m\u00e1s. No se puede deshacer.`
@@ -1055,7 +1059,7 @@ export const es: Strings = {
     confirmRemovalBody: () =>
       'Pierde este canal y sus grabaciones. Cualquiera puede volver a invitarle despu\u00e9s.',
     ownerRemoves: () =>
-      'Eres responsable de esta comunidad, as\u00ed que basta contigo para expulsarle. Se le dir\u00e1 que ha pasado, pero no qui\u00e9n lo decidi\u00f3.',
+      'Eres el due\u00f1o de esta comunidad, as\u00ed que basta contigo para expulsarle. Se le dir\u00e1 que ha pasado, pero no qui\u00e9n lo decidi\u00f3.',
     removeThem: () => 'Expulsarle',
     ownerRemoveTitle: (name: string) => `\u00bfExpulsar a ${name}?`,
     ownerRemoveBody: () =>
@@ -1131,8 +1135,8 @@ export const es: Strings = {
     replyMedium: () => 'Media',
     replyExtended: () => 'Extensa',
     responding: () => 'Respondiendo\u2026',
-    claudeAsked: (name: string) => `${name} le ha preguntado a Claude`,
-    claudeAskedByYou: () => 'Le has preguntado a Claude',
+    claudeAsked: (name: string) => `${name} ha preguntado a Claude`,
+    claudeAskedByYou: () => 'Has preguntado a Claude',
     roomsNothingYet: () =>
       'Todav\u00eda no se ha guardado nada. Lo que se grabe o se transcriba aqu\u00ed aparece como un registro, sala por sala.',
     paused: () => 'En pausa',
@@ -1231,7 +1235,7 @@ export const es: Strings = {
     everyoneHearsAndItIsKept: () =>
       'Lo que pongas lo oye todo el mundo, y queda en la grabaci\u00f3n.',
     recordRefusedOwner: () =>
-      'Solo quien es responsable de esta comunidad puede grabar.',
+      'Solo el due\u00f1o de esta comunidad puede grabar.',
     recordRefusedSilent: () =>
       'No hay ning\u00fan micr\u00f3fono abierto ni nada sonando, as\u00ed que no hay nada que grabar.',
     stop: () => 'Parar',
@@ -1253,7 +1257,7 @@ export const es: Strings = {
     stepInToWatch: () =>
       'Entra para ver: una pel\u00edcula no se reproduce para quien est\u00e1 cerca o ha salido.',
     alreadyShowingSomething: () => 'Ya est\u00e1 mostrando algo',
-    noOtherDeviceLead: () => 'No hay ning\u00fan otro dispositivo con la sesi\u00f3n iniciada.',
+    noOtherDeviceLead: () => 'No hay otro dispositivo con sesi\u00f3n iniciada.',
     noOtherDeviceRest: () =>
       ' Abre The Floor en un port\u00e1til o una tableta y entra ah\u00ed, y aparecer\u00e1 aqu\u00ed como un sitio donde ver.',
     openInYouTube: () => 'Abrir en YouTube',
@@ -1302,10 +1306,10 @@ export const es: Strings = {
     copyAGuestLink: () => 'Copiar un enlace de invitado',
     linkCopied: () => 'Enlace copiado. P\u00e9galo donde quieras.',
     linkWouldNotCopy: () => 'El enlace no se ha podido copiar. Int\u00e9ntalo otra vez.',
-    ownerDecidesWhatPlays: () => 'Quien es responsable de la comunidad decide qu\u00e9 suena.',
-    ownerDecidesWhatPlaysShort: () => 'decide quien es responsable',
-    ownerRunsTheFilm: () => 'Quien es responsable de la comunidad lleva la pel\u00edcula.',
-    ownerInvites: () => 'Solo quien es responsable de la comunidad puede dejar entrar a gente.',
+    ownerDecidesWhatPlays: () => 'El due\u00f1o de la comunidad decide qu\u00e9 suena.',
+    ownerDecidesWhatPlaysShort: () => 'decide el due\u00f1o',
+    ownerRunsTheFilm: () => 'El due\u00f1o de la comunidad lleva la pel\u00edcula.',
+    ownerInvites: () => 'Solo el due\u00f1o de la comunidad puede dejar entrar a gente.',
     stepInToMakeALink: () =>
       'Entra para crear un enlace. Qui\u00e9n entra en una conversaci\u00f3n es cosa de quien la est\u00e1 teniendo.',
     headerKindChannel: () => 'Canal',
@@ -1327,7 +1331,7 @@ export const es: Strings = {
     playUnavailable: (reason: string) => `No se puede reproducir: ${reason}.`,
     stepInToRenameOrDelete: () =>
       'Entra para cambiar el nombre o borrar. El nombre es de todos, y borrar la quita tambi\u00e9n de sus listas.',
-    couldNotRename: () => 'No se ha podido cambiar el nombre',
+    couldNotRename: () => 'No se ha podido renombrar',
     namePlaceholder: () => '\u00bfDe qu\u00e9 fue esta conversaci\u00f3n?',
     everyoneSeesTheName: () => 'Todos los de este canal ven el nombre nuevo.',
     renaming: () => 'Cambiando el nombre\u2026',

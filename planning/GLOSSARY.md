@@ -5047,6 +5047,16 @@ they are. The app does not know anybody's gender, does not ask, and has no
 field for one; the generic masculine is what Spanish does with a referent it
 has not been told about, and that is the whole of the rule.
 
+**And the shorter wording wins**, since 2026-10-27: where two phrasings say
+the same, take the one with fewer characters — a masculine noun over a neutral
+paraphrase (*el dueño*, not *quien es responsable*), a button without an
+article the English does not have (*Copiar enlace de invitación*), no *ningún*
+or *le* that adds nothing. The catalogue already runs about a tenth longer than
+the English, and every control is measured against a 375-point phone. An
+article the English chose on purpose stays: *Compartir **un** enlace de
+invitado* mints a new one, *Compartir **el** enlace de la comunidad* shares
+the one there is.
+
 **It asks nothing of the copy**, which is what distinguishes it from the rule
 it replaced on 2026-09-26. That one said *nothing agrees with a person's
 gender*: the copy was to be built from constructions that take no agreement — a
@@ -5106,7 +5116,8 @@ are settled:
     People (the tab)      Gente
     Members               Miembros
     Community             Comunidad
-    Owner                 Responsable
+    Owner                 Dueño — since 2026-10-27; *responsable* was the old
+                          rule's way round the masculine, and is longer
     Community link        Enlace de la comunidad
     Podcast               Podcast
     At the door           En la puerta
@@ -5135,7 +5146,7 @@ are settled:
     Responding…           Respondiendo…
     Response model        Modelo de respuesta — *Estándar* / *Pro* / *Max*
     Library               Biblioteca — its switch *Consultar*; its owner is
-                          *el dueño*, shorter than a community's *responsable*
+                          *el dueño*, as a community's is
     Floor Settings        Ajustes de The Floor
     Pro (the subscription) Pro — a name, the same in both
     Push notifications    Notificaciones push
@@ -5152,10 +5163,10 @@ are settled:
     On another call       En otra llamada
     Stepped out           Ha salido
     In the app now        En la app ahora
-    Last seen 3 hours ago Visto por última vez hace 3 horas — the one line in
-                          the catalogue that breaks the gender rule above, since
-                          *visto* agrees with the person; see
-                          backlog/last-seen-agrees-with-a-gender-the-app-does-not-know.md
+    Last seen 3 hours ago Visto por última vez hace 3 horas — *visto* agrees,
+                          in the masculine, which is the rule above and
+                          correct; the backlog item that called it a breach
+                          went with the rule it was written under
     Mute / Unmute         Silenciar / No silenciar — Apple's own pair, which
                           is what people already know from FaceTime, and short
                           enough for the footer's fifth of a phone
