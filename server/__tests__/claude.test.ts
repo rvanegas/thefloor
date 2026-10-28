@@ -7,6 +7,8 @@ import { CLAUDE_ID, MAX_CLIP_LENGTH } from '../../core/constants';
 import type { RoomView } from '../../core/protocol';
 import { buildApp, type App } from '../src/app';
 import {
+  CLAUDE_LIBRARY_TIMEOUT_MS,
+  CLAUDE_TIMEOUT_MS,
   composeRecord,
   FALLBACK_BETA,
   LIBRARY_CONTINUATIONS,
@@ -254,7 +256,12 @@ afterEach(async () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-function boot(client?: ClaudeClient, timeoutMs?: number, library?: LibraryOptions): App {
+function boot(
+  client?: ClaudeClient,
+  timeoutMs?: number,
+  library?: LibraryOptions,
+  libraryTimeoutMs?: number
+): App {
   app = buildApp({
     dbPath: join(dir, 'thefloor.db'),
     mailer: new MemoryMailer(),
@@ -262,6 +269,7 @@ function boot(client?: ClaudeClient, timeoutMs?: number, library?: LibraryOption
     roomCloseGraceMs: 0,
     claude: client,
     claudeTimeoutMs: timeoutMs,
+    claudeLibraryTimeoutMs: libraryTimeoutMs,
     library,
   });
   return app;
@@ -609,10 +617,11 @@ describe('a press with the library', () => {
     grade: 'standard' | 'pro' | 'max',
     on = true,
     answer: (call: Call) => Promise<unknown> | unknown = () => reply('From the library.'),
-    timeoutMs?: number
+    timeoutMs?: number,
+    libraryTimeoutMs?: number
   ) => {
     const fake = fakeClient(answer);
-    boot(fake.client, timeoutMs, LIBRARY);
+    boot(fake.client, timeoutMs, LIBRARY, libraryTimeoutMs);
     const people = await room2();
     const { alice, channelId } = people;
     app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
@@ -713,10 +722,30 @@ describe('a press with the library', () => {
   });
 
   it('asks nothing again after a timeout, the time being spent', async () => {
-    const { calls, alice, channelId } = await setUp('pro', true, () => new Promise(() => {}), 30);
+    const { calls, alice, channelId } = await setUp('pro', true, () => new Promise(() => {}), 30, 30);
     expect((await press(channelId, alice.token)).statusCode).toBe(504);
     expect(calls).toHaveLength(1);
     expect(usageRows()[0]).toMatchObject({ outcome: 'timeout' });
+  });
+
+  it('waits two minutes rather than one, since it is several turns', () => {
+    expect(CLAUDE_TIMEOUT_MS).toBe(60_000);
+    expect(CLAUDE_LIBRARY_TIMEOUT_MS).toBe(120_000);
+  });
+
+  it('gives a press that consults it the library’s timeout, and every other press the plain one', async () => {
+    const slow = () =>
+      new Promise((resolve) =>
+        setTimeout(() => resolve(reply('Slowly.', { model: 'claude-sonnet-5-5' })), 80)
+      );
+    const { bob, channelId } = await setUp('pro', true, slow, 30, 1_000);
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+
+    app.channels.dispatch(channelId, app.channels.libraryOwners()[0], {
+      type: 'SET_LIBRARY',
+      library: false,
+    } as never);
+    expect((await press(channelId, bob.token)).statusCode).toBe(504);
   });
 
   it('resumes a paused turn with what it returned, and ledgers both halves', async () => {

@@ -645,8 +645,8 @@ export const api = {
   /**
    * *Ask Claude*, on the *Record* bar, for a reply of one of three lengths.
    * Resolves once the reply is in the *Record*, which can take most of a
-   * minute, and rejects with the server's sentence when it is not. Since
-   * 2026-10-22.
+   * minute — up to two where the channel consults its library — and rejects
+   * with the server's sentence when it is not. Since 2026-10-22.
    */
   askClaude: (token: string, channelId: string, length: ReplyLength) =>
     request<{ ok: true }>(`/channels/${channelId}/claude`, {

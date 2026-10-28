@@ -330,6 +330,8 @@ export interface BuildOptions {
   claude?: ClaudeClient;
   /** How long a press may wait on Claude. Tests shorten it. */
   claudeTimeoutMs?: number;
+  /** The same for a press that consults the library. Tests shorten it. */
+  claudeLibraryTimeoutMs?: number;
   /**
    * Rodrigo's mdc library, for *Ask Claude* to consult — meaningful only with
    * `claude`. Absent, no channel offers a *Library* switch and no press reads
@@ -1191,6 +1193,7 @@ export function buildApp(options: BuildOptions = {}): App {
         db,
         now,
         timeoutMs: options.claudeTimeoutMs,
+        libraryTimeoutMs: options.claudeLibraryTimeoutMs,
         library: options.library,
         // The first owner who has signed in, by the name the room knows them by.
         libraryOwner: () => {

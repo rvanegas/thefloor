@@ -146,6 +146,14 @@ export const RECORD_BUDGET_CHARS = Math.floor(RECORD_BUDGET_TOKENS * CHARS_PER_T
 export const CLAUDE_TIMEOUT_MS = 60_000;
 
 /**
+ * The same, for a press that consults the library: several model turns in
+ * one request, lookups between them, possibly a resumed pause and a retry
+ * without mdc — all inside this one timer. The card says *Responding…*
+ * throughout, so the room is told it is waiting.
+ */
+export const CLAUDE_LIBRARY_TIMEOUT_MS = 120_000;
+
+/**
  * **The length is an instruction, stated as a hard limit, and stated twice**
  * — Rodrigo's call: nothing trims a reply, so keeping it short is the
  * prompt's job. Both statements give the reason as well as the rule, because
@@ -520,6 +528,8 @@ export interface ClaudeResponderOptions {
   db: Db;
   now: () => number;
   timeoutMs?: number;
+  /** A library press's timeout; `CLAUDE_LIBRARY_TIMEOUT_MS` unless a test shortens it. */
+  libraryTimeoutMs?: number;
   /** Absent, no press consults a library. See `LibraryOptions`. */
   library?: LibraryOptions;
   /**
@@ -574,7 +584,10 @@ export class ClaudeResponder {
     // Read at the press with the grade, for the same reason.
     const library = libraryFor(this.options.library, channel, grade);
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? CLAUDE_TIMEOUT_MS);
+    const timeoutMs = library
+      ? (this.options.libraryTimeoutMs ?? CLAUDE_LIBRARY_TIMEOUT_MS)
+      : (this.options.timeoutMs ?? CLAUDE_TIMEOUT_MS);
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
     let outcome: ClaudeOutcome = 'error';
     let response: Anthropic.Message | Anthropic.Beta.Messages.BetaMessage | undefined;
     try {
