@@ -78,6 +78,13 @@ public class ReportedCallModule: Module {
   fileprivate var callMuted = false
   /** Set when this side asked for the end, so CarPlay's or the Watch's End is told apart from it. */
   fileprivate var endingFromApp = false
+  /**
+   * From `endCall` asking for the end until CallKit answers the transaction:
+   * the stretch in which a start has to wait. See `startCall`.
+   */
+  fileprivate var ending = false
+  /** A start that arrived while `ending`, made once the end's transaction is answered. */
+  fileprivate var pendingStart: (channel: String, promise: Promise)?
   /** From `didActivate` to `didDeactivate`: the stretch in which the app must not release. */
   fileprivate var holdsSession = false
   /** Held for another call, from *Hold & Accept* until it is taken off hold. */
@@ -343,6 +350,55 @@ public class ReportedCallModule: Module {
     sendEvent("onHeld", ["held": value])
   }
 
+  /**
+   * Starts the call for `channelId`, which is its handle — what a Recents
+   * tap hands back. What it is shown as is the channel's title, from
+   * `setTitle`; *The Floor* only until that arrives. Main thread.
+   */
+  fileprivate func startCall(_ channelId: String, _ promise: Promise) {
+    let provider = ensureProvider()
+    if callId != nil {
+      emit("start ignored, a call is already up")
+      promise.resolve(false)
+      return
+    }
+    let id = UUID()
+    callId = id
+    callChannel = channelId
+    callMuted = false
+    endingFromApp = false
+    setHeld(false)
+    interrupted = false
+    resuming = false
+    cycling = false
+    resumeAfterDeactivate = nil
+    let handle = CXHandle(type: .generic, value: channelId)
+    let start = CXStartCallAction(call: id, handle: handle)
+    start.isVideo = false
+    controller.request(CXTransaction(action: start)) { error in
+      if let error {
+        self.emit("start refused: \(error.localizedDescription)")
+        self.callId = nil
+        self.callChannel = nil
+        promise.resolve(false)
+        return
+      }
+      let update = CXCallUpdate()
+      update.localizedCallerName = self.title(for: channelId)
+      update.remoteHandle = handle
+      update.hasVideo = false
+      update.supportsHolding = true
+      update.supportsGrouping = false
+      update.supportsUngrouping = false
+      update.supportsDTMF = false
+      provider.reportCall(with: id, updated: update)
+      self.emit("started")
+      // A call starts unmuted; one stepped into muted says so at once.
+      DispatchQueue.main.async { self.pushMute(for: channelId) }
+      promise.resolve(true)
+    }
+  }
+
   private func ensureProvider() -> CXProvider {
     if let provider { return provider }
     let config = CXProviderConfiguration()
@@ -378,53 +434,30 @@ public class ReportedCallModule: Module {
     }
 
     /**
-     * Starts the call for `channelId`, which is its handle — what a Recents
-     * tap hands back. What it is shown as is the channel's title, from
-     * `setTitle`; *The Floor* only until that arrives.
+     * Starts the call for `channelId` — see `startCall(_:_:)` — or, while
+     * the app's end of the last one is still with CallKit, once it is not.
+     *
+     * **An end and a start arrive back to back whenever the presence blinks.**
+     * After a server restart the first snapshot can list nobody present and
+     * the next one, tens of milliseconds later, this device again, which takes
+     * `mediaRoom` away and gives it back. Seen 2026-10-27 at 22:36 on three
+     * phones at once: one start found the old call still up and was ignored,
+     * and another, asked for just after the end was performed, was refused
+     * with `invalidAction` (6) — and both phones went on in the channel with
+     * no call and no green pill. Waiting for the end's transaction to be
+     * answered costs the start that blink, and nothing else is ever held.
+     *
+     * Only the newest start waits; one it displaces answers `false`.
      */
     AsyncFunction("startCall") { (channelId: String, promise: Promise) in
       DispatchQueue.main.async {
-        let provider = self.ensureProvider()
-        if self.callId != nil {
-          self.emit("start ignored, a call is already up")
-          promise.resolve(false)
+        if self.ending {
+          self.pendingStart?.promise.resolve(false)
+          self.pendingStart = (channelId, promise)
+          self.emit("start waits for the end")
           return
         }
-        let id = UUID()
-        self.callId = id
-        self.callChannel = channelId
-        self.callMuted = false
-        self.endingFromApp = false
-        self.setHeld(false)
-        self.interrupted = false
-        self.resuming = false
-        self.cycling = false
-        self.resumeAfterDeactivate = nil
-        let handle = CXHandle(type: .generic, value: channelId)
-        let start = CXStartCallAction(call: id, handle: handle)
-        start.isVideo = false
-        self.controller.request(CXTransaction(action: start)) { error in
-          if let error {
-            self.emit("start refused: \(error.localizedDescription)")
-            self.callId = nil
-            self.callChannel = nil
-            promise.resolve(false)
-            return
-          }
-          let update = CXCallUpdate()
-          update.localizedCallerName = self.title(for: channelId)
-          update.remoteHandle = handle
-          update.hasVideo = false
-          update.supportsHolding = true
-          update.supportsGrouping = false
-          update.supportsUngrouping = false
-          update.supportsDTMF = false
-          provider.reportCall(with: id, updated: update)
-          self.emit("started")
-          // A call starts unmuted; one stepped into muted says so at once.
-          DispatchQueue.main.async { self.pushMute(for: channelId) }
-          promise.resolve(true)
-        }
+        self.startCall(channelId, promise)
       }
     }
 
@@ -435,6 +468,7 @@ public class ReportedCallModule: Module {
           return
         }
         self.endingFromApp = true
+        self.ending = true
         self.controller.request(CXTransaction(action: CXEndCallAction(call: id))) { error in
           if let error {
             // Reported rather than requested, so the call does not outlive the
@@ -446,6 +480,11 @@ public class ReportedCallModule: Module {
             self.setHeld(false)
           }
           promise.resolve(error == nil)
+          self.ending = false
+          if let waiting = self.pendingStart {
+            self.pendingStart = nil
+            self.startCall(waiting.channel, waiting.promise)
+          }
         }
       }
     }
