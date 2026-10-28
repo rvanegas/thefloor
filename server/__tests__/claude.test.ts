@@ -9,7 +9,9 @@ import { buildApp, type App } from '../src/app';
 import {
   composeRecord,
   FALLBACK_BETA,
+  LIBRARY_TOOLS,
   libraryFor,
+  MCP_BETA,
   lengthRule,
   REPLY_WORD_LIMITS,
   RESPONSE_MODELS,
@@ -524,6 +526,80 @@ describe('which presses consult the library', () => {
 
   it('reads a channel from before the switch as off', () => {
     expect(libraryFor(LIB, {} as { library: boolean }, 'max')).toBeUndefined();
+  });
+});
+
+describe('a press with the library', () => {
+  const LIBRARY: LibraryOptions = {
+    url: 'https://mdc.example/mcp',
+    token: 'secret',
+    identifiers: ['alice@example.com'],
+  };
+
+  const setUp = async (grade: 'standard' | 'pro' | 'max', on = true) => {
+    const fake = fakeClient(() => reply('From the library.'));
+    boot(fake.client, undefined, LIBRARY);
+    const people = await room2();
+    const { alice, channelId } = people;
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_RESPONSE_MODEL',
+      responseModel: grade,
+    } as never);
+    if (on) {
+      app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
+    }
+    return { ...fake, ...people };
+  };
+
+  it('hands mdc to Claude on Pro, reading tools only, whoever presses', async () => {
+    const { calls, bob, channelId } = await setUp('pro');
+    // Bob owns nothing; the switch is the channel's.
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls[0].beta).toBe(true);
+    expect(calls[0].body).toMatchObject({
+      model: 'claude-sonnet-5-5',
+      betas: [MCP_BETA, FALLBACK_BETA],
+      fallbacks: 'default',
+      mcp_servers: [
+        { type: 'url', url: 'https://mdc.example/mcp', name: 'mdc', authorization_token: 'secret' },
+      ],
+      tools: [{ type: 'mcp_toolset', mcp_server_name: 'mdc', default_config: { enabled: false } }],
+    });
+    const configs = (calls[0].body as { tools: Array<{ configs: Record<string, unknown> }> }).tools[0]
+      .configs;
+    expect(Object.keys(configs).sort()).toEqual([...LIBRARY_TOOLS].sort());
+    expect(Object.keys(configs)).toEqual([
+      'guide',
+      'list_documents',
+      'lookup_term',
+      'read_document',
+      'read_file',
+    ]);
+    for (const tool of LIBRARY_TOOLS) expect(configs[tool]).toEqual({ enabled: true });
+  });
+
+  it('hands it over on Max too', async () => {
+    const { calls, bob, channelId } = await setUp('max');
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls[0].body).toMatchObject({ model: 'claude-opus-5-5', betas: [MCP_BETA, FALLBACK_BETA] });
+    expect(calls[0].body).toHaveProperty('mcp_servers');
+  });
+
+  it('leaves Standard the plain call even with it on', async () => {
+    const { calls, alice, channelId } = await setUp('standard');
+    expect((await press(channelId, alice.token)).statusCode).toBe(200);
+    expect(calls[0].beta).toBe(false);
+    expect(calls[0].body).not.toHaveProperty('mcp_servers');
+    expect(calls[0].body).not.toHaveProperty('tools');
+  });
+
+  it('sends nothing of it with the switch off', async () => {
+    const { calls, alice, channelId } = await setUp('pro', false);
+    expect((await press(channelId, alice.token)).statusCode).toBe(200);
+    expect(calls[0].body).toMatchObject({ betas: [FALLBACK_BETA] });
+    expect(calls[0].body).not.toHaveProperty('mcp_servers');
+    expect(calls[0].body).not.toHaveProperty('tools');
   });
 });
 

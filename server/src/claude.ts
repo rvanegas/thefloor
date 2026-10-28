@@ -62,6 +62,53 @@ export const RESPONSE_MODELS: Record<ResponseModel, ResponseGrade> = {
 /** The beta that the refusal fallback's `"default"` form is under. */
 export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
 
+/** The beta the Messages API's MCP connector is under. See `libraryRequest`. */
+export const MCP_BETA = 'mcp-client-2025-11-20';
+
+/** What the library's MCP server is called inside one request. */
+export const LIBRARY_SERVER_NAME = 'mdc';
+
+/**
+ * The library's tools a press may use: mdc's reading tools, and nothing else.
+ * **An allowlist although mdc's server writes nothing today** — mdc plans more
+ * tools, and one it adds should reach a room by a decision here, not by a
+ * deploy there.
+ */
+export const LIBRARY_TOOLS = [
+  'guide',
+  'list_documents',
+  'lookup_term',
+  'read_document',
+  'read_file',
+] as const;
+
+/**
+ * The two request fields that hand the library to Claude, which must travel
+ * together: the server, with its token, and the toolset that names it —
+ * every tool off by default, then the reading ones on. Anthropic's servers
+ * call mdc with the token and run the tool loop inside the one request.
+ */
+export function libraryRequest(library: LibraryOptions) {
+  return {
+    mcp_servers: [
+      {
+        type: 'url' as const,
+        url: library.url,
+        name: LIBRARY_SERVER_NAME,
+        authorization_token: library.token,
+      },
+    ],
+    tools: [
+      {
+        type: 'mcp_toolset' as const,
+        mcp_server_name: LIBRARY_SERVER_NAME,
+        default_config: { enabled: false },
+        configs: Object.fromEntries(LIBRARY_TOOLS.map((tool) => [tool, { enabled: true }])),
+      },
+    ],
+  };
+}
+
 /**
  * How much *Record* one request carries: 90,000 tokens, which keeps the whole
  * prompt under the 100K tokens past which Haiku 5.5 costs five times as much.
@@ -481,9 +528,8 @@ export class ClaudeResponder {
     record: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
-    // What `libraryFor` decided. Not yet part of the request: the MCP
-    // connector fields arrive with step 6 of the library's task.
-    _library?: LibraryOptions
+    // What `libraryFor` decided: the library this press may consult, if any.
+    library?: LibraryOptions
   ): Promise<Anthropic.Message | Anthropic.Beta.Messages.BetaMessage> {
     const body = {
       model: ask.model,
@@ -492,14 +538,18 @@ export class ClaudeResponder {
       messages: [{ role: 'user' as const, content: userMessage(record, length) }],
       output_config: { effort: ask.effort },
     };
-    if (!ask.fallback) return this.options.client.messages.create(body, { signal });
-    // `fallbacks` is newer than the SDK pinned here, which sends the body as
-    // given; the cast is that one field.
+    // Either reason takes the beta endpoint. Today they coincide — the
+    // library is offered only on Pro and Max, the grades with the fallback —
+    // but each is said on its own, so neither depends on the other staying so.
+    if (!ask.fallback && !library) return this.options.client.messages.create(body, { signal });
+    // `fallbacks` and the MCP connector's fields are newer than the SDK pinned
+    // here, which sends the body as given; the cast is those fields.
     return this.options.client.beta.messages.create(
       {
         ...body,
-        betas: [FALLBACK_BETA],
-        fallbacks: 'default',
+        betas: [...(library ? [MCP_BETA] : []), ...(ask.fallback ? [FALLBACK_BETA] : [])],
+        ...(ask.fallback ? { fallbacks: 'default' } : {}),
+        ...(library ? libraryRequest(library) : {}),
       } as Anthropic.Beta.Messages.MessageCreateParamsNonStreaming,
       { signal }
     );

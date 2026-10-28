@@ -206,10 +206,11 @@ for the reducer, `server/__tests__/claude.test.ts` for the rest.
    fallback grades, but say both). Betas `MCP_BETA` and/or `FALLBACK_BETA`;
    `mcp_servers` and the `mcp_toolset` as above. Export `MCP_BETA` and the
    enabled tool names beside `FALLBACK_BETA`, so a test can pin the allowlist
-   to exactly the five reading tools. **Confirm the field names and
-   beta id against the current MCP connector docs before writing this** — the
-   shape here is from memory, and the beta has renamed things once
-   (`tool_configuration` → `mcp_toolset`).
+   to exactly the five reading tools. **Done 2026-10-27**, with the field
+   names and beta id checked first against the Claude API reference's *MCP
+   Connector* section: as above, `configs` keyed by tool name. The same
+   section says the connector's server-side loop can stop on `pause_turn`
+   after ten iterations, which step 9 has to handle.
 7. **The prompt.** `systemPrompt(length, library)` adds one paragraph only
    when on, so the existing test stands: the library is Rodrigo's own writing
    (named — the presser may be somebody else now); consult it when the
