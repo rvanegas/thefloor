@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import { mkdtempSync, rmSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -25,6 +26,7 @@ import {
   type LibraryOptions,
   type RecordSources,
 } from '../src/claude';
+import { openDb } from '../src/db';
 import { MemoryMailer } from '../src/mail';
 
 /**
@@ -748,6 +750,57 @@ describe('a press with the library', () => {
     expect((await press(channelId, bob.token)).statusCode).toBe(504);
   });
 
+  it('ledgers how many lookups it made, and null for a press that did not consult it', async () => {
+    const withLookups = reply('', {
+      model: 'claude-sonnet-5-5',
+      content: [
+        { type: 'mcp_tool_use', id: 'a', name: 'guide', server_name: 'mdc', input: {} },
+        { type: 'mcp_tool_result', tool_use_id: 'a', is_error: false, content: [] },
+        { type: 'mcp_tool_use', id: 'b', name: 'lookup_term', server_name: 'mdc', input: {} },
+        { type: 'mcp_tool_result', tool_use_id: 'b', is_error: false, content: [] },
+        { type: 'text', text: 'Found it.' },
+      ],
+    });
+    let answer: unknown = withLookups;
+    const { alice, bob, channelId } = await setUp('pro', true, () => answer);
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    answer = reply('Nothing to look up.', { model: 'claude-sonnet-5-5' });
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: false } as never);
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(usageRows().map((row) => row.library_calls)).toEqual([2, 0, null]);
+  });
+
+  it('ledgers no lookups when mdc failed and the press went without it', async () => {
+    const { bob, channelId } = await setUp('pro', true, (call) => {
+      if (call.body.mcp_servers) throw new Error('mdc unreachable');
+      return reply('Without the library.', { model: 'claude-sonnet-5-5' });
+    });
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(usageRows()[0]).toMatchObject({ library_calls: 0, outcome: 'posted' });
+  });
+
+  it('adds the column to a ledger from before it, null on every row', () => {
+    // The table as it stood before the column, with a row in it.
+    const path = join(dir, 'old.db');
+    const old = new DatabaseSync(path);
+    old.exec(
+      `CREATE TABLE claude_usage (
+         id TEXT PRIMARY KEY, at INTEGER NOT NULL, channel_id TEXT NOT NULL,
+         account_id TEXT, grade TEXT NOT NULL, model TEXT NOT NULL,
+         input_tokens INTEGER NOT NULL, output_tokens INTEGER NOT NULL,
+         cache_write_tokens INTEGER NOT NULL, cache_read_tokens INTEGER NOT NULL,
+         stop_reason TEXT, outcome TEXT NOT NULL);
+       INSERT INTO claude_usage VALUES
+         ('c1', 1, 'ch', 'a', 'pro', 'm', 1, 1, 0, 0, 'end_turn', 'posted');`
+    );
+    old.close();
+    const db = openDb(path);
+    const row = db.prepare('SELECT * FROM claude_usage').get() as Record<string, unknown>;
+    expect(row).toHaveProperty('library_calls', null);
+    db.close();
+  });
+
   it('resumes a paused turn with what it returned, and ledgers both halves', async () => {
     const working = [
       { type: 'text', text: 'Let me look that up.' },
@@ -770,7 +823,13 @@ describe('a press with the library', () => {
       expect.objectContaining({ text: 'As you wrote, it is will.' }),
     ]);
     expect(usageRows()).toHaveLength(1);
-    expect(usageRows()[0]).toMatchObject({ input_tokens: 2400, output_tokens: 160, outcome: 'posted' });
+    expect(usageRows()[0]).toMatchObject({
+      input_tokens: 2400,
+      output_tokens: 160,
+      outcome: 'posted',
+      // The one lookup was in the first half; the count spans both.
+      library_calls: 1,
+    });
   });
 
   it('stops resuming after two continuations, and says Claude had nothing to add', async () => {

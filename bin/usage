@@ -439,6 +439,29 @@ GROUP BY c.account_id, c.grade
 ORDER BY usd DESC;
 
 .print ''
+.print '── Claude, consulting the library ──────────────────────────────'
+.print ''
+-- Only presses that consulted it, since 2026-10-27 (`library_calls` is null
+-- on every other). Already priced above, lookups being input tokens; this is
+-- what the per-channel switch is judged on. `looked` is how many presses
+-- made any lookup — high on a channel that has nothing to do with the
+-- library means the prompt's "only when relevant" is not holding — and
+-- `avg_in` beside the table above's says what a lookup costs in context.
+-- Errors with `no such column` against a database from before it.
+SELECT c.grade,
+       COUNT(*) AS presses,
+       SUM(c.library_calls > 0) AS looked,
+       ROUND(AVG(c.library_calls), 1) AS avg_calls,
+       MAX(c.library_calls) AS max_calls,
+       CAST(AVG(c.input_tokens) AS INTEGER) AS avg_in,
+       SUM(c.outcome = 'posted') AS posted,
+       SUM(c.outcome = 'timeout') AS timed_out
+FROM claude_usage c
+WHERE c.library_calls IS NOT NULL
+GROUP BY c.grade
+ORDER BY presses DESC;
+
+.print ''
 .print '── Free minutes, and who is not held to them ───────────────────'
 .print ''
 -- Everybody gets FREE_TRANSCRIPT_MINUTES a calendar week (60 unless set),

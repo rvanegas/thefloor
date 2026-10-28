@@ -2160,7 +2160,12 @@ CREATE TABLE IF NOT EXISTS claude_usage (
   -- The API's own, or null where the request never answered.
   stop_reason        TEXT,
   -- 'posted' | 'too_long' | 'empty' | 'refused' | 'error' | 'timeout' | 'gone'
-  outcome            TEXT NOT NULL
+  outcome            TEXT NOT NULL,
+  -- Null when the press did not consult the library; else how many lookups
+  -- Claude made, across a resumed pause — 0 when it looked nothing up, or
+  -- when mdc failed and the press was asked again without it. Since
+  -- 2026-10-27; what says whether lookups happen where they should not.
+  library_calls      INTEGER
 );
 CREATE INDEX IF NOT EXISTS claude_usage_at ON claude_usage(at);
 
@@ -3056,6 +3061,11 @@ function migrate(db: Db): void {
   // Null on every line that exists, likewise. See live.ts.
   if (!hasColumn(db, 'live_lines', 'speaker')) {
     db.exec('ALTER TABLE live_lines ADD COLUMN speaker TEXT');
+  }
+  // Null on every press that exists, which is true: no press consulted a
+  // library before 2026-10-27. See claude_usage in SCHEMA.
+  if (!hasColumn(db, 'claude_usage', 'library_calls')) {
+    db.exec('ALTER TABLE claude_usage ADD COLUMN library_calls INTEGER');
   }
   // The feed reads published recordings of one channel, in `started_at`
   // order, on every poll by every subscriber and every aggregator. Partial

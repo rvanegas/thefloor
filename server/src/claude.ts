@@ -603,7 +603,7 @@ export class ClaudeResponder {
     } finally {
       clearTimeout(timer);
       channels.claudeAnswered(channelId);
-      this.recordUsage(channelId, userId, grade, ask, response, outcome);
+      this.recordUsage(channelId, userId, grade, ask, response, outcome, library !== undefined);
     }
     return outcome === 'posted' ? { ok: true } : { ok: false, ...FAILURES[outcome] };
   }
@@ -736,16 +736,23 @@ export class ClaudeResponder {
     grade: ResponseModel,
     ask: ResponseGrade,
     response: Anthropic.Message | Anthropic.Beta.Messages.BetaMessage | undefined,
-    outcome: ClaudeOutcome
+    outcome: ClaudeOutcome,
+    consultedLibrary: boolean
   ): void {
     const usage = response?.usage;
+    // Lookups across the whole of it, a resumed pause included: `resumed`
+    // returns every round's content.
+    const libraryCalls = consultedLibrary
+      ? (response?.content ?? []).filter((block) => (block.type as string) === 'mcp_tool_use')
+          .length
+      : null;
     this.options.db
       .prepare(
         `INSERT INTO claude_usage
            (id, at, channel_id, account_id, grade, model, input_tokens,
             output_tokens, cache_write_tokens, cache_read_tokens, stop_reason,
-            outcome)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+            outcome, library_calls)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         newId('claude'),
@@ -760,7 +767,8 @@ export class ClaudeResponder {
         usage?.cache_creation_input_tokens ?? 0,
         usage?.cache_read_input_tokens ?? 0,
         response?.stop_reason ?? null,
-        outcome
+        outcome,
+        libraryCalls
       );
   }
 }
