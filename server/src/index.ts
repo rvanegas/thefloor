@@ -307,6 +307,32 @@ const anthropicKey = process.env.ANTHROPIC_API_KEY;
 const claude = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : undefined;
 
 /**
+ * Rodrigo's mdc library, which *Ask Claude* may consult — off unless
+ * `MDC_TOKEN` is set, and meaningless without the key above. Anthropic's
+ * servers call `MDC_URL` with the token, so it has to be reachable from
+ * outside and served over HTTPS. `MDC_IDENTIFIERS` names the library's owner,
+ * comma-separated like the hosts above; empty, nobody can switch it on. See
+ * `LibraryOptions`, and planning/CREDENTIALS.md for the token.
+ */
+const mdcToken = process.env.MDC_TOKEN;
+const mdcUrl = process.env.MDC_URL || 'https://mdc.rvanegas.co/mcp';
+if (mdcToken && !mdcUrl.startsWith('https://')) {
+  // Refused rather than ignored, as FREE_TRANSCRIPT_MINUTES is below: every
+  // library press would fail and quietly fall back, and nothing would say why.
+  throw new Error('MDC_URL must be an https:// URL.');
+}
+const library = mdcToken
+  ? {
+      url: mdcUrl,
+      token: mdcToken,
+      identifiers: (process.env.MDC_IDENTIFIERS ?? '')
+        .split(',')
+        .map((identifier) => identifier.trim())
+        .filter((identifier) => identifier.length > 0),
+    }
+  : undefined;
+
+/**
  * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
  * was retired on 2026-10-10: the mark is the `transcripts_unlimited` column
  * alone, set with
@@ -362,6 +388,7 @@ const app = buildApp({
   transcription,
   streaming,
   claude,
+  library,
   freeTranscriptMinutes,
   logger: true,
 });
@@ -413,6 +440,13 @@ app.fastify
         liveTranscription: streaming ? 'AssemblyAI streaming' : 'not configured',
         // Worth a line for transcription's reason: it changes what /privacy says.
         claude: claude ? 'Anthropic' : 'not configured',
+        // The URL and owners, never the token. Meaningless without `claude`,
+        // which is said rather than left to be inferred.
+        library: !library
+          ? 'not configured'
+          : !claude
+            ? 'set, and unused without ANTHROPIC_API_KEY'
+            : { url: library.url, owners: library.identifiers.length > 0 ? library.identifiers : 'none' },
         // Worth a line for the same reason `review` is: these decide what
         // anybody may spend, and reading .env is not how anybody should find
         // out. Everybody gets free minutes a week; the account marks that

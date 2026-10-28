@@ -80,6 +80,7 @@ import {
   DEFAULT_REPLY_LENGTH,
   isReplyLength,
   type ClaudeClient,
+  type LibraryOptions,
 } from './claude';
 import {
   formatTranscript,
@@ -329,6 +330,12 @@ export interface BuildOptions {
   claude?: ClaudeClient;
   /** How long a press may wait on Claude. Tests shorten it. */
   claudeTimeoutMs?: number;
+  /**
+   * Rodrigo's mdc library, for *Ask Claude* to consult — meaningful only with
+   * `claude`. Absent, no channel offers a *Library* switch and no press reads
+   * it. See `LibraryOptions`.
+   */
+  library?: LibraryOptions;
   /**
    * Turns speech into text as it is spoken — the live transcript. Optional
    * for `transcription`'s reason, and needs `media` too: without a room to
@@ -1181,6 +1188,7 @@ export function buildApp(options: BuildOptions = {}): App {
         db,
         now,
         timeoutMs: options.claudeTimeoutMs,
+        library: options.library,
         log: { warn: (details, message) => fastify.log.warn(details, message) },
       })
     : null;

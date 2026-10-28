@@ -1,6 +1,6 @@
 # Credentials
 
-The ten credentials this project holds, where each one lives, what it can do
+The eleven credentials this project holds, where each one lives, what it can do
 and what losing it costs. **Count the bullets rather than trusting this
 sentence**: it said nine while the list held eight from 2026-09-01, when the
 Android upload key was added and the numeral was not, until the Firebase
@@ -16,7 +16,7 @@ reducer or the app's behaviour, which is most work.
 **Read this before touching any credential, `bin/provision`,
 `bin/provision-livekit`, or `server/.env`.**
 
-**The ten are what this project holds. § *The credential this project issues*
+**The eleven are what this project holds. § *The credential this project issues*
 at the end is about one it mints** — the session token — and a place it is
 currently written down in clear.
 
@@ -47,14 +47,15 @@ here has to be read in order, and no entry depends on another.
 | Transcripts, and what `/privacy` claims | AssemblyAI |
 | Push on Android | Firebase service account |
 | Claude's *Respond*, and what `/privacy` claims about it | Anthropic |
+| Claude consulting Rodrigo's writing, the *Library* switch | mdc library token |
 | Session tokens, and the journal | The credential this project issues |
 
 `bin/env-pull` / `bin/env-push` and `server/.env` are the closing paragraph of
-§ *The ten*; every key and setting is documented in `server/.env.example`.
+§ *The eleven*; every key and setting is documented in `server/.env.example`.
 
 ---
 
-## The ten
+## The eleven
 
 Deliberately separate, so no single leak is worse than it has to be:
 
@@ -363,6 +364,28 @@ Deliberately separate, so no single leak is worse than it has to be:
   Rotating it is free: mint another, replace the line, `bin/env-push`, revoke
   the old. Nothing stored depends on it — the replies are pastes here, and
   `claude_usage` holds counts rather than anything keyed to the credential.
+
+- **mdc library token** — `MDC_TOKEN`, a bearer token for Rodrigo's mdc
+  library at `MDC_URL`, minted on `commons` by mdc's
+  `scripts/add_token.py rodvandur` with the note "The Floor". The eleventh,
+  added 2026-10-27 —
+  task/claude-draws-on-the-mdc-library-through-mcp.md. **This server never
+  presents it**: it goes in the Messages request, and Anthropic's servers call
+  mdc with it, so it travels to Anthropic on every library press, as the
+  Record does.
+
+  **It reads one person's writing and nothing else**: a token reaches its
+  user's libraries only, and mdc's server has offered no write since mdc
+  `43be338` — which is a property of mdc, not of this token, so the
+  allowlist in the request is what keeps a later mdc tool out of a room.
+  A leak exposes the library to whoever holds it, until it is revoked;
+  it spends nothing.
+
+  **Revoking it is deleting its line in mdc's `users.toml`**, which keeps
+  only the hash, so a lost token cannot be recovered there either — mint
+  another. Rotating is mint, replace the line, `bin/env-push`, delete the old
+  line. Nothing stored here depends on it. Marked `# env-push: optional`, with
+  `MDC_URL` and `MDC_IDENTIFIERS`, which are settings rather than secrets.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it

@@ -356,6 +356,27 @@ const FAILURES: Record<Exclude<ClaudeOutcome, 'posted'>, { status: number; error
   gone: { status: 409, error: 'The channel changed before Claude’s reply could be posted.' },
 };
 
+/**
+ * Rodrigo's mdc library — his own writing, indexed by term — which a press may
+ * let Claude consult through the Messages API's MCP connector: Anthropic's
+ * servers call mdc, not this one. Reading only. Present only with a token,
+ * and then only in a channel whose *Library* switch is on, on Pro and Max.
+ * See planning/task/claude-draws-on-the-mdc-library-through-mcp.md.
+ */
+export interface LibraryOptions {
+  /** mdc's MCP server, `https://mdc.rvanegas.co/mcp` in production. */
+  url: string;
+  /** A bearer token minted for the library's owner. See planning/CREDENTIALS.md. */
+  token: string;
+  /**
+   * The library's owner, by sign-in address: the accounts that may switch a
+   * channel's library on. Addresses rather than ids, and resolved at every
+   * use, for `cohortHosts`'s reason — the box is configured before anybody
+   * signs in on a fresh database.
+   */
+  identifiers: string[];
+}
+
 export interface ClaudeResponderOptions {
   client: ClaudeClient;
   channels: ClaudeChannels;
@@ -363,6 +384,8 @@ export interface ClaudeResponderOptions {
   db: Db;
   now: () => number;
   timeoutMs?: number;
+  /** Absent, no press consults a library. See `LibraryOptions`. */
+  library?: LibraryOptions;
   log?: { warn(details: object, message: string): void };
 }
 
