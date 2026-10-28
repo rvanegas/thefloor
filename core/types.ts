@@ -1018,6 +1018,18 @@ export interface ChannelState {
    * app reads as `standard`.
    */
   responseModel: ResponseModel;
+  /**
+   * Whether this channel's *Ask Claude* may consult the server's mdc library —
+   * its owner's own writing — on *Pro* and *Max*; *Standard* never does. Off
+   * on every new channel.
+   *
+   * The channel's, whoever presses, for `responseModel`'s reason. **Only an
+   * owner of the library may change it**, refused by the server before
+   * dispatch, since turning it on is consent to that writing reaching the
+   * room's Record. Absent on a snapshot from a server that predates it, and
+   * on a channel restored from one, which every reader takes as `false`.
+   */
+  library: boolean;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
@@ -1380,6 +1392,11 @@ export type ChannelAction =
    * from any account without `debug`.
    */
   | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
+  /**
+   * Switches the channel's library on or off. Guarded as `SET_RESPONSE_MODEL`
+   * is, and refused by the server from anybody who does not own the library.
+   */
+  | { type: 'SET_LIBRARY'; userId: UserId; library: boolean }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
   /**

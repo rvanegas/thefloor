@@ -167,19 +167,25 @@ for the reducer, `server/__tests__/claude.test.ts` for the rest.
    separate from `COHORT_HOST_IDENTIFIERS`, which means something else and
    happens to name the same person today.
 2. **The state, in core.** `ChannelState.library: boolean` (`types.ts`, beside
-   `responseModel`), `false` in the initial state (`channel.ts:169`); action
-   `SET_LIBRARY { library: boolean }` in `types.ts` and `protocol.ts`, listed
-   at `channel.ts:226`, reduced as `SET_RESPONSE_MODEL` is at `channel.ts:3469`
-   (no-op when unchanged). Read `?? false` everywhere, since restored rows
-   predate it.
-3. **The guard and the durable row, in `channels.ts`.** Beside the
-   `SET_RESPONSE_MODEL` guard (`:2780`): refuse a non-boolean as `invalid`,
+   `responseModel`), `false` in the initial state (`channel.ts:169`); reducer
+   action `SET_LIBRARY { userId, library }` in `types.ts`, listed in
+   `COMMUNITY_OWNER_ACTIONS` (`channel.ts:226`), reduced as
+   `SET_RESPONSE_MODEL` is (no-op when unchanged). Read `?? false` everywhere,
+   since restored rows predate it.
+3. **The wire action and the guard.** `SET_LIBRARY { library: boolean }` in
+   `protocol.ts` and in `CLIENT_ACTIONS` (`channels.ts:362`) **in the same
+   commit** — `server/__tests__/client-actions.test.ts` fails a wire action
+   the server does not list, so neither can arrive first, and until both do
+   no client can send it. Beside the
+   `SET_RESPONSE_MODEL` guard (`:2780`), refuse a non-boolean as `invalid`,
    and anybody whom `MDC_IDENTIFIERS` does not resolve to as `forbidden`, with
-   the sentence the app shows. Persist and restore it where `responseModel` is
-   (`:8002`, `:8387`, `:8455`), with the column added by the usual
-   `ALTER TABLE … ADD COLUMN` in `db.ts`. Also refuse it as `invalid` when
-   the server has no `library` configured, so the state cannot claim what it
-   cannot do.
+   the sentence the app shows. Also refuse it as `invalid` when the server has
+   no `library` configured, so the state cannot claim what it cannot do.
+   **Saving and restoring it was done in step 2**, beside `responseModel`: a
+   channel's durable state is a JSON value, so there is no column and no
+   migration, as this step first said there would be. Its test is here, since
+   only now can the server set it: switched on, the channel still has it
+   after a restart, as *the response model … survives a restart* does.
 4. **The app.** A card in `ChannelSettingsView.tsx` after *Response model*,
    drawn only where the view says the server has a library (a
    `libraryAvailable` beside `claudeAvailable`, `app.ts:6350`, carried the way

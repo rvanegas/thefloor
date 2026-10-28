@@ -167,6 +167,8 @@ export function createChannel(params: {
     // Haiku, for the same reason: the cheap grade unless a `debug` account
     // has said otherwise.
     responseModel: 'standard',
+    // Off until the library's owner says otherwise, channel by channel.
+    library: false,
     recording: initialRecordingState(),
     lastRecording: null,
     playback: initialPlaybackState(),
@@ -224,6 +226,7 @@ export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new S
   'SET_AUTO_RECORD',
   'SET_TRANSCRIPTION_MODEL',
   'SET_RESPONSE_MODEL',
+  'SET_LIBRARY',
   'START_RECORDING',
   'PAUSE_RECORDING',
   'RESUME_RECORDING',
@@ -3472,6 +3475,14 @@ function reduceAction(
       if (!canEditChannel(state, action.userId)) return state;
       if (action.responseModel === (state.responseModel ?? 'standard')) return state;
       return { ...state, responseModel: action.responseModel };
+    }
+
+    case 'SET_LIBRARY': {
+      // Guarded like `SET_RESPONSE_MODEL`. Who owns the library is not channel
+      // state, so that half of the rule is the server's.
+      if (!canEditChannel(state, action.userId)) return state;
+      if (action.library === (state.library ?? false)) return state;
+      return { ...state, library: action.library };
     }
 
     case 'CLAIM_FLOOR': {

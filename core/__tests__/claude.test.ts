@@ -1,5 +1,5 @@
 import { CLAUDE_ID } from '../constants';
-import { canAskClaude, canPasteClip, createChannel, reduce } from '../channel';
+import { COMMUNITY_OWNER_ACTIONS, canAskClaude, canPasteClip, createChannel, reduce } from '../channel';
 import type { ChannelState, ClaudeAsk } from '../types';
 
 const A = 'user-a';
@@ -102,5 +102,45 @@ describe('the response model', () => {
   it('moves independently of the transcription model', () => {
     const s = reduce(bothHere(), { type: 'SET_RESPONSE_MODEL', userId: A, responseModel: 'pro' }, T0 + 1);
     expect(s.transcriptionModel).toBe('standard');
+  });
+});
+
+describe('the library', () => {
+  it('is off on a new channel', () => {
+    expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).library).toBe(false);
+  });
+
+  it('is switched on and off by somebody in the room, and changes nothing else', () => {
+    const before = bothHere();
+    const on = reduce(before, { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 1);
+    expect(on.library).toBe(true);
+    expect({ ...on, library: false }).toEqual(before);
+    expect(reduce(on, { type: 'SET_LIBRARY', userId: B, library: false }, T0 + 2).library).toBe(false);
+  });
+
+  it('is guarded like the other channel settings', () => {
+    // Who owns the library is the server's half of the rule.
+    let s = bothHere();
+    s = reduce(s, { type: 'STEP_OUT', userId: A }, T0 + 1);
+    expect(reduce(s, { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 2)).toBe(s);
+  });
+
+  it('is no change when it would change nothing, including on a channel from before the field', () => {
+    const s = bothHere();
+    expect(reduce(s, { type: 'SET_LIBRARY', userId: A, library: false }, T0 + 1)).toBe(s);
+    const restored = { ...s } as Partial<ChannelState>;
+    delete restored.library;
+    const old = restored as ChannelState;
+    expect(reduce(old, { type: 'SET_LIBRARY', userId: A, library: false }, T0 + 1)).toBe(old);
+    expect(reduce(old, { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 1).library).toBe(true);
+  });
+
+  it('is the community owner’s alone, and refused by name', () => {
+    expect(COMMUNITY_OWNER_ACTIONS.has('SET_LIBRARY')).toBe(true);
+  });
+
+  it('moves independently of the response model', () => {
+    const s = reduce(bothHere(), { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 1);
+    expect(s.responseModel).toBe('standard');
   });
 });

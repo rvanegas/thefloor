@@ -8000,6 +8000,8 @@ export class ChannelRegistry {
       // request dies with the process, and restoring it would leave the card
       // saying *Responding…* to an answer that is never coming.
       responseModel: channel.responseModel ?? 'standard',
+      // A setting somebody chose, beside the model it applies to.
+      library: channel.library ?? false,
       // Durable, unlike the knocks and guests it sits beside in the state, and
       // that is the reason a motion lives on `ChannelState` at all rather than
       // in this class's memory: it stands for a day — `REMOVAL_MOTION_WINDOW_MS`
@@ -8385,6 +8387,7 @@ export class ChannelRegistry {
       autoTranscribe?: boolean;
       transcriptionModel?: ChannelState['transcriptionModel'];
       responseModel?: ChannelState['responseModel'];
+      library?: boolean;
       initiator?: string;
       owner?: string;
       participants?: string[];
@@ -8453,6 +8456,8 @@ export class ChannelRegistry {
       // The default on a row written before the field existed.
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       responseModel: durable.responseModel ?? 'standard',
+      // Off for a channel written before the field, as for a new one.
+      library: durable.library ?? false,
       initiator: durable.initiator ?? row.initiator_id,
       ...(durable.owner !== undefined ? { owner: durable.owner } : {}),
       ...(durable.locked ? { locked: true as const } : {}),
