@@ -4,7 +4,12 @@ import { createChannel, reduce } from '../../../../core/channel';
 import { CLAUDE_ID } from '../../../../core/constants';
 import type { ChannelState } from '../../../../core/types';
 import type { Voice } from '../../../modules/read-aloud';
-import { bestVoice, speechLocale, useClaudeReadAloud } from '../readAloud';
+import {
+  bestVoice,
+  replyLocale,
+  speechLocale,
+  useClaudeReadAloud,
+} from '../readAloud';
 
 const ME = 'acct_me';
 const THEM = 'acct_them';
@@ -135,6 +140,43 @@ describe('bestVoice', () => {
 
   it('is null with nothing installed', () => {
     expect(bestVoice([], 'en-US')).toBeNull();
+  });
+});
+
+describe('replyLocale', () => {
+  const sure = (language: string, confidence = 0.99) => () => ({
+    language,
+    confidence,
+  });
+
+  it('reads a reply in the language it is written in, whatever the app’s', () => {
+    expect(replyLocale('Hola a todos.', 'en-US', sure('es'), 'en-US')).toBe('es');
+    expect(replyLocale('Hola a todos.', 'en', sure('es'), 'es-MX')).toBe('es-MX');
+  });
+
+  it('falls back to the app’s language when the text will not say', () => {
+    expect(replyLocale('https://x.y', 'en-US', sure('es', 0.3), 'en-US')).toBe(
+      'en-US'
+    );
+    expect(replyLocale('42', 'es-MX', () => null, 'es-MX')).toBe('es-MX');
+  });
+
+  it('hands the hook’s reading to the voice', () => {
+    const say = jest.fn();
+    function Probe({ state }: { state: ChannelState }) {
+      useClaudeReadAloud(state, 'en-US', say, () => undefined, sure('es'));
+      return null;
+    }
+    const channel = joined();
+    let tree: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<Probe state={channel} />);
+    });
+    act(() => {
+      tree.update(<Probe state={paste(channel, { text: 'Hola a todos.' })} />);
+    });
+    expect(say.mock.calls[0][0]).toBe('Hola a todos.');
+    expect(say.mock.calls[0][1]).toMatch(/^es/);
   });
 });
 

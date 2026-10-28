@@ -844,12 +844,18 @@ export const en = {
      * named as the Voices list labels it, which is what somebody is matching
      * against with their finger.
      */
-    readAloudVoice: (voice: string, quality: 'enhanced' | 'premium') =>
-      `Claude\u2019s replies are read aloud as they arrive, in ${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'}).`,
-    readAloudBasicVoice: () =>
-      'Claude\u2019s replies are read aloud as they arrive, in the basic English voice, which sounds robotic.',
-    readAloudHowTo: (newerSettings: boolean, onlyPremium: boolean) =>
-      `For a more natural voice, open Settings \u203a Accessibility \u203a ${newerSettings ? 'Read & Speak' : 'Spoken Content'} \u203a Voices \u203a English, choose a voice, and download its ${onlyPremium ? 'Premium' : 'Enhanced or Premium'} version. It is used here as soon as it has downloaded.`,
+    readAloudNote: () =>
+      'Claude\u2019s replies are read aloud as they arrive, in the language each is written in.',
+    readAloudVoice: (
+      language: 'en' | 'es',
+      voice: string,
+      quality: 'enhanced' | 'premium'
+    ) =>
+      `${language === 'es' ? 'Spanish' : 'English'}: ${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'})`,
+    readAloudBasicVoice: (language: 'en' | 'es') =>
+      `${language === 'es' ? 'Spanish' : 'English'}: only the basic voice, which sounds robotic`,
+    readAloudHowTo: (newerSettings: boolean) =>
+      `For a more natural voice, open Settings \u203a Accessibility \u203a ${newerSettings ? 'Read & Speak' : 'Spoken Content'} \u203a Voices, choose the language, then a voice, and download its Enhanced or Premium version. It is used here as soon as it has downloaded.`,
     on: () => 'On',
     off: () => 'Off',
     diagnostics: () => 'Diagnostics',

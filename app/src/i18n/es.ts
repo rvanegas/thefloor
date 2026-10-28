@@ -649,12 +649,18 @@ export const es: Strings = {
     chooseWhereSoundComesOutSub: () =>
       'Auriculares, AirPlay o cualquier cosa emparejada',
     readAloud: () => 'Leer en voz alta',
-    readAloudVoice: (voice: string, quality: 'enhanced' | 'premium') =>
-      `Las respuestas de Claude se leen en voz alta en cuanto llegan, con la voz ${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'}).`,
-    readAloudBasicVoice: () =>
-      'Las respuestas de Claude se leen en voz alta en cuanto llegan, con la voz b\u00e1sica de espa\u00f1ol, que suena rob\u00f3tica.',
-    readAloudHowTo: (newerSettings: boolean, onlyPremium: boolean) =>
-      `Para una voz m\u00e1s natural, abre Ajustes \u203a Accesibilidad \u203a ${newerSettings ? 'Leer y hablar' : 'Contenido le\u00eddo'} \u203a Voces \u203a Espa\u00f1ol, elige una voz y descarga su versi\u00f3n ${onlyPremium ? 'Premium' : 'mejorada o Premium'}. Se usa aqu\u00ed en cuanto termina de descargarse.`,
+    readAloudNote: () =>
+      'Las respuestas de Claude se leen en voz alta en cuanto llegan, en el idioma en que est\u00e1 escrita cada una.',
+    readAloudVoice: (
+      language: 'en' | 'es',
+      voice: string,
+      quality: 'enhanced' | 'premium'
+    ) =>
+      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: ${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'})`,
+    readAloudBasicVoice: (language: 'en' | 'es') =>
+      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: solo la voz b\u00e1sica, que suena rob\u00f3tica`,
+    readAloudHowTo: (newerSettings: boolean) =>
+      `Para una voz m\u00e1s natural, abre Ajustes \u203a Accesibilidad \u203a ${newerSettings ? 'Leer y hablar' : 'Contenido le\u00eddo'} \u203a Voces, elige el idioma, luego una voz, y descarga su versi\u00f3n mejorada o Premium. Se usa aqu\u00ed en cuanto termina de descargarse.`,
     on: () => 'S\u00ed',
     off: () => 'No',
     diagnostics: () => 'Diagn\u00f3stico',

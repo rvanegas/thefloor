@@ -4,9 +4,11 @@ import { CLAUDE_ID } from '../../../core/constants';
 import type { LanguagePreference } from '../../../core/settings';
 import type { ChannelState } from '../../../core/types';
 import {
+  detectLanguage,
   installedVoices,
   speak,
   stopSpeaking,
+  type DetectedLanguage,
   type Voice,
   type VoiceQuality,
 } from '../../modules/read-aloud';
@@ -23,28 +25,62 @@ import { deviceRegion } from '../api/region';
  */
 
 /**
- * The tag to speak in: the app's language, in the phone's region when the
- * phone is in that language too — so a Mexican phone set to *Español* reads
- * in `es-MX` rather than in whichever Spanish sorts first.
+ * A language subtag, in the phone's region when the phone speaks it — so a
+ * Mexican phone reads Spanish in `es-MX` rather than in whichever Spanish
+ * sorts first, and English in plain `en`.
+ */
+export function localeFor(
+  language: string,
+  phone: string | undefined = deviceRegion().locale
+): string {
+  const tag = (phone ?? '').replace(/_/g, '-');
+  const phoneLanguage = tag.split('-')[0].toLowerCase();
+  return phoneLanguage === language && tag.includes('-') ? tag : language;
+}
+
+/**
+ * The app's language as a tag to speak in — the fallback, for a reply whose
+ * own language cannot be told.
  *
- * *Automatic* resolves as `stringsFor` resolves it — Spanish or else English —
- * because the voice follows the language the app is speaking, which is the one
- * Floor Settings tells you how to get a better voice for.
+ * *Automatic* resolves as `stringsFor` resolves it, Spanish or else English;
+ * anything unrecognised reads as *Automatic*, `LanguageProvider`'s rule.
  */
 export function speechLocale(
   preference: LanguagePreference,
   phone: string | undefined = deviceRegion().locale
 ): string {
-  const tag = (phone ?? '').replace(/_/g, '-');
-  const phoneLanguage = tag.split('-')[0].toLowerCase();
-  // Anything unrecognised reads as *Automatic*, `LanguageProvider`'s rule.
+  const phoneLanguage = (phone ?? '').replace(/_/g, '-').split('-')[0].toLowerCase();
   const language =
     preference === 'en' || preference === 'es'
       ? preference
       : phoneLanguage === 'es'
         ? 'es'
         : 'en';
-  return phoneLanguage === language && tag.includes('-') ? tag : language;
+  return localeFor(language, phone);
+}
+
+/**
+ * How sure the recognizer has to be before a reply's own language wins over
+ * the app's. Two sentences of prose come back far above it; a reply that is
+ * mostly a name, a number or a link is what falls under.
+ */
+export const LANGUAGE_CONFIDENCE = 0.6;
+
+/**
+ * The tag a reply is read in: **the language it is written in**, which is the
+ * conversation's, since Claude answers in that — and the app's only where the
+ * text will not say. A Spanish reply on a phone set to English is read by a
+ * Spanish voice.
+ */
+export function replyLocale(
+  text: string,
+  fallback: string,
+  detect: (text: string) => DetectedLanguage | null = detectLanguage,
+  phone: string | undefined = deviceRegion().locale
+): string {
+  const found = detect(text);
+  if (!found || found.confidence < LANGUAGE_CONFIDENCE) return fallback;
+  return localeFor(languageOf(found.language), phone);
 }
 
 const RANK: Record<VoiceQuality, number> = { default: 0, enhanced: 1, premium: 2 };
@@ -66,24 +102,37 @@ export function bestVoice(voices: readonly Voice[], locale: string): Voice | nul
   return sorted[0] ?? null;
 }
 
-const languageOf = (locale: string) => locale.split('-')[0].toLowerCase();
+function languageOf(locale: string): string {
+  return locale.replace(/_/g, '-').split('-')[0].toLowerCase();
+}
+
+/** The two languages Floor Settings reports on, the app's own first. */
+export type SpokenLanguage = 'en' | 'es';
 
 /**
- * What Floor Settings draws: the voice a reply would be read in now, or null
- * where this build cannot speak at all.
+ * What Floor Settings draws: for each language, the voice a reply in it would
+ * be read in now — or null for the whole where this build cannot speak.
+ *
+ * **Both languages, not the app's**, because the reply's language decides the
+ * voice, and a Spanish reply reaches a phone set to English as readily as an
+ * English one.
  *
  * **Asked again whenever the app comes back to the foreground**, because the
  * card's whole advice is to go to Settings and download a voice, and the
  * person who did is the one coming back to see whether it took.
  */
-export function useReadAloudVoice(
-  locale: string
-): { available: boolean; voice: Voice | null } {
+export function useReadAloudVoices(
+  languages: readonly SpokenLanguage[]
+): Array<{ language: SpokenLanguage; voice: Voice | null }> | null {
+  const key = languages.join(',');
   const look = () => {
-    const voices = installedVoices(languageOf(locale));
-    return voices === null
-      ? { available: false, voice: null }
-      : { available: true, voice: bestVoice(voices, locale) };
+    const found: Array<{ language: SpokenLanguage; voice: Voice | null }> = [];
+    for (const language of languages) {
+      const voices = installedVoices(language);
+      if (voices === null) return null;
+      found.push({ language, voice: bestVoice(voices, localeFor(language)) });
+    }
+    return found;
   };
   const [state, setState] = useState(look);
   useEffect(() => {
@@ -93,7 +142,7 @@ export function useReadAloudVoice(
     });
     return () => subscription.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [locale]);
+  }, [key]);
   return state;
 }
 
@@ -113,15 +162,19 @@ export function useReadAloudVoice(
  * first look at a channel is taken as read, `usePresenceChime`'s rule: a reply
  * already there when you step in was spoken to the people who were there.
  *
+ * **In the language the reply is written in** (`replyLocale`), with
+ * `fallback` — the app's — only where the text will not say.
+ *
  * **Local, and never into the call**, as every chime is: each phone reads to
  * its own listener. A phone on its speaker with its microphone open may carry
  * the voice into the call as well, which is the chimes' standing too.
  */
 export function useClaudeReadAloud(
   live: ChannelState | null,
-  locale: string,
+  fallback: string,
   say: (text: string, locale: string) => void = sayWithBestVoice,
-  hush: () => void = stopSpeaking
+  hush: () => void = stopSpeaking,
+  detect: (text: string) => DetectedLanguage | null = detectLanguage
 ): void {
   const seen = useRef<{ channelId: string; clipId: string | null } | null>(null);
 
@@ -130,8 +183,8 @@ export function useClaudeReadAloud(
   const clipId = clip?.id ?? null;
   // Read through a ref so a change of language does not re-run the effect and
   // read the last reply out a second time.
-  const latest = useRef({ clip, locale });
-  latest.current = { clip, locale };
+  const latest = useRef({ clip, fallback, detect });
+  latest.current = { clip, fallback, detect };
 
   useEffect(() => {
     if (channelId === null) {
@@ -148,9 +201,9 @@ export function useClaudeReadAloud(
     }
     if (clipId === null || clipId === before.clipId) return;
 
-    const { clip: pasted, locale: tag } = latest.current;
+    const { clip: pasted, fallback: otherwise, detect: recognize } = latest.current;
     if (pasted?.authorId !== CLAUDE_ID) return;
-    say(pasted.text, tag);
+    say(pasted.text, replyLocale(pasted.text, otherwise, recognize));
   }, [channelId, clipId, say, hush]);
 
   useEffect(() => () => hush(), [hush]);

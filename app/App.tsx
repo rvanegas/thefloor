@@ -502,8 +502,9 @@ function Root() {
    *
    * Here for the reason the cues above are: a reply spoken only to whoever is
    * looking at the *Record* misses everybody who walked back to Home and is
-   * still in the room. In the app's language, with the best voice the phone
-   * has for it; Floor Settings says which that is. See `useClaudeReadAloud`.
+   * still in the room. In the language the reply is written in, the app's
+   * only where that cannot be told, with the best voice the phone has for it;
+   * Floor Settings says which those are. See `useClaudeReadAloud`.
    */
   useClaudeReadAloud(live, speechLocale(app.language));
 

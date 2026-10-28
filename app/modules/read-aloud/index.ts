@@ -20,8 +20,16 @@ export interface Voice {
   quality: VoiceQuality;
 }
 
+export interface DetectedLanguage {
+  /** A BCP 47 tag as NaturalLanguage spells it — `en`, `es`, `zh-Hans`. */
+  language: string;
+  /** 0..1. */
+  confidence: number;
+}
+
 interface NativeReadAloud {
   voices(language: string): Voice[];
+  language(text: string): DetectedLanguage | null;
   speak(text: string, voice: string | null, language: string): Promise<boolean>;
   stop(): Promise<boolean>;
 }
@@ -49,6 +57,16 @@ export function installedVoices(language: string): Voice[] | null {
   if (!native) return null;
   try {
     return native.voices(language);
+  } catch {
+    return null;
+  }
+}
+
+/** The language a text is written in, or null where nothing can say. */
+export function detectLanguage(text: string): DetectedLanguage | null {
+  if (!native) return null;
+  try {
+    return native.language(text);
   } catch {
     return null;
   }

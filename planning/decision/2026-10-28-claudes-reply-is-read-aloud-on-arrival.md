@@ -29,12 +29,24 @@ once is the price of no switch, and the first thing to look at if it grates.
 
 ## Which voice
 
-**The app's language, in the phone's region where the phone speaks it**
-(`speechLocale`), and among the installed voices the best quality, then the
-region, then the name (`bestVoice`). Not the language of the conversation, which
-Claude follows and the app does not know: a Spanish conversation read on a
-phone set to English is read by an English voice. That is the literal ask, and
-the first thing to change if it is wrong.
+**The language the reply is written in**, which is the conversation's, since
+Claude answers in that. Built first on the app's language, and changed the
+same day at Rodrigo's word: a Spanish reply on a phone set to English was read
+by an English voice.
+
+**Told from the reply's own text, on the phone** — `NLLanguageRecognizer`,
+offline and instant, with English and Spanish hinted so a short reply leans to
+one of them rather than to Catalan or Portuguese. Below 0.6 confidence
+(`LANGUAGE_CONFIDENCE`) — a reply that is mostly a name, a number or a link —
+the app's language reads it instead. Rejected: Claude tagging its own
+language, which is a prompt change and a parse to answer what the text
+already answers; the transcriber's detection, which a channel with no live
+transcript does not have and which describes the speech rather than the
+reply; and a channel setting, wrong whenever a conversation changes language.
+
+Then the phone's region where the phone speaks that language (`localeFor`),
+and among the installed voices the best quality, the region, then the name
+(`bestVoice`).
 
 **A local module, `app/modules/read-aloud`, rather than `expo-speech`.** The
 card needs `AVSpeechSynthesisVoice.quality` in all three values; Premium
@@ -46,8 +58,10 @@ card is not drawn and nothing speaks.
 ## The card
 
 *Read aloud* under *Audio output*, for that card's reason: it is about this
-phone and stores nothing. It names the voice in use and its quality, or says
-only the basic voice is installed, and gives the path in Settings' own words,
+phone and stores nothing. **Both English and Spanish**, the app's own first,
+since the reply's language decides the voice: a line each naming the voice and
+its quality, or saying only the basic voice is installed, and unless both are
+Premium the path in Settings' own words,
 which iOS 26 renamed from *Spoken Content* to *Read & Speak* — chosen by
 `Platform.Version`. **The download cannot be started or linked to**: iOS has
 no API for either, and `App-prefs:` URLs are private and refused at review. So

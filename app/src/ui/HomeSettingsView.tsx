@@ -1,7 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
-import { speechLocale, useReadAloudVoice } from '../audio/readAloud';
+import {
+  speechLocale,
+  useReadAloudVoices,
+  type SpokenLanguage,
+} from '../audio/readAloud';
 import { showRoutePicker } from '../audio/routePicker';
 import { mayHoldToken } from '../push';
 import { useApp } from '../state/AppProvider';
@@ -943,23 +947,28 @@ const styles = StyleSheet.create({
 function ReadAloudSection() {
   const app = useApp();
   const t = useText().homeSettings;
-  const { available, voice } = useReadAloudVoice(speechLocale(app.language));
-  if (Platform.OS !== 'ios' || !available) return null;
-  const good = voice && voice.quality !== 'default' ? voice.quality : null;
+  // The app's own language first, being the likelier of the two to be read.
+  const languages: SpokenLanguage[] = speechLocale(app.language).startsWith('es')
+    ? ['es', 'en']
+    : ['en', 'es'];
+  const found = useReadAloudVoices(languages);
+  if (Platform.OS !== 'ios' || found === null) return null;
   const newerSettings = parseInt(String(Platform.Version), 10) >= 26;
+  const allPremium = found.every(({ voice }) => voice?.quality === 'premium');
   return (
     <>
       <SectionLabel>{t.readAloud()}</SectionLabel>
       <Card style={styles.stack}>
-        <Text style={type.body}>
-          {good && voice
-            ? t.readAloudVoice(voice.name, good)
-            : t.readAloudBasicVoice()}
-        </Text>
-        {good === 'premium' ? null : (
-          <Text style={type.muted}>
-            {t.readAloudHowTo(newerSettings, good === 'enhanced')}
+        <Text style={type.body}>{t.readAloudNote()}</Text>
+        {found.map(({ language, voice }) => (
+          <Text key={language} style={type.body}>
+            {voice && voice.quality !== 'default'
+              ? t.readAloudVoice(language, voice.name, voice.quality)
+              : t.readAloudBasicVoice(language)}
           </Text>
+        ))}
+        {allPremium ? null : (
+          <Text style={type.muted}>{t.readAloudHowTo(newerSettings)}</Text>
         )}
       </Card>
     </>

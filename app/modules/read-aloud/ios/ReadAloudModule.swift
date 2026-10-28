@@ -1,5 +1,6 @@
 import AVFoundation
 import ExpoModulesCore
+import NaturalLanguage
 
 /**
  Claude's replies, spoken, with whatever voices this phone has installed.
@@ -56,6 +57,29 @@ public class ReadAloudModule: Module {
             "quality": Self.qualityName(voice.quality),
           ]
         }
+    }
+
+    /**
+     The language a reply is written in, as a BCP 47 subtag and how sure the
+     recognizer is, or nil where it will not guess.
+
+     **The reply's own text decides**, not the app's language: Claude answers
+     in the conversation's, and the text is the one thing in hand that is
+     certainly in it. On-device and offline, and a reply of two sentences is
+     plenty for it. **English and Spanish are hinted**, being the two this app
+     is used in, so a short reply leans to one of them rather than to a
+     neighbour like Catalan or Portuguese; anything else still wins on
+     evidence.
+     */
+    Function("language") { (text: String) -> [String: Any]? in
+      let recognizer = NLLanguageRecognizer()
+      recognizer.languageHints = [.english: 0.4, .spanish: 0.4]
+      recognizer.processString(text)
+      guard
+        let best = recognizer.languageHypotheses(withMaximum: 1).first,
+        best.key != .undetermined
+      else { return nil }
+      return ["language": best.key.rawValue, "confidence": best.value]
     }
 
     /**
