@@ -24,8 +24,8 @@
 # other side did. On an accepted row it is who asked first, which is history
 # rather than anything the app shows.
 #
-# `last_seen` and `days_ago` are the contact's, read as bin/people reads them,
-# and empty for somebody who has never connected.
+# `last_seen` and `days_ago` are the contact's, the second computed as
+# bin/people computes it, and both empty for somebody who has never connected.
 #
 # Requests to addresses with no account are not here, because they are not in
 # `contacts`: they are `pending_invites`, and bin/invites is that list.

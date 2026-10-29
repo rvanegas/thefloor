@@ -14,10 +14,13 @@
 # heartbeat — and the people who were here five minutes ago are at the bottom,
 # next to the prompt.
 #
-# `last_seen` is `last_seen_at` rendered as a UTC datetime rather than the
-# epoch milliseconds it is stored as, and `days_ago` is the same number said
-# the way you were going to work it out anyway. Both are empty for somebody who
-# has never connected, rather than 1970.
+# `days_ago` is `last_seen_at` said the way you were going to work it out
+# anyway, rather than the epoch milliseconds it is stored as. It is empty for
+# somebody who has never connected, rather than 1970.
+#
+# `username` is blank for most accounts that predate usernames: none was
+# derived for them, and they have one only if they chose it. Blank is also what
+# somebody who gave theirs up has. See db.ts above the column.
 #
 # Two kinds of row are not people:
 #
@@ -33,7 +36,7 @@
 # and neither counts towards the week. Blank for everybody else, including
 # everybody merely absent: an account nobody has had reason to notify has
 # ignored nothing. It clears the moment they are seen, so a row with a recent
-# `last_seen` and a 1 here cannot happen. See planning/GLOSSARY.md § Paused
+# `days_ago` and a 1 here cannot happen. See planning/GLOSSARY.md § Paused
 # (of arrivals).
 #
 # `notifications` is whether the phone lets the app reach them when it is not
@@ -105,18 +108,16 @@ fi
 sql="
 SELECT identifier,
        display_name,
+       COALESCE('@' || username, '') AS username,
        last_build AS build,
        $expired AS expired,
-       CASE WHEN last_seen_at IS NULL THEN ''
-            ELSE datetime(last_seen_at / 1000, 'unixepoch') END AS last_seen,
        CASE WHEN last_seen_at IS NULL THEN ''
             ELSE ROUND((unixepoch() * 1000 - last_seen_at) / 86400000.0, 1)
        END AS days_ago,
        CASE WHEN unanswered_since IS NOT NULL
              AND unanswered_since <= unixepoch() * 1000 - 604800000
             THEN 1 ELSE '' END AS paused,
-       COALESCE(notifications, '') AS notifications,
-       date(created_at / 1000, 'unixepoch') AS joined
+       COALESCE(notifications, '') AS notifications
 FROM accounts
 ORDER BY last_seen_at;
 

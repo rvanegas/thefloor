@@ -53,8 +53,8 @@
 # the box and this script never reads it.
 #
 # `joined` is when the account was created and `days_ago` is since it was last
-# seen, blank for somebody who has never connected — the same columns
-# bin/people carries, for the same reason: a cohort of accounts that have not
+# seen, blank for somebody who has never connected — the second is the
+# `days_ago` bin/people carries, for the same reason: a cohort of accounts that have not
 # come back is the finding.
 #
 # Two kinds of row are not ordinary people and **can no longer be placed**,
