@@ -1,0 +1,149 @@
+#!/bin/bash
+#
+# Gives every account without a username the one signup would have given it.
+#
+#   bin/backfill-usernames                 preview, against the deployed server
+#   bin/backfill-usernames --write         do it
+#   bin/backfill-usernames --local [...]   the development database instead
+#
+# A preview by default, the same trade bin/db makes: it prints every account
+# without a username and what it would get, and writes nothing. `--write` runs
+# the identical statements and keeps the result, in one transaction.
+#
+# **This reverses part of 2026-09-12-derived-names-at-signup.md**, which said
+# nothing would be backfilled; planning/decision/2026-10-28-usernames-are-
+# backfilled.md says why that changed. The rule itself is unchanged and is not
+# restated here: the candidates come from server/scripts/derive-usernames.ts,
+# which calls the functions `Accounts.deriveUsername` calls — the display name's
+# stem, else the address's, then numbered variants, `DERIVED_USERNAME_TRIES` of
+# them, read from accounts.ts so the two cannot disagree. An account whose name
+# yields no stem, or whose every variant is taken, is left without one, which
+# is what signup does too; those show with a blank username.
+#
+# The oldest account is offered a name first, so where two would derive the
+# same one, whoever has been here longer gets it bare.
+#
+# **Two kinds of null cannot be told apart.** An account that never had a
+# username and one whose owner cleared theirs look the same — the column is
+# null either way and nothing records which — so somebody who gave theirs up
+# is handed one back. Read the preview for anybody that would surprise.
+#
+# Tombstones (`erased:…`) are skipped: nobody is behind them to have a name.
+#
+# Nothing needs restarting. The server reads usernames from the database on
+# every lookup, so a name is live — in a profile, in `/i/<username>/<pin>` — the
+# moment the transaction commits. Undoing it is setting the column back to null
+# for those ids, which is easy until somebody has handed out a link with the
+# name in it.
+#
+# Uniqueness is decided on the box, inside the transaction: the names are
+# assigned against a copy of every username taken at that moment, and the
+# unique index stands behind it. The candidates themselves are worked out
+# here, from a read a moment earlier — an account that gets a name in between
+# keeps the one it got.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_DB="$ROOT/server/thefloor.db"
+TSX="$ROOT/server/node_modules/.bin/tsx"
+
+local_mode=false
+write=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    --write) write=true ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the header
+    # gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "Unknown option: $arg" >&2; exit 1 ;;
+  esac
+done
+
+[ -x "$TSX" ] || { echo "No tsx at $TSX — run bin/worktree-setup" >&2; exit 1; }
+
+# Read rather than restated, so that changing the number of tries at signup
+# changes it here. Refused rather than defaulted if the line is ever written
+# some other way: a guess here hands out names the server would not.
+tries=$(sed -n 's/^const DERIVED_USERNAME_TRIES = \([0-9]*\);$/\1/p' \
+  "$ROOT/server/src/accounts.ts")
+[[ "$tries" =~ ^[0-9]+$ ]] || {
+  echo "Could not read DERIVED_USERNAME_TRIES from server/src/accounts.ts" >&2
+  exit 1
+}
+
+# Both trips go through here. Over stdin rather than interpolated into the
+# remote shell, for the reason bin/db spells out: $, backticks and backslashes
+# are all live in that position — and the second trip carries display names.
+run() {
+  if $local_mode; then
+    sqlite3 "$@" "$LOCAL_DB"
+  else
+    ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+      "sqlite3$(printf ' %q' "$@") '$REMOTE_DB'"
+  fi
+}
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  where=local
+else
+  where=production
+fi
+
+rows=$(run -readonly -json -cmd '.timeout 2000' <<<"
+SELECT id, identifier, display_name FROM accounts
+WHERE username IS NULL AND identifier NOT LIKE 'erased:%'
+ORDER BY created_at, id;")
+
+updates=$(printf '%s' "$rows" | "$TSX" "$ROOT/server/scripts/derive-usernames.ts" "$tries")
+
+if $write; then
+  echo "→ $where · writing"
+  open="BEGIN IMMEDIATE;"
+  # Guarded on null a second time, so that a name somebody chose between the
+  # copy and here — impossible inside BEGIN IMMEDIATE, but cheap to say — is
+  # never overwritten.
+  keep="
+UPDATE accounts
+SET username = (SELECT n.username FROM temp.names n WHERE n.id = accounts.id)
+WHERE username IS NULL
+  AND id IN (SELECT id FROM temp.names WHERE username IS NOT NULL);
+SELECT changes() AS written;
+COMMIT;"
+  flags=(-bail -header -column -cmd '.timeout 2000')
+else
+  echo "→ $where · preview, nothing will be written"
+  open=""
+  keep=""
+  # Temp tables live outside the database file, so -readonly allows them.
+  flags=(-readonly -header -column -cmd '.timeout 2000')
+fi
+
+run "${flags[@]}" <<<"
+$open
+CREATE TEMP TABLE names AS SELECT id, username FROM accounts;
+$updates
+
+SELECT a.display_name,
+       a.identifier,
+       COALESCE('@' || n.username, '') AS username
+FROM accounts a JOIN temp.names n USING (id)
+WHERE a.username IS NULL AND a.identifier NOT LIKE 'erased:%'
+ORDER BY a.created_at, a.id;
+
+.print ''
+SELECT COUNT(*) AS without_a_username,
+       COUNT(n.username) AS named,
+       COUNT(*) - COUNT(n.username) AS left_without
+FROM accounts a JOIN temp.names n USING (id)
+WHERE a.username IS NULL AND a.identifier NOT LIKE 'erased:%';
+$keep"

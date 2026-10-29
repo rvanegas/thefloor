@@ -2720,7 +2720,9 @@ function migrate(db: Db): void {
   // Null for everyone, which is the only value available: a username exists
   // because somebody chose it, and there is nothing on this box one could be
   // derived from. Deriving one from a display name would be handing out a
-  // permanent public name nobody asked for, to everybody at once.
+  // permanent public name nobody asked for, to everybody at once — which is
+  // what was later done anyway, deliberately and outside the migration, by
+  // bin/backfill-usernames; see decision/2026-10-28-usernames-are-backfilled.md.
   if (!accountColumns.some((c) => c.name === 'username')) {
     db.exec('ALTER TABLE accounts ADD COLUMN username TEXT');
   }
