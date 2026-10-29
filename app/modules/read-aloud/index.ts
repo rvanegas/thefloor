@@ -30,12 +30,21 @@ export interface DetectedLanguage {
 interface NativeReadAloud {
   voices(language: string): Voice[];
   language(text: string): DetectedLanguage | null;
-  speak(text: string, voice: string | null, language: string): Promise<boolean>;
+  speak(
+    text: string,
+    voice: string | null,
+    language: string,
+    reply: string
+  ): Promise<boolean>;
   stop(): Promise<boolean>;
   hook(): string;
   addListener(
     event: 'onReport',
     listener: (payload: { line: string }) => void
+  ): { remove(): void };
+  addListener(
+    event: 'onReading',
+    listener: (payload: { id: string }) => void
   ): { remove(): void };
 }
 
@@ -77,8 +86,28 @@ export function detectLanguage(text: string): DetectedLanguage | null {
   }
 }
 
-export function speak(text: string, voice: string | null, language: string): void {
-  void native?.speak(text, voice, language).catch(() => undefined);
+/** `reply` is the paste's id, which `onReading` hands back while it is heard. */
+export function speak(
+  text: string,
+  voice: string | null,
+  language: string,
+  reply: string
+): void {
+  void native?.speak(text, voice, language, reply).catch(() => undefined);
+}
+
+/**
+ * The id of the reply being heard, or null once everything queued has been —
+ * the whole of what draws *Restart* and *Stop*. Called on each change, never
+ * on subscribing. Returns its unsubscribe.
+ */
+export function onReading(listener: (reply: string | null) => void): () => void {
+  try {
+    const sub = native?.addListener('onReading', ({ id }) => listener(id || null));
+    return () => sub?.remove();
+  } catch {
+    return () => {};
+  }
 }
 
 export function stopSpeaking(): void {

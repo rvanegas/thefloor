@@ -184,6 +184,11 @@ export const es: Strings = {
     pickAConversation: () =>
       'Elige una conversaci\u00f3n a la izquierda, o empieza una.',
   },
+  readingBar: {
+    reading: () => 'Leyendo a Claude',
+    restart: () => 'Reiniciar',
+    stop: () => 'Parar',
+  },
   watch: {
     openTheWatchTab: () => 'Abrir la pesta\u00f1a de v\u00eddeo',
     exitFullScreen: () => 'Salir de pantalla completa',

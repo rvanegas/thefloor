@@ -46,6 +46,7 @@ import { OfflineView } from './src/ui/OfflineView';
 import { NotificationsView } from './src/ui/NotificationsView';
 import { PodcastsView } from './src/ui/PodcastsView';
 import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
+import { ReadingBar } from './src/ui/ReadingBar';
 import { Picture } from './src/watch/Picture';
 import { useFilmStart } from './src/watch/filmStart';
 import {
@@ -505,8 +506,12 @@ function Root() {
    * still in the room. In the language the reply is written in, the app's
    * only where that cannot be told, with the best voice the phone has for it;
    * Floor Settings says which those are. See `useClaudeReadAloud`.
+   *
+   * What it returns is `ReadingBar`'s, drawn above the panes below for the
+   * same reason: the voice is heard on every screen, so it can be stopped
+   * from every screen.
    */
-  useClaudeReadAloud(live, speechLocale(app.language));
+  const reading = useClaudeReadAloud(live, speechLocale(app.language));
 
   /**
    * Says this device is being attended, which is all a client does about
@@ -1247,6 +1252,7 @@ function Root() {
   */
   return (
     <Picture onOpen={(id) => enterChannel(id, 'watch')} offline={app.offline}>
+    <ReadingBar controls={reading} />
     <Panes
       layout={layout}
       list={listPane}

@@ -22,6 +22,13 @@ import NaturalLanguage
  */
 final class Reader: NSObject, AVAudioPlayerDelegate {
   var report: (String) -> Void = { _ in }
+  /**
+   The reply being heard — the id it was handed with — or nil once nothing is
+   rendering, playing or queued. Called only when that changes; it is what
+   draws *Restart* and *Stop* while a reply is being read.
+   */
+  var reading: (String?) -> Void = { _ in }
+  private var published: String?
 
   private let synthesizer: AVSpeechSynthesizer = {
     let synthesizer = AVSpeechSynthesizer()
@@ -37,19 +44,22 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
   private var replies = 0
 
   private struct Sentence {
+    let reply: String
     let utterance: AVSpeechUtterance
     let label: String
     let last: Bool
   }
 
   private final class Segment {
+    let reply: String
     let audio: AVAudioPCMBuffer
     let label: String
     let last: Bool
     /** How far it has been heard, in seconds — a rate the engine may change. */
     var heard: Double = 0
     var converted: AVAudioPCMBuffer?
-    init(audio: AVAudioPCMBuffer, label: String, last: Bool) {
+    init(reply: String, audio: AVAudioPCMBuffer, label: String, last: Bool) {
+      self.reply = reply
       self.audio = audio
       self.label = label
       self.last = last
@@ -81,7 +91,7 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
   }
 
   /** Queued behind anything still being read: two replies are two things asked to hear. */
-  func speak(_ text: String, voice: String?, language: String) {
+  func speak(_ text: String, voice: String?, language: String, reply: String) {
     let chosen =
       voice.flatMap { AVSpeechSynthesisVoice(identifier: $0) }
       ?? AVSpeechSynthesisVoice(language: language)
@@ -92,13 +102,15 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
       utterance.voice = chosen
       sentences.append(
         Sentence(
-          utterance: utterance, label: "#\(replies).\(index + 1)/\(parts.count)",
+          reply: reply, utterance: utterance,
+          label: "#\(replies).\(index + 1)/\(parts.count)",
           last: index == parts.count - 1))
     }
     report(
       "read-aloud reply #\(replies) chars=\(text.count) sentences=\(parts.count) "
         + "voice=\(chosen?.identifier ?? "none")")
     renderNext()
+    publish()
   }
 
   func stop() {
@@ -112,6 +124,20 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
     waitForEngineUntil = nil
     synthesizer.stopSpeaking(at: .immediate)
     halt()
+    publish()
+  }
+
+  /**
+   **Reading until the last sentence of everything queued has been heard**: the
+   segment playing, else the sentence rendering, else nothing. The gap while
+   the next sentence renders is not a stop, so the controls do not blink
+   between sentences.
+   */
+  private func publish() {
+    let now = segments.first?.reply ?? sentences.first?.reply
+    guard now != published else { return }
+    published = now
+    reading(now)
   }
 
   // MARK: Rendering
@@ -165,13 +191,15 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
       let canonical = AVAudioFormat(standardFormatWithSampleRate: first.format.sampleRate, channels: 1),
       let audio = Self.concatenate(buffers, into: canonical)
     {
-      segments.append(Segment(audio: audio, label: sentence.label, last: sentence.last))
+      segments.append(
+        Segment(reply: sentence.reply, audio: audio, label: sentence.label, last: sentence.last))
     } else if !buffers.isEmpty {
       report("read-aloud could not convert \(sentence.label)")
     }
     buffers = []
     pump()
     renderNext()
+    publish()
   }
 
   // MARK: Playing
@@ -263,6 +291,7 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
       report("read-aloud could not play \(segment.label): \(error.localizedDescription)")
       segments.removeFirst()
       pump()
+      publish()
     }
   }
 
@@ -273,6 +302,7 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
     path = nil
     if segment.last { report("read-aloud done \(segment.label)") }
     pump()
+    publish()
   }
 
   func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {

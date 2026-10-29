@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
 import { CLAUDE_ID } from '../../../core/constants';
 import type { LanguagePreference } from '../../../core/settings';
@@ -8,6 +8,7 @@ import {
   engineHook,
   installedVoices,
   onReadAloudReport,
+  onReading,
   speak,
   stopSpeaking,
   type DetectedLanguage,
@@ -278,15 +279,44 @@ export function useReadAloudVoices(languages: readonly SpokenLanguage[]): {
  * on the call's own audio engine, so the echo canceller keeps it out of the
  * microphone — see `ios/CallEngine.swift` in modules/read-aloud. What the
  * native half does with each reply goes to the diagnostics log as it happens.
+ *
+ * **Returns what *Restart* and *Stop* need**, at Rodrigo's word, 2026-10-29:
+ * while a reply is being heard, those two controls are on screen
+ * (`ReadingBar`). Whether one is being heard is the native half's to say
+ * (`onReading`), since only it knows when the last sentence has played.
  */
 export function useClaudeReadAloud(
   live: ChannelState | null,
   fallback: string,
-  say: (text: string, locale: string, voices?: Record<string, string>) => void = sayWithBestVoice,
+  say: (
+    text: string,
+    locale: string,
+    voices: Record<string, string> | undefined,
+    reply: string
+  ) => void = sayWithBestVoice,
   hush: () => void = stopSpeaking,
-  detect: (text: string) => DetectedLanguage | null = detectLanguage
-): void {
+  detect: (text: string) => DetectedLanguage | null = detectLanguage,
+  follow: (listener: (reply: string | null) => void) => () => void = onReading
+): ReadAloudControls {
   const seen = useRef<{ channelId: string; clipId: string | null } | null>(null);
+  // What each reply in this room was handed to the reader as, by paste id, so
+  // *Restart* can hand the one being heard over again exactly as it was.
+  const spoken = useRef(new Map<string, SpokenReply>());
+  const [reading, setReading] = useState<string | null>(null);
+  // The reply a restart is re-reading: the stop it begins with publishes
+  // nothing-being-read, and taking that at its word would pull the bar out
+  // from under the thumb that pressed it and put it back a moment later.
+  const restarting = useRef<string | null>(null);
+
+  useEffect(
+    () =>
+      follow((reply) => {
+        if (reply === null && restarting.current !== null) return;
+        restarting.current = null;
+        setReading(reply);
+      }),
+    [follow]
+  );
 
   const channelId = live?.id ?? null;
   const clip = live?.clip ?? null;
@@ -297,8 +327,14 @@ export function useClaudeReadAloud(
   latest.current = { clip, fallback, detect };
 
   useEffect(() => {
+    const leave = () => {
+      hush();
+      spoken.current.clear();
+      restarting.current = null;
+      setReading(null);
+    };
     if (channelId === null) {
-      if (seen.current !== null) hush();
+      if (seen.current !== null) leave();
       seen.current = null;
       return;
     }
@@ -306,19 +342,37 @@ export function useClaudeReadAloud(
     seen.current = { channelId, clipId };
     if (!before) return;
     if (before.channelId !== channelId) {
-      hush();
+      leave();
       return;
     }
     if (clipId === null || clipId === before.clipId) return;
 
     const { clip: pasted, fallback: otherwise, detect: recognize } = latest.current;
     if (pasted?.authorId !== CLAUDE_ID) return;
-    const locale = replyLocale(pasted.text, otherwise, recognize);
-    if (pasted.voices) say(pasted.text, locale, pasted.voices);
-    else say(pasted.text, locale);
+    const reply = {
+      text: pasted.text,
+      locale: replyLocale(pasted.text, otherwise, recognize),
+      voices: pasted.voices,
+    };
+    spoken.current.set(clipId, reply);
+    say(reply.text, reply.locale, reply.voices, clipId);
   }, [channelId, clipId, say, hush]);
 
   useEffect(() => () => hush(), [hush]);
+
+  /**
+   * **Restart is the reply being heard, from its first sentence** — not the
+   * latest one, which differ only when a second reply landed while the first
+   * was still being read. Anything queued behind it goes, as *Stop* would
+   * take it: the press was about this one.
+   */
+  const restart = useCallback(() => {
+    const reply = reading === null ? undefined : spoken.current.get(reading);
+    if (!reading || !reply) return;
+    restarting.current = reading;
+    hush();
+    say(reply.text, reply.locale, reply.voices, reading);
+  }, [reading, say, hush]);
 
   // Mounted once, above every screen, for the life of the app — so the
   // native half's lines reach the log whether or not the panel is open.
@@ -327,6 +381,28 @@ export function useClaudeReadAloud(
     if (hook) recordEvent(`read-aloud engine hook ${hook}`);
     return onReadAloudReport(recordEvent);
   }, []);
+
+  const stop = useCallback(() => {
+    restarting.current = null;
+    hush();
+  }, [hush]);
+
+  return { reading: reading !== null, restart, stop };
+}
+
+interface SpokenReply {
+  text: string;
+  locale: string;
+  voices: Record<string, string> | undefined;
+}
+
+/** What `ReadingBar` draws from: whether a reply is being heard, and the two acts. */
+export interface ReadAloudControls {
+  reading: boolean;
+  /** The reply being heard, again from its first sentence. */
+  restart: () => void;
+  /** Silence, and nothing queued behind it is read either. */
+  stop: () => void;
 }
 
 /**
@@ -346,7 +422,8 @@ export function readingVoice(
 function sayWithBestVoice(
   text: string,
   locale: string,
-  voices?: Record<string, string>
+  voices: Record<string, string> | undefined,
+  reply: string
 ): void {
   const language = languageOf(locale);
   const voice = readingVoice(
@@ -355,5 +432,5 @@ function sayWithBestVoice(
     voices?.[language],
     chosenVoices[language] ?? null
   );
-  speak(text, voice?.identifier ?? null, locale);
+  speak(text, voice?.identifier ?? null, locale, reply);
 }

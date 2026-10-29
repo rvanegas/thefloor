@@ -10,6 +10,7 @@ import {
   replyLocale,
   speechLocale,
   useClaudeReadAloud,
+  type ReadAloudControls,
 } from '../readAloud';
 
 const ME = 'acct_me';
@@ -55,8 +56,15 @@ const paste = (
 function mount(channel: ChannelState | null, locale = 'en-US') {
   const say = jest.fn();
   const hush = jest.fn();
+  // The native half's `onReading`, played by hand.
+  let heard: (reply: string | null) => void = () => undefined;
+  const follow = (listener: (reply: string | null) => void) => {
+    heard = listener;
+    return () => undefined;
+  };
+  let controls!: ReadAloudControls;
   function Probe({ state, tag }: { state: ChannelState | null; tag: string }) {
-    useClaudeReadAloud(state, tag, say, hush);
+    controls = useClaudeReadAloud(state, tag, say, hush, undefined, follow);
     return null;
   }
   let tree: ReactTestRenderer;
@@ -66,6 +74,15 @@ function mount(channel: ChannelState | null, locale = 'en-US') {
   return {
     say,
     hush,
+    get controls() {
+      return controls;
+    },
+    hear(reply: string | null) {
+      act(() => heard(reply));
+    },
+    press(which: 'restart' | 'stop') {
+      act(() => controls[which]());
+    },
     update(next: ChannelState | null, tag = locale) {
       act(() => {
         tree.update(<Probe state={next} tag={tag} />);
@@ -79,7 +96,9 @@ describe('useClaudeReadAloud', () => {
     const channel = joined();
     const probe = mount(channel);
     probe.update(paste(channel, { text: 'Hello, room.' }));
-    expect(probe.say.mock.calls).toEqual([['Hello, room.', 'en-US']]);
+    expect(probe.say.mock.calls).toEqual([
+      ['Hello, room.', 'en-US', undefined, 'clip_1'],
+    ]);
   });
 
   it('hands on the asker’s voices with the reply', () => {
@@ -104,7 +123,9 @@ describe('useClaudeReadAloud', () => {
         NOW + 1_000
       )
     );
-    expect(probe.say.mock.calls).toEqual([['Hello, room.', 'en-US', voices]]);
+    expect(probe.say.mock.calls).toEqual([
+      ['Hello, room.', 'en-US', voices, 'clip_1'],
+    ]);
   });
 
   it('says nothing for somebody else’s paste', () => {
@@ -128,15 +149,86 @@ describe('useClaudeReadAloud', () => {
     probe.update(replied, 'es-MX');
     expect(probe.say).toHaveBeenCalledTimes(1);
     probe.update(paste(replied, { id: 'clip_2', text: 'Again.' }));
-    expect(probe.say.mock.calls[1]).toEqual(['Again.', 'en-US']);
+    expect(probe.say.mock.calls[1]).toEqual(['Again.', 'en-US', undefined, 'clip_2']);
   });
 
   it('stops speaking on leaving the room', () => {
     const channel = joined();
     const probe = mount(channel);
     probe.update(paste(channel));
+    probe.hear('clip_1');
     probe.update(null);
     expect(probe.hush).toHaveBeenCalled();
+    expect(probe.controls.reading).toBe(false);
+  });
+});
+
+/**
+ * While a reply is being heard there are two controls, *Restart* and *Stop*,
+ * and at no other time — which is the native half's to say, since only it
+ * knows when the last sentence has played.
+ */
+describe('the controls while a reply is read', () => {
+  const reading = () => {
+    const channel = joined();
+    const probe = mount(channel);
+    probe.update(
+      paste(paste(channel, { text: 'First.' }), { id: 'clip_2', text: 'Second.' })
+    );
+    return probe;
+  };
+
+  it('are there exactly while the reader says a reply is being heard', () => {
+    const channel = joined();
+    const probe = mount(channel);
+    probe.update(paste(channel));
+    expect(probe.controls.reading).toBe(false);
+    probe.hear('clip_1');
+    expect(probe.controls.reading).toBe(true);
+    probe.hear(null);
+    expect(probe.controls.reading).toBe(false);
+  });
+
+  it('restart reads the reply being heard again, from the top', () => {
+    const channel = joined();
+    const probe = mount(channel);
+    probe.update(paste(channel, { text: 'First.' }));
+    probe.update(paste(channel, { id: 'clip_2', text: 'Second.' }));
+    // The first is still being heard while the second waits behind it.
+    probe.hear('clip_1');
+    probe.say.mockClear();
+    probe.press('restart');
+    expect(probe.hush).toHaveBeenCalledTimes(1);
+    expect(probe.say.mock.calls).toEqual([['First.', 'en-US', undefined, 'clip_1']]);
+  });
+
+  it('restart does not take the bar away for the moment it stops', () => {
+    const probe = reading();
+    probe.hear('clip_2');
+    probe.press('restart');
+    probe.hear(null);
+    expect(probe.controls.reading).toBe(true);
+    probe.hear('clip_2');
+    probe.hear(null);
+    expect(probe.controls.reading).toBe(false);
+  });
+
+  it('stop silences the reader, and its quiet is believed even mid-restart', () => {
+    const probe = reading();
+    probe.hear('clip_2');
+    probe.press('restart');
+    probe.press('stop');
+    expect(probe.hush).toHaveBeenCalledTimes(2);
+    probe.hear(null);
+    expect(probe.controls.reading).toBe(false);
+  });
+
+  it('restart does nothing when nothing is being heard', () => {
+    const probe = reading();
+    probe.say.mockClear();
+    probe.press('restart');
+    expect(probe.say).not.toHaveBeenCalled();
+    expect(probe.hush).not.toHaveBeenCalled();
   });
 });
 

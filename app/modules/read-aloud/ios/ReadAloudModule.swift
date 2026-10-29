@@ -22,7 +22,7 @@ public class ReadAloudModule: Module {
   public func definition() -> ModuleDefinition {
     Name("ReadAloud")
 
-    Events("onReport")
+    Events("onReport", "onReading")
 
     /**
      The engine hook goes in before any call can configure an engine, and its
@@ -96,10 +96,12 @@ public class ReadAloudModule: Module {
     /**
      Rendered and played by `Reader`, on the call's engine where it is playing
      out — see `CallEngine` for why there — and queued behind anything still
-     being read rather than cutting it off.
+     being read rather than cutting it off. `reply` is the paste's id, handed
+     back on `onReading` while it is the one being heard.
      */
-    AsyncFunction("speak") { (text: String, voice: String?, language: String) -> Bool in
-      self.reader.speak(text, voice: voice, language: language)
+    AsyncFunction("speak") {
+      (text: String, voice: String?, language: String, reply: String) -> Bool in
+      self.reader.speak(text, voice: voice, language: language, reply: reply)
       return true
     }.runOnQueue(.main)
 
@@ -112,6 +114,11 @@ public class ReadAloudModule: Module {
   private lazy var reader: Reader = {
     let reader = Reader()
     reader.report = { [weak self] line in self?.sendEvent("onReport", ["line": line]) }
+    // An empty id is nothing being read: a nil inside an event's payload is
+    // not something to trust every bridge to carry the same way.
+    reader.reading = { [weak self] reply in
+      self?.sendEvent("onReading", ["id": reply ?? ""])
+    }
     return reader
   }()
 

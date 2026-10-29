@@ -1246,6 +1246,17 @@ Two screens have one and they are built identically — and since 2026-10-09
 the *Record* tab hangs a second bar under the channel's, built the same way,
 carrying the two switches of § *Switch*.
 
+**One more is not a screen's, since 2026-10-29: the reading bar** — *Reading
+Claude's reply*, muted, then *Restart* and *Stop* as two `default` buttons —
+drawn by `App.tsx` above the panes, over every screen, and **only while a
+reply is being heard**. It is built as these are, `surface` rather than `bg`
+being the footer's argument: it sits above whatever page it arrived over. It
+is the one bar that comes and goes on its own, and so it takes its height
+from the screen under it; **it is at the top because that moves a header's
+buttons, where the foot would lift the channel footer under a thumb already
+on its way to it** — the § *The rules that are actually load-bearing* rule 6
+cost, paid at the cheaper end.
+
 **The room's line is not pinned, until it has to be.** Each room in the log
 opens with a `RoomLine` — its date and hours, muted, over a hairline, and no
 share since 2026-10-10, each segment carrying its own — and it scrolls with

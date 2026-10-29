@@ -214,6 +214,12 @@ export const en = {
     brand: () => 'The Floor',
     pickAConversation: () => 'Pick a conversation on the left, or start one.',
   },
+  /** Over every screen while Claude's reply is read aloud. See `ReadingBar`. */
+  readingBar: {
+    reading: () => 'Reading Claude’s reply',
+    restart: () => 'Restart',
+    stop: () => 'Stop',
+  },
   watch: {
     openTheWatchTab: () => 'Open the watch tab',
     exitFullScreen: () => 'Exit full screen',
