@@ -117,7 +117,8 @@ SELECT identifier,
        CASE WHEN unanswered_since IS NOT NULL
              AND unanswered_since <= unixepoch() * 1000 - 604800000
             THEN 1 ELSE '' END AS paused,
-       COALESCE(notifications, '') AS notifications
+       COALESCE(notifications, '') AS notifications,
+       date(created_at / 1000, 'unixepoch') AS joined
 FROM accounts
 ORDER BY last_seen_at;
 
