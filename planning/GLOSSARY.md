@@ -67,7 +67,7 @@ caused; the list carries the meaning.
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and changes nothing else; not the *Pro* grade of *Transcription model*
-- **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who has granted notifications, at the moment they do, and never to a tombstone or to an address of ours
+- **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who can be told — push granted, or email notifications on for an email address — at the moment they become so, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
 - **Guest invitation** — An offer of a *seat*, addressed to a contact by name and delivered as a push; unlike an *invitation* it makes nobody a member and spends none of the six, but it does hold one of the forty and is drawn under *Invitations* on the *People* tab. Expires when the room empties, or when a member takes it back
@@ -217,7 +217,7 @@ caused; the list carries the meaning.
 - **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, and what its share hands over. The user's word, not drawn on screen, where a segment is named by its hours. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
 - **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in, holding one *segment* or more. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
-- **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — notifications being the other — and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
+- **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — being reachable, by push or by email, being the other — and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
 - **Session (auth)** — One sign-in, and so in practice one device: a row in `tokens`. Several per account since 2026-08-24, and anonymous by construction
@@ -1106,6 +1106,15 @@ which is `POST /devices` and not the signup, and an account that never turns
 them on is never placed. *Cohort-eligible* is the server's name for somebody
 waiting on exactly that and nothing else. See
 `decision/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md`.
+
+**Or by email, since 2026-10-29.** Declining the system dialog switches on
+*email notifications*, and an arrival is then emailed as it would have been
+pushed — so somebody who refused push and signs in with an email address can be
+told, and is placed when that switch turns on (or on the next boot, for whoever
+turned it on before). A phone number cannot be emailed and does not count; nor
+does a phone whose push was switched off in Floor Settings, whose turning back
+on is then the moment. See
+`decision/2026-10-29-a-cohort-seat-can-be-told-by-email.md`.
 
 **A device token was standing in for the permission**, and the two come apart
 in both directions — a token outlives a permission switched off in Settings, a

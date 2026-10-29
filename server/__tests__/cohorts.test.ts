@@ -432,6 +432,97 @@ describe('the seat waits for the permission rather than the signup', () => {
   });
 });
 
+/**
+ * Email is a way of being told, since 2026-10-29.
+ *
+ * Declining the system dialog switches on `emailNotifications`, and from then
+ * on everything that would have been pushed — an arrival included — is
+ * emailed. So the test the gate has always applied, *can this person be told
+ * the room went live*, passes for somebody who refused push and kept email,
+ * and the seat that used to wait for a permission they had already declined
+ * goes to them instead. See
+ * planning/decision/2026-10-29-a-cohort-seat-can-be-told-by-email.md.
+ */
+describe('a seat for somebody who is told by email', () => {
+  const save = (user: User, payload: Record<string, unknown>) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: auth(user.token),
+      payload,
+    });
+
+  it('places the arrival who declines push, when email is switched on', async () => {
+    await signIn(HOST, 'Rochelle');
+    const declined = await signIn('declined@example.com', 'Someone', {
+      notifications: false,
+    });
+    expect(cohortOf(declined.account.id)).toBeNull();
+
+    // What the app does with a declined dialog. Nothing else would ever come
+    // along for this account — no first address is on its way.
+    expect((await save(declined, { emailNotifications: true })).statusCode).toBe(200);
+
+    expect(cohortOf(declined.account.id)).toBe(1);
+  });
+
+  it('does not place on email for somebody who signs in with a phone number', async () => {
+    await signIn(HOST, 'Rochelle');
+    const phone = await signIn('+14155550123', 'Someone', { notifications: false });
+
+    // The switch is on and there is nowhere to send it. The sender skips this
+    // account, so the gate does too — the two are one predicate.
+    expect((await save(phone, { emailNotifications: true })).statusCode).toBe(200);
+
+    expect(cohortOf(phone.account.id)).toBeNull();
+  });
+
+  it('places nobody twice, however often the switch is saved', async () => {
+    await signIn(HOST, 'Rochelle');
+    const declined = await signIn('declined@example.com', 'Someone', {
+      notifications: false,
+    });
+    await save(declined, { emailNotifications: true });
+    await save(declined, { emailNotifications: false });
+    await save(declined, { emailNotifications: true });
+
+    expect(cohortsOf(declined.account.id)).toEqual([1]);
+    expect(cohortChannelOf(declined.account.id)!.participants).toHaveLength(2);
+  });
+
+  it('is found by the backfill too, which asks the same question', async () => {
+    await signIn(HOST, 'Rochelle');
+    const declined = await signIn('declined@example.com', 'Someone', {
+      notifications: false,
+    });
+    // Switched on without the route — as every account that declined between
+    // the email fallback shipping and this did — so only a restart can find it.
+    app.accounts.updateSettings(declined.account.id, { emailNotifications: true }, clock);
+    expect(cohortOf(declined.account.id)).toBeNull();
+
+    expect(app.channels.backfillCohorts(app.accounts.cohortCandidates())).toBe(1);
+    expect(cohortOf(declined.account.id)).toBe(1);
+  });
+
+  it('does not count a phone whose push was switched off in Floor Settings', async () => {
+    await signIn(HOST, 'Rochelle');
+    const quiet = await signIn('quiet@example.com', 'Someone', {
+      notifications: false,
+    });
+    await save(quiet, { pushNotificationsOff: true });
+
+    // Granted by iOS, refused by the person: the server sends this phone
+    // nothing, so it is not somewhere to reach them.
+    await enableNotifications(quiet);
+    expect(cohortOf(quiet.account.id)).toBeNull();
+
+    // And switching push back on is the moment they become reachable, since
+    // the first address has already been and gone.
+    await save(quiet, { pushNotificationsOff: false });
+    expect(cohortOf(quiet.account.id)).toBe(1);
+  });
+});
+
 describe('what Home says about it', () => {
   /** `HomeView.cohortEligible`, which is what unlocks the app's ask. */
   const eligible = (user: User) =>

@@ -639,6 +639,15 @@ export function buildApp(options: BuildOptions = {}): App {
   const androidPusher = options.androidPusher ?? new ConsolePusher(() => {});
   const pusherFor = (platform: DevicePlatform): Pusher =>
     platform === 'android' ? androidPusher : pusher;
+  /**
+   * Whether a notification for this account goes out as email: the switch is
+   * on, and the address it signs in with is one a message can be sent to — a
+   * phone number is not. One predicate, because two things ask it: the sender
+   * below, and the cohort gate, which must not hand a seat to somebody the
+   * sender would then pass over.
+   */
+  const emailReachable = (account: AccountRow | undefined): boolean =>
+    account?.email_notifications === 1 && isEmailAddress(account.identifier);
   const pushNotifier = createPushNotifier();
   const liveActivities = new LiveActivities(
     db,
@@ -817,8 +826,7 @@ export function buildApp(options: BuildOptions = {}): App {
       for (const id of userIds) {
         if (paused.has(id)) continue;
         const account = accounts.byId(id);
-        if (account?.email_notifications !== 1) continue;
-        if (!isEmailAddress(account.identifier)) continue;
+        if (!account || !emailReachable(account)) continue;
         notified.push(id);
         void options.mailer
           .sendNotification(account.identifier, message.title, message.body, link)
@@ -1046,9 +1054,23 @@ export function buildApp(options: BuildOptions = {}): App {
     // that predate the header, which is the right trade for a feature whose
     // whole point is the arrival who can be told: they are refused for a
     // reason they can undo, and the next build they run says so.
-    (userId) =>
-      accounts.byId(userId)?.notifications === 'granted' &&
-      devices.tokensFor([userId]).length > 0,
+    //
+    // **Or by email, since 2026-10-29.** Declining the system dialog switches
+    // on `emailNotifications`, and an arrival is then emailed exactly as it
+    // would have been pushed — so somebody who refused push can still be told
+    // the room went live, which is the whole of this test. `emailReachable` is
+    // the sender's own predicate, so the gate cannot pass anybody the sender
+    // would skip. The push half gains `push_off` for the same reason: switched
+    // off in Floor Settings, a phone is sent nothing whatever iOS allows.
+    // See decision/2026-10-29-a-cohort-seat-can-be-told-by-email.md.
+    (userId) => {
+      const account = accounts.byId(userId);
+      const byPush =
+        account?.notifications === 'granted' &&
+        account.push_off !== 1 &&
+        devices.tokensFor([userId]).length > 0;
+      return byPush || emailReachable(account);
+    },
     // A library with no Claude to consult it is no library: nobody may switch
     // one on that no press could reach.
     options.claude && options.library ? options.library.identifiers : null
@@ -3568,6 +3590,24 @@ export function buildApp(options: BuildOptions = {}): App {
       );
     } else if (changes.pushNotificationsOff === false) {
       badges.resend(account.id);
+    }
+    // Either switch turning *on* can be the moment somebody becomes reachable
+    // — email is what declining the system dialog switches on, and is the
+    // only moment it happens for an arrival who refused push — so a
+    // *getting-started channel* waiting on that is placed here, as `POST
+    // /devices` places on a first address. The gate is the whole decision and
+    // placement is idempotent, so asking on a switch that changed nothing
+    // costs a lookup. A courtesy, for the reason given there: it must never
+    // cost the request that changed the setting.
+    if (
+      changes.emailNotifications === true ||
+      changes.pushNotificationsOff === false
+    ) {
+      try {
+        channels.placeInCohort(account.id);
+      } catch (error) {
+        fastify.log.error({ err: error }, 'cohort placement failed');
+      }
     }
     return settingsForWire(settings);
   });

@@ -231,10 +231,12 @@ Started</em> — with up to three other people who joined around the same time,
 and one of the people who run The Floor. It happens once
 and it never happens again. Somebody who arrives on an invitation from people
 who are already here is not put in one.</p>
-<p><strong>It happens when you turn notifications on, and not before.</strong>
-The whole of what that channel offers is that somebody may speak into it later,
-which is no use to a phone that cannot be told it happened — so the place is
-held until there is somewhere to reach you. If you never turn them on you are
+<p><strong>It happens once you can be told about it, and not before:</strong>
+when you turn notifications on, or — if you decline them and sign in with an
+email address — when we start sending them to you by email instead. The whole
+of what that channel offers is that somebody may speak into it later, which is
+no use to somebody who cannot be told it happened — so the place is held until
+there is somewhere to reach you. If you can be reached neither way you are
 never put in one, and nothing else about your account changes.</p>
 <p>The people in that channel see your display name, which is what anybody in
 a channel with you sees. They are not shown your email address, they are not

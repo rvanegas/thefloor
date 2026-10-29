@@ -2242,6 +2242,9 @@ export class ChannelRegistry {
    * are the same change: a gate on notifications applied at signup would
    * refuse everybody, nobody having been asked yet. See
    * decision/2026-09-15-a-cohort-seat-goes-to-somebody-who-can-be-told.md.
+   * Reachable is push *or* email since 2026-10-29, so the moments are an
+   * account's first address and either notification switch turning on — see
+   * decision/2026-10-29-a-cohort-seat-can-be-told-by-email.md.
    *
    * Returns null, and does nothing at all, when:
    * - **no host is configured** — which is the off switch, and is the state
@@ -2253,7 +2256,8 @@ export class ChannelRegistry {
    *   `Accounts.reachableFrom`. Somebody who signed up on an invitation into a
    *   working group of contacts has what a cohort would have given them, and
    *   the exception is not justified for them;
-   * - **they cannot be reached by notification** — see `reachable`. A cohort
+   * - **they cannot be reached by notification**, push or email — see
+   *   `reachable`. A cohort
    *   is five seats spent once each, and the whole of what it offers is that
    *   somebody may speak into it later; a member who cannot be told that
    *   happened is a seat that can never answer. It is also the one refusal
