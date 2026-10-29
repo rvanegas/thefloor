@@ -1,0 +1,136 @@
+#!/bin/bash
+#
+# One person's contacts and contact requests, accepted first, each group
+# most recently seen first.
+#
+#   bin/contacts <who>             against the deployed server
+#   bin/contacts <who> --local     the development database on this machine
+#
+# `<who>` is any one of the three things that name an account: its id
+# (`acct_…`), its identifier (the email or phone it signs in with), or its
+# username, with or without the `@`. The last two are matched ignoring case,
+# as sign-in and lookup match them. Ambiguity is refused rather than guessed:
+# if the argument names more than one account — somebody's username that is
+# also somebody else's identifier — every candidate is printed and nothing
+# else is.
+#
+# Read-only, always. Removing a contact by hand is bin/db --write.
+#
+# A row is one `contacts` row seen from this person's side. The table stores
+# each pair once, as (a_id, b_id), so `contact` is whichever of the two is not
+# them. `state` is `accepted` — a *contact* in the glossary's sense — or
+# `pending`, which is a request one way or the other and not yet a contact.
+# `direction` says which way: `sent` if this person asked, `received` if the
+# other side did. On an accepted row it is who asked first, which is history
+# rather than anything the app shows.
+#
+# `last_seen` and `days_ago` are the contact's, read as bin/people reads them,
+# and empty for somebody who has never connected.
+#
+# Requests to addresses with no account are not here, because they are not in
+# `contacts`: they are `pending_invites`, and bin/invites is that list.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_DB="$ROOT/server/thefloor.db"
+
+local_mode=false
+who=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    # The whole comment block, however long it grows — the same reasoning as
+    # bin/db, where a fixed line range truncated the help the moment the header
+    # gained a line.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    -*) echo "Unknown option: $arg" >&2; exit 1 ;;
+    *)
+      [ -z "$who" ] || { echo "One person at a time: '$who' and '$arg'" >&2; exit 1; }
+      who="$arg"
+      ;;
+  esac
+done
+
+[ -n "$who" ] || { echo "Usage: bin/contacts <id | identifier | @username> [--local]" >&2; exit 1; }
+
+# Interpolated into SQL as a string literal, so a quote in it is doubled; that
+# is the whole of SQLite's escaping inside '...'. Goes over stdin, so the remote
+# shell never sees it.
+lit="'$(printf '%s' "$who" | sed "s/'/''/g")'"
+bare="'$(printf '%s' "${who#@}" | sed "s/'/''/g")'"
+
+# The person first, in a temporary table, so that the count of matches can
+# decide what is printed without the lookup being written twice. TEMP needs no
+# write access: it lives outside the database file, and -readonly allows it.
+sql="
+CREATE TEMP TABLE who AS
+SELECT id, identifier, username, display_name FROM accounts
+WHERE id = $lit
+   OR identifier = $lit COLLATE NOCASE
+   OR username = $bare COLLATE NOCASE;
+
+.headers off
+SELECT CASE (SELECT COUNT(*) FROM who)
+         WHEN 0 THEN 'Nobody matches ' || $lit
+         ELSE 'More than one account matches ' || $lit || ' — say which by id:'
+       END
+WHERE (SELECT COUNT(*) FROM who) <> 1;
+.headers on
+
+SELECT id, identifier, username, display_name FROM who
+WHERE (SELECT COUNT(*) FROM who) > 1;
+
+SELECT display_name, identifier, '@' || username AS username, id FROM who
+WHERE (SELECT COUNT(*) FROM who) = 1;
+
+.print ''
+SELECT o.display_name AS contact,
+       o.identifier,
+       COALESCE('@' || o.username, '') AS username,
+       c.state,
+       CASE WHEN c.requester_id = w.id THEN 'sent' ELSE 'received' END AS direction,
+       date(c.created_at / 1000, 'unixepoch') AS since,
+       CASE WHEN o.last_seen_at IS NULL THEN ''
+            ELSE datetime(o.last_seen_at / 1000, 'unixepoch') END AS last_seen,
+       CASE WHEN o.last_seen_at IS NULL THEN ''
+            ELSE ROUND((unixepoch() * 1000 - o.last_seen_at) / 86400000.0, 1)
+       END AS days_ago
+FROM who w
+JOIN contacts c ON w.id IN (c.a_id, c.b_id)
+JOIN accounts o ON o.id = CASE WHEN c.a_id = w.id THEN c.b_id ELSE c.a_id END
+WHERE (SELECT COUNT(*) FROM who) = 1
+ORDER BY c.state, o.last_seen_at DESC NULLS LAST;
+
+.print ''
+SELECT COALESCE(SUM(c.state = 'accepted'), 0) AS contacts,
+       COALESCE(SUM(c.state = 'pending' AND c.requester_id = w.id), 0) AS requests_sent,
+       COALESCE(SUM(c.state = 'pending' AND c.requester_id <> w.id), 0) AS requests_received
+FROM who w
+LEFT JOIN contacts c ON w.id IN (c.a_id, c.b_id)
+WHERE (SELECT COUNT(*) FROM who) = 1
+GROUP BY w.id;
+"
+
+# Column headers and aligned output: this is for reading, not for piping into
+# something else.
+opts=(-readonly -header -column -cmd '.timeout 2000')
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  echo "→ local"
+  exec sqlite3 "${opts[@]}" "$LOCAL_DB" <<<"$sql"
+fi
+
+echo "→ production"
+# Over stdin rather than interpolated into the remote shell, for the reason
+# bin/db spells out: $, backticks and backslashes are all live in that position.
+exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+  "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \
+  <<<"$sql"
