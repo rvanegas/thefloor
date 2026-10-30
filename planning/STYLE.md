@@ -1737,8 +1737,11 @@ rules.
   in the row, which is also what naming a channel looks like one screen away.
   **One choice is asked through iOS's action sheet**, since 2026-10-09: a
   room's share, *Audio* or *Text*, because only the sheet can show an option
-  greyed rather than leave it out. Elsewhere it is `Alert`, offering only what
-  there is.
+  greyed rather than leave it out. **In a browser it is two buttons opened
+  under the line by the glyph**, since 2026-10-30, the missing one greyed:
+  the web's `Alert` is a chain of `confirm`s, which asked *Audio?* and then
+  *Text?* as two dialogs. On Android it is `Alert`, offering only what there
+  is.
 - **And a control that only *proposes* something confirms anyway, saying that
   nothing has happened yet.** Added 2026-09-26 with the *motion to remove*.
   *Move to remove them* takes nobody's place away — a second member has to

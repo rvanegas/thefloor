@@ -641,6 +641,103 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
+  it('shares the text of a segment whose audio is still being filed', async () => {
+    // Its recording is named but not listed until egress finishes; the text
+    // is kept already and is no less shareable for that.
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 1_000, 'said while recording')],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, [], [
+          seg('s1', NOW, NOW + 30_000, 'rec_filing', true),
+        ]),
+      ],
+    } as never);
+    const sheet = jest
+      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
+      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
+    shareTextFile.mockClear();
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    expect(shareOf(tree).props.accessibilityState.disabled).toBe(false);
+    await act(async () => shareOf(tree).props.onPress());
+    expect(sheet.mock.calls[0][0]).toMatchObject({ disabledButtonIndices: [0] });
+    expect(shareTextFile.mock.calls[0][0]).toContain('said while recording');
+    sheet.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('asks in a browser with two buttons under the line, the missing one greyed', async () => {
+    const { Platform } = require('react-native');
+    const was = Platform.OS;
+    Platform.OS = 'web';
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 1_000, 'only written down')],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [room('room_1', NOW, NOW + 60_000, [])],
+    } as never);
+    const sheet = jest.spyOn(ActionSheetIOS, 'showActionSheetWithOptions');
+    shareTextFile.mockClear();
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    const choice = () =>
+      tree.root.findAll(
+        (n: { props: { label?: string; onPress?: unknown } }) =>
+          (n.props.label === 'Audio' || n.props.label === 'Text') && !!n.props.onPress
+      );
+    expect(choice()).toHaveLength(0);
+    act(() => shareOf(tree).props.onPress());
+    const [audio, text] = choice();
+    expect(audio.props.disabled).toBe(true);
+    expect(text.props.disabled).toBe(false);
+    await act(async () => text.props.onPress());
+    expect(sheet).not.toHaveBeenCalled();
+    expect(shareTextFile.mock.calls[0][0]).toContain('only written down');
+    expect(choice()).toHaveLength(0);
+    Platform.OS = was;
+    sheet.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it('shares the text of a segment whose audio is still being mixed', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 12_000, 'said while recording')],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, ['rec_1'], [
+          seg('s1', NOW + 10_000, NOW + 40_000, 'rec_1', true),
+        ]),
+      ],
+    } as never);
+    const sheet = jest
+      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
+      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
+    shareTextFile.mockClear();
+    showChannel(transcribed(), [{ ...segment('rec_1', 'Planning', NOW + 10_000), mixing: true }]);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    expect(shareOf(tree).props.accessibilityState.disabled).toBe(false);
+    await act(async () => shareOf(tree).props.onPress());
+    expect(sheet.mock.calls[0][0]).toMatchObject({ disabledButtonIndices: [0] });
+    expect(shareTextFile.mock.calls[0][0]).toContain('said while recording');
+    sheet.mockRestore();
+    act(() => tree.unmount());
+  });
+
   it('greys the share on a segment that has kept nothing yet', async () => {
     // A recording still running is a segment whose recording is not filed:
     // drawn, with nothing yet to share.

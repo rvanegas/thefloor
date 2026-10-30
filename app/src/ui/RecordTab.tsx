@@ -459,7 +459,9 @@ export function RoomLine({ room }: { room: RoomView }) {
  *
  * **The share asks which**: the segment's audio, or its text, with whichever
  * it lacks greyed — the native action sheet on iOS, which can grey an option;
- * elsewhere `Alert`, which cannot, and so offers only what there is. Its
+ * in a browser two buttons opened under the line by the glyph and closed by
+ * it again, since the web's `Alert` is a chain of `confirm`s asking *Audio?*
+ * and then *Text?*; on Android `Alert`, which offers only what there is. Its
  * title names the segment by its hours rather than by a noun, there being no
  * word for it a person needs. **It stays drawn either way**: a control that
  * comes and goes as you scroll is one that is not where the thumb went
@@ -483,6 +485,7 @@ export function SegmentLine({
   const t = useText().channel;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
+  const [choosing, setChoosing] = React.useState(false);
   const { segment, recording } = item;
   // A paste is an instant, said by its own entry's name and time; there are
   // no hours to give it and nothing to share but what Copy already takes.
@@ -531,36 +534,64 @@ export function SegmentLine({
       accessibilityState={{ disabled: !available, busy }}
       disabled={!available}
       hitSlop={spacing(1)}
-      onPress={() => chooseWhatToShare(t, span, { audio, text }, (what) => void share(what))}
+      onPress={() =>
+        Platform.OS === 'web'
+          ? setChoosing(!choosing)
+          : chooseWhatToShare(t, span, { audio, text }, (what) => void share(what))
+      }
       style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >
       <ShareIcon color={available ? colors.text : colors.textFaint} />
     </Pressable>
   );
 
+  const choice = choosing ? (
+    <View style={styles.shareChoice}>
+      {(['audio', 'text'] as const).map((what) => (
+        <Button
+          key={what}
+          label={what === 'audio' ? t.audio() : t.keepText()}
+          disabled={what === 'audio' ? !audio : !text}
+          onPress={() => {
+            setChoosing(false);
+            void share(what);
+          }}
+        />
+      ))}
+    </View>
+  ) : null;
+
   if (recording && renderRecording) {
-    return <>{renderRecording(recording, { label, trailing, open, onToggle })}</>;
+    return (
+      <>
+        {renderRecording(recording, { label, trailing, open, onToggle })}
+        {choice}
+      </>
+    );
   }
   return (
-    <View style={styles.segmentLine}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ expanded: open }}
-        onPress={onToggle}
-        style={({ pressed }) => [styles.segmentPress, pressed ? styles.pressed : undefined]}
-      >
-        {segment.recordingId !== null ? (
-          <RecordingsIcon color={colors.textMuted} size={SEGMENT_MARK} />
-        ) : (
-          <View style={styles.ring} />
-        )}
-        <Text style={[type.heading, styles.segmentLabel]} numberOfLines={1}>
-          {label}
-        </Text>
-      </Pressable>
-      {trailing}
-    </View>
+    <>
+      <View style={styles.segmentLine}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={label}
+          accessibilityState={{ expanded: open }}
+          onPress={onToggle}
+          style={({ pressed }) => [styles.segmentPress, pressed ? styles.pressed : undefined]}
+        >
+          {segment.recordingId !== null ? (
+            <RecordingsIcon color={colors.textMuted} size={SEGMENT_MARK} />
+          ) : (
+            <View style={styles.ring} />
+          )}
+          <Text style={[type.heading, styles.segmentLabel]} numberOfLines={1}>
+            {label}
+          </Text>
+        </Pressable>
+        {trailing}
+      </View>
+      {choice}
+    </>
   );
 }
 
@@ -1195,6 +1226,12 @@ const styles = StyleSheet.create({
     paddingVertical: spacing(0.5),
   },
   segmentLabel: { flexShrink: 1 },
+  shareChoice: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: spacing(1),
+    paddingBottom: spacing(0.5),
+  },
   // A ring the record dot's size: kept, and not as audio.
   ring: {
     width: 12,

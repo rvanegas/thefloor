@@ -1,5 +1,6 @@
 import { API_URL } from './config';
 import { ApiError, reportSignedOut } from './http';
+import type { Handoff } from '../share';
 
 /**
  * Sharing a recording, a transcript or a track, from a browser.
@@ -24,8 +25,8 @@ import { ApiError, reportSignedOut } from './http';
 /**
  * Fetches with the token and gives the result a filename.
  *
- * Shared by all three below, since they differ only in the URL, the name the
- * file lands under and the sentence used when it fails.
+ * Shared by the two that fetch, since they differ only in the URL, the name
+ * the file lands under and the sentence used when it fails.
  *
  * The name may be a function of the response, which is the track's case: what
  * somebody uploaded is not something this side knows the extension of, and the
@@ -103,6 +104,29 @@ export async function shareRecording(
     `${fileStem(name, endedAt)}.ogg`,
     'Could not download the recording'
   );
+}
+
+/**
+ * A segment's text, downloaded as a `.txt` named as its audio is, so the two
+ * sit side by side in the downloads folder. Built here rather than fetched:
+ * the text is already in hand, so a blob of it is the whole file.
+ */
+export async function shareTextFile(
+  text: string,
+  name: string,
+  at: number
+): Promise<Handoff> {
+  const href = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  const anchor = document.createElement('a');
+  anchor.href = href;
+  anchor.download = `${fileStem(name, at)}.txt`;
+  anchor.style.display = 'none';
+  document.body.append(anchor);
+  anchor.click();
+  anchor.remove();
+  // Later, for the reason `download` gives.
+  setTimeout(() => URL.revokeObjectURL(href), 60_000);
+  return 'shared';
 }
 
 /**
