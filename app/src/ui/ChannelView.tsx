@@ -4172,29 +4172,29 @@ export function ChannelView({
                       <Text style={styles.warning}>{watchPasteError}</Text>
                     ) : null}
                     {/*
-                      Top-aligned because the system paste control carries
-                      its words as a caption underneath, and a stretched row
-                      would pull *Cancel* down to the caption's foot.
+                      **The whole width, and *Cancel* beneath rather than
+                      beside it**, since 2026-10-29. Half a row was the one
+                      place the system paste control was drawn that narrow,
+                      and the one place it drew a blank slot over its caption
+                      with a link on the clipboard — the control hides when
+                      it judges itself short of room, and never says so. Every
+                      other `PasteButton` with a label has the full width.
                     */}
-                    <View style={[styles.buttonRow, styles.buttonRowTop]}>
-                      <PasteButton
-                        label={t.watchThisInstead()}
-                        sublabel={t.watchThisInsteadSub()}
-                        emptyNote={t.copyAYouTubeLinkFirst()}
-                        variant="primary"
-                        style={styles.flexButton}
-                        disabled={!mayStartWatch}
-                        onPaste={pasteWatchUrl}
-                      />
-                      <Button
-                        label={t.cancel()}
-                        style={styles.flexButton}
-                        onPress={() => {
-                          setWatchPasteError(null);
-                          setChanging(false);
-                        }}
-                      />
-                    </View>
+                    <PasteButton
+                      label={t.watchThisInstead()}
+                      sublabel={t.watchThisInsteadSub()}
+                      emptyNote={t.copyAYouTubeLinkFirst()}
+                      variant="primary"
+                      disabled={!mayStartWatch}
+                      onPaste={pasteWatchUrl}
+                    />
+                    <Button
+                      label={t.cancel()}
+                      onPress={() => {
+                        setWatchPasteError(null);
+                        setChanging(false);
+                      }}
+                    />
                     {/*
                       **No second disclosure here.** *Change video* is already
                       the press that says somebody means to empty four other

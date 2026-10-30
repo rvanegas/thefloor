@@ -467,6 +467,11 @@ What that costs, all of it forced:
   explaining the grey went unread.
 - **A row holding one is top-aligned** (`buttonRowTop`), since the caption
   would otherwise stretch its neighbour.
+- **With a label, it gets the whole width and no neighbour**, since
+  2026-10-29. Half a row on a 375-point phone, *Watch this instead* beside
+  *Cancel*, drew a blank slot over its caption with a link on the clipboard:
+  the control hides when it judges itself short of room. *Cancel* went
+  beneath it.
 
 iOS 15, Android and the web have no such control and get the `Button`,
 unchanged. See `app/src/ui/PasteButton.tsx`.
