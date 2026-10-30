@@ -35,3 +35,15 @@ thumb that pressed it.
 
 **Native, so it reaches a phone with the next upload.** The JS side degrades
 to no bar where the module does not emit `onReading`.
+
+## Moved above the footer, the same day
+
+At Rodrigo's word: "move the bar to immediately above the bottom bar of
+actions." `Screen` now draws `ReadingBar` between the body and its footer,
+reading the controls from `ReadingContext`, which `App.tsx` provides. This is
+better than the top on the very ground the top was chosen on: between body and
+footer the bar's height comes out of the scroll, so neither the footer nor a
+header moves. The paragraph *At the top, not the foot* above compared the top
+only with a bar *below* the footer, which would have lifted it. In a split the
+list column draws none; `App.tsx` draws it under the detail pane's two
+non-`Screen` fallbacks, the empty pane and Podcasts.

@@ -27,6 +27,7 @@ import { BodyHeightContext, segmentRowsFor, usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
 import { useText } from '../i18n';
+import type { ReadAloudControls } from '../audio/readAloud';
 
 /**
  * The mark: something is waiting behind this.
@@ -732,10 +733,59 @@ export function Screen({
         </View>
         </BodyHeightContext.Provider>
         </View>
+        {/* Between the body and the footer, so it takes its height from the
+            scroll and the footer's targets stay where they were. Not in a
+            split's list column: the detail pane draws the one bar. */}
+        {pane === 'list' ? null : <ReadingBar />}
         {footer}
       </ScrollPositionContext.Provider>
       </RevealContext.Provider>
     </KeyboardAvoidingView>
+  );
+}
+
+/**
+ * What `useClaudeReadAloud` returns, handed down from `App.tsx` to every
+ * `Screen` — which is where {@link ReadingBar} is drawn, since 2026-10-29.
+ * Null outside the app, under jest and on the web, where it draws nothing.
+ */
+export const ReadingContext = React.createContext<ReadAloudControls | null>(null);
+
+/**
+ * *Restart* and *Stop*, while Claude's reply is being read aloud — and nothing
+ * at any other time.
+ *
+ * **On every screen, as the voice is**: `useClaudeReadAloud` sits above the
+ * route table so that somebody who walked back to Home still hears the reply,
+ * and a control that lived only on the *Record* would leave that person a
+ * voice they could not stop.
+ *
+ * **Immediately above the footer**, at Rodrigo's word, the same day it was
+ * first drawn at the top of the app. `Screen` draws it between the body and
+ * the footer, so it takes its height from the scroll: the footer's targets —
+ * Mute, Claim and the rest — do not move when it comes and goes, which the
+ * top did not manage for a header's. On a screen with no footer it sits at the
+ * foot.
+ *
+ * **Built as the pinned footer is** (STYLE.md § *The pinned footer*): a
+ * full-bleed `surface` with a top hairline, the row inside capped at
+ * `measure`. Two `default` buttons, neither `primary`: stopping and
+ * restarting are both alternatives to listening on, and no commitment.
+ */
+export function ReadingBar() {
+  const controls = React.useContext(ReadingContext);
+  const t = useText().readingBar;
+  if (!controls?.reading) return null;
+  return (
+    <View style={styles.readingBar}>
+      <View style={styles.readingInner}>
+        <Text style={[type.muted, styles.readingWhat]} numberOfLines={2}>
+          {t.reading()}
+        </Text>
+        <Button label={t.restart()} onPress={controls.restart} />
+        <Button label={t.stop()} onPress={controls.stop} />
+      </View>
+    </View>
   );
 }
 
@@ -1154,6 +1204,20 @@ export function Empty({ children }: { children: React.ReactNode }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  readingBar: {
+    backgroundColor: colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingVertical: spacing(1),
+  },
+  readingInner: {
+    ...measure,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing(1),
+    paddingHorizontal: spacing(2),
+  },
+  readingWhat: { flex: 1 },
   /**
    * The aside beside the scroll rather than above it.
    *

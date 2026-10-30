@@ -46,7 +46,7 @@ import { OfflineView } from './src/ui/OfflineView';
 import { NotificationsView } from './src/ui/NotificationsView';
 import { PodcastsView } from './src/ui/PodcastsView';
 import { NoDetailView, Panes, type Swipes } from './src/ui/Panes';
-import { ReadingBar } from './src/ui/ReadingBar';
+import { ReadingBar, ReadingContext } from './src/ui/components';
 import { Picture } from './src/watch/Picture';
 import { useFilmStart } from './src/watch/filmStart';
 import {
@@ -507,9 +507,9 @@ function Root() {
    * only where that cannot be told, with the best voice the phone has for it;
    * Floor Settings says which those are. See `useClaudeReadAloud`.
    *
-   * What it returns is `ReadingBar`'s, drawn above the panes below for the
-   * same reason: the voice is heard on every screen, so it can be stopped
-   * from every screen.
+   * What it returns is `ReadingBar`'s, handed to every `Screen` by
+   * `ReadingContext` below, for the same reason: the voice is heard on every
+   * screen, so it can be stopped from every screen.
    */
   const reading = useClaudeReadAloud(live, speechLocale(app.language));
 
@@ -1251,8 +1251,8 @@ function Root() {
     panes and outlives every one of them. See `watch/Picture.tsx`.
   */
   return (
+    <ReadingContext.Provider value={reading}>
     <Picture onOpen={(id) => enterChannel(id, 'watch')} offline={app.offline}>
-    <ReadingBar controls={reading} />
     <Panes
       layout={layout}
       list={listPane}
@@ -1276,11 +1276,13 @@ function Root() {
       detail={
         showing ??
         (layout === 'split' ? (
-          list === 'podcasts' ? (
-            <PodcastsView />
-          ) : (
-            <NoDetailView />
-          )
+          // Neither is a `Screen`, and the list column beside them leaves the
+          // reading bar to this pane, so it is drawn at their foot here —
+          // without it a reply read with nothing open would have no *Stop*.
+          <View style={styles.column}>
+            {list === 'podcasts' ? <PodcastsView /> : <NoDetailView />}
+            <ReadingBar />
+          </View>
         ) : (
           listPane
         ))
@@ -1306,6 +1308,7 @@ function Root() {
       </View>
     ) : null}
     </Picture>
+    </ReadingContext.Provider>
   );
 }
 
@@ -1469,5 +1472,6 @@ export default function App() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  column: { flex: 1 },
   loading: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });
