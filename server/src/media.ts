@@ -162,7 +162,7 @@ export interface MediaServer {
 
   /**
    * Begins capturing one participant's audio to `key`. Returns a handle for
-   * stopping it.
+   * stopping it, and the track it is capturing.
    *
    * Per participant rather than a room mix, because the floor has to be applied
    * when the recording is encoded and a mix cannot be un-mixed. Isolated stems
@@ -174,6 +174,13 @@ export interface MediaServer {
    * yields one object per run rather than one per recording.
    */
   /**
+   * **The track is returned because the egress is bound to it and dies with
+   * it.** A track egress ends itself when its track is unpublished — a
+   * dropped connection that comes back inside the presence grace publishes a
+   * new one — and nothing tells this server. `Channels.restartEndedEgress`
+   * notices by finding the track gone from the roster, which is the only way
+   * it can: see planning/decision/2026-10-31-an-egress-dies-with-its-track.md.
+   *
    * Returns a handle, or **null when this participant has no audio track to
    * record**. Null is not a failure and is not exceptional: a participant who
    * has joined the room but whose microphone has not opened is the ordinary
@@ -200,7 +207,7 @@ export interface MediaServer {
     room: string;
     identity: string;
     key: string;
-  }): Promise<string | null>;
+  }): Promise<{ handle: string; track: string } | null>;
 
   stopRecording(handle: string): Promise<void>;
 
@@ -324,7 +331,7 @@ export class LiveKitMediaServer implements MediaServer {
     room: string;
     identity: string;
     key: string;
-  }): Promise<string | null> {
+  }): Promise<{ handle: string; track: string } | null> {
     const storage = this.options.storage;
     if (!storage) throw new Error('No recording storage configured.');
 
@@ -368,7 +375,7 @@ export class LiveKitMediaServer implements MediaServer {
       }),
       audio.sid
     );
-    return info.egressId;
+    return { handle: info.egressId, track: audio.sid };
   }
 
   async stopRecording(handle: string): Promise<void> {
@@ -742,6 +749,8 @@ export class MemoryMediaServer implements MediaServer {
     identity: string;
     key: string;
     handle: string;
+    /** The track id the egress was pointed at, as `audioTracks` reports it. */
+    track: string;
     stopped: boolean;
   }> = [];
   readonly issued: Array<{
@@ -982,8 +991,9 @@ export class MemoryMediaServer implements MediaServer {
       throw new Error(this.failStart.reason);
     }
     const handle = `egress_${this.recordings.length + 1}`;
-    this.recordings.push({ room, identity, key, handle, stopped: false });
-    return handle;
+    const track = this.trackId(room, identity);
+    this.recordings.push({ room, identity, key, handle, track, stopped: false });
+    return { handle, track };
   }
 
   async stopRecording(handle: string) {

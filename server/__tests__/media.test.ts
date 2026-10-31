@@ -260,7 +260,7 @@ describe('the floor as an actual mute', () => {
         async removeParticipant() {},
         async closeRoom() {},
         async startRecording() {
-          return 'egress_x';
+          return { handle: 'egress_x', track: 'TR_x' };
         },
         async stopRecording() {},
         async openListener() {

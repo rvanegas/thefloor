@@ -112,7 +112,7 @@ import {
 } from './db';
 import { Mixer, mixKeyFor } from './mixes';
 import { publishedKeyFor } from './publication';
-import type { MediaServer, PlaybackSession } from './media';
+import type { AudioTrack, MediaServer, PlaybackSession } from './media';
 import type { RecordingStore } from './storage';
 import { createPushNotifier, notifications, type PushNotifier } from './push';
 import { pairSpan, UsageMeter } from './usage';
@@ -695,12 +695,19 @@ export class ChannelRegistry {
    * One recording run's live capture. `requested` is who an egress has been
    * asked for this run — filled before the call returns, so a second
    * transition or tick cannot ask twice. `retryAt` throttles the retries for
-   * a late joiner whose egress could not start yet.
+   * a late joiner whose egress could not start yet. Each handle carries the
+   * track its egress is bound to, and when that was read, which is what
+   * `restartEndedEgress` compares the room against.
    */
   private capturing = new Map<
     string,
     {
-      handles: Array<{ identity: string; handle: string }>;
+      handles: Array<{
+        identity: string;
+        handle: string;
+        track: string;
+        askedAt: number;
+      }>;
       requested: Set<string>;
       retryAt: Map<string, number>;
     }
@@ -5791,7 +5798,9 @@ export class ChannelRegistry {
    * Playback and egress are deliberately *not* polled. Those are published by
    * this process — its own participant, its own egress jobs — so asking
    * LiveKit about them would introduce a second answer that can disagree with
-   * the one this server already has, for nothing.
+   * the one this server already has, for nothing. **What an egress is
+   * pointed at is not this process's, though**, and the roster answers it for
+   * free: see `restartEndedEgress`.
    *
    * Exposed like `tick`, so a test can step it rather than wait fifteen
    * seconds for a timer.
@@ -5815,6 +5824,7 @@ export class ChannelRegistry {
   /** One channel's half of `pollUsage`. */
   private async meterRoom(state: ChannelState): Promise<void> {
     const room = state.mediaRoom;
+    const askedAt = this.now();
     const roster = await this.media!.audioTracks(room);
 
     // The channel may have ended or moved rooms while we asked. Metering the
@@ -5836,6 +5846,7 @@ export class ChannelRegistry {
     // as before, and the removal it may lead to happens a grace period later
     // in the tick.
     this.reconcilePresence(now, new Set(roster.keys()));
+    this.restartEndedEgress(now, roster, askedAt);
 
     // **Muted tracks do not count, and that is the whole of what "publishing"
     // means here.** A device that publishes and then mutes is holding a
@@ -6260,12 +6271,15 @@ export class ChannelRegistry {
 
     this.run(
       async () => {
-        const handle = await this.media!.startRecording({
+        // Before the call, because the track is read inside it: a roster
+        // fetched after this moment is at least as new as the track.
+        const askedAt = this.now();
+        const started = await this.media!.startRecording({
           room: state.mediaRoom,
           identity,
           key,
         });
-        answer(handle === null ? 'no-track' : 'started');
+        answer(started === null ? 'no-track' : 'started');
         // No track to record yet — a microphone that has not opened, a
         // permission not granted, a connection still coming back. Nobody has
         // failed at anything, so the run carries on without them and this
@@ -6278,7 +6292,7 @@ export class ChannelRegistry {
         // start it ended the whole run: one silent participant cost everybody
         // else their conversation. A recording missing one voice is worth
         // having; a recording that does not exist is not.
-        if (handle === null) {
+        if (started === null) {
           tryAgainLater();
           return;
         }
@@ -6289,9 +6303,9 @@ export class ChannelRegistry {
           this.capturing.get(state.id) === run &&
           run.requested.has(identity)
         ) {
-          run.handles.push({ identity, handle });
+          run.handles.push({ identity, ...started, askedAt });
         } else {
-          await this.media!.stopRecording(handle);
+          await this.media!.stopRecording(started.handle);
         }
       },
       `startRecording ${key}`,
@@ -6326,6 +6340,48 @@ export class ChannelRegistry {
       if (this.now() < (run.retryAt.get(identity) ?? 0)) continue;
       this.startEgress(state, identity, { fatal: false });
     }
+  }
+
+  /**
+   * Hands back to `ensureEgress` anybody whose egress has outlived its track.
+   *
+   * A track egress is bound to one track and ends itself when that track is
+   * unpublished, saying nothing to this server. The common cause is a dropped
+   * connection that comes back inside DISCONNECT_GRACE_MS: the person never
+   * leaves `present`, so the leaving path that starts a fresh segment never
+   * runs, and they publish a new track nobody is capturing. Until 2026-10-31
+   * that cost them the rest of the run — `rec_aHfqLipF1e-W` kept 7.7 seconds
+   * of a 107-minute speaker. See
+   * planning/decision/2026-10-31-an-egress-dies-with-its-track.md.
+   *
+   * **A track missing from the roster is an egress that has ended**, whether
+   * the person has a new one, none, or has gone from the room altogether; in
+   * every case the next tick's `ensureEgress` asks again and either starts the
+   * next segment or retries as it would for a late joiner. Nothing is
+   * stopped: the egress has stopped itself, and stopping a finished one is an
+   * error LiveKit reports.
+   *
+   * **Only handles started before the roster was asked for are judged**,
+   * because one started after it may hold a track the roster is too old to
+   * know about, and would be torn down the moment it began.
+   */
+  private restartEndedEgress(
+    state: ChannelState,
+    roster: Map<string, AudioTrack[]>,
+    askedAt: number
+  ): void {
+    const run = this.capturing.get(state.id);
+    if (!run) return;
+    run.handles = run.handles.filter((entry) => {
+      if (entry.askedAt >= askedAt) return true;
+      const tracks = roster.get(entry.identity) ?? [];
+      if (tracks.some((track) => track.sid === entry.track)) return true;
+      run.requested.delete(entry.identity);
+      this.usage.closeSpan(
+        this.egressSpan(state.id, state.recording.runId, entry.identity)
+      );
+      return false;
+    });
   }
 
   /** Takes back a reserved key whose capture never began. */

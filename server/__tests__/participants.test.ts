@@ -891,6 +891,64 @@ describe('recording with people joining mid-run', () => {
     ).toHaveLength(1);
   });
 
+  /**
+   * `rec_aHfqLipF1e-W`: a phone's connection dropped eight seconds into a run
+   * and came back nine seconds later, inside the presence grace, publishing a
+   * new track. The egress had died with the old one, and since its owner never
+   * left `present` nothing asked for another — the rest of a 107-minute
+   * recording had nobody capturing that speaker.
+   */
+  it('starts the next segment when somebody present republishes mid-run', async () => {
+    const { alice, bob, channelId } = await pairRecording();
+    // ENTER is dispatched without a token, so the fake has not seen him join;
+    // the real one could not have started his egress otherwise.
+    media.joinRoom(channelId, alice.account.id);
+    media.joinRoom(channelId, bob.account.id);
+    const run = app.channels.get(channelId)!.recording.runId!;
+    const his = () =>
+      media.recordings.filter((r) => r.identity === bob.account.id);
+
+    // A roster that still carries the track changes nothing.
+    clock += 10_000;
+    app.channels.pollUsage();
+    await settle();
+    app.channels.tick();
+    await settle();
+    expect(his()).toHaveLength(1);
+
+    clock += 10_000;
+    media.republish(channelId, bob.account.id);
+    app.channels.pollUsage();
+    await settle();
+    app.channels.tick();
+    await settle();
+    expect(his()).toHaveLength(2);
+    expect(his()[1].track).not.toBe(his()[0].track);
+    // Alice's track never moved, so hers is left alone.
+    expect(
+      media.recordings.filter((r) => r.identity === alice.account.id)
+    ).toHaveLength(1);
+
+    clock += 10_000;
+    endChannel(channelId);
+    await settle();
+
+    const row = app.db
+      .prepare('SELECT stems FROM recordings WHERE id = ?')
+      .get(run) as { stems: string };
+    const stems = JSON.parse(row.stems) as Record<
+      string,
+      Array<{ key: string; startMs: number }>
+    >;
+    expect(stems[bob.account.id]).toEqual([
+      { key: `${channelId}/${run}/${bob.account.id}-001.ogg`, startMs: 0 },
+      {
+        key: `${channelId}/${run}/${bob.account.id}-002.ogg`,
+        startMs: 20_000,
+      },
+    ]);
+  });
+
   it('records a silenced window per non-holder in the floor timeline', async () => {
     const { alice, bob, carol, channelId } = await pairRecording();
     app.channels.dispatch(channelId, alice.account.id, {
