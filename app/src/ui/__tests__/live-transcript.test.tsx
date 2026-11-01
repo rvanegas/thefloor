@@ -635,6 +635,9 @@ describe('rooms on the Record tab', () => {
     // No audio to be named after, so the segment's own end stands in.
     const [message, , endedAt] = shareTextFile.mock.calls[0];
     expect(endedAt).toBe(NOW + 60_000);
+    // Where and when, without the filename: the channel, and the year.
+    const day = new Date(NOW).toLocaleDateString('sv');
+    expect(message).toMatch(new RegExp(`^The Floor — .+\\n${day} · `));
     expect(message).toContain('only written down\nand again');
     expect(message).not.toContain('before the room');
     sheet.mockRestore();

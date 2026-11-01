@@ -513,7 +513,7 @@ export function SegmentLine({
         // Stamped as its audio is, so the two files sort and pair together;
         // a text kept alone has only the segment's own end to go by.
         const handed = await shareTextFile(
-          await segmentText(app.token, channelId, item, t),
+          await segmentText(app.token, channelId, item, name, t),
           name,
           recording?.endedAt ?? segment.endedAt ?? Date.now()
         );
@@ -631,8 +631,15 @@ export function chooseWhatToShare(
 }
 
 /**
- * A segment's text as plain text, the way the log draws it: its date and
- * hours, then each speaker's run under their name and the time it began.
+ * A segment's text as plain text, the way the log draws it: its channel and
+ * date, then its hours, then each speaker's run under their name and the time
+ * it began.
+ *
+ * **It says where and when without its filename**, since 2026-11-01: a first
+ * line `The Floor — <channel>` and the date as `yyyy-mm-dd`, which carries the
+ * year the log's day leaves out and reads the same in every language. A copy
+ * pasted somewhere, or a download renamed, used to lose both; mdc's import
+ * reads them from here.
  *
  * **Its batch transcript as held, or its live lines read afresh**, walking
  * back from the segment's end until a page reaches before its start, rather
@@ -644,10 +651,11 @@ export async function segmentText(
   token: string,
   channelId: string,
   item: SegmentItem,
+  name: string,
   t: Strings['channel']
 ): Promise<string> {
   const { segment } = item;
-  if (!segment.text) return formatSegmentText(segment, item.lines, t, item.pastes);
+  if (!segment.text) return formatSegmentText(segment, name, item.lines, t, item.pastes);
   let lines: LiveLine[] = [];
   let before = segment.endedAt === null ? undefined : segment.endedAt + 1;
   for (;;) {
@@ -656,29 +664,40 @@ export async function segmentText(
     if (!page.more || page.lines.length === 0 || page.lines[0].startAt < segment.startedAt) break;
     before = page.lines[0].startAt;
   }
-  return formatSegmentText(segment, lines, t, item.pastes);
+  return formatSegmentText(segment, name, lines, t, item.pastes);
 }
 
 /**
  * The text `segmentText` shares, from lines already in hand, with the pastes
- * made inside it where they were made.
+ * made inside it where they were made. `name` is the channel's. A speaker
+ * with no name is *Someone*, as Claude's reading of the *Record* has it.
  */
 export function formatSegmentText(
   segment: SegmentView,
+  name: string,
   lines: readonly LiveLine[],
   t: Strings['channel'],
   pastes: readonly SegmentView[] = []
 ): string {
-  const head = `${t.liveDay(segment.startedAt)} · ${t.roomSpan(segment.startedAt, segment.endedAt)}`;
+  const head =
+    `The Floor — ${name}\n` +
+    `${localDay(segment.startedAt)} · ${t.roomSpan(segment.startedAt, segment.endedAt)}`;
   const entries = entriesOf({ segment, recording: null, lines: [...lines], pastes: [...pastes] }).map(
     (entry) =>
       entry.kind === 'paste'
         ? `${t.pastedBy(entry.segment.paste?.displayName ?? '')} · ${t.liveTime(entry.segment.startedAt)}\n` +
           (entry.segment.paste?.text ?? '')
-        : `${entry.block.displayName} · ${t.liveTime(entry.block.startMs)}\n` +
+        : `${entry.block.displayName ?? t.someone()} · ${t.liveTime(entry.block.startMs)}\n` +
           entry.block.lines.map((line) => line.text).join('\n')
   );
   return [head, ...entries].join('\n\n');
+}
+
+/** The local day as `yyyy-mm-dd`, as a download's name stamps it. */
+function localDay(at: number): string {
+  const d = new Date(at);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 /**
