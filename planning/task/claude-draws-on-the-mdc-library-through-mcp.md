@@ -6,20 +6,27 @@ This file is what remains, and is deleted when it is done.
 
 ## To ship it, in this order
 
-Each verb is Rodrigo's to say.
+Each verb is Rodrigo's to say. Since 2026-11-01 each account connects its own
+library (`decision/2026-11-01-each-account-connects-its-own-mdc-library.md`);
+the server with `MDC_TOKEN` was deployed 2026-10-31 and the *Library* card is
+in builds 392 and up, so this replaces a live setup.
 
-1. **Land** the branch.
-2. **Deploy** the server, with `MDC_TOKEN` still unset. Nothing changes for
-   anybody until the token is there, and `/privacy` has to say what a library
-   press sends before one can happen.
-3. **Mint the token** on `commons` — mdc's `scripts/add_token.py rodvandur`,
-   note "The Floor" — and put `MDC_TOKEN` and `MDC_IDENTIFIERS` (Rodrigo's
-   sign-in address) in `~/.config/thefloor/server.env`; `bin/env-push`, then
-   `bin/restart-services`. The startup log's `library` line names the URL and
-   owner, never the token.
-4. **Upload** a build carrying the *Library* card. Until a phone has it, the
-   switch can be set by nobody; a server that has the token and no client
-   offering the card changes nothing.
+1. **Deploy mdc** with its client registration (landed 2026-11-01 as
+   `0c622a2`).
+2. **Register The Floor** on `commons`:
+   `docker compose run --rm -T mdc python scripts/add_client.py thefloor --name "The Floor" --redirect https://thefloor.rvanegas.co/mdc/callback`,
+   its two lines straight into `~/.config/thefloor/server.env` without being
+   printed; remove `MDC_TOKEN` and `MDC_IDENTIFIERS` there; `bin/env-push`.
+3. **Land and deploy** this branch (`mdc-connect`), then
+   `bin/restart-services` if the deploy did not restart with the new env. The
+   startup log's `library` line names the URL, client and callback.
+4. **Revoke the old token**: its `users.toml` line on `commons`, note "The
+   Floor".
+5. **Upload** a build carrying the *mdc library* card. Until then nobody can
+   connect, and the switch is refused to everybody with the sentence pointing
+   at Floor Settings — which a build without the card cannot follow.
+6. **Connect** from that build as `rvanegas@gmail.com`, and switch the
+   library on again where it was on.
 
 ## To check on the box, once it is on
 

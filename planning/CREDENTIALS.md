@@ -47,7 +47,7 @@ here has to be read in order, and no entry depends on another.
 | Transcripts, and what `/privacy` claims | AssemblyAI |
 | Push on Android | Firebase service account |
 | Claude's *Respond*, and what `/privacy` claims about it | Anthropic |
-| Claude consulting Rodrigo's writing, the *Library* switch | mdc library token |
+| Claude consulting somebody's own writing, the *Library* switch and *Floor Settings*' mdc card | mdc client |
 | Session tokens, and the journal | The credential this project issues |
 
 `bin/env-pull` / `bin/env-push` and `server/.env` are the closing paragraph of
@@ -365,28 +365,38 @@ Deliberately separate, so no single leak is worse than it has to be:
   the old. Nothing stored depends on it — the replies are pastes here, and
   `claude_usage` holds counts rather than anything keyed to the credential.
 
-- **mdc library token** — `MDC_TOKEN`, a bearer token for Rodrigo's mdc
-  library at `MDC_URL`, minted on `commons` by mdc's
-  `scripts/add_token.py rodvandur` with the note "The Floor". The eleventh,
-  added 2026-10-27 —
-  decision/2026-10-27-claude-consults-its-owner-s-library-channel-by-channel.md.
-  **This server never
-  presents it**: it goes in the Messages request, and Anthropic's servers call
-  mdc with it, so it travels to Anthropic on every library press, as the
-  Record does.
+- **mdc client** — `MDC_CLIENT_ID` and `MDC_CLIENT_SECRET`, The Floor's
+  registration as an OAuth client of mdc, made on `commons` by mdc's
+  `scripts/add_client.py thefloor --name "The Floor" --redirect
+  https://thefloor.rvanegas.co/mdc/callback`, which prints both once. The
+  eleventh, since 2026-11-01 —
+  decision/2026-11-01-each-account-connects-its-own-mdc-library.md. It
+  replaced `MDC_TOKEN`, one bearer token for Rodrigo's library alone, added
+  2026-10-27; that token and `MDC_IDENTIFIERS` are now read only to log that
+  they are ignored, and the token's line in mdc's `users.toml` is deleted
+  once the client is in.
 
-  **It reads one person's writing and nothing else**: a token reaches its
-  user's libraries only, and mdc's server has offered no write since mdc
-  `43be338` — which is a property of mdc, not of this token, so the
-  allowlist in the request is what keeps a later mdc tool out of a room.
-  A leak exposes the library to whoever holds it, until it is revoked;
-  it spends nothing.
+  **It reads nobody's library by itself.** It lets this server finish a
+  person's sign-in at mdc (`/mdc/callback`) and refresh or revoke the grant
+  that sign-in made. A leak lets somebody pose as The Floor on mdc's sign-in
+  page and refresh grants they also hold, which they cannot read here; it
+  spends nothing.
 
-  **Revoking it is deleting its line in mdc's `users.toml`**, which keeps
-  only the hash, so a lost token cannot be recovered there either — mint
-  another. Rotating is mint, replace the line, `bin/env-push`, delete the old
-  line. Nothing stored here depends on it. Marked `# env-push: optional`, with
-  `MDC_URL` and `MDC_IDENTIFIERS`, which are settings rather than secrets.
+  **What it holds up: every person's grant**, in `mdc_connections`, one
+  refresh token per account that connected a library, sealed with a key
+  derived from `MDC_CLIENT_SECRET` (HKDF, AES-256-GCM; `server/src/mdc.ts`),
+  so a copy of the database alone reaches nobody's library. **Rotating the
+  secret therefore disconnects everybody**, who connect again on *Floor
+  Settings*: re-run `add_client.py` (a new secret, the old one dead at once),
+  replace both lines, `bin/env-push`, restart. The access tokens a press sends
+  live an hour in memory, and **travel to Anthropic in every library request**,
+  as the Record does — Anthropic's servers call mdc with them; this one only
+  refreshes them. Each reaches one person's libraries, and mdc's server offers
+  no write since mdc `43be338`, a property of mdc, so the allowlist in the
+  request is still what keeps a later mdc tool out of a room.
+
+  Marked `# env-push: optional`, with `MDC_URL` and `MDC_CALLBACK_URL`, which
+  are settings rather than secrets.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it

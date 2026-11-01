@@ -133,7 +133,7 @@ caused; the list carries the meaning.
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Library** — A body of somebody's own writing, kept in mdc, that *Ask Claude* may consult while it answers; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown to every member where the server has one, switchable only by the library's owner. `ChannelState.library`. Never the app's own recordings, which are the *Record*
+- **Library** — A body of somebody's own writing, kept in mdc, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *mdc library* card, by signing in at mdc, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown to every member where the server offers libraries, switched on only by somebody with one connected, whose it then is (`ChannelState.libraryOwner`), and off by anybody who may edit the channel. `ChannelState.library`. Never the app's own recordings, which are the *Record*
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
@@ -1482,18 +1482,23 @@ marked for it. Called the *invitation standings* in the code.
 **A body of somebody's own writing that *Ask Claude* may consult**, since
 2026-10-27: a library in mdc, a separate project that keeps it indexed by
 term, reached through the Messages API's MCP connector — Anthropic's servers
-call it, this one does not. One per server, configured by `MDC_TOKEN`, and
-its owner named by `MDC_IDENTIFIERS`; see `LibraryOptions` in
-`server/src/claude.ts` and planning/CREDENTIALS.md.
+call it, this one does not. **Each account's own, since 2026-11-01**:
+connected on *Floor Settings*' *mdc library* card (*Biblioteca de mdc*) by
+signing in at mdc, as a claude.ai connector is, and disconnected there. Until
+then there was one per server, Rodrigo's, configured by `MDC_TOKEN`. See
+`server/src/mdc.ts` and planning/CREDENTIALS.md.
 
 **And the channel setting that lets it**: a switch on *Channel Settings*,
-*Library* / *Consult*, off on every channel until the library's owner turns
-it on, and then on *Pro* and *Max* for **every press there, whoever
-presses** — the response model's terms. `ChannelState.library`. Shown to
-every member, since what a reply may quote is something everybody in the
-channel may know, and switchable only by the owner, since turning it on is
-consent to that writing reaching the room's *Record*. A reply that draws on it
-names the piece, in plain words.
+*Library* / *Consult*, off on every channel until somebody with a library
+connected turns it on — **and then it is theirs that the channel consults**
+(`ChannelState.libraryOwner`), on *Pro* and *Max* for **every press there,
+whoever presses** — the response model's terms — and only while they are in
+the channel. `ChannelState.library`. Shown to every member, since what a reply
+may quote is something everybody in the channel may know; switched on only by
+a library's owner, since that is consent to their writing reaching the room's
+*Record*, and off by anybody who may edit the channel, which withdraws rather
+than exposes. Disconnecting, or deleting the account, switches it off in every
+channel. A reply that draws on it names the piece, in plain words.
 
 **Never the app's own recordings or transcripts**, which are the *Record*:
 the library is writing from elsewhere, and nothing in a channel is written
@@ -5156,7 +5161,8 @@ are settled:
     Responding…           Respondiendo…
     Response model        Modelo de respuesta — *Estándar* / *Pro* / *Max*
     Library               Biblioteca — its switch *Consultar*; its owner is
-                          *el dueño*, as a community's is
+                          *el dueño*, as a community's is; the Floor Settings
+                          card *Biblioteca de mdc*, *Conectar* / *Desconectar*
     Floor Settings        Ajustes de The Floor
     Pro (the subscription) Pro — a name, the same in both
     Push notifications    Notificaciones push
