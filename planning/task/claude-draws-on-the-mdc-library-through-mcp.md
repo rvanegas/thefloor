@@ -28,6 +28,13 @@ in builds 392 and up, so this replaces a live setup.
 6. **Connect** from that build as `rvanegas@gmail.com`, and switch the
    library on again where it was on.
 
+Steps 1–4 are done (2026-11-01). The per-channel toggles
+(`decision/2026-11-01-a-channel-chooses-which-of-its-owner-s-libraries.md`)
+add, before step 5: **deploy mdc** (landed as `9c2760c`), then
+**deploy this** (landed 2026-11-01). A press from this
+server before mdc's deploy would name libraries mdc does not yet read, which
+it ignores — harmless, but the selection is only enforced once it is there.
+
 ## To check on the box, once it is on
 
 - **What an unreachable mdc produces.** Built for both — a failed request,
