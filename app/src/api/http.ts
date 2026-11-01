@@ -8,6 +8,7 @@ import type {
   PublicAccount,
   ProfileView,
   SupportView,
+  MdcView,
   ProView,
   AppStoreUpload,
 } from '../../../core/protocol';
@@ -406,6 +407,17 @@ export const api = {
 
   /** Whether this account is *Pro*, and how to become it. */
   pro: (token: string) => request<ProView>('/pro', { token }),
+
+  /** Whether this server offers mdc libraries, and whether yours is connected. */
+  mdc: (token: string) => request<MdcView>('/me/mdc', { token }),
+
+  /** mdc's sign-in URL, to open in a browser; it comes back to `returnTo`. */
+  connectMdc: (token: string, returnTo: 'app' | 'web') =>
+    request<{ url: string }>('/me/mdc/connect', { method: 'POST', token, body: { returnTo } }),
+
+  /** Switches your library off everywhere, and forgets it here. */
+  disconnectMdc: (token: string) =>
+    request<void>('/me/mdc/disconnect', { method: 'POST', token }),
 
   /**
    * One App Store transaction, as StoreKit signed it. A 422 is one the server

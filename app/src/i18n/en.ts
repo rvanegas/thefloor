@@ -964,6 +964,27 @@ export const en = {
     proRestore: () => 'Restore purchases',
     termsOfUse: () => 'Terms of Use',
     proNotFound: () => 'No Pro subscription was found for this account.',
+    /**
+     * Your own mdc library, connected by signing in at mdc: what lets you
+     * switch a channel's *Library* on, which is then yours that Claude
+     * consults there. Since 2026-11-01; see GLOSSARY.md.
+     */
+    mdcLibrary: () => 'mdc library',
+    mdcAbout: () =>
+      'Connect your mdc library and you can let Claude consult it in the channels you choose, on Channel Settings. Connecting opens mdc’s sign-in in your browser.',
+    mdcConnect: () => 'Connect',
+    mdcConnecting: () => 'Connecting…',
+    mdcConnectedAs: (user: string, email: string | null) =>
+      email ? `Connected as ${user} (${email}).` : `Connected as ${user}.`,
+    mdcConnectedNote: () =>
+      'Switch it on for a channel on Channel Settings. Disconnecting switches it off in every channel.',
+    mdcDisconnect: () => 'Disconnect',
+    mdcDisconnecting: () => 'Disconnecting…',
+    mdcDisconnectAsk: () => 'Disconnect your mdc library?',
+    mdcDisconnectBody: () =>
+      'Claude stops consulting it in every channel where it is on. The library itself stays in mdc, and you can connect it again at any time.',
+    mdcFailed: () =>
+      'Your library was not connected. Try again, and finish signing in to mdc in the browser.',
     storeUnreachable: () => 'The App Store cannot be reached right now.',
     /**
      * The server would not confirm a purchase StoreKit says succeeded. Not
@@ -1093,7 +1114,8 @@ export const en = {
     libraryConsult: () => 'Consult',
     libraryNote: () =>
       'When on, Claude may draw on the library owner’s own writing while it answers, and names any piece it quotes. It applies on Pro and Max, to whoever asks Claude.',
-    libraryWho: () => 'Only the library’s owner can switch it on or off.',
+    /** Since 2026-11-01, when each account began connecting its own library. */
+    libraryWho: () => 'Connect your mdc library on Floor Settings to offer it here.',
     libraryStepIn: () =>
       'Step in to change this. What Claude may quote is for whoever is in the conversation.',
     notifications: () => 'Notifications',

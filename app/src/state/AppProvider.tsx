@@ -22,6 +22,7 @@ import type {
   ChannelView,
   ScreenDevice,
   SupportView,
+  MdcView,
   ProView,
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
@@ -609,6 +610,16 @@ interface AppValue extends AppState {
    * one screen reads it, and a renewal can change it at any moment.
    */
   loadPro: () => Promise<ProView>;
+  /**
+   * Your own mdc library, for Floor Settings: whether this server offers
+   * libraries and whether yours is connected. Held nowhere, for `loadPro`'s
+   * reason, and read again when the app returns from mdc's sign-in.
+   */
+  loadMdc: () => Promise<MdcView>;
+  /** mdc's sign-in URL for connecting yours, coming back to the app or to a page. */
+  connectMdc: (returnTo: 'app' | 'web') => Promise<string>;
+  /** Disconnects yours: off in every channel, and forgotten by the server. */
+  disconnectMdc: () => Promise<void>;
   /**
    * The questions you have asked of The Floor, with any answers.
    *
@@ -2857,6 +2868,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadPro: async () => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return api.pro(state.token);
+      },
+
+      loadMdc: async () => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        return api.mdc(state.token);
+      },
+
+      connectMdc: async (returnTo) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        return (await api.connectMdc(state.token, returnTo)).url;
+      },
+
+      disconnectMdc: async () => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        await api.disconnectMdc(state.token);
       },
 
       loadHelp: async () => {

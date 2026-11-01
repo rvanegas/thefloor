@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Linking, Platform, StyleSheet, Text, View } from 'react-native';
+import { Alert, AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
 import {
   speechLocale,
@@ -31,7 +31,7 @@ import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 import type { LanguagePreference } from '../../../core/settings';
 import { useText } from '../i18n';
-import type { ProView } from '../../../core/protocol';
+import type { MdcView, ProView } from '../../../core/protocol';
 
 /**
  * The app and the account: how it looks, what it stores, and the two ways out.
@@ -639,6 +639,8 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         <Text style={type.muted}>{t.privacyNote()}</Text>
       </Card>
 
+      <MdcCard />
+
       <ProCard />
 
       <SectionLabel>{t.account()}</SectionLabel>
@@ -784,6 +786,122 @@ const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes
  * Every button is `default`. On this screen `primary` marks the option in
  * force within a choice, and a subscription is not one of those.
  */
+/**
+ * Your own mdc library, since 2026-11-01: connecting it is what lets you
+ * switch a channel's *Library* on, and it is then yours that Claude consults
+ * there. Drawn only where the server offers libraries — an older server
+ * answers 404, read as no card, as `ProCard` reads a failure.
+ *
+ * **Connect opens mdc's sign-in in the browser**, not inside the app: the
+ * server's callback sends a phone back with `thefloor://mdc`, which the
+ * app's other link handlers do not match, and the web app's tab is closed by
+ * hand. Either way the status is read again whenever the app comes back to
+ * the front, which is the one signal both have; *Connecting…* lasts until
+ * then. Disconnect confirms, being the one direction that takes something
+ * away from rooms other people are in.
+ */
+function MdcCard() {
+  const app = useApp();
+  const t = useText().homeSettings;
+  const [view, setView] = useState<MdcView | null>(null);
+  const [busy, setBusy] = useState<'connecting' | 'disconnecting' | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const read = async () => {
+      try {
+        const next = await app.loadMdc();
+        if (cancelled) return;
+        setView(next);
+        setBusy((was) => (was === 'connecting' ? null : was));
+      } catch {
+        // An older server, or one that failed: no card, as `ProCard` reads it.
+      }
+    };
+    void read();
+    const foreground = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void read();
+    });
+    const link = Linking.addEventListener('url', ({ url }) => {
+      if (!url.startsWith('thefloor://mdc')) return;
+      setMessage(url.includes('result=failed') ? t.mdcFailed() : null);
+      void read();
+    });
+    return () => {
+      cancelled = true;
+      foreground.remove();
+      link.remove();
+    };
+  }, [app.token, t]);
+
+  if (!view?.available) return null;
+
+  const connect = async () => {
+    setMessage(null);
+    setBusy('connecting');
+    try {
+      const url = await app.connectMdc(Platform.OS === 'web' ? 'web' : 'app');
+      await Linking.openURL(url);
+    } catch (e) {
+      setBusy(null);
+      setMessage(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const disconnect = () =>
+    Alert.alert(t.mdcDisconnectAsk(), t.mdcDisconnectBody(), [
+      { text: t.cancel(), style: 'cancel' },
+      {
+        text: t.mdcDisconnect(),
+        style: 'destructive',
+        onPress: async () => {
+          setMessage(null);
+          setBusy('disconnecting');
+          try {
+            await app.disconnectMdc();
+            setView(await app.loadMdc());
+          } catch (e) {
+            setMessage(e instanceof Error ? e.message : String(e));
+          } finally {
+            setBusy(null);
+          }
+        },
+      },
+    ]);
+
+  return (
+    <>
+      <SectionLabel>{t.mdcLibrary()}</SectionLabel>
+      <Card style={styles.stack}>
+        {view.connected ? (
+          <>
+            <Text style={type.body}>
+              {t.mdcConnectedAs(view.user ?? '', view.email ?? null)}
+            </Text>
+            <Button
+              label={busy === 'disconnecting' ? t.mdcDisconnecting() : t.mdcDisconnect()}
+              disabled={busy !== null}
+              onPress={disconnect}
+            />
+            <Text style={type.muted}>{t.mdcConnectedNote()}</Text>
+          </>
+        ) : (
+          <>
+            <Button
+              label={busy === 'connecting' ? t.mdcConnecting() : t.mdcConnect()}
+              disabled={busy !== null}
+              onPress={() => void connect()}
+            />
+            <Text style={type.muted}>{t.mdcAbout()}</Text>
+          </>
+        )}
+        {message ? <Text style={type.muted}>{message}</Text> : null}
+      </Card>
+    </>
+  );
+}
+
 function ProCard() {
   const app = useApp();
   const t = useText().homeSettings;

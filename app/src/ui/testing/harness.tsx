@@ -319,6 +319,16 @@ export const mockApp = {
     freeMinutes: 60,
     offer: null as { product: string; accountToken: string } | null,
   })),
+  // No mdc on this server: what Floor Settings looks like for every test but
+  // the library card's, which replace it. Typed loosely for the reason above.
+  loadMdc: jest.fn(async () => ({
+    available: false,
+    connected: false,
+    user: undefined as string | undefined,
+    email: undefined as string | null | undefined,
+  })),
+  connectMdc: jest.fn(async (_returnTo: 'app' | 'web') => 'https://mdc.example/authorize?state=s'),
+  disconnectMdc: jest.fn(async () => {}),
   // No questions asked yet and a slot free, which is the state everybody is
   // in the first time they open the Help screen. The tests about a backlog or
   // an answer replace these, and `resetHarness` puts them back — a test that

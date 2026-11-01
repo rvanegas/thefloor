@@ -841,6 +841,21 @@ export interface SupportView {
 }
 
 /**
+ * What Floor Settings is told about your own mdc library: whether this server
+ * offers libraries at all, and whether yours is connected and whose it is at
+ * mdc. Fetched when that screen opens, and again when the app comes back from
+ * mdc's sign-in. Since 2026-11-01; an older server answers 404, read as no card.
+ */
+export interface MdcView {
+  available: boolean;
+  connected: boolean;
+  /** mdc's user name for the library, and the address it signs in to mdc with. */
+  user?: string;
+  email?: string | null;
+  connectedAt?: number;
+}
+
+/**
  * What Floor Settings is told about *Pro*: the monthly subscription that makes
  * transcription unmetered. Fetched when that screen opens, for `SupportView`'s
  * reason. Not the *Pro* transcription model, which is a channel setting.

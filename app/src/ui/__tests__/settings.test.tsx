@@ -1240,3 +1240,69 @@ describe("Pro", () => {
     act(() => tree.unmount());
   });
 });
+
+
+describe("mdc library", () => {
+  // The harness's answer is no library; each test here says otherwise, and
+  // this puts the harness's back for whatever runs next.
+  const noLibrary = mockApp.loadMdc.getMockImplementation()!;
+  afterEach(() => {
+    mockApp.loadMdc.mockImplementation(noLibrary);
+    mockApp.connectMdc.mockClear();
+    mockApp.disconnectMdc.mockClear();
+  });
+
+  async function openSettings() {
+    let tree!: ReactTestRenderer;
+    await act(async () => {
+      tree = renderer.create(<HomeSettingsView onBack={() => {}} />);
+    });
+    return tree;
+  }
+
+  it("draws nothing where the server offers no library", async () => {
+    const tree = await openSettings();
+    expect(textOf(tree)).not.toContain("mdc library");
+    act(() => tree.unmount());
+  });
+
+  it("offers Connect, and opens mdc's sign-in in the browser coming back to the app", async () => {
+    mockApp.loadMdc.mockResolvedValue({ available: true, connected: false, user: undefined, email: undefined });
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("Connect your mdc library");
+    await act(async () => {
+      findButton(tree, "Connect")!.props.onPress();
+    });
+    expect(mockApp.connectMdc).toHaveBeenCalledWith("app");
+    expect(open).toHaveBeenCalledWith("https://mdc.example/authorize?state=s");
+    expect(findButton(tree, "Connecting…")!.props.disabled).toBe(true);
+    open.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it("says whose library is connected, and disconnects only once confirmed", async () => {
+    mockApp.loadMdc.mockResolvedValue({
+      available: true,
+      connected: true,
+      user: "rodvandur",
+      email: "rvanegas@gmail.com",
+    });
+    const ask = jest.spyOn(Alert, "alert").mockImplementation(() => {});
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("Connected as rodvandur (rvanegas@gmail.com).");
+    act(() => findButton(tree, "Disconnect")!.props.onPress());
+    expect(mockApp.disconnectMdc).not.toHaveBeenCalled();
+    const [title, , buttons] = ask.mock.calls[0] as [string, string, Array<{ text: string; style?: string; onPress?: () => Promise<void> }>];
+    expect(title).toBe("Disconnect your mdc library?");
+    const confirm = buttons.find((b) => b.style === "destructive")!;
+    mockApp.loadMdc.mockResolvedValue({ available: true, connected: false, user: undefined, email: undefined });
+    await act(async () => {
+      await confirm.onPress!();
+    });
+    expect(mockApp.disconnectMdc).toHaveBeenCalled();
+    expect(findButton(tree, "Connect")).toBeDefined();
+    ask.mockRestore();
+    act(() => tree.unmount());
+  });
+});
