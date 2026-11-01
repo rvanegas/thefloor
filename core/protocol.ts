@@ -853,6 +853,8 @@ export interface MdcView {
   user?: string;
   email?: string | null;
   connectedAt?: number;
+  /** Their library ids at mdc, `user/library`, read again at each ask. */
+  libraries?: string[];
 }
 
 /**
@@ -1824,7 +1826,7 @@ export type ClientAction =
    * predates it, which an app never sends it to: such a server never offers
    * the switch.
    */
-  | { type: 'SET_LIBRARY'; library: boolean }
+  | { type: 'SET_LIBRARY'; library: boolean; libraries?: string[] }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   /**

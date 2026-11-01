@@ -22,6 +22,7 @@ import {
   type NotificationLevel,
 } from '../../../core/notifications';
 import type { ChannelState, ResponseModel, TranscriptionModel } from '../../../core/types';
+import type { MdcView } from '../../../core/protocol';
 import { API_URL } from '../api/config';
 import { api, type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
@@ -184,6 +185,27 @@ export function ChannelSettingsView({
   /** `?? false`: a channel from a server before the switch never had it on. */
   const library = channel.library ?? false;
   const mayChangeLibrary = view?.mayChangeLibrary ?? false;
+  /**
+   * Your own libraries at mdc, for the toggles: read when the card is drawn,
+   * since a library made or deleted at mdc is news only mdc has. Null until
+   * read, and on a server that answers nothing.
+   */
+  const [mdc, setMdc] = useState<MdcView | null>(null);
+  useEffect(() => {
+    if (!view?.libraryAvailable) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const found = await app.loadMdc();
+        if (!cancelled) setMdc(found);
+      } catch {
+        // An older server: the one switch, as before.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [view?.libraryAvailable, app.token]);
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
   /**
@@ -578,25 +600,25 @@ export function ChannelSettingsView({
         pair. Drawn only where the server has a library and Claude to read it.
       */}
       {view?.libraryAvailable ? (
-        <Card style={styles.stack}>
-          <Text style={type.heading}>{t.library()}</Text>
-          <View style={styles.autoSwitches}>
-            <KeepSwitch
-              label={t.libraryConsult()}
-              on={library}
-              refused={!mayEdit || !mayChangeLibrary}
-              onChange={(on) => app.act(channel.id, { type: 'SET_LIBRARY', library: on })}
-            />
-          </View>
-          <Text style={type.muted}>{t.libraryNote()}</Text>
-          {!mayChangeLibrary ? (
-            <Text style={type.muted}>{t.libraryWho()}</Text>
-          ) : !mayEdit ? (
-            <Text style={type.muted}>
-              {community && !owner ? t.ownerOnly() : t.libraryStepIn()}
-            </Text>
-          ) : null}
-        </Card>
+        <LibraryCard
+          channel={channel}
+          me={app.me?.id ?? ''}
+          ownerName={
+            view.participants.find((p) => p.id === channel.libraryOwner)?.displayName ?? null
+          }
+          mine={mdc?.connected ? (mdc.libraries ?? []) : null}
+          mayEdit={mayEdit}
+          mayChangeLibrary={mayChangeLibrary}
+          refusedWhy={community && !owner ? t.ownerOnly() : t.libraryStepIn()}
+          onChoose={(libraries) =>
+            app.act(
+              channel.id,
+              libraries.length
+                ? { type: 'SET_LIBRARY', library: true, libraries }
+                : { type: 'SET_LIBRARY', library: false }
+            )
+          }
+        />
       ) : null}
 
       {/*
@@ -827,6 +849,17 @@ const styles = StyleSheet.create({
   },
   stack: { gap: spacing(1) },
   autoSwitches: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
+  /*
+   * A toggle per library, which may be more than fit a row: they wrap, at a
+   * given width always to the same rows (STYLE.md, rule 6).
+   */
+  librarySwitches: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    columnGap: spacing(3),
+    rowGap: spacing(1),
+  },
   choices: { flexDirection: 'row', gap: spacing(1) },
   choice: { flex: 1 },
   warning: { ...type.muted, color: colors.danger },
@@ -866,6 +899,106 @@ const styles = StyleSheet.create({
  * matters because the one thing worse than a setting that does not take is a
  * screen claiming it did.
  */
+/**
+ * *Library*, since 2026-11-01 one toggle per library of yours: the grant at
+ * mdc reaches all of them, and each toggle is consent to that one library's
+ * writing reaching this room's *Record*. Turning the first on makes the
+ * channel consult yours; turning the last off switches it off.
+ *
+ * **Somebody else's on is a readout and one switch**: whose libraries, and
+ * *Consult* to turn them all off — which anybody who may edit the channel
+ * may do, since it withdraws rather than exposes. Not connected, and nobody's
+ * on: the one switch, grey, with the sentence pointing at Floor Settings. A
+ * library is named by what follows the owner in its id, the owner being the
+ * same for every toggle.
+ */
+function LibraryCard({
+  channel,
+  me,
+  ownerName,
+  mine,
+  mayEdit,
+  mayChangeLibrary,
+  refusedWhy,
+  onChoose,
+}: {
+  channel: ChannelState;
+  me: string;
+  /** Whose libraries are on, by the name the room knows them by. */
+  ownerName: string | null;
+  /** Your library ids at mdc, or null when you have none connected. */
+  mine: string[] | null;
+  mayEdit: boolean;
+  mayChangeLibrary: boolean;
+  /** Why it is grey for somebody who may not edit the channel. */
+  refusedWhy: string;
+  /** The libraries to consult; none switches it off. */
+  onChoose: (libraries: string[]) => void;
+}) {
+  const t = useText().channelSettings;
+  const on = channel.library ?? false;
+  const chosen = channel.libraries ?? [];
+  const short = (id: string) => id.split('/').slice(1).join('/') || id;
+  const theirs = on && channel.libraryOwner !== me;
+
+  return (
+    <Card style={styles.stack}>
+      <Text style={type.heading}>{t.library()}</Text>
+      {theirs ? (
+        <>
+          <View style={styles.autoSwitches}>
+            <KeepSwitch
+              label={t.libraryConsult()}
+              on
+              refused={!mayEdit}
+              onChange={(next) => {
+                if (!next) onChoose([]);
+              }}
+            />
+          </View>
+          <Text style={type.body}>
+            {channel.libraryOwner
+              ? t.libraryTheirs(ownerName ?? t.libraryNobody(), chosen.map(short))
+              : t.libraryUnowned()}
+          </Text>
+        </>
+      ) : mine === null ? (
+        <View style={styles.autoSwitches}>
+          <KeepSwitch label={t.libraryConsult()} on={on} refused onChange={() => {}} />
+        </View>
+      ) : mine.length === 0 ? (
+        <Text style={type.body}>{t.libraryNoneYet()}</Text>
+      ) : (
+        <>
+          <View style={styles.librarySwitches}>
+            {mine.map((id) => (
+              <KeepSwitch
+                key={id}
+                label={short(id)}
+                on={on && chosen.includes(id)}
+                refused={!mayEdit}
+                onChange={(next) =>
+                  onChoose(next ? [...chosen, id] : chosen.filter((other) => other !== id))
+                }
+              />
+            ))}
+          </View>
+          {on && chosen.length === 0 ? (
+            <Text style={type.muted}>{t.libraryNoneChosen()}</Text>
+          ) : null}
+          <Text style={type.muted}>{t.libraryChoose()}</Text>
+        </>
+      )}
+      <Text style={type.muted}>{t.libraryNote()}</Text>
+      {!theirs && mine === null && !mayChangeLibrary ? (
+        <Text style={type.muted}>{t.libraryWho()}</Text>
+      ) : !mayEdit ? (
+        <Text style={type.muted}>{refusedWhy}</Text>
+      ) : null}
+    </Card>
+  );
+}
+
 function NotificationLevelPicker({ channelId }: { channelId: string }) {
   const app = useApp();
   const stored =

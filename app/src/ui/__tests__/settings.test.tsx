@@ -1287,10 +1287,12 @@ describe("mdc library", () => {
       connected: true,
       user: "rodvandur",
       email: "rvanegas@gmail.com",
-    });
+      libraries: ["rodvandur/philosophy", "rodvandur/notes"],
+    } as never);
     const ask = jest.spyOn(Alert, "alert").mockImplementation(() => {});
     const tree = await openSettings();
     expect(textOf(tree)).toContain("Connected as rodvandur (rvanegas@gmail.com).");
+    expect(textOf(tree)).toContain("Your libraries there: philosophy, notes.");
     act(() => findButton(tree, "Disconnect")!.props.onPress());
     expect(mockApp.disconnectMdc).not.toHaveBeenCalled();
     const [title, , buttons] = ask.mock.calls[0] as [string, string, Array<{ text: string; style?: string; onPress?: () => Promise<void> }>];

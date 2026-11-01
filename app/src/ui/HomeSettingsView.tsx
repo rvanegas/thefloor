@@ -879,6 +879,11 @@ function MdcCard() {
             <Text style={type.body}>
               {t.mdcConnectedAs(view.user ?? '', view.email ?? null)}
             </Text>
+            <Text style={type.body}>
+              {t.mdcLibraries(
+                (view.libraries ?? []).map((id) => id.split('/').slice(1).join('/') || id)
+              )}
+            </Text>
             <Button
               label={busy === 'disconnecting' ? t.mdcDisconnecting() : t.mdcDisconnect()}
               disabled={busy !== null}

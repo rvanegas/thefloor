@@ -27,6 +27,10 @@ import type { Db } from './db';
  *   refreshes are serialised; a refused refresh means the grant is gone at
  *   mdc, and the connection is dropped here too.
  * - **Disconnecting** revokes at mdc, best effort, and forgets the row.
+ * - **Which libraries** are the person's is mdc's `/me`, read at connecting
+ *   and again by `refreshLibraries` whenever Floor Settings or a channel's
+ *   card asks: what the channel toggles offer. The grant reaches all of them;
+ *   a channel's selection is sent with each press (claude.ts).
  */
 export interface MdcOptions {
   /** mdc's MCP endpoint, which Anthropic's servers call; its origin is the authorization server. */
@@ -48,6 +52,8 @@ export interface MdcStatus {
   user?: string;
   email?: string | null;
   connectedAt?: number;
+  /** The person's library ids at mdc, `user/library`, as last read. */
+  libraries?: string[];
 }
 
 interface Pending {
@@ -63,6 +69,7 @@ interface Row {
   mdc_email: string | null;
   refresh_token: string;
   connected_at: number;
+  libraries: string | null;
 }
 
 /** How long a sign-in begun on *Floor Settings* may take, as long as mdc's own. */
@@ -133,13 +140,20 @@ export class MdcConnections {
     if (!me) return { ok: false, returnTo: entry.returnTo, reason: 'me' };
     this.db
       .prepare(
-        `INSERT INTO mdc_connections (account_id, mdc_user, mdc_email, refresh_token, connected_at)
-         VALUES (?, ?, ?, ?, ?)
+        `INSERT INTO mdc_connections (account_id, mdc_user, mdc_email, refresh_token, connected_at, libraries)
+         VALUES (?, ?, ?, ?, ?, ?)
          ON CONFLICT (account_id) DO UPDATE SET mdc_user = excluded.mdc_user,
            mdc_email = excluded.mdc_email, refresh_token = excluded.refresh_token,
-           connected_at = excluded.connected_at`
+           connected_at = excluded.connected_at, libraries = excluded.libraries`
       )
-      .run(entry.accountId, me.user, me.email, this.seal(tokens.refresh_token), this.now());
+      .run(
+        entry.accountId,
+        me.user,
+        me.email,
+        this.seal(tokens.refresh_token),
+        this.now(),
+        JSON.stringify(me.libraries)
+      );
     this.access.set(entry.accountId, {
       token: tokens.access_token,
       expiresAt: this.now() + tokens.expires_in * 1000,
@@ -150,8 +164,35 @@ export class MdcConnections {
   status(accountId: string): MdcStatus {
     const row = this.row(accountId);
     return row
-      ? { connected: true, user: row.mdc_user, email: row.mdc_email, connectedAt: row.connected_at }
+      ? {
+          connected: true,
+          user: row.mdc_user,
+          email: row.mdc_email,
+          connectedAt: row.connected_at,
+          libraries: parseLibraries(row.libraries),
+        }
       : { connected: false };
+  }
+
+  /** The person's library ids as last read; empty when none is connected. */
+  librariesOf(accountId: string): string[] {
+    const row = this.row(accountId);
+    return row ? parseLibraries(row.libraries) : [];
+  }
+
+  /**
+   * Reads the person's libraries from mdc again and keeps them; the list,
+   * or null when mdc could not be asked (the last one stands).
+   */
+  async refreshLibraries(accountId: string): Promise<string[] | null> {
+    const token = await this.accessToken(accountId);
+    if (!token) return null;
+    const me = await this.whoIs(token).catch(() => null);
+    if (!me) return null;
+    this.db
+      .prepare('UPDATE mdc_connections SET libraries = ? WHERE account_id = ?')
+      .run(JSON.stringify(me.libraries), accountId);
+    return me.libraries;
   }
 
   connected(accountId: string): boolean {
@@ -237,14 +278,21 @@ export class MdcConnections {
     });
   }
 
-  private async whoIs(accessToken: string): Promise<{ user: string; email: string | null } | null> {
+  private async whoIs(
+    accessToken: string
+  ): Promise<{ user: string; email: string | null; libraries: string[] } | null> {
     const doFetch = this.options.fetch ?? fetch;
     const response = await doFetch(new URL('/me', this.origin), {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!response.ok) return null;
-    const body = (await response.json()) as { user?: string; email?: string | null };
-    return body.user ? { user: body.user, email: body.email ?? null } : null;
+    const body = (await response.json()) as {
+      user?: string;
+      email?: string | null;
+      libraries?: unknown;
+    };
+    if (!body.user) return null;
+    return { user: body.user, email: body.email ?? null, libraries: parseLibraries(body.libraries) };
   }
 
   private row(accountId: string): Row | undefined {
@@ -267,6 +315,19 @@ export class MdcConnections {
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
   }
+}
+
+/** A list of library ids, from mdc or from the column; anything else is none. */
+function parseLibraries(value: unknown): string[] {
+  let list = value;
+  if (typeof value === 'string') {
+    try {
+      list = JSON.parse(value);
+    } catch {
+      return [];
+    }
+  }
+  return Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string') : [];
 }
 
 interface TokenResponse {

@@ -1050,6 +1050,15 @@ export interface ChannelState {
    * nothing until somebody switches it on again.
    */
   libraryOwner?: UserId;
+  /**
+   * Which of the owner's libraries it consults, by mdc id (`user/library`):
+   * a toggle each on *Channel Settings*, since 2026-11-01. The grant at mdc
+   * reaches all of them, and this selection is what a press asks mdc to open.
+   * Empty while `library` is on means none chosen yet — an older build's
+   * switch, for an owner with several — and consults nothing. Absent while
+   * off.
+   */
+  libraries?: string[];
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
@@ -1417,7 +1426,17 @@ export type ChannelAction =
    * is; on, refused by the server from anybody without a library of their
    * own connected, and it is then theirs that the channel consults.
    */
-  | { type: 'SET_LIBRARY'; userId: UserId; library: boolean }
+  | {
+      type: 'SET_LIBRARY';
+      userId: UserId;
+      library: boolean;
+      /**
+       * Which of the switcher's libraries, when on. Absent from an older
+       * build, which knows one switch; the server fills it in before the
+       * reducer sees it.
+       */
+      libraries?: string[];
+    }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
   /**

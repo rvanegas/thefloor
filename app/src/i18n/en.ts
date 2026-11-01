@@ -976,8 +976,12 @@ export const en = {
     mdcConnecting: () => 'Connecting…',
     mdcConnectedAs: (user: string, email: string | null) =>
       email ? `Connected as ${user} (${email}).` : `Connected as ${user}.`,
+    mdcLibraries: (libraries: string[]) =>
+      libraries.length
+        ? `Your ${libraries.length === 1 ? 'library' : 'libraries'} there: ${libraries.join(', ')}.`
+        : 'You have no library in mdc yet.',
     mdcConnectedNote: () =>
-      'Switch it on for a channel on Channel Settings. Disconnecting switches it off in every channel.',
+      'Choose which a channel may consult on its Channel Settings. Disconnecting switches them off in every channel.',
     mdcDisconnect: () => 'Disconnect',
     mdcDisconnecting: () => 'Disconnecting…',
     mdcDisconnectAsk: () => 'Disconnect your mdc library?',
@@ -1116,6 +1120,19 @@ export const en = {
       'When on, Claude may draw on the library owner’s own writing while it answers, and names any piece it quotes. It applies on Pro and Max, to whoever asks Claude.',
     /** Since 2026-11-01, when each account began connecting its own library. */
     libraryWho: () => 'Connect your mdc library on Floor Settings to offer it here.',
+    /** The toggles, one per library of yours: each is consent for that one. */
+    libraryChoose: () =>
+      'Turn on the libraries Claude may consult here. Each one you turn on is your consent to its writing reaching this channel’s Record.',
+    libraryNoneChosen: () =>
+      'On, with none of your libraries chosen: Claude consults nothing until you turn one on.',
+    libraryNoneYet: () => 'You have no library in mdc yet. Make one there, and it will show here.',
+    libraryTheirs: (name: string, libraries: string[]) =>
+      libraries.length
+        ? `Consulting ${name}’s ${libraries.length === 1 ? 'library' : 'libraries'}: ${libraries.join(', ')}. Anybody here can switch it off.`
+        : `On for ${name}, with none of their libraries chosen yet. Anybody here can switch it off.`,
+    libraryNobody: () => 'somebody who has left',
+    libraryUnowned: () =>
+      'On from before libraries were chosen channel by channel, and consulting nothing. Switch it off, and its owner can choose again.',
     libraryStepIn: () =>
       'Step in to change this. What Claude may quote is for whoever is in the conversation.',
     notifications: () => 'Notifications',

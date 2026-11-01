@@ -3490,12 +3490,25 @@ function reduceAction(
       // offer is not channel state, so that half of the rule is the server's;
       // the library consulted is the switcher's.
       if (!canEditChannel(state, action.userId)) return state;
-      if (action.library === (state.library ?? false)) return state;
       if (!action.library) {
-        const { libraryOwner: _gone, ...off } = state;
+        if (!(state.library ?? false)) return state;
+        const { libraryOwner: _gone, libraries: _chosen, ...off } = state;
         return { ...off, library: false };
       }
-      return { ...state, library: true, libraryOwner: action.userId };
+      // On is the switcher's, and a channel consults one owner's libraries
+      // at a time: somebody else's switch on over it changes nothing.
+      if ((state.library ?? false) && state.libraryOwner && state.libraryOwner !== action.userId) {
+        return state;
+      }
+      const libraries = [...new Set(action.libraries ?? [])].sort();
+      if (
+        (state.library ?? false) &&
+        state.libraryOwner === action.userId &&
+        JSON.stringify(state.libraries ?? []) === JSON.stringify(libraries)
+      ) {
+        return state;
+      }
+      return { ...state, library: true, libraryOwner: action.userId, libraries };
     }
 
     case 'CLAIM_FLOOR': {

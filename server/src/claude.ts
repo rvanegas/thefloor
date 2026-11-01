@@ -525,7 +525,11 @@ export interface LibraryOptions {
   tokenFor: (accountId: string) => Promise<string | null>;
 }
 
-/** The library one press consults: mdc, with its owner's token, and whose it is. */
+/**
+ * The library one press consults: mdc, with its owner's token, and whose it
+ * is. `url` names the channel's chosen libraries, `?libraries=a,b`, which mdc
+ * opens and no others, since the grant reaches all of the owner's.
+ */
 export interface ConsultedLibrary {
   url: string;
   token: string;
@@ -542,19 +546,24 @@ export interface ConsultedLibrary {
  *
  * The library is the switcher's, `ChannelState.libraryOwner`, and only while
  * they are still in the channel: somebody who has left took their consent
- * with them. A channel switched on before owners were recorded, an owner who
+ * with them — and only the libraries they chose there, none chosen being
+ * none consulted. A channel switched on before owners were recorded, an owner who
  * has disconnected, and mdc refusing their grant all consult nothing.
  */
 export async function libraryFor(
   library: LibraryOptions | undefined,
-  channel: Pick<ChannelState, 'library' | 'libraryOwner' | 'participants'>,
+  channel: Pick<ChannelState, 'library' | 'libraryOwner' | 'libraries' | 'participants'>,
   grade: ResponseModel
 ): Promise<ConsultedLibrary | undefined> {
   if (!library || !(channel.library ?? false) || grade === 'standard') return undefined;
   const owner = channel.libraryOwner;
-  if (!owner || !channel.participants.includes(owner)) return undefined;
+  const chosen = channel.libraries ?? [];
+  if (!owner || !channel.participants.includes(owner) || chosen.length === 0) return undefined;
   const token = await library.tokenFor(owner);
-  return token ? { url: library.url, token, owner } : undefined;
+  if (!token) return undefined;
+  const url = new URL(library.url);
+  url.searchParams.set('libraries', chosen.join(','));
+  return { url: url.toString(), token, owner };
 }
 
 export interface ClaudeResponderOptions {

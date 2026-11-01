@@ -865,7 +865,11 @@ CREATE TABLE IF NOT EXISTS mdc_connections (
   mdc_user      TEXT NOT NULL,
   mdc_email     TEXT,
   refresh_token TEXT NOT NULL,
-  connected_at  INTEGER NOT NULL
+  connected_at  INTEGER NOT NULL,
+  -- The library ids mdc lists for this person (a JSON array), read at
+  -- connecting and again whenever Floor Settings asks: what a channel's
+  -- toggles offer, and what a channel's selection is pruned to.
+  libraries     TEXT
 );
 
 -- A contact pair is stored once, with a_id < b_id so the pair has a single
@@ -2394,6 +2398,12 @@ function renameLegacyTables(db: Db): void {
 
 /** Additive migrations for databases created before a column existed. */
 function migrate(db: Db): void {
+  const connectionColumns = db
+    .prepare('PRAGMA table_info(mdc_connections)')
+    .all() as Array<{ name: string }>;
+  if (!connectionColumns.some((c) => c.name === 'libraries')) {
+    db.exec('ALTER TABLE mdc_connections ADD COLUMN libraries TEXT');
+  }
   const columns = db
     .prepare('PRAGMA table_info(recordings)')
     .all() as Array<{ name: string }>;

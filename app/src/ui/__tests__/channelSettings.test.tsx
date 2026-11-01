@@ -11,6 +11,7 @@ import { reduce } from '../../../../core/channel';
 import {
   ME,
   NOW,
+  THEM,
   channelOf,
   findButton,
   labelOf,
@@ -442,3 +443,83 @@ describe('the description belongs to the public page', () => {
     expect(textOf(tree)).toContain('Step in to change this');
   });
 });
+
+describe('the library, a toggle per library', () => {
+  const noLibrary = mockApp.loadMdc.getMockImplementation()!;
+  afterEach(() => mockApp.loadMdc.mockImplementation(noLibrary));
+
+  /** The card, with the server offering libraries and this reader's own at mdc. */
+  async function openLibrary(
+    state: Partial<ChannelStateLike>,
+    mine: string[] | null,
+    mayChangeLibrary = mine !== null
+  ) {
+    mockApp.loadMdc.mockImplementation(async () =>
+      mine === null
+        ? { available: true, connected: false, user: undefined, email: undefined }
+        : ({ available: true, connected: true, user: 'me', email: null, libraries: mine } as never)
+    );
+    mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
+    const held = { ...channel, ...state } as typeof channel;
+    mockApp.channelViews[held.id] = {
+      channel: held,
+      participants: held.participants.map((id) => ({ id, displayName: id === ME ? 'Me' : 'Dana Chu' })),
+      recordings: [],
+      pingableAt: {},
+      serverNow: NOW,
+      libraryAvailable: true,
+      mayChangeLibrary,
+    } as never;
+    tree = render(
+      <ChannelSettingsView
+        publicAt={null}
+        channel={held}
+        derivedTitle="Dana Chu"
+        onBack={onBack}
+        onLeft={onLeft}
+      />
+    );
+    await act(async () => {});
+    return tree;
+  }
+
+  const toggle = (label: string) =>
+    tree.root.findAll((node) => node.props.accessibilityLabel === label && node.props.onValueChange)[0];
+
+  it('offers each of your libraries, and sends the chosen set', async () => {
+    await openLibrary({}, ['me/philosophy', 'me/notes']);
+    expect(toggle('philosophy').props.value).toBe(false);
+    act(() => toggle('notes').props.onValueChange(true));
+    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, {
+      type: 'SET_LIBRARY',
+      library: true,
+      libraries: ['me/notes'],
+    });
+  });
+
+  it('switches off when the last of yours goes off, and says when none is chosen', async () => {
+    await openLibrary({ library: true, libraryOwner: ME, libraries: ['me/notes'] }, ['me/philosophy', 'me/notes']);
+    expect(toggle('notes').props.value).toBe(true);
+    act(() => toggle('notes').props.onValueChange(false));
+    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, { type: 'SET_LIBRARY', library: false });
+    act(() => tree.unmount());
+    await openLibrary({ library: true, libraryOwner: ME, libraries: [] }, ['me/philosophy', 'me/notes']);
+    expect(textOf(tree)).toContain('none of your libraries chosen');
+  });
+
+  it('shows somebody else’s on as whose and which, with the one switch to turn it off', async () => {
+    await openLibrary({ library: true, libraryOwner: THEM, libraries: ['dana/essays'] }, null, true);
+    expect(textOf(tree)).toContain('Consulting Dana Chu’s library: essays.');
+    expect(toggle('essays')).toBeUndefined();
+    act(() => toggle('Consult').props.onValueChange(false));
+    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, { type: 'SET_LIBRARY', library: false });
+  });
+
+  it('points somebody without a library connected at Floor Settings', async () => {
+    await openLibrary({}, null, false);
+    expect(toggle('Consult').props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('Connect your mdc library on Floor Settings');
+  });
+});
+
+type ChannelStateLike = typeof channel;

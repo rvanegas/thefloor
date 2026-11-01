@@ -746,8 +746,12 @@ export const es: Strings = {
     mdcConnecting: () => 'Conectando…',
     mdcConnectedAs: (user: string, email: string | null) =>
       email ? `Conectada como ${user} (${email}).` : `Conectada como ${user}.`,
+    mdcLibraries: (libraries: string[]) =>
+      libraries.length
+        ? `${libraries.length === 1 ? 'Tu biblioteca' : 'Tus bibliotecas'} allí: ${libraries.join(', ')}.`
+        : 'Todavía no tienes ninguna biblioteca en mdc.',
     mdcConnectedNote: () =>
-      'Actívala para un canal en Ajustes del canal. Al desconectarla se desactiva en todos los canales.',
+      'Elige cuáles puede consultar un canal en sus Ajustes del canal. Al desconectarla se desactivan en todos los canales.',
     mdcDisconnect: () => 'Desconectar',
     mdcDisconnecting: () => 'Desconectando…',
     mdcDisconnectAsk: () => '¿Desconectar tu biblioteca de mdc?',
@@ -856,6 +860,18 @@ export const es: Strings = {
     libraryNote: () =>
       'Si está activada, Claude puede apoyarse en los escritos del dueño de la biblioteca al responder, y nombra cualquier texto que cite. Se aplica en Pro y Max, a quien pregunte a Claude.',
     libraryWho: () => 'Conecta tu biblioteca de mdc en Ajustes de The Floor para ofrecerla aquí.',
+    libraryChoose: () =>
+      'Activa las bibliotecas que Claude puede consultar aquí. Cada una que actives es tu consentimiento para que sus escritos lleguen al Grabado de este canal.',
+    libraryNoneChosen: () =>
+      'Activada, sin ninguna de tus bibliotecas elegida: Claude no consulta nada hasta que actives una.',
+    libraryNoneYet: () => 'Todavía no tienes ninguna biblioteca en mdc. Crea una allí y aparecerá aquí.',
+    libraryTheirs: (name: string, libraries: string[]) =>
+      libraries.length
+        ? `Consultando ${libraries.length === 1 ? 'la biblioteca' : 'las bibliotecas'} de ${name}: ${libraries.join(', ')}. Cualquiera aquí puede desactivarla.`
+        : `Activada para ${name}, sin ninguna de sus bibliotecas elegida todavía. Cualquiera aquí puede desactivarla.`,
+    libraryNobody: () => 'alguien que se ha ido',
+    libraryUnowned: () =>
+      'Activada desde antes de que las bibliotecas se eligieran canal por canal, y sin consultar nada. Desactívala, y su dueño podrá elegir de nuevo.',
     libraryStepIn: () =>
       'Entra para cambiar esto. Lo que Claude puede citar es cosa de quien está en la conversación.',
     notifications: () => 'Notificaciones',

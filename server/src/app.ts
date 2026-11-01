@@ -1084,7 +1084,12 @@ export function buildApp(options: BuildOptions = {}): App {
     },
     // A library with no Claude to consult it is no library: nobody may switch
     // one on that no press could reach.
-    options.claude && mdc ? (userId) => mdc.connected(userId) : null
+    options.claude && mdc
+      ? {
+          connected: (userId) => mdc.connected(userId),
+          librariesOf: (userId) => mdc.librariesOf(userId),
+        }
+      : null
   );
 
   // **Every step-out the server makes takes the card down with it** — the
@@ -3759,6 +3764,13 @@ export function buildApp(options: BuildOptions = {}): App {
     const account = await requireAccount(request, reply);
     if (!account) return;
     if (!mdc || !channels.libraryAvailable()) return { available: false, connected: false };
+    // Read again from mdc each time it is asked, which is when somebody is
+    // looking at the toggles: a library made or deleted there shows here, and
+    // one deleted leaves the channels that had chosen it.
+    if (mdc.connected(account.id)) {
+      const current = await mdc.refreshLibraries(account.id);
+      if (current) channels.pruneLibrariesOf(account.id, current);
+    }
     return { available: true, ...mdc.status(account.id) };
   });
 

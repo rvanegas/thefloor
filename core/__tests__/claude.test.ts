@@ -110,16 +110,24 @@ describe('the library', () => {
     expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).library).toBe(false);
   });
 
-  it('is switched on as the switcher’s library, off by anybody in the room, and changes nothing else', () => {
+  it('is switched on as the switcher’s libraries, off by anybody in the room, and changes nothing else', () => {
     const before = bothHere();
-    const on = reduce(before, { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 1);
-    expect(on.library).toBe(true);
-    expect(on.libraryOwner).toBe(A);
-    const { libraryOwner: _owner, ...rest } = on;
+    const on = reduce(before, { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 1);
+    expect(on).toMatchObject({ library: true, libraryOwner: A, libraries: ['a/x'] });
+    const { libraryOwner: _owner, libraries: _chosen, ...rest } = on;
     expect({ ...rest, library: false }).toEqual(before);
     const off = reduce(on, { type: 'SET_LIBRARY', userId: B, library: false }, T0 + 2);
     expect(off.library).toBe(false);
     expect(off).not.toHaveProperty('libraryOwner');
+    expect(off).not.toHaveProperty('libraries');
+  });
+
+  it('changes its selection by its owner, sorted and once each, and by nobody else', () => {
+    const on = reduce(bothHere(), { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 1);
+    const more = reduce(on, { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/y', 'a/x', 'a/y'] }, T0 + 2);
+    expect(more.libraries).toEqual(['a/x', 'a/y']);
+    expect(reduce(more, { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/y', 'a/x'] }, T0 + 3)).toBe(more);
+    expect(reduce(more, { type: 'SET_LIBRARY', userId: B, library: true, libraries: ['b/z'] }, T0 + 3)).toBe(more);
   });
 
   it('is guarded like the other channel settings', () => {
