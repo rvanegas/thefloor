@@ -65,7 +65,7 @@ import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
 import { probeDurationMs, UnreadableAudioError } from './playback';
 import { startsAnEpisode } from './usage';
-import { escapeHtml, socialCard, socialTags } from './html';
+import { escapeHtml, page, socialCard, socialTags } from './html';
 import { landingPage } from './landing';
 import { communityPage } from './community-page';
 import { invitePage, inviteRefusalText } from './invite';
@@ -81,8 +81,8 @@ import {
   isReplyLength,
   readVoices,
   type ClaudeClient,
-  type LibraryOptions,
 } from './claude';
+import { MdcConnections, type MdcOptions } from './mdc';
 import {
   formatTranscript,
   MEDIA_LABEL,
@@ -334,11 +334,12 @@ export interface BuildOptions {
   /** The same for a press that consults the library. Tests shorten it. */
   claudeLibraryTimeoutMs?: number;
   /**
-   * Rodrigo's mdc library, for *Ask Claude* to consult — meaningful only with
-   * `claude`. Absent, no channel offers a *Library* switch and no press reads
-   * it. See `LibraryOptions`.
+   * mdc, whose libraries *Ask Claude* may consult — each account connecting
+   * its own on *Floor Settings* — meaningful only with `claude`. Absent, no
+   * channel offers a *Library* switch, *Floor Settings* offers no connection,
+   * and no press reads one. See mdc.ts.
    */
-  library?: LibraryOptions;
+  library?: MdcOptions;
   /**
    * Turns speech into text as it is spoken — the live transcript. Optional
    * for `transcription`'s reason, and needs `media` too: without a room to
@@ -411,6 +412,8 @@ export interface App {
    * can step it, as `channels.tick` is.
    */
   meterLive: () => void;
+  /** Each account's own mdc library; null where this server has no mdc. See mdc.ts. */
+  mdc: MdcConnections | null;
 }
 
 /**
@@ -1017,6 +1020,14 @@ export function buildApp(options: BuildOptions = {}): App {
     );
   }
 
+  // Each account's own mdc library (mdc.ts), before the registry, whose
+  // library switch asks it who has one.
+  const mdc = options.library
+    ? new MdcConnections(db, options.library, now, {
+        warn: (details, message) => fastify.log.warn(details, message),
+      })
+    : null;
+
   const channels = new ChannelRegistry(
     db,
     accounts,
@@ -1073,7 +1084,7 @@ export function buildApp(options: BuildOptions = {}): App {
     },
     // A library with no Claude to consult it is no library: nobody may switch
     // one on that no press could reach.
-    options.claude && options.library ? options.library.identifiers : null
+    options.claude && mdc ? (userId) => mdc.connected(userId) : null
   );
 
   // **Every step-out the server makes takes the card down with it** — the
@@ -1217,12 +1228,12 @@ export function buildApp(options: BuildOptions = {}): App {
         now,
         timeoutMs: options.claudeTimeoutMs,
         libraryTimeoutMs: options.claudeLibraryTimeoutMs,
-        library: options.library,
-        // The first owner who has signed in, by the name the room knows them by.
-        libraryOwner: () => {
-          const id = channels.libraryOwners()[0];
-          return id ? (accounts.byId(id)?.display_name ?? null) : null;
-        },
+        library:
+          mdc && options.library
+            ? { url: options.library.url, tokenFor: (accountId) => mdc.accessToken(accountId) }
+            : undefined,
+        // Whose library it is, by the name the room knows them by.
+        libraryOwner: (accountId) => accounts.byId(accountId)?.display_name ?? null,
         log: { warn: (details, message) => fastify.log.warn(details, message) },
       })
     : null;
@@ -2939,7 +2950,7 @@ export function buildApp(options: BuildOptions = {}): App {
       // PolicyOptions.claude.
       claude: claude ? 'Anthropic' : undefined,
       // Only beside Claude, on its rule. See PolicyOptions.library.
-      library: claude !== null && !!options.library,
+      library: channels.libraryAvailable(),
     });
   });
 
@@ -3738,6 +3749,87 @@ export function buildApp(options: BuildOptions = {}): App {
     return accounts.tried(account.id);
   });
 
+  // --- Your own mdc library (mdc.ts) -----------------------------------------
+
+  /**
+   * Whether this server offers a library, and whether yours is connected and
+   * whose it is at mdc — *Floor Settings*' *mdc library* card.
+   */
+  fastify.get('/me/mdc', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    if (!mdc || !channels.libraryAvailable()) return { available: false, connected: false };
+    return { available: true, ...mdc.status(account.id) };
+  });
+
+  /**
+   * Begins connecting: the URL of mdc's sign-in, which the app opens in a
+   * browser. `returnTo` is where the callback sends the person afterwards —
+   * `app`, the app's own scheme, which closes the browser; `web`, a page the
+   * web app's tab can be closed from.
+   */
+  fastify.post('/me/mdc/connect', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    if (!mdc || !channels.libraryAvailable()) {
+      return reply.code(503).send({ error: 'This server offers no library.' });
+    }
+    const body = request.body as { returnTo?: unknown } | undefined;
+    const returnTo = body?.returnTo === 'web' ? 'web' : 'app';
+    return { url: mdc.start(account.id, returnTo) };
+  });
+
+  /**
+   * Where mdc sends the browser after the sign-in, with a code or an error.
+   * No session: the state, made by `/me/mdc/connect`, is what names the
+   * account. Every channel the person is in is drawn again, since whether
+   * its *Library* switch is theirs to turn has just changed.
+   */
+  fastify.get('/mdc/callback', async (request, reply) => {
+    const query = request.query as { state?: string; code?: string; error?: string };
+    const result = mdc
+      ? await mdc.finish(query.state ?? '', query.code, query.error).catch((error) => {
+          request.log.warn({ err: error }, 'mdc: the sign-in could not be finished');
+          return { ok: false as const, returnTo: 'web' as const, reason: 'unreachable' };
+        })
+      : { ok: false as const, returnTo: 'web' as const, reason: 'unavailable' };
+    if (result.ok) channels.libraryConnectionChanged(result.accountId);
+    else if (result.reason !== 'access_denied') {
+      request.log.warn({ reason: result.reason }, 'mdc: a library was not connected');
+    }
+    if (result.returnTo === 'app') {
+      return reply.redirect(`thefloor://mdc?result=${result.ok ? 'connected' : 'failed'}`);
+    }
+    return reply.type('text/html; charset=utf-8').send(
+      page({
+        title: 'mdc library — The Floor',
+        heading: result.ok ? 'Your library is connected' : 'Your library was not connected',
+        standfirst: result.ok
+          ? 'Your mdc library is connected to The Floor.'
+          : 'The Floor could not connect your mdc library.',
+        body: result.ok
+          ? '<p>The Floor can now offer your mdc library to the channels you choose, on ' +
+            '<strong>Channel Settings</strong>. You can close this window.</p>'
+          : '<p>Close this window and try again from <strong>Floor Settings</strong>.</p>',
+      })
+    );
+  });
+
+  /**
+   * Disconnects: every channel consulting your library stops, the grant is
+   * revoked at mdc, and nothing of it is kept here.
+   */
+  fastify.post('/me/mdc/disconnect', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    if (mdc) {
+      channels.dropLibraryOf(account.id);
+      await mdc.disconnect(account.id);
+      channels.libraryConnectionChanged(account.id);
+    }
+    return reply.code(204).send();
+  });
+
   /**
    * Deletes your account, from inside the application.
    *
@@ -3771,6 +3863,11 @@ export function buildApp(options: BuildOptions = {}): App {
     // After `removeMember`, so the spans it closes on the way out are removed
     // too rather than written a moment later.
     channels.usage.forget(account.id);
+    // Their library leaves every room with them, and the grant at mdc goes.
+    if (mdc) {
+      channels.dropLibraryOf(account.id);
+      await mdc.disconnect(account.id);
+    }
     excess.forget(account.id);
     diagnostics.forget(account.id);
     accounts.erase(account.id);
@@ -6414,8 +6511,8 @@ export function buildApp(options: BuildOptions = {}): App {
       mayTranscribeLive,
       mayAutoTranscribe,
       claudeAvailable: () => claude !== null,
-      libraryAvailable: () => claude !== null && !!options.library,
-      mayChangeLibrary: (userId) => channels.libraryOwners().includes(userId),
+      libraryAvailable: () => channels.libraryAvailable(),
+      mayChangeLibrary: (userId, channelId) => channels.mayChangeLibrary(channelId, userId),
       reachability,
       preferences,
       mediaUrl: options.mediaUrl,
@@ -6441,6 +6538,7 @@ export function buildApp(options: BuildOptions = {}): App {
     recordingView: toRecordingView,
     publication,
     meterLive,
+    mdc,
   };
 }
 

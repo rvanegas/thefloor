@@ -1030,17 +1030,26 @@ export interface ChannelState {
    */
   responseModel: ResponseModel;
   /**
-   * Whether this channel's *Ask Claude* may consult the server's mdc library —
-   * its owner's own writing — on *Pro* and *Max*; *Standard* never does. Off
-   * on every new channel.
+   * Whether this channel's *Ask Claude* may consult an mdc library — its
+   * owner's own writing — on *Pro* and *Max*; *Standard* never does. Off on
+   * every new channel.
    *
-   * The channel's, whoever presses, for `responseModel`'s reason. **Only an
-   * owner of the library may change it**, refused by the server before
-   * dispatch, since turning it on is consent to that writing reaching the
-   * room's Record. Absent on a snapshot from a server that predates it, and
-   * on a channel restored from one, which every reader takes as `false`.
+   * The channel's, whoever presses, for `responseModel`'s reason. **Switched
+   * on only by somebody who has connected their own library** on *Floor
+   * Settings*, refused by the server before dispatch, since turning it on is
+   * consent to that writing reaching the room's Record; switched off by
+   * anybody who may edit the channel. Absent on a snapshot from a server that
+   * predates it, and on a channel restored from one, which every reader takes
+   * as `false`.
    */
   library: boolean;
+  /**
+   * Whose library `library` consults: whoever switched it on, since
+   * 2026-11-01, when each account began connecting its own. Absent while it
+   * is off, and on a channel switched on before then — which consults
+   * nothing until somebody switches it on again.
+   */
+  libraryOwner?: UserId;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
@@ -1405,7 +1414,8 @@ export type ChannelAction =
   | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
   /**
    * Switches the channel's library on or off. Guarded as `SET_RESPONSE_MODEL`
-   * is, and refused by the server from anybody who does not own the library.
+   * is; on, refused by the server from anybody without a library of their
+   * own connected, and it is then theirs that the channel consults.
    */
   | { type: 'SET_LIBRARY'; userId: UserId; library: boolean }
   | { type: 'CLAIM_FLOOR'; userId: UserId }

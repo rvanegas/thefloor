@@ -1143,13 +1143,12 @@ export class ChannelRegistry {
      */
     private reachable: (userId: string) => boolean = () => true,
     /**
-     * Who owns the library *Ask Claude* may consult, by sign-in address — the
-     * only accounts that may switch a channel's library on or off. `null`
-     * when this server has no library, or no Claude to consult it, and then
-     * nobody may. Addresses and resolved at every use, as `cohortHostIdentifiers`
-     * is; see `libraryOwners`. See `LibraryOptions` in claude.ts.
+     * Whether an account has its own mdc library connected (mdc.ts), and so
+     * may switch a channel's library on — which makes it theirs that the
+     * channel consults. `null` when this server has no mdc, or no Claude to
+     * consult it, and then nobody may. See `LibraryOptions` in claude.ts.
      */
-    private libraryOwnerIdentifiers: readonly string[] | null = null
+    private libraryConnected: ((userId: string) => boolean) | null = null
   ) {
     this.usage = new UsageMeter(db, () => this.now());
     this.mixes = new Mixer(
@@ -2161,11 +2160,44 @@ export class ChannelRegistry {
       .filter((id): id is string => !!id);
   }
 
-  /** The library's owners as account ids, resolved now for `cohortHosts`'s reason. */
-  libraryOwners(): string[] {
-    return (this.libraryOwnerIdentifiers ?? [])
-      .map((identifier) => this.accounts.byIdentifier(identifier)?.id)
-      .filter((id): id is string => !!id);
+  /**
+   * Whether this server offers a library at all, and whether somebody may
+   * switch this channel's on or off: on, with a library of their own
+   * connected; off, anybody who may edit the channel, since switching it off
+   * withdraws a library and exposes nothing. What a channel view says.
+   */
+  libraryAvailable(): boolean {
+    return this.libraryConnected !== null;
+  }
+
+  mayChangeLibrary(channelId: string, userId: string): boolean {
+    if (this.libraryConnected === null) return false;
+    return (this.channels.get(channelId)?.library ?? false) || this.libraryConnected(userId);
+  }
+
+  /**
+   * Somebody connected or disconnected their library: every channel they are
+   * in is drawn again, since whether its switch is theirs to turn changed.
+   */
+  libraryConnectionChanged(userId: string): void {
+    this.emit(this.channelsFor(userId));
+  }
+
+  /**
+   * Switches off every channel consulting this account's library: they
+   * disconnected it, or are deleting the account, and their consent goes
+   * with it. Not an action of theirs — they may have left the channel — so
+   * the state is changed here, as the reducer would change it.
+   */
+  dropLibraryOf(userId: string): void {
+    const changed: string[] = [];
+    for (const channel of this.channels.values()) {
+      if (!channel.library || channel.libraryOwner !== userId) continue;
+      const { libraryOwner: _gone, ...off } = channel;
+      this.commit(channel, { ...off, library: false });
+      changed.push(channel.id);
+    }
+    if (changed.length) this.emit(changed);
   }
 
   /**
@@ -2819,20 +2851,21 @@ export class ChannelRegistry {
       }
     }
 
-    // The library is its owner's writing, and switching it on is consent to
-    // that writing reaching this room's Record — so the owner's alone, whoever
-    // the channel belongs to, and on top of the reducer's channel guard. A
-    // server without a library refuses it as no action at all, so the state
-    // can never claim a switch that reaches nothing.
+    // A library is its owner's writing, and switching it on is consent to
+    // that writing reaching this room's Record — so on is for somebody with a
+    // library of their own connected, whose it then is, on top of the
+    // reducer's channel guard. Off is anybody's who may edit the channel. A
+    // server without mdc refuses it as no action at all, so the state can
+    // never claim a switch that reaches nothing.
     if (action.type === 'SET_LIBRARY') {
       const on = (action as { library?: unknown }).library;
-      if (typeof on !== 'boolean' || this.libraryOwnerIdentifiers === null) {
+      if (typeof on !== 'boolean' || this.libraryConnected === null) {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
       }
-      if (!this.libraryOwners().includes(userId)) {
+      if (on && !this.libraryConnected(userId)) {
         return {
           ok: false,
-          error: 'Only the library’s owner can switch it on or off.',
+          error: 'Connect your mdc library on Floor Settings to offer it here.',
           code: 'forbidden',
         };
       }
@@ -8100,8 +8133,10 @@ export class ChannelRegistry {
       // request dies with the process, and restoring it would leave the card
       // saying *Responding…* to an answer that is never coming.
       responseModel: channel.responseModel ?? 'standard',
-      // A setting somebody chose, beside the model it applies to.
+      // A setting somebody chose, beside the model it applies to, and whose
+      // library it is.
       library: channel.library ?? false,
+      ...(channel.libraryOwner !== undefined ? { libraryOwner: channel.libraryOwner } : {}),
       // Durable, unlike the knocks and guests it sits beside in the state, and
       // that is the reason a motion lives on `ChannelState` at all rather than
       // in this class's memory: it stands for a day — `REMOVAL_MOTION_WINDOW_MS`
@@ -8488,6 +8523,7 @@ export class ChannelRegistry {
       transcriptionModel?: ChannelState['transcriptionModel'];
       responseModel?: ChannelState['responseModel'];
       library?: boolean;
+      libraryOwner?: string;
       initiator?: string;
       owner?: string;
       participants?: string[];
@@ -8556,8 +8592,10 @@ export class ChannelRegistry {
       // The default on a row written before the field existed.
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       responseModel: durable.responseModel ?? 'standard',
-      // Off for a channel written before the field, as for a new one.
+      // Off for a channel written before the field, as for a new one; and
+      // owned by nobody, consulting nothing, if written before owners were.
       library: durable.library ?? false,
+      ...(durable.libraryOwner !== undefined ? { libraryOwner: durable.libraryOwner } : {}),
       initiator: durable.initiator ?? row.initiator_id,
       ...(durable.owner !== undefined ? { owner: durable.owner } : {}),
       ...(durable.locked ? { locked: true as const } : {}),

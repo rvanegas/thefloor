@@ -141,8 +141,9 @@ export interface PolicyOptions {
    * Whether this server can give Claude a library — one person's writing,
    * which a channel's *Library* switch lets a press consult. Meaningful only
    * with `claude`, and its paragraph sits inside that section; the same gate
-   * for the same reason, so unsetting `MDC_TOKEN` retracts it in the restart
-   * that takes the switch away. Since 2026-10-27.
+   * for the same reason, so unsetting `MDC_CLIENT_ID` retracts it in the
+   * restart that takes the switch away. Since 2026-10-27; each account's
+   * own, connected on *Floor Settings*, since 2026-11-01.
    */
   library?: boolean;
 }
@@ -152,7 +153,7 @@ export interface PolicyOptions {
  * library, on `CLAUDE_PRIVACY_UPDATED`'s terms: shown only where that
  * paragraph is.
  */
-export const LIBRARY_PRIVACY_UPDATED = '27 October 2026';
+export const LIBRARY_PRIVACY_UPDATED = '1 November 2026';
 
 /**
  * When the page last changed for a reader whose server can ask Claude. Later
@@ -303,10 +304,14 @@ unnoticed for far longer.</p>
   // from here — this page's rule, as for Anthropic.
   const library = !!(claude && options.library);
   const libraryParagraph = `<p>This server can also give Claude a library: one person's own writing,
-kept on a server the people who run The Floor keep. In a channel where that
-person has switched it on, Claude may look things up in it while writing a
-reply — the words it searches with, drawn from the Record, go to that
-server — and the reply may quote what it finds.</p>
+kept in mdc, a service the people who run The Floor keep. Anybody with an mdc
+library may connect it on <em>Floor Settings</em>, by signing in to mdc there;
+The Floor then keeps a grant from mdc to read that library, sealed, along with
+the mdc name and address it belongs to, until they disconnect it or delete
+their account. In a channel where that person has switched it on, Claude may
+look things up in it while writing a reply — the words it searches with, drawn
+from the Record, go to that server — and the reply may quote what it finds.
+Disconnecting switches it off in every channel.</p>
 `;
   const claudeSection = claude
     ? `

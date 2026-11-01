@@ -855,6 +855,19 @@ CREATE TABLE IF NOT EXISTS tokens (
 );
 CREATE INDEX IF NOT EXISTS tokens_account ON tokens(account_id);
 
+-- An account's own mdc library, connected on Floor Settings by signing in at
+-- mdc (mdc.ts). One per account. The refresh token is sealed with a key derived
+-- from MDC_CLIENT_SECRET, so the database alone reaches nobody's library; mdc
+-- rotates it on every refresh. The access token is never written. Cleared with
+-- the account, and on Disconnect.
+CREATE TABLE IF NOT EXISTS mdc_connections (
+  account_id    TEXT PRIMARY KEY REFERENCES accounts(id),
+  mdc_user      TEXT NOT NULL,
+  mdc_email     TEXT,
+  refresh_token TEXT NOT NULL,
+  connected_at  INTEGER NOT NULL
+);
+
 -- A contact pair is stored once, with a_id < b_id so the pair has a single
 -- canonical row regardless of who asked. requester_id records the direction,
 -- which is what distinguishes an incoming request from an outgoing one.

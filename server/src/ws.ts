@@ -561,8 +561,11 @@ export function registerWebsocket(deps: {
   claudeAvailable?: () => boolean;
   /** Whether this server has a library for Claude to consult, which draws *Library*. */
   libraryAvailable?: () => boolean;
-  /** Whether this account owns that library, and so may switch it. */
-  mayChangeLibrary?: (userId: string) => boolean;
+  /**
+   * Whether this account may turn this channel's switch: on, with a library
+   * of its own connected; off, whoever may edit the channel.
+   */
+  mayChangeLibrary?: (userId: string, channelId: string) => boolean;
   reachability: Reachability;
   preferences: NotificationPreferences;
   /** Where a guest's page should connect for audio. Absent without a media plane. */
@@ -1343,12 +1346,12 @@ export function registerWebsocket(deps: {
         // Absent rather than false where there is no key, as an old server
         // sends nothing: one reading for both.
         ...(deps.claudeAvailable?.() ? { claude: true as const } : {}),
-        // The same reading for the library, and whether the reader owns it,
-        // which is theirs alone like `mayTranscribeLive`.
+        // The same reading for the library, and whether the switch is the
+        // reader's to turn, which is theirs alone like `mayTranscribeLive`.
         ...(deps.libraryAvailable?.()
           ? {
               libraryAvailable: true as const,
-              mayChangeLibrary: deps.mayChangeLibrary?.(connection.userId) ?? false,
+              mayChangeLibrary: deps.mayChangeLibrary?.(connection.userId, channelId) ?? false,
             }
           : {}),
         // The words that opened those windows, where there were any. The same

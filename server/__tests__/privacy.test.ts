@@ -263,7 +263,12 @@ describe('The privacy policy', () => {
       expect(page).not.toContain(`last updated ${PRIVACY_UPDATED}`);
     });
 
-    const library = { url: 'https://mdc.example/mcp', token: 't', identifiers: [] };
+    const library = {
+      url: 'https://mdc.example/mcp',
+      clientId: 'thefloor',
+      clientSecret: 's',
+      callbackUrl: 'https://floor.example/mdc/callback',
+    };
 
     it('says nothing of a library without one, and keeps Claude’s date', async () => {
       app = buildApp({ dbPath: ':memory:', claude: noClient });

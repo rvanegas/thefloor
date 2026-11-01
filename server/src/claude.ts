@@ -98,7 +98,7 @@ export const LIBRARY_TOOLS = [
  * every tool off by default, then the reading ones on. Anthropic's servers
  * call mdc with the token and run the tool loop inside the one request.
  */
-export function libraryRequest(library: LibraryOptions) {
+export function libraryRequest(library: ConsultedLibrary) {
   return {
     mcp_servers: [
       {
@@ -505,40 +505,56 @@ const FAILURES: Record<Exclude<ClaudeOutcome, 'posted'>, { status: number; error
 };
 
 /**
- * Rodrigo's mdc library — his own writing, indexed by term — which a press may
- * let Claude consult through the Messages API's MCP connector: Anthropic's
- * servers call mdc, not this one. Reading only. Present only with a token,
- * and then only in a channel whose *Library* switch is on, on Pro and Max.
- * See planning/decision/2026-10-27-claude-consults-its-owner-s-library-channel-by-channel.md.
+ * mdc, where people keep their own writing indexed by term, and whose library
+ * a press may let Claude consult through the Messages API's MCP connector:
+ * Anthropic's servers call mdc, not this one. Reading only. A library is an
+ * account's own, connected on *Floor Settings* (mdc.ts), and is consulted
+ * only in a channel whose *Library* switch its owner turned on, on Pro and Max.
+ * See planning/decision/2026-10-27-claude-consults-its-owner-s-library-channel-by-channel.md
+ * and planning/decision/2026-11-01-each-account-connects-its-own-mdc-library.md.
  */
 export interface LibraryOptions {
   /** mdc's MCP server, `https://mdc.rvanegas.co/mcp` in production. */
   url: string;
-  /** A bearer token minted for the library's owner. See planning/CREDENTIALS.md. */
-  token: string;
   /**
-   * The library's owner, by sign-in address: the accounts that may switch a
-   * channel's library on. Addresses rather than ids, and resolved at every
-   * use, for `cohortHosts`'s reason — the box is configured before anybody
-   * signs in on a fresh database.
+   * A current token for an account's own library, or null when it has none
+   * connected or mdc no longer honours it — `MdcConnections.accessToken`.
+   * Since 2026-11-01 each account connects its own on *Floor Settings*; the
+   * one `MDC_TOKEN` this replaced was Rodrigo's alone.
    */
-  identifiers: string[];
+  tokenFor: (accountId: string) => Promise<string | null>;
+}
+
+/** The library one press consults: mdc, with its owner's token, and whose it is. */
+export interface ConsultedLibrary {
+  url: string;
+  token: string;
+  /** The account whose library it is: whoever switched the channel's library on. */
+  owner: string;
 }
 
 /**
- * The library a press consults, or none: only where this server has one,
+ * The library a press consults, or none: only where this server has mdc,
  * the channel's *Library* switch is on, and the grade is *Pro* or *Max* —
  * *Standard* stays the plain, fast call. **Whoever presses**: the switch is
- * the channel's, as the grade is, and the owner's consent was given when it
- * was turned on, so who asks is deliberately not an argument here.
+ * the channel's, as the grade is, and its owner's consent was given when they
+ * turned it on, so who asks is deliberately not an argument here.
+ *
+ * The library is the switcher's, `ChannelState.libraryOwner`, and only while
+ * they are still in the channel: somebody who has left took their consent
+ * with them. A channel switched on before owners were recorded, an owner who
+ * has disconnected, and mdc refusing their grant all consult nothing.
  */
-export function libraryFor(
+export async function libraryFor(
   library: LibraryOptions | undefined,
-  channel: Pick<ChannelState, 'library'>,
+  channel: Pick<ChannelState, 'library' | 'libraryOwner' | 'participants'>,
   grade: ResponseModel
-): LibraryOptions | undefined {
+): Promise<ConsultedLibrary | undefined> {
   if (!library || !(channel.library ?? false) || grade === 'standard') return undefined;
-  return library;
+  const owner = channel.libraryOwner;
+  if (!owner || !channel.participants.includes(owner)) return undefined;
+  const token = await library.tokenFor(owner);
+  return token ? { url: library.url, token, owner } : undefined;
 }
 
 export interface ClaudeResponderOptions {
@@ -553,10 +569,11 @@ export interface ClaudeResponderOptions {
   /** Absent, no press consults a library. See `LibraryOptions`. */
   library?: LibraryOptions;
   /**
-   * The library's owner by display name, asked at each press that consults
+   * An account's display name, for the prompt to say whose library a press
+   * consults; asked at each press that consults one, null when it has none.
    * it, for the prompt to name; null when none has signed in.
    */
-  libraryOwner?: () => string | null;
+  libraryOwner?: (accountId: string) => string | null;
   log?: { warn(details: object, message: string): void };
 }
 
@@ -604,7 +621,7 @@ export class ClaudeResponder {
     const grade = channel.responseModel ?? 'standard';
     const ask = RESPONSE_MODELS[grade];
     // Read at the press with the grade, for the same reason.
-    const library = libraryFor(this.options.library, channel, grade);
+    const library = await libraryFor(this.options.library, channel, grade);
     const controller = new AbortController();
     const timeoutMs = library
       ? (this.options.libraryTimeoutMs ?? CLAUDE_LIBRARY_TIMEOUT_MS)
@@ -650,7 +667,7 @@ export class ClaudeResponder {
     record: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
-    library: LibraryOptions | undefined,
+    library: ConsultedLibrary | undefined,
     channelId: string
   ): Promise<Reply> {
     try {
@@ -678,7 +695,7 @@ export class ClaudeResponder {
     record: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
-    library: LibraryOptions | undefined
+    library: ConsultedLibrary | undefined
   ): Promise<Reply> {
     let content: Reply['content'] = [];
     const usage = {
@@ -714,7 +731,7 @@ export class ClaudeResponder {
     length: ReplyLength,
     signal: AbortSignal,
     // What `libraryFor` decided: the library this press may consult, if any.
-    library?: LibraryOptions,
+    library?: ConsultedLibrary,
     // What a paused turn returned so far, sent back to resume it.
     previous?: Reply['content']
   ): Promise<Reply> {
@@ -723,7 +740,7 @@ export class ClaudeResponder {
       max_tokens: ask.maxTokens,
       system: systemPrompt(
         length,
-        library ? { owner: this.options.libraryOwner?.() ?? null } : undefined
+        library ? { owner: this.options.libraryOwner?.(library.owner) ?? null } : undefined
       ),
       messages: [
         { role: 'user' as const, content: userMessage(record, length) },

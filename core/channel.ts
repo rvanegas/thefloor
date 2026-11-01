@@ -3486,11 +3486,16 @@ function reduceAction(
     }
 
     case 'SET_LIBRARY': {
-      // Guarded like `SET_RESPONSE_MODEL`. Who owns the library is not channel
-      // state, so that half of the rule is the server's.
+      // Guarded like `SET_RESPONSE_MODEL`. Whether somebody has a library to
+      // offer is not channel state, so that half of the rule is the server's;
+      // the library consulted is the switcher's.
       if (!canEditChannel(state, action.userId)) return state;
       if (action.library === (state.library ?? false)) return state;
-      return { ...state, library: action.library };
+      if (!action.library) {
+        const { libraryOwner: _gone, ...off } = state;
+        return { ...off, library: false };
+      }
+      return { ...state, library: true, libraryOwner: action.userId };
     }
 
     case 'CLAIM_FLOOR': {

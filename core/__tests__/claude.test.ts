@@ -110,12 +110,16 @@ describe('the library', () => {
     expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).library).toBe(false);
   });
 
-  it('is switched on and off by somebody in the room, and changes nothing else', () => {
+  it('is switched on as the switcher’s library, off by anybody in the room, and changes nothing else', () => {
     const before = bothHere();
     const on = reduce(before, { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 1);
     expect(on.library).toBe(true);
-    expect({ ...on, library: false }).toEqual(before);
-    expect(reduce(on, { type: 'SET_LIBRARY', userId: B, library: false }, T0 + 2).library).toBe(false);
+    expect(on.libraryOwner).toBe(A);
+    const { libraryOwner: _owner, ...rest } = on;
+    expect({ ...rest, library: false }).toEqual(before);
+    const off = reduce(on, { type: 'SET_LIBRARY', userId: B, library: false }, T0 + 2);
+    expect(off.library).toBe(false);
+    expect(off).not.toHaveProperty('libraryOwner');
   });
 
   it('is guarded like the other channel settings', () => {

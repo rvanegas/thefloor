@@ -1,4 +1,5 @@
 import WebSocket from 'ws';
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
@@ -27,6 +28,7 @@ import {
   type RecordSources,
 } from '../src/claude';
 import { openDb } from '../src/db';
+import type { MdcOptions } from '../src/mdc';
 import { MemoryMailer } from '../src/mail';
 
 /**
@@ -248,7 +250,47 @@ let dir: string;
 beforeEach(() => {
   clock = T0;
   dir = mkdtempSync(join(tmpdir(), 'thefloor-claude-'));
+  mdcCalls.length = 0;
+  mdcRefuses = false;
 });
+
+/**
+ * mdc, answered here: its token endpoint, `/me` and `/revoke`. A code trades
+ * for `secret`, each refresh for `secret-<n>`, and `mdcRefuses` makes every
+ * token request a 400, as mdc answers a grant it no longer honours.
+ */
+const mdcCalls: Array<{ path: string; fields: Record<string, string> }> = [];
+let mdcRefuses = false;
+const fakeMdc = (async (input: unknown, init?: { body?: unknown }) => {
+  const url = new URL(String(input));
+  const fields = Object.fromEntries(new URLSearchParams(String(init?.body ?? '')));
+  mdcCalls.push({ path: url.pathname, fields });
+  if (url.pathname === '/token') {
+    if (mdcRefuses) return new Response('{"error":"invalid_grant"}', { status: 400 });
+    const n = mdcCalls.filter((call) => call.path === '/token').length;
+    return Response.json({
+      access_token: fields.grant_type === 'authorization_code' ? 'secret' : `secret-${n}`,
+      refresh_token: `refresh-${n}`,
+      expires_in: 3600,
+    });
+  }
+  if (url.pathname === '/me') return Response.json({ user: 'alice', email: 'alice@example.com' });
+  return new Response(null, { status: 200 });
+}) as typeof fetch;
+
+const MDC: MdcOptions = {
+  url: 'https://mdc.example/mcp',
+  clientId: 'thefloor',
+  clientSecret: 'client-secret',
+  callbackUrl: 'https://floor.example/mdc/callback',
+  fetch: fakeMdc,
+};
+
+/** Connects an account's library the way the callback does, past mdc's sign-in. */
+async function connect(accountId: string) {
+  const state = new URL(app.mdc!.start(accountId, 'app')).searchParams.get('state')!;
+  return app.mdc!.finish(state, 'code', undefined);
+}
 
 afterEach(async () => {
   if (app) {
@@ -261,7 +303,7 @@ afterEach(async () => {
 function boot(
   client?: ClaudeClient,
   timeoutMs?: number,
-  library?: LibraryOptions,
+  library?: MdcOptions,
   libraryTimeoutMs?: number
 ): App {
   app = buildApp({
@@ -617,34 +659,44 @@ describe('what a response posts', () => {
 });
 
 describe('which presses consult the library', () => {
-  const LIB: LibraryOptions = { url: 'https://mdc.example/mcp', token: 't', identifiers: [] };
+  const LIB: LibraryOptions = {
+    url: 'https://mdc.example/mcp',
+    tokenFor: async (accountId) => (accountId === 'a' ? 't' : null),
+  };
   const grades = ['standard', 'pro', 'max'] as const;
+  const on = { library: true, libraryOwner: 'a', participants: ['a', 'b'] };
 
-  it('is none while the channel’s switch is off, on every grade', () => {
-    for (const grade of grades) expect(libraryFor(LIB, { library: false }, grade)).toBeUndefined();
+  it('is none while the channel’s switch is off, on every grade', async () => {
+    for (const grade of grades) {
+      expect(await libraryFor(LIB, { ...on, library: false }, grade)).toBeUndefined();
+    }
   });
 
-  it('is none on Standard even with it on, and the library on Pro and Max', () => {
-    expect(libraryFor(LIB, { library: true }, 'standard')).toBeUndefined();
-    expect(libraryFor(LIB, { library: true }, 'pro')).toBe(LIB);
-    expect(libraryFor(LIB, { library: true }, 'max')).toBe(LIB);
+  it('is none on Standard even with it on, and its owner’s library on Pro and Max', async () => {
+    expect(await libraryFor(LIB, on, 'standard')).toBeUndefined();
+    const consulted = { url: 'https://mdc.example/mcp', token: 't', owner: 'a' };
+    expect(await libraryFor(LIB, on, 'pro')).toEqual(consulted);
+    expect(await libraryFor(LIB, on, 'max')).toEqual(consulted);
   });
 
-  it('is none on a server without one, whatever the channel says', () => {
-    for (const grade of grades) expect(libraryFor(undefined, { library: true }, grade)).toBeUndefined();
+  it('is none on a server without one, whatever the channel says', async () => {
+    for (const grade of grades) expect(await libraryFor(undefined, on, grade)).toBeUndefined();
   });
 
-  it('reads a channel from before the switch as off', () => {
-    expect(libraryFor(LIB, {} as { library: boolean }, 'max')).toBeUndefined();
+  it('reads a channel from before the switch as off', async () => {
+    expect(await libraryFor(LIB, { participants: ['a'] } as never, 'max')).toBeUndefined();
+  });
+
+  it('is none without an owner, once the owner has left, or without their token', async () => {
+    const { libraryOwner: _a, ...ownerless } = on;
+    expect(await libraryFor(LIB, ownerless, 'max')).toBeUndefined();
+    expect(await libraryFor(LIB, { ...on, participants: ['b'] }, 'max')).toBeUndefined();
+    expect(await libraryFor(LIB, { ...on, libraryOwner: 'b' }, 'max')).toBeUndefined();
   });
 });
 
 describe('a press with the library', () => {
-  const LIBRARY: LibraryOptions = {
-    url: 'https://mdc.example/mcp',
-    token: 'secret',
-    identifiers: ['alice@example.com'],
-  };
+  const LIBRARY = MDC;
 
   const setUp = async (
     grade: 'standard' | 'pro' | 'max',
@@ -657,6 +709,7 @@ describe('a press with the library', () => {
     boot(fake.client, timeoutMs, LIBRARY, libraryTimeoutMs);
     const people = await room2();
     const { alice, channelId } = people;
+    await connect(alice.account.id);
     app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_RESPONSE_MODEL',
@@ -774,10 +827,7 @@ describe('a press with the library', () => {
     const { bob, channelId } = await setUp('pro', true, slow, 30, 1_000);
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
 
-    app.channels.dispatch(channelId, app.channels.libraryOwners()[0], {
-      type: 'SET_LIBRARY',
-      library: false,
-    } as never);
+    app.channels.dispatch(channelId, bob.account.id, { type: 'SET_LIBRARY', library: false } as never);
     expect((await press(channelId, bob.token)).statusCode).toBe(504);
   });
 
@@ -910,51 +960,52 @@ describe('a press with the library', () => {
 });
 
 describe('the library switch', () => {
-  const LIBRARY: LibraryOptions = {
-    url: 'https://mdc.example/mcp',
-    token: 'secret',
-    identifiers: ['alice@example.com'],
-  };
-
   const set = (channelId: string, userId: string, library: unknown) =>
     app.channels.dispatch(channelId, userId, { type: 'SET_LIBRARY', library } as never);
 
-  it('is switched by the library’s owner, and survives a restart', async () => {
+  it('is switched on as the library of whoever has one connected, and survives a restart', async () => {
     const { client } = fakeClient(() => reply('x'));
-    boot(client, undefined, LIBRARY);
+    boot(client, undefined, MDC);
     const { alice, channelId } = await room2();
+    await connect(alice.account.id);
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
-    expect(app.channels.get(channelId)!.library).toBe(true);
+    expect(app.channels.get(channelId)).toMatchObject({ library: true, libraryOwner: alice.account.id });
 
     app.channels.stop();
     await app.fastify.close();
-    boot(client, undefined, LIBRARY);
-    expect(app.channels.get(channelId)!.library).toBe(true);
+    boot(client, undefined, MDC);
+    expect(app.channels.get(channelId)).toMatchObject({ library: true, libraryOwner: alice.account.id });
+    expect(app.mdc!.connected(alice.account.id)).toBe(true);
     expect(set(channelId, alice.account.id, false)).toMatchObject({ ok: true });
     expect(app.channels.get(channelId)!.library).toBe(false);
   });
 
-  it('is refused, by name, to anybody else in the room, and changes nothing', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, LIBRARY);
-    const { bob, channelId } = await room2();
-    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(bob.account.id);
+  it('is refused on, by name, to anybody without a library connected, and is anybody’s to switch off', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    const { alice, bob, channelId } = await room2();
     expect(set(channelId, bob.account.id, true)).toMatchObject({
       ok: false,
       code: 'forbidden',
-      error: 'Only the library’s owner can switch it on or off.',
+      error: 'Connect your mdc library on Floor Settings to offer it here.',
     });
     expect(app.channels.get(channelId)!.library).toBe(false);
+    await connect(alice.account.id);
+    expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
+    expect(set(channelId, bob.account.id, false)).toMatchObject({ ok: true });
+    expect(app.channels.get(channelId)).toMatchObject({ library: false });
+    expect(app.channels.get(channelId)).not.toHaveProperty('libraryOwner');
   });
 
-  it('refuses anything but true or false, even from the owner', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, LIBRARY);
+  it('refuses anything but true or false, even from somebody connected', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, MDC);
     const { alice, channelId } = await room2();
+    await connect(alice.account.id);
     for (const value of ['yes', undefined, 1]) {
       expect(set(channelId, alice.account.id, value)).toMatchObject({ ok: false, code: 'invalid' });
     }
   });
 
-  it('is no action at all on a server without a library, or without Claude to consult one', async () => {
+  it('is no action at all on a server without mdc, or without Claude to consult it', async () => {
     boot(fakeClient(() => reply('x')).client);
     let { alice, channelId } = await room2();
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: false, code: 'invalid' });
@@ -963,13 +1014,13 @@ describe('the library switch', () => {
     await app.fastify.close();
     rmSync(dir, { recursive: true, force: true });
     dir = mkdtempSync(join(tmpdir(), 'thefloor-claude-'));
-    boot(undefined, undefined, LIBRARY);
+    boot(undefined, undefined, MDC);
     ({ alice, channelId } = await room2());
-    expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: false, code: 'invalid' });
+    expect(set(channelId, alice.account.id, false)).toMatchObject({ ok: false, code: 'invalid' });
     expect(app.channels.get(channelId)!.library).toBe(false);
   });
 
-  it('tells every reader the switch is there, and only its owner that it is theirs', async () => {
+  it('tells every reader the switch is there, and whether it is theirs to turn', async () => {
     const firstView = async (token: string, channelId: string) => {
       const address = app.fastify.server.address() as { port: number };
       const socket = new WebSocket(`ws://127.0.0.1:${address.port}/ws?token=${token}`);
@@ -988,9 +1039,10 @@ describe('the library switch', () => {
       throw new Error('no channel message arrived');
     };
 
-    boot(fakeClient(() => reply('x')).client, undefined, LIBRARY);
+    boot(fakeClient(() => reply('x')).client, undefined, MDC);
     await app.fastify.listen({ port: 0, host: '127.0.0.1' });
     let { alice, bob, channelId } = await room2();
+    await connect(alice.account.id);
     expect(await firstView(alice.token, channelId)).toMatchObject({
       libraryAvailable: true,
       mayChangeLibrary: true,
@@ -999,8 +1051,11 @@ describe('the library switch', () => {
       libraryAvailable: true,
       mayChangeLibrary: false,
     });
+    // On, it is anybody's to switch off.
+    set(channelId, alice.account.id, true);
+    expect(await firstView(bob.token, channelId)).toMatchObject({ mayChangeLibrary: true });
 
-    // Claude without a library: neither field, as an old server sends neither.
+    // Claude without mdc: neither field, as an old server sends neither.
     app.channels.stop();
     await app.fastify.close();
     rmSync(dir, { recursive: true, force: true });
@@ -1014,15 +1069,160 @@ describe('the library switch', () => {
     expect(plain).not.toHaveProperty('mayChangeLibrary');
   });
 
-  it('names its owners by address, so an owner who signs up later is one', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, {
-      ...LIBRARY,
-      identifiers: ['carol@example.com', 'alice@example.com'],
+  it('consults nothing once its owner has left the channel', async () => {
+    const fake = fakeClient(() => reply('Plain.', { model: 'claude-sonnet-5-5' }));
+    boot(fake.client, undefined, MDC);
+    const { alice, bob, channelId } = await room2();
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
+    set(channelId, alice.account.id, false);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_RESPONSE_MODEL', responseModel: 'pro' } as never);
+    await connect(alice.account.id);
+    set(channelId, alice.account.id, true);
+    // Bob stays, and Alice's library leaves with her: the state still says on.
+    const raw = app.channels.get(channelId)!;
+    (app.channels as unknown as { channels: Map<string, unknown> }).channels.set(channelId, {
+      ...raw,
+      participants: raw.participants.filter((id) => id !== alice.account.id),
     });
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(fake.calls[0].body).not.toHaveProperty('mcp_servers');
+  });
+});
+
+describe('connecting an mdc library', () => {
+  it('reads as unavailable where the server has no mdc', async () => {
+    boot(fakeClient(() => reply('x')).client);
     const { alice } = await room2();
-    expect(app.channels.libraryOwners()).toEqual([alice.account.id]);
-    const carol = await signIn('carol@example.com', 'Carol');
-    expect(app.channels.libraryOwners()).toEqual([carol.account.id, alice.account.id]);
+    const status = await app.fastify.inject({ method: 'GET', url: '/me/mdc', headers: auth(alice.token) });
+    expect(status.json()).toEqual({ available: false, connected: false });
+    const connecting = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/mdc/connect',
+      headers: auth(alice.token),
+      payload: {},
+    });
+    expect(connecting.statusCode).toBe(503);
+  });
+
+  it('signs in at mdc and comes back connected, into the app or onto a page', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    const { alice } = await room2();
+    const started = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/mdc/connect',
+      headers: auth(alice.token),
+      payload: { returnTo: 'app' },
+    });
+    const url = new URL(started.json().url);
+    expect(url.origin + url.pathname).toBe('https://mdc.example/authorize');
+    expect(url.searchParams.get('client_id')).toBe('thefloor');
+    expect(url.searchParams.get('redirect_uri')).toBe('https://floor.example/mdc/callback');
+    expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+
+    const back = await app.fastify.inject({
+      method: 'GET',
+      url: `/mdc/callback?state=${url.searchParams.get('state')}&code=abc`,
+    });
+    expect(back.statusCode).toBe(302);
+    expect(back.headers.location).toBe('thefloor://mdc?result=connected');
+    const exchange = mdcCalls.find((call) => call.path === '/token')!.fields;
+    expect(exchange).toMatchObject({
+      grant_type: 'authorization_code',
+      code: 'abc',
+      client_id: 'thefloor',
+      client_secret: 'client-secret',
+      redirect_uri: 'https://floor.example/mdc/callback',
+    });
+    // The verifier is the challenge's.
+    expect(createHash('sha256').update(exchange.code_verifier).digest('base64url')).toBe(
+      url.searchParams.get('code_challenge')
+    );
+    const status = await app.fastify.inject({ method: 'GET', url: '/me/mdc', headers: auth(alice.token) });
+    expect(status.json()).toMatchObject({
+      available: true,
+      connected: true,
+      user: 'alice',
+      email: 'alice@example.com',
+    });
+    // The refresh token is sealed, never written as it came.
+    const row = app.db.prepare('SELECT refresh_token FROM mdc_connections').get() as { refresh_token: string };
+    expect(row.refresh_token).not.toContain('refresh-');
+
+    // The same state twice is nothing: it was spent.
+    const again = await app.fastify.inject({
+      method: 'GET',
+      url: `/mdc/callback?state=${url.searchParams.get('state')}&code=abc`,
+    });
+    expect(again.statusCode).toBe(200);
+    expect(again.body).toContain('was not connected');
+
+    const web = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/mdc/connect',
+      headers: auth(alice.token),
+      payload: { returnTo: 'web' },
+    });
+    const state = new URL(web.json().url).searchParams.get('state');
+    const page = await app.fastify.inject({ method: 'GET', url: `/mdc/callback?state=${state}&code=def` });
+    expect(page.statusCode).toBe(200);
+    expect(page.body).toContain('Your library is connected');
+  });
+
+  it('says so, into the app, when the person declines at mdc', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    const { alice } = await room2();
+    const state = new URL(app.mdc!.start(alice.account.id, 'app')).searchParams.get('state');
+    const back = await app.fastify.inject({ method: 'GET', url: `/mdc/callback?state=${state}&error=access_denied` });
+    expect(back.headers.location).toBe('thefloor://mdc?result=failed');
+    expect(app.mdc!.connected(alice.account.id)).toBe(false);
+  });
+
+  it('refreshes an expired token once for presses at the same moment, and drops a grant mdc refuses', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    const { alice } = await room2();
+    await connect(alice.account.id);
+    expect(await app.mdc!.accessToken(alice.account.id)).toBe('secret');
+    clock += 3600 * 1000;
+    const both = await Promise.all([
+      app.mdc!.accessToken(alice.account.id),
+      app.mdc!.accessToken(alice.account.id),
+    ]);
+    expect(both).toEqual(['secret-2', 'secret-2']);
+    expect(mdcCalls.filter((call) => call.fields.grant_type === 'refresh_token')).toHaveLength(1);
+    expect(mdcCalls.at(-1)!.fields.refresh_token).toBe('refresh-1');
+
+    clock += 3600 * 1000;
+    mdcRefuses = true;
+    expect(await app.mdc!.accessToken(alice.account.id)).toBeNull();
+    expect(app.mdc!.connected(alice.account.id)).toBe(false);
+  });
+
+  it('disconnecting switches off every channel consulting it, and revokes at mdc', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    const { alice, channelId } = await room2();
+    await connect(alice.account.id);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
+    const gone = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/mdc/disconnect',
+      headers: auth(alice.token),
+    });
+    expect(gone.statusCode).toBe(204);
+    expect(app.channels.get(channelId)!.library).toBe(false);
+    expect(app.mdc!.connected(alice.account.id)).toBe(false);
+    expect(mdcCalls.at(-1)).toMatchObject({ path: '/revoke', fields: { token: 'refresh-1' } });
+  });
+
+  it('goes with the account, and the library with it from every channel', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    const { alice, channelId } = await room2();
+    await connect(alice.account.id);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
+    const deleted = await app.fastify.inject({ method: 'DELETE', url: '/me', headers: auth(alice.token) });
+    expect(deleted.statusCode).toBe(204);
+    expect(app.db.prepare('SELECT COUNT(*) AS n FROM mdc_connections').get()).toEqual({ n: 0 });
+    expect(mdcCalls.at(-1)!.path).toBe('/revoke');
+    expect(app.channels.get(channelId)?.library ?? false).toBe(false);
   });
 });
 
