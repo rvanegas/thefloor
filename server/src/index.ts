@@ -314,10 +314,6 @@ const claude = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : undefine
  * `NOESIS_CALLBACK_URL` as its one redirect. Meaningless without the key above.
  * Anthropic's servers call `NOESIS_URL` with each owner's token, so it has to be
  * reachable from outside and served over HTTPS. See planning/CREDENTIALS.md.
- *
- * Any `MDC_*` setting is read only to say it is ignored: noesis was called mdc
- * until 2026-11-02, and a box's .env still holding the old names would
- * otherwise leave the library off with nothing to say why.
  */
 const noesisUrl = process.env.NOESIS_URL || 'https://noesis.rvanegas.co/mcp';
 const noesisClientId = process.env.NOESIS_CLIENT_ID;
@@ -332,7 +328,6 @@ const library =
   noesisClientId && noesisClientSecret
     ? { url: noesisUrl, clientId: noesisClientId, clientSecret: noesisClientSecret, callbackUrl: noesisCallbackUrl }
     : undefined;
-const retiredLibrarySettings = Object.keys(process.env).filter((name) => name.startsWith('MDC_'));
 
 /**
  * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
@@ -449,7 +444,6 @@ app.fastify
           : !claude
             ? 'set, and unused without ANTHROPIC_API_KEY'
             : { url: library.url, client: library.clientId, callback: library.callbackUrl },
-        ...(retiredLibrarySettings.length ? { ignored: retiredLibrarySettings } : {}),
         // Worth a line for the same reason `review` is: these decide what
         // anybody may spend, and reading .env is not how anybody should find
         // out. Everybody gets free minutes a week; the account marks that

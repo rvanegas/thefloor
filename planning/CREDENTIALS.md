@@ -373,8 +373,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   decision/2026-11-01-each-account-connects-its-own-mdc-library.md. It
   replaced `MDC_TOKEN`, one bearer token for Rodrigo's library alone, added
   2026-10-27. noesis was called mdc until 2026-11-02, when the client was
-  registered again under the new names, its redirect `/noesis/callback`; any
-  `MDC_*` setting left in `.env` is read only to log that it is ignored.
+  registered again under the new names, its redirect `/noesis/callback`.
 
   **It reads nobody's library by itself.** It lets this server finish a
   person's sign-in at noesis (`/noesis/callback`) and refresh or revoke the grant
