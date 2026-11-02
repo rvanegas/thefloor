@@ -15,7 +15,7 @@ import {
   FALLBACK_BETA,
   LIBRARY_CONTINUATIONS,
   LIBRARY_TOOLS,
-  libraryFor,
+  librariesFor,
   MCP_BETA,
   replyText,
   lengthRule,
@@ -159,7 +159,7 @@ describe('the instructions', () => {
   });
 
   it('names the library’s owner, keeps citation inline against mdc’s guide, and keeps the limit', () => {
-    const prompt = systemPrompt('medium', { owner: 'Rodrigo' });
+    const prompt = systemPrompt('medium', [{ owner: 'Rodrigo', libraries: ['rodrigo/notes'] }]);
     expect(prompt).toContain('Rodrigo’s own writing');
     expect(prompt).toContain('only when the conversation turns to something Rodrigo has written about');
     expect(prompt).toContain('Read the guide tool');
@@ -170,7 +170,24 @@ describe('the instructions', () => {
     expect(prompt).toContain(lengthRule('medium'));
     expect(prompt).not.toMatch(/\bcut\b|truncat/i);
     // Before anybody it names has signed in, it still makes sense.
-    expect(systemPrompt('medium', { owner: null })).toContain('the library owner’s own writing');
+    expect(systemPrompt('medium', [{ owner: null, libraries: ['x/y'] }])).toContain(
+      'the library owner’s own writing'
+    );
+    expect(systemPrompt('medium', [])).toBe(systemPrompt('medium'));
+  });
+
+  it('says whose each library is when several people’s are on, and asks for whose a quote is', () => {
+    const prompt = systemPrompt('medium', [
+      { owner: 'Dana', libraries: ['dana/essays'] },
+      { owner: 'Rodrigo', libraries: ['rodrigo/notes', 'rodrigo/philosophy'] },
+    ]);
+    expect(prompt).toContain(
+      'Dana’s (dana/essays); Rodrigo’s (rodrigo/notes, rodrigo/philosophy)'
+    );
+    expect(prompt).toContain('Every result names the library it came from');
+    expect(prompt).toContain('by its title and whose it is');
+    expect(prompt).toContain('do not write them here');
+    expect(prompt).toContain(lengthRule('medium'));
   });
 
   it('asks Standard and Pro at low effort and Max at medium, with the larger two’s fallback', () => {
@@ -666,42 +683,42 @@ describe('what a response posts', () => {
 describe('which presses consult the library', () => {
   const LIB: LibraryOptions = {
     url: 'https://mdc.example/mcp',
-    tokenFor: async (accountId) => (accountId === 'a' ? 't' : null),
+    tokenFor: async (accountId) => ({ a: 'ta', b: 'tb' })[accountId] ?? null,
   };
   const grades = ['standard', 'pro', 'max'] as const;
-  const on = { library: true, libraryOwner: 'a', libraries: ['a/x', 'a/y'], participants: ['a', 'b'] };
+  const on = { library: true, libraries: { a: ['a/x', 'a/y'] }, participants: ['a', 'b'] };
+  const a = { url: 'https://mdc.example/mcp?libraries=a%2Fx%2Ca%2Fy', token: 'ta', owner: 'a', libraries: ['a/x', 'a/y'] };
+  const b = { url: 'https://mdc.example/mcp?libraries=b%2Fz', token: 'tb', owner: 'b', libraries: ['b/z'] };
 
   it('is none while the channel’s switch is off, on every grade', async () => {
     for (const grade of grades) {
-      expect(await libraryFor(LIB, { ...on, library: false }, grade)).toBeUndefined();
+      expect(await librariesFor(LIB, { ...on, library: false }, grade)).toEqual([]);
     }
   });
 
-  it('is none on Standard even with it on, and its owner’s library on Pro and Max', async () => {
-    expect(await libraryFor(LIB, on, 'standard')).toBeUndefined();
-    const consulted = { url: 'https://mdc.example/mcp?libraries=a%2Fx%2Ca%2Fy', token: 't', owner: 'a' };
-    expect(await libraryFor(LIB, on, 'pro')).toEqual(consulted);
-    expect(await libraryFor(LIB, on, 'max')).toEqual(consulted);
+  it('is none on Standard even with it on, and its owner’s libraries on Pro and Max', async () => {
+    expect(await librariesFor(LIB, on, 'standard')).toEqual([]);
+    expect(await librariesFor(LIB, on, 'pro')).toEqual([a]);
+    expect(await librariesFor(LIB, on, 'max')).toEqual([a]);
+  });
+
+  it('is every owner’s, in a stable order, each with their own token', async () => {
+    const both = { ...on, libraries: { b: ['b/z'], a: ['a/x', 'a/y'] } };
+    expect(await librariesFor(LIB, both, 'max')).toEqual([a, b]);
   });
 
   it('is none on a server without one, whatever the channel says', async () => {
-    for (const grade of grades) expect(await libraryFor(undefined, on, grade)).toBeUndefined();
+    for (const grade of grades) expect(await librariesFor(undefined, on, grade)).toEqual([]);
   });
 
   it('reads a channel from before the switch as off', async () => {
-    expect(await libraryFor(LIB, { participants: ['a'] } as never, 'max')).toBeUndefined();
+    expect(await librariesFor(LIB, { participants: ['a'] } as never, 'max')).toEqual([]);
   });
 
-  it('is none with none of the owner’s libraries chosen', async () => {
-    expect(await libraryFor(LIB, { ...on, libraries: [] }, 'max')).toBeUndefined();
-    expect(await libraryFor(LIB, { library: true, libraryOwner: 'a', participants: ['a'] }, 'max')).toBeUndefined();
-  });
-
-  it('is none without an owner, once the owner has left, or without their token', async () => {
-    const { libraryOwner: _a, ...ownerless } = on;
-    expect(await libraryFor(LIB, ownerless, 'max')).toBeUndefined();
-    expect(await libraryFor(LIB, { ...on, participants: ['b'] }, 'max')).toBeUndefined();
-    expect(await libraryFor(LIB, { ...on, libraryOwner: 'b' }, 'max')).toBeUndefined();
+  it('passes over an owner who has left or has no token, and keeps everybody else’s', async () => {
+    const both = { ...on, libraries: { a: ['a/x', 'a/y'], b: ['b/z'] } };
+    expect(await librariesFor(LIB, { ...both, participants: ['b'] }, 'max')).toEqual([b]);
+    expect(await librariesFor(LIB, { ...on, libraries: { c: ['c/w'] } }, 'max')).toEqual([]);
   });
 });
 
@@ -726,7 +743,11 @@ describe('a press with the library', () => {
       responseModel: grade,
     } as never);
     if (on) {
-      app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'SET_LIBRARY',
+        library: true,
+        libraries: ['alice/philosophy'],
+      } as never);
     }
     return { ...fake, ...people };
   };
@@ -766,7 +787,45 @@ describe('a press with the library', () => {
   it('tells Claude whose library it is, whoever presses', async () => {
     const { calls, bob, channelId } = await setUp('pro');
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
-    expect(calls[0].body.system).toBe(systemPrompt('medium', { owner: 'Alice' }));
+    expect(calls[0].body.system).toBe(
+      systemPrompt('medium', [{ owner: 'Alice', libraries: ['alice/philosophy'] }])
+    );
+  });
+
+  it('hands Claude a server per owner when several people’s are on, and says whose each is', async () => {
+    const { calls, alice, bob, channelId } = await setUp('pro');
+    mdcLibraries = ['bob/essays'];
+    await connect(bob.account.id);
+    app.channels.dispatch(channelId, bob.account.id, {
+      type: 'SET_LIBRARY',
+      library: true,
+      libraries: ['bob/essays'],
+    } as never);
+    expect((await press(channelId, alice.token)).statusCode).toBe(200);
+    const [first, second] = [alice, bob]
+      .map((who) => ({ id: who.account.id, name: who === alice ? 'Alice' : 'Bob' }))
+      .sort((x, y) => (x.id < y.id ? -1 : 1));
+    const url = (id: string) =>
+      id === alice.account.id
+        ? 'https://mdc.example/mcp?libraries=alice%2Fphilosophy'
+        : 'https://mdc.example/mcp?libraries=bob%2Fessays';
+    expect(calls[0].body).toMatchObject({
+      mcp_servers: [
+        { name: 'mdc', url: url(first.id) },
+        { name: 'mdc-2', url: url(second.id) },
+      ],
+      tools: [
+        { type: 'mcp_toolset', mcp_server_name: 'mdc' },
+        { type: 'mcp_toolset', mcp_server_name: 'mdc-2' },
+      ],
+    });
+    const libraries = (id: string) => (id === alice.account.id ? ['alice/philosophy'] : ['bob/essays']);
+    expect(calls[0].body.system).toBe(
+      systemPrompt('medium', [
+        { owner: first.name, libraries: libraries(first.id) },
+        { owner: second.name, libraries: libraries(second.id) },
+      ])
+    );
   });
 
   it('posts only the answer after the lookups, as Claude', async () => {
@@ -975,8 +1034,14 @@ describe('a press with the library', () => {
 });
 
 describe('the library switch', () => {
+  // On names whatever mdc lists for whoever switches: the fake lists one set
+  // for everybody, so a test with two owners changes it between connects.
   const set = (channelId: string, userId: string, library: unknown) =>
-    app.channels.dispatch(channelId, userId, { type: 'SET_LIBRARY', library } as never);
+    app.channels.dispatch(channelId, userId, {
+      type: 'SET_LIBRARY',
+      library,
+      ...(library === true ? { libraries: app.mdc?.librariesOf(userId) ?? [] } : {}),
+    } as never);
 
   it('is switched on as the library of whoever has one connected, and survives a restart', async () => {
     const { client } = fakeClient(() => reply('x'));
@@ -984,12 +1049,18 @@ describe('the library switch', () => {
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
-    expect(app.channels.get(channelId)).toMatchObject({ library: true, libraryOwner: alice.account.id });
+    expect(app.channels.get(channelId)).toMatchObject({
+      library: true,
+      libraries: { [alice.account.id]: ['alice/philosophy'] },
+    });
 
     app.channels.stop();
     await app.fastify.close();
     boot(client, undefined, MDC);
-    expect(app.channels.get(channelId)).toMatchObject({ library: true, libraryOwner: alice.account.id });
+    expect(app.channels.get(channelId)).toMatchObject({
+      library: true,
+      libraries: { [alice.account.id]: ['alice/philosophy'] },
+    });
     expect(app.mdc!.connected(alice.account.id)).toBe(true);
     expect(set(channelId, alice.account.id, false)).toMatchObject({ ok: true });
     expect(app.channels.get(channelId)!.library).toBe(false);
@@ -1008,7 +1079,7 @@ describe('the library switch', () => {
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
     expect(set(channelId, bob.account.id, false)).toMatchObject({ ok: true });
     expect(app.channels.get(channelId)).toMatchObject({ library: false });
-    expect(app.channels.get(channelId)).not.toHaveProperty('libraryOwner');
+    expect(app.channels.get(channelId)).not.toHaveProperty('libraries');
   });
 
   it('refuses anything but true or false, even from somebody connected', async () => {
@@ -1084,21 +1155,19 @@ describe('the library switch', () => {
     expect(plain).not.toHaveProperty('mayChangeLibrary');
   });
 
-  it('takes an older build’s switch as the owner’s one library, or as none chosen of several', async () => {
+  it('refuses on without naming which libraries', async () => {
     boot(fakeClient(() => reply('x')).client, undefined, MDC);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
-    set(channelId, alice.account.id, true);
-    expect(app.channels.get(channelId)).toMatchObject({ library: true, libraries: ['alice/philosophy'] });
-    set(channelId, alice.account.id, false);
-
-    mdcLibraries = ['alice/notes', 'alice/philosophy'];
-    await connect(alice.account.id);
-    set(channelId, alice.account.id, true);
-    expect(app.channels.get(channelId)).toMatchObject({ library: true, libraries: [] });
+    const bare = app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_LIBRARY',
+      library: true,
+    } as never);
+    expect(bare).toMatchObject({ ok: false, code: 'invalid' });
+    expect(app.channels.get(channelId)!.library).toBe(false);
   });
 
-  it('takes the libraries a new build names, the owner’s own only', async () => {
+  it('takes the libraries a new build names, the owner’s own only, beside anybody else’s', async () => {
     mdcLibraries = ['alice/notes', 'alice/philosophy'];
     boot(fakeClient(() => reply('x')).client, undefined, MDC);
     const { alice, bob, channelId } = await room2();
@@ -1107,20 +1176,41 @@ describe('the library switch', () => {
       app.channels.dispatch(channelId, userId, { type: 'SET_LIBRARY', library: true, libraries } as never);
     expect(choose(alice.account.id, ['alice/notes'])).toMatchObject({ ok: true });
     expect(choose(alice.account.id, ['alice/philosophy', 'alice/notes'])).toMatchObject({ ok: true });
-    expect(app.channels.get(channelId)!.libraries).toEqual(['alice/notes', 'alice/philosophy']);
+    expect(app.channels.get(channelId)!.libraries).toEqual({
+      [alice.account.id]: ['alice/notes', 'alice/philosophy'],
+    });
     expect(choose(alice.account.id, ['bob/secret'])).toMatchObject({ ok: false, code: 'invalid' });
     expect(choose(alice.account.id, 'alice/notes')).toMatchObject({ ok: false, code: 'invalid' });
 
-    // Bob, with his own library, cannot put it on over Alice's.
+    // Bob, with his own library, puts it on beside Alice's — and not hers.
+    mdcLibraries = ['bob/essays'];
     await connect(bob.account.id);
-    expect(choose(bob.account.id, ['alice/notes'])).toMatchObject({ ok: false, code: 'conflict' });
+    expect(choose(bob.account.id, ['alice/notes'])).toMatchObject({ ok: false, code: 'invalid' });
+    expect(choose(bob.account.id, ['bob/essays'])).toMatchObject({ ok: true });
+    const both = {
+      [alice.account.id]: ['alice/notes', 'alice/philosophy'],
+      [bob.account.id]: ['bob/essays'],
+    };
+    expect(app.channels.get(channelId)!.libraries).toEqual(both);
 
     // And it survives a restart.
     const { client } = fakeClient(() => reply('x'));
     app.channels.stop();
     await app.fastify.close();
     boot(client, undefined, MDC);
-    expect(app.channels.get(channelId)!.libraries).toEqual(['alice/notes', 'alice/philosophy']);
+    expect(app.channels.get(channelId)).toMatchObject({ library: true, libraries: both });
+
+    // Alice may stop Bob's by name, and Alice's stays.
+    expect(
+      app.channels.dispatch(channelId, alice.account.id, {
+        type: 'SET_LIBRARY',
+        library: false,
+        owner: bob.account.id,
+      } as never)
+    ).toMatchObject({ ok: true });
+    expect(app.channels.get(channelId)!.libraries).toEqual({
+      [alice.account.id]: ['alice/notes', 'alice/philosophy'],
+    });
   });
 
   it('drops a library deleted at mdc from every channel, and goes off with none left', async () => {
@@ -1137,7 +1227,7 @@ describe('the library switch', () => {
 
     mdcLibraries = ['alice/philosophy', 'alice/new'];
     expect((await look()).json()).toMatchObject({ libraries: ['alice/philosophy', 'alice/new'] });
-    expect(app.channels.get(channelId)!.libraries).toEqual(['alice/philosophy']);
+    expect(app.channels.get(channelId)!.libraries).toEqual({ [alice.account.id]: ['alice/philosophy'] });
 
     mdcLibraries = ['alice/new'];
     await look();

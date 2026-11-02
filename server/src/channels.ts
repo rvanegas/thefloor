@@ -69,6 +69,7 @@ import {
   otherParticipants,
   reduce,
   subscribeable,
+  withLibraries,
 } from '../../core/channel';
 import { initialFloorState, isSilenced } from '../../core/floor';
 import {
@@ -2189,42 +2190,30 @@ export class ChannelRegistry {
   }
 
   /**
-   * Switches off every channel consulting this account's library: they
-   * disconnected it, or are deleting the account, and their consent goes
-   * with it. Not an action of theirs — they may have left the channel — so
-   * the state is changed here, as the reducer would change it.
+   * Stops every channel consulting this account's libraries: they
+   * disconnected, or are deleting the account, and their consent goes with
+   * it. Anybody else's stay on. Not an action of theirs — they may have left
+   * the channel — so the state is changed here, as the reducer would change it.
    */
   dropLibraryOf(userId: string): void {
-    const changed: string[] = [];
-    for (const channel of this.channels.values()) {
-      if (!channel.library || channel.libraryOwner !== userId) continue;
-      const { libraryOwner: _gone, libraries: _chosen, ...off } = channel;
-      this.commit(channel, { ...off, library: false });
-      changed.push(channel.id);
-    }
-    if (changed.length) this.emit(changed);
+    this.pruneLibrariesOf(userId, []);
   }
 
   /**
    * A person's libraries as mdc now lists them: each channel consulting
-   * theirs keeps only those still there, and goes off when none it had chosen
-   * is left. A library made since is never added — it is toggled on where it
-   * is wanted.
+   * theirs keeps only those still there, and stops consulting them when none
+   * it had chosen is left. A library made since is never added — it is
+   * toggled on where it is wanted.
    */
   pruneLibrariesOf(userId: string, current: readonly string[]): void {
     const exists = new Set(current);
     const changed: string[] = [];
     for (const channel of this.channels.values()) {
-      if (!channel.library || channel.libraryOwner !== userId) continue;
-      const chosen = channel.libraries ?? [];
-      const kept = chosen.filter((id) => exists.has(id));
-      if (kept.length === chosen.length) continue;
-      if (kept.length === 0) {
-        const { libraryOwner: _gone, libraries: _chosen, ...off } = channel;
-        this.commit(channel, { ...off, library: false });
-      } else {
-        this.commit(channel, { ...channel, libraries: kept });
-      }
+      const chosen = channel.libraries?.[userId];
+      if (!chosen) continue;
+      const next = withLibraries(channel, userId, chosen.filter((id) => exists.has(id)));
+      if (next === channel) continue;
+      this.commit(channel, next);
       changed.push(channel.id);
     }
     if (changed.length) this.emit(changed);
@@ -2883,24 +2872,21 @@ export class ChannelRegistry {
 
     // A library is its owner's writing, and switching it on is consent to
     // that writing reaching this room's Record — so on is for somebody with a
-    // library of their own connected, whose it then is, on top of the
-    // reducer's channel guard. Off is anybody's who may edit the channel. A
-    // server without mdc refuses it as no action at all, so the state can
-    // never claim a switch that reaches nothing.
-    //
-    // Which libraries: a new build names them, each one the switcher's own; an
-    // older build knows one switch, and gets the switcher's library where they
-    // have exactly one, else none chosen — which consults nothing until they
-    // choose in a build that can show what they are consenting to.
+    // library of their own connected, naming only their own, on top of the
+    // reducer's channel guard; several people's may be on at once. Off is
+    // anybody's who may edit the channel. A server without mdc refuses it as
+    // no action at all, so the state can never claim a switch that reaches
+    // nothing.
     if (action.type === 'SET_LIBRARY') {
       const on = (action as { library?: unknown }).library;
       const named = (action as { libraries?: unknown }).libraries;
+      const whose = (action as { owner?: unknown }).owner;
       const connections = this.libraryConnections;
       if (
         typeof on !== 'boolean' ||
         connections === null ||
-        (named !== undefined &&
-          !(Array.isArray(named) && named.every((id) => typeof id === 'string')))
+        (on && !(Array.isArray(named) && named.every((id) => typeof id === 'string'))) ||
+        (whose !== undefined && typeof whose !== 'string')
       ) {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
       }
@@ -2912,19 +2898,10 @@ export class ChannelRegistry {
             code: 'forbidden',
           };
         }
-        if (channel.library && channel.libraryOwner && channel.libraryOwner !== userId) {
-          return {
-            ok: false,
-            error: 'Somebody else’s library is on here; switch it off first.',
-            code: 'conflict',
-          };
-        }
         const mine = connections.librariesOf(userId);
-        if (named !== undefined && !(named as string[]).every((id) => mine.includes(id))) {
+        if (!(named as string[]).every((id) => mine.includes(id))) {
           return { ok: false, error: 'That is not one of your libraries.', code: 'invalid' };
         }
-        const libraries = (named as string[] | undefined) ?? (mine.length === 1 ? mine : []);
-        action = { ...action, libraries } as typeof action;
       }
     }
 
@@ -8193,7 +8170,6 @@ export class ChannelRegistry {
       // A setting somebody chose, beside the model it applies to, and whose
       // library it is.
       library: channel.library ?? false,
-      ...(channel.libraryOwner !== undefined ? { libraryOwner: channel.libraryOwner } : {}),
       ...(channel.libraries !== undefined ? { libraries: channel.libraries } : {}),
       // Durable, unlike the knocks and guests it sits beside in the state, and
       // that is the reason a motion lives on `ChannelState` at all rather than
@@ -8581,8 +8557,7 @@ export class ChannelRegistry {
       transcriptionModel?: ChannelState['transcriptionModel'];
       responseModel?: ChannelState['responseModel'];
       library?: boolean;
-      libraryOwner?: string;
-      libraries?: string[];
+      libraries?: Record<string, string[]>;
       initiator?: string;
       owner?: string;
       participants?: string[];
@@ -8651,11 +8626,10 @@ export class ChannelRegistry {
       // The default on a row written before the field existed.
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       responseModel: durable.responseModel ?? 'standard',
-      // Off for a channel written before the field, as for a new one; and
-      // owned by nobody, consulting nothing, if written before owners were.
-      library: durable.library ?? false,
-      ...(durable.libraryOwner !== undefined ? { libraryOwner: durable.libraryOwner } : {}),
-      ...(Array.isArray(durable.libraries) ? { libraries: durable.libraries } : {}),
+      // On only with somebody's libraries chosen: off for a channel written
+      // before the field, as for a new one, and for one written while a
+      // channel held one owner's list, which is switched on again by hand.
+      ...restoredLibraries(durable.libraries),
       initiator: durable.initiator ?? row.initiator_id,
       ...(durable.owner !== undefined ? { owner: durable.owner } : {}),
       ...(durable.locked ? { locked: true as const } : {}),
@@ -9063,4 +9037,21 @@ export function mintJoinCode(name: string): string {
   let suffix = '';
   for (const byte of randomBytes(8)) suffix += alphabet[byte % alphabet.length];
   return `${slug || 'community'}-${suffix}`;
+}
+
+/**
+ * A durable row's libraries, as `ChannelState` carries them: each owner's
+ * non-empty list, and `library` on exactly while there is one. Anything else
+ * — absent, or the one owner's flat list a row held before several owners
+ * could share a channel — restores as off.
+ */
+function restoredLibraries(stored: unknown): Pick<ChannelState, 'library' | 'libraries'> {
+  if (!stored || typeof stored !== 'object' || Array.isArray(stored)) return { library: false };
+  const libraries = Object.fromEntries(
+    Object.entries(stored as Record<string, unknown>).filter(
+      (entry): entry is [string, string[]] =>
+        Array.isArray(entry[1]) && entry[1].length > 0 && entry[1].every((id) => typeof id === 'string')
+    )
+  );
+  return Object.keys(libraries).length ? { library: true, libraries } : { library: false };
 }

@@ -603,9 +603,7 @@ export function ChannelSettingsView({
         <LibraryCard
           channel={channel}
           me={app.me?.id ?? ''}
-          ownerName={
-            view.participants.find((p) => p.id === channel.libraryOwner)?.displayName ?? null
-          }
+          nameOf={(id) => view.participants.find((p) => p.id === id)?.displayName ?? null}
           mine={mdc?.connected ? (mdc.libraries ?? []) : null}
           mayEdit={mayEdit}
           mayChangeLibrary={mayChangeLibrary}
@@ -615,9 +613,10 @@ export function ChannelSettingsView({
               channel.id,
               libraries.length
                 ? { type: 'SET_LIBRARY', library: true, libraries }
-                : { type: 'SET_LIBRARY', library: false }
+                : { type: 'SET_LIBRARY', library: false, owner: app.me?.id ?? '' }
             )
           }
+          onStop={(owner) => app.act(channel.id, { type: 'SET_LIBRARY', library: false, owner })}
         />
       ) : null}
 
@@ -915,57 +914,62 @@ const styles = StyleSheet.create({
 function LibraryCard({
   channel,
   me,
-  ownerName,
+  nameOf,
   mine,
   mayEdit,
   mayChangeLibrary,
   refusedWhy,
   onChoose,
+  onStop,
 }: {
   channel: ChannelState;
   me: string;
-  /** Whose libraries are on, by the name the room knows them by. */
-  ownerName: string | null;
+  /** Somebody's name as the room knows them, or null once they have left. */
+  nameOf: (id: string) => string | null;
   /** Your library ids at mdc, or null when you have none connected. */
   mine: string[] | null;
   mayEdit: boolean;
   mayChangeLibrary: boolean;
   /** Why it is grey for somebody who may not edit the channel. */
   refusedWhy: string;
-  /** The libraries to consult; none switches it off. */
+  /** Your libraries to consult; none stops consulting yours. */
   onChoose: (libraries: string[]) => void;
+  /** Stops consulting somebody else's. */
+  onStop: (owner: string) => void;
 }) {
   const t = useText().channelSettings;
-  const on = channel.library ?? false;
-  const chosen = channel.libraries ?? [];
+  const chosen = channel.libraries?.[me] ?? [];
   const short = (id: string) => id.split('/').slice(1).join('/') || id;
-  const theirs = on && channel.libraryOwner !== me;
+  // Everybody else's on here, each a readout with the one switch to stop it:
+  // several people's may be on at once, each by their own consent.
+  const theirs = Object.entries(channel.libraries ?? {}).filter(([owner]) => owner !== me);
 
   return (
     <Card style={styles.stack}>
       <Text style={type.heading}>{t.library()}</Text>
-      {theirs ? (
-        <>
+      {theirs.map(([owner, ids]) => (
+        <View key={owner} style={styles.stack}>
           <View style={styles.autoSwitches}>
             <KeepSwitch
               label={t.libraryConsult()}
               on
               refused={!mayEdit}
               onChange={(next) => {
-                if (!next) onChoose([]);
+                if (!next) onStop(owner);
               }}
             />
           </View>
           <Text style={type.body}>
-            {channel.libraryOwner
-              ? t.libraryTheirs(ownerName ?? t.libraryNobody(), chosen.map(short))
-              : t.libraryUnowned()}
+            {t.libraryTheirs(nameOf(owner) ?? t.libraryNobody(), ids.map(short))}
           </Text>
-        </>
-      ) : mine === null ? (
-        <View style={styles.autoSwitches}>
-          <KeepSwitch label={t.libraryConsult()} on={on} refused onChange={() => {}} />
         </View>
+      ))}
+      {mine === null ? (
+        theirs.length ? null : (
+          <View style={styles.autoSwitches}>
+            <KeepSwitch label={t.libraryConsult()} on={false} refused onChange={() => {}} />
+          </View>
+        )
       ) : mine.length === 0 ? (
         <Text style={type.body}>{t.libraryNoneYet()}</Text>
       ) : (
@@ -975,7 +979,7 @@ function LibraryCard({
               <KeepSwitch
                 key={id}
                 label={short(id)}
-                on={on && chosen.includes(id)}
+                on={chosen.includes(id)}
                 refused={!mayEdit}
                 onChange={(next) =>
                   onChoose(next ? [...chosen, id] : chosen.filter((other) => other !== id))
@@ -983,14 +987,11 @@ function LibraryCard({
               />
             ))}
           </View>
-          {on && chosen.length === 0 ? (
-            <Text style={type.muted}>{t.libraryNoneChosen()}</Text>
-          ) : null}
           <Text style={type.muted}>{t.libraryChoose()}</Text>
         </>
       )}
       <Text style={type.muted}>{t.libraryNote()}</Text>
-      {!theirs && mine === null && !mayChangeLibrary ? (
+      {mine === null && !mayChangeLibrary ? (
         <Text style={type.muted}>{t.libraryWho()}</Text>
       ) : !mayEdit ? (
         <Text style={type.muted}>{refusedWhy}</Text>

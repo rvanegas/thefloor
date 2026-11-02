@@ -75,8 +75,16 @@ export const LIBRARY_CONTINUATIONS = 2;
 /** The beta the Messages API's MCP connector is under. See `libraryRequest`. */
 export const MCP_BETA = 'mcp-client-2025-11-20';
 
-/** What the library's MCP server is called inside one request. */
+/**
+ * What a library's MCP server is called inside one request: `mdc` for the
+ * first owner's, `mdc-2` and on for the others', the API requiring each
+ * server's name be unique.
+ */
 export const LIBRARY_SERVER_NAME = 'mdc';
+
+export function libraryServerName(index: number): string {
+  return index === 0 ? LIBRARY_SERVER_NAME : `${LIBRARY_SERVER_NAME}-${index + 1}`;
+}
 
 /**
  * The library's tools a press may use: mdc's reading tools, and nothing else.
@@ -93,29 +101,26 @@ export const LIBRARY_TOOLS = [
 ] as const;
 
 /**
- * The two request fields that hand the library to Claude, which must travel
- * together: the server, with its token, and the toolset that names it —
- * every tool off by default, then the reading ones on. Anthropic's servers
- * call mdc with the token and run the tool loop inside the one request.
+ * The two request fields that hand the libraries to Claude, which must
+ * travel together: a server per owner, with that owner's token, and a
+ * toolset naming each — every tool off by default, then the reading ones on.
+ * Anthropic's servers call mdc with each token and run the tool loop inside
+ * the one request.
  */
-export function libraryRequest(library: ConsultedLibrary) {
+export function libraryRequest(libraries: readonly ConsultedLibrary[]) {
   return {
-    mcp_servers: [
-      {
-        type: 'url' as const,
-        url: library.url,
-        name: LIBRARY_SERVER_NAME,
-        authorization_token: library.token,
-      },
-    ],
-    tools: [
-      {
-        type: 'mcp_toolset' as const,
-        mcp_server_name: LIBRARY_SERVER_NAME,
-        default_config: { enabled: false },
-        configs: Object.fromEntries(LIBRARY_TOOLS.map((tool) => [tool, { enabled: true }])),
-      },
-    ],
+    mcp_servers: libraries.map((library, index) => ({
+      type: 'url' as const,
+      url: library.url,
+      name: libraryServerName(index),
+      authorization_token: library.token,
+    })),
+    tools: libraries.map((_, index) => ({
+      type: 'mcp_toolset' as const,
+      mcp_server_name: libraryServerName(index),
+      default_config: { enabled: false },
+      configs: Object.fromEntries(LIBRARY_TOOLS.map((tool) => [tool, { enabled: true }])),
+    })),
   };
 }
 
@@ -236,6 +241,37 @@ export function libraryRule(owner: string | null): string {
   ].join(' ');
 }
 
+/**
+ * `libraryRule` for a press consulting several people's libraries: who each
+ * belongs to, by display name and by the ids mdc labels its results with,
+ * since the same tools reach all of them and a reply quoting one has to be
+ * able to say whose writing it is.
+ */
+export function librariesRule(
+  libraries: readonly { owner: string | null; libraries: readonly string[] }[]
+): string {
+  const whose = libraries
+    .map(
+      ({ owner, libraries: ids }) =>
+        `${owner ? `${owner}’s` : 'somebody who has left’s'} (${ids.join(', ')})`
+    )
+    .join('; ');
+  return [
+    'You can consult several libraries through the mdc tools, each one person’s own writing — ' +
+      `essays, notes and conversations, dated and indexed by term: ${whose}. Every result names ` +
+      'the library it came from. They are those people’s whoever asked you, and each of them may ' +
+      'or may not be in this conversation. Consult them only when the conversation turns to ' +
+      'something one of them has written about; most turns need nothing from them. Read a guide ' +
+      'tool before the others.',
+    'Treat the titles in a document’s Related section as its author’s own recommendations of ' +
+      'what bears on it, and follow them when the question needs more than the document gives.',
+    'When your reply draws on a document, name it by its title and whose it is, in plain words. ' +
+      'The guide asks for Related and References sections at the end of a reply: do not write ' +
+      'them here. Cite everything inline instead, and a work outside the libraries by its author ' +
+      'and year. Only your final answer is shown, and the word limit is for it alone.',
+  ].join(' ');
+}
+
 /** A line that heads a Related or References section, however it is marked. */
 const CITATION_HEADING = /^[ \t]*(?:#{1,6}[ \t]*)?(?:Related|References)[ \t]*:?[ \t]*$/im;
 
@@ -268,7 +304,14 @@ export function replyText(
   return heading ? text.slice(0, heading.index).trim() : text;
 }
 
-export function systemPrompt(length: ReplyLength, library?: { owner: string | null }): string {
+/**
+ * `libraries` is whose a press consults, one entry per owner — absent or
+ * empty for a press that consults none.
+ */
+export function systemPrompt(
+  length: ReplyLength,
+  libraries?: readonly { owner: string | null; libraries: readonly string[] }[]
+): string {
   return [
     'You are Claude, taking part in a voice conversation among people using an ' +
       'app called The Floor. You are given the record of the conversation so far: ' +
@@ -281,9 +324,13 @@ export function systemPrompt(length: ReplyLength, library?: { owner: string | nu
       'in the language being spoken, addressing people by name where that helps. ' +
       'Write plain text, with no Markdown, lists or headings, because your reply ' +
       'is shown as plain lines.',
-    // Only where the press consults the library, so every other prompt is
-    // byte for byte what it was.
-    ...(library ? [libraryRule(library.owner)] : []),
+    // Only where the press consults a library, so every other prompt is
+    // byte for byte what it was — and one owner's in the words it always had.
+    ...(libraries?.length === 1
+      ? [libraryRule(libraries[0].owner)]
+      : libraries?.length
+        ? [librariesRule(libraries)]
+        : []),
     lengthRule(length),
   ].join('\n\n');
 }
@@ -526,44 +573,51 @@ export interface LibraryOptions {
 }
 
 /**
- * The library one press consults: mdc, with its owner's token, and whose it
- * is. `url` names the channel's chosen libraries, `?libraries=a,b`, which mdc
- * opens and no others, since the grant reaches all of the owner's.
+ * One owner's libraries as a press consults them: mdc, with that owner's
+ * token, and whose they are. `url` names the libraries they chose here,
+ * `?libraries=a,b`, which mdc opens and no others, since the grant reaches
+ * all of the owner's.
  */
 export interface ConsultedLibrary {
   url: string;
   token: string;
-  /** The account whose library it is: whoever switched the channel's library on. */
+  /** The account whose libraries they are: whoever switched them on here. */
   owner: string;
+  /** Which, by mdc id, for the prompt to say whose each is. */
+  libraries: string[];
 }
 
 /**
- * The library a press consults, or none: only where this server has mdc,
- * the channel's *Library* switch is on, and the grade is *Pro* or *Max* —
- * *Standard* stays the plain, fast call. **Whoever presses**: the switch is
- * the channel's, as the grade is, and its owner's consent was given when they
- * turned it on, so who asks is deliberately not an argument here.
+ * The libraries a press consults, an entry per owner, or none: only where
+ * this server has mdc, the channel's *Library* is on, and the grade is *Pro*
+ * or *Max* — *Standard* stays the plain, fast call. **Whoever presses**: the
+ * switches are the channel's, as the grade is, and each owner's consent was
+ * given when they turned theirs on, so who asks is deliberately not an
+ * argument here.
  *
- * The library is the switcher's, `ChannelState.libraryOwner`, and only while
- * they are still in the channel: somebody who has left took their consent
- * with them — and only the libraries they chose there, none chosen being
- * none consulted. A channel switched on before owners were recorded, an owner who
- * has disconnected, and mdc refusing their grant all consult nothing.
+ * Each owner's only while they are still in the channel: somebody who has
+ * left took their consent with them, and everybody else's stays. An owner
+ * who has disconnected, or whose grant mdc refuses, is passed over.
  */
-export async function libraryFor(
+export async function librariesFor(
   library: LibraryOptions | undefined,
-  channel: Pick<ChannelState, 'library' | 'libraryOwner' | 'libraries' | 'participants'>,
+  channel: Pick<ChannelState, 'library' | 'libraries' | 'participants'>,
   grade: ResponseModel
-): Promise<ConsultedLibrary | undefined> {
-  if (!library || !(channel.library ?? false) || grade === 'standard') return undefined;
-  const owner = channel.libraryOwner;
-  const chosen = channel.libraries ?? [];
-  if (!owner || !channel.participants.includes(owner) || chosen.length === 0) return undefined;
-  const token = await library.tokenFor(owner);
-  if (!token) return undefined;
-  const url = new URL(library.url);
-  url.searchParams.set('libraries', chosen.join(','));
-  return { url: url.toString(), token, owner };
+): Promise<ConsultedLibrary[]> {
+  if (!library || !(channel.library ?? false) || grade === 'standard') return [];
+  const owners = Object.entries(channel.libraries ?? {})
+    .filter(([owner, chosen]) => chosen.length > 0 && channel.participants.includes(owner))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  const consulted = await Promise.all(
+    owners.map(async ([owner, chosen]): Promise<ConsultedLibrary | null> => {
+      const token = await library.tokenFor(owner);
+      if (!token) return null;
+      const url = new URL(library.url);
+      url.searchParams.set('libraries', chosen.join(','));
+      return { url: url.toString(), token, owner, libraries: chosen };
+    })
+  );
+  return consulted.filter((entry): entry is ConsultedLibrary => entry !== null);
 }
 
 export interface ClaudeResponderOptions {
@@ -580,7 +634,6 @@ export interface ClaudeResponderOptions {
   /**
    * An account's display name, for the prompt to say whose library a press
    * consults; asked at each press that consults one, null when it has none.
-   * it, for the prompt to name; null when none has signed in.
    */
   libraryOwner?: (accountId: string) => string | null;
   log?: { warn(details: object, message: string): void };
@@ -630,7 +683,9 @@ export class ClaudeResponder {
     const grade = channel.responseModel ?? 'standard';
     const ask = RESPONSE_MODELS[grade];
     // Read at the press with the grade, for the same reason.
-    const library = await libraryFor(this.options.library, channel, grade);
+    // None consulted is no library at all, as the request is concerned.
+    const consulted = await librariesFor(this.options.library, channel, grade);
+    const library = consulted.length ? consulted : undefined;
     const controller = new AbortController();
     const timeoutMs = library
       ? (this.options.libraryTimeoutMs ?? CLAUDE_LIBRARY_TIMEOUT_MS)
@@ -676,7 +731,7 @@ export class ClaudeResponder {
     record: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
-    library: ConsultedLibrary | undefined,
+    library: ConsultedLibrary[] | undefined,
     channelId: string
   ): Promise<Reply> {
     try {
@@ -684,7 +739,7 @@ export class ClaudeResponder {
     } catch (error) {
       if (!library || signal.aborted) throw error;
       this.options.log?.warn(
-        { err: error, channel: channelId, mdc: library.url },
+        { err: error, channel: channelId, mdc: library.map((each) => each.url) },
         'claude request with the mdc library failed; asking without it'
       );
       return this.resumed(ask, record, length, signal, undefined);
@@ -704,7 +759,7 @@ export class ClaudeResponder {
     record: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
-    library: ConsultedLibrary | undefined
+    library: ConsultedLibrary[] | undefined
   ): Promise<Reply> {
     let content: Reply['content'] = [];
     const usage = {
@@ -739,8 +794,8 @@ export class ClaudeResponder {
     record: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
-    // What `libraryFor` decided: the library this press may consult, if any.
-    library?: ConsultedLibrary,
+    // What `librariesFor` decided: the libraries this press may consult, if any.
+    library?: ConsultedLibrary[],
     // What a paused turn returned so far, sent back to resume it.
     previous?: Reply['content']
   ): Promise<Reply> {
@@ -749,7 +804,10 @@ export class ClaudeResponder {
       max_tokens: ask.maxTokens,
       system: systemPrompt(
         length,
-        library ? { owner: this.options.libraryOwner?.(library.owner) ?? null } : undefined
+        library?.map((each) => ({
+          owner: this.options.libraryOwner?.(each.owner) ?? null,
+          libraries: each.libraries,
+        }))
       ),
       messages: [
         { role: 'user' as const, content: userMessage(record, length) },

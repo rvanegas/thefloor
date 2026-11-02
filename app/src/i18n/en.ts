@@ -1117,22 +1117,19 @@ export const en = {
     library: () => 'Library',
     libraryConsult: () => 'Consult',
     libraryNote: () =>
-      'When on, Claude may draw on the library owner’s own writing while it answers, and names any piece it quotes. It applies on Pro and Max, to whoever asks Claude.',
+      'When on, Claude may draw on each library owner’s own writing while it answers, and names any piece it quotes and whose it is. It applies on Pro and Max, to whoever asks Claude.',
     /** Since 2026-11-01, when each account began connecting its own library. */
     libraryWho: () => 'Connect your mdc library on Floor Settings to offer it here.',
     /** The toggles, one per library of yours: each is consent for that one. */
     libraryChoose: () =>
       'Turn on the libraries Claude may consult here. Each one you turn on is your consent to its writing reaching this channel’s Record.',
-    libraryNoneChosen: () =>
-      'On, with none of your libraries chosen: Claude consults nothing until you turn one on.',
     libraryNoneYet: () => 'You have no library in mdc yet. Make one there, and it will show here.',
+    /** One per somebody else whose libraries are on here; several may be. */
     libraryTheirs: (name: string, libraries: string[]) =>
-      libraries.length
-        ? `Consulting ${name}’s ${libraries.length === 1 ? 'library' : 'libraries'}: ${libraries.join(', ')}. Anybody here can switch it off.`
-        : `On for ${name}, with none of their libraries chosen yet. Anybody here can switch it off.`,
+      libraries.length === 1
+        ? `Consulting ${name}’s library: ${libraries[0]}. Anybody here can switch it off.`
+        : `Consulting ${name}’s libraries: ${libraries.join(', ')}. Anybody here can switch them off.`,
     libraryNobody: () => 'somebody who has left',
-    libraryUnowned: () =>
-      'On from before libraries were chosen channel by channel, and consulting nothing. Switch it off, and its owner can choose again.',
     libraryStepIn: () =>
       'Step in to change this. What Claude may quote is for whoever is in the conversation.',
     notifications: () => 'Notifications',

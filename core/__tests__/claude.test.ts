@@ -113,28 +113,44 @@ describe('the library', () => {
   it('is switched on as the switcher’s libraries, off by anybody in the room, and changes nothing else', () => {
     const before = bothHere();
     const on = reduce(before, { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 1);
-    expect(on).toMatchObject({ library: true, libraryOwner: A, libraries: ['a/x'] });
-    const { libraryOwner: _owner, libraries: _chosen, ...rest } = on;
+    expect(on).toMatchObject({ library: true, libraries: { [A]: ['a/x'] } });
+    const { libraries: _chosen, ...rest } = on;
     expect({ ...rest, library: false }).toEqual(before);
     const off = reduce(on, { type: 'SET_LIBRARY', userId: B, library: false }, T0 + 2);
     expect(off.library).toBe(false);
-    expect(off).not.toHaveProperty('libraryOwner');
     expect(off).not.toHaveProperty('libraries');
   });
 
-  it('changes its selection by its owner, sorted and once each, and by nobody else', () => {
+  it('changes each owner’s selection by that owner, sorted and once each', () => {
     const on = reduce(bothHere(), { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 1);
     const more = reduce(on, { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/y', 'a/x', 'a/y'] }, T0 + 2);
-    expect(more.libraries).toEqual(['a/x', 'a/y']);
+    expect(more.libraries).toEqual({ [A]: ['a/x', 'a/y'] });
     expect(reduce(more, { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/y', 'a/x'] }, T0 + 3)).toBe(more);
-    expect(reduce(more, { type: 'SET_LIBRARY', userId: B, library: true, libraries: ['b/z'] }, T0 + 3)).toBe(more);
+  });
+
+  it('holds several owners’ libraries at once, each stopped on its own', () => {
+    const a = reduce(bothHere(), { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 1);
+    const both = reduce(a, { type: 'SET_LIBRARY', userId: B, library: true, libraries: ['b/z'] }, T0 + 2);
+    expect(both.libraries).toEqual({ [A]: ['a/x'], [B]: ['b/z'] });
+    // An owner's last toggle off takes theirs and leaves the other's.
+    const onlyB = reduce(both, { type: 'SET_LIBRARY', userId: A, library: true, libraries: [] }, T0 + 3);
+    expect(onlyB).toMatchObject({ library: true, libraries: { [B]: ['b/z'] } });
+    // Anybody may stop one owner's by name.
+    const onlyA = reduce(both, { type: 'SET_LIBRARY', userId: A, library: false, owner: B }, T0 + 3);
+    expect(onlyA.libraries).toEqual({ [A]: ['a/x'] });
+    // The last one stopped switches the channel's library off.
+    const off = reduce(onlyA, { type: 'SET_LIBRARY', userId: B, library: false, owner: A }, T0 + 4);
+    expect(off.library).toBe(false);
+    expect(off).not.toHaveProperty('libraries');
+    // Stopping somebody with nothing on is no change.
+    expect(reduce(onlyA, { type: 'SET_LIBRARY', userId: A, library: false, owner: B }, T0 + 4)).toBe(onlyA);
   });
 
   it('is guarded like the other channel settings', () => {
     // Who owns the library is the server's half of the rule.
     let s = bothHere();
     s = reduce(s, { type: 'STEP_OUT', userId: A }, T0 + 1);
-    expect(reduce(s, { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 2)).toBe(s);
+    expect(reduce(s, { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 2)).toBe(s);
   });
 
   it('is no change when it would change nothing, including on a channel from before the field', () => {
@@ -144,7 +160,9 @@ describe('the library', () => {
     delete restored.library;
     const old = restored as ChannelState;
     expect(reduce(old, { type: 'SET_LIBRARY', userId: A, library: false }, T0 + 1)).toBe(old);
-    expect(reduce(old, { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 1).library).toBe(true);
+    expect(reduce(old, { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 1).library).toBe(true);
+    // On with none chosen is no state at all.
+    expect(reduce(s, { type: 'SET_LIBRARY', userId: A, library: true, libraries: [] }, T0 + 1)).toBe(s);
   });
 
   it('is the community owner’s alone, and refused by name', () => {
@@ -152,7 +170,7 @@ describe('the library', () => {
   });
 
   it('moves independently of the response model', () => {
-    const s = reduce(bothHere(), { type: 'SET_LIBRARY', userId: A, library: true }, T0 + 1);
+    const s = reduce(bothHere(), { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 1);
     expect(s.responseModel).toBe('standard');
   });
 });

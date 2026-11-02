@@ -1821,12 +1821,12 @@ export type ClientAction =
    */
   | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
   /**
-   * Refused by the server from anybody who does not own its library, and from
-   * every account on a server that has none. Unknown to a server that
-   * predates it, which an app never sends it to: such a server never offers
-   * the switch.
+   * On sets your own libraries here, and is refused from anybody without one
+   * connected; off is `owner`'s, or everybody's. Refused from every account
+   * on a server that has no mdc. Unknown to a server that predates it, which
+   * an app never sends it to: such a server never offers the switch.
    */
-  | { type: 'SET_LIBRARY'; library: boolean; libraries?: string[] }
+  | { type: 'SET_LIBRARY'; library: boolean; libraries?: string[]; owner?: string }
   | { type: 'CLAIM_FLOOR' }
   | { type: 'RELEASE_FLOOR' }
   /**

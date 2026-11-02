@@ -797,6 +797,26 @@ export function canEditChannel(state: ChannelState, userId: UserId): boolean {
 }
 
 /**
+ * The state with `owner`'s libraries set to `ids`, deduplicated and sorted,
+ * beside everybody else's — none removing theirs, and the last owner gone
+ * switching `library` off. Unchanged, the same object, so a repeat is no
+ * change. The reducer's, and the server's for what mdc or a disconnect
+ * decides without anybody pressing.
+ */
+export function withLibraries(state: ChannelState, owner: UserId, ids: readonly string[]): ChannelState {
+  const chosen = [...new Set(ids)].sort();
+  const current = state.libraries ?? {};
+  if (JSON.stringify(current[owner] ?? []) === JSON.stringify(chosen)) return state;
+  const { [owner]: _theirs, ...others } = current;
+  const libraries = chosen.length ? { ...others, [owner]: chosen } : others;
+  if (Object.keys(libraries).length === 0) {
+    const { libraries: _gone, ...off } = state;
+    return { ...off, library: false };
+  }
+  return { ...state, library: true, libraries };
+}
+
+/**
  * The full claim precondition: the eligibility rule, plus presence. The claim
  * control is unavailable while a user is alone in the channel.
  */
@@ -3487,28 +3507,17 @@ function reduceAction(
 
     case 'SET_LIBRARY': {
       // Guarded like `SET_RESPONSE_MODEL`. Whether somebody has a library to
-      // offer is not channel state, so that half of the rule is the server's;
-      // the library consulted is the switcher's.
+      // offer is not channel state, so that half of the rule is the server's.
+      // On sets the switcher's own choice beside anybody else's; off is
+      // anybody's who may edit, for one owner or for all of them.
       if (!canEditChannel(state, action.userId)) return state;
       if (!action.library) {
+        if (action.owner !== undefined) return withLibraries(state, action.owner, []);
         if (!(state.library ?? false)) return state;
-        const { libraryOwner: _gone, libraries: _chosen, ...off } = state;
+        const { libraries: _gone, ...off } = state;
         return { ...off, library: false };
       }
-      // On is the switcher's, and a channel consults one owner's libraries
-      // at a time: somebody else's switch on over it changes nothing.
-      if ((state.library ?? false) && state.libraryOwner && state.libraryOwner !== action.userId) {
-        return state;
-      }
-      const libraries = [...new Set(action.libraries ?? [])].sort();
-      if (
-        (state.library ?? false) &&
-        state.libraryOwner === action.userId &&
-        JSON.stringify(state.libraries ?? []) === JSON.stringify(libraries)
-      ) {
-        return state;
-      }
-      return { ...state, library: true, libraryOwner: action.userId, libraries };
+      return withLibraries(state, action.userId, action.libraries ?? []);
     }
 
     case 'CLAIM_FLOOR': {

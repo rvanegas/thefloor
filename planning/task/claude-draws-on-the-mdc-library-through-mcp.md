@@ -35,6 +35,11 @@ add, before step 5: **deploy mdc** (landed as `9c2760c`), then
 server before mdc's deploy would name libraries mdc does not yet read, which
 it ignores — harmless, but the selection is only enforced once it is there.
 
+Several owners' libraries in one channel
+(`decision/2026-11-01-several-people-s-libraries-in-one-channel.md`) carries
+no shim: **deploy it and upload the build carrying its card together**, since
+builds before it fail on *Channel Settings* while any library is on.
+
 ## To check on the box, once it is on
 
 - **What an unreachable mdc produces.** Built for both — a failed request,

@@ -858,20 +858,16 @@ export const es: Strings = {
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.
     libraryNote: () =>
-      'Si está activada, Claude puede apoyarse en los escritos del dueño de la biblioteca al responder, y nombra cualquier texto que cite. Se aplica en Pro y Max, a quien pregunte a Claude.',
+      'Si está activada, Claude puede apoyarse en los escritos del dueño de cada biblioteca al responder, y nombra cualquier texto que cite y de quién es. Se aplica en Pro y Max, a quien pregunte a Claude.',
     libraryWho: () => 'Conecta tu biblioteca de mdc en Ajustes de The Floor para ofrecerla aquí.',
     libraryChoose: () =>
       'Activa las bibliotecas que Claude puede consultar aquí. Cada una que actives es tu consentimiento para que sus escritos lleguen al Grabado de este canal.',
-    libraryNoneChosen: () =>
-      'Activada, sin ninguna de tus bibliotecas elegida: Claude no consulta nada hasta que actives una.',
     libraryNoneYet: () => 'Todavía no tienes ninguna biblioteca en mdc. Crea una allí y aparecerá aquí.',
     libraryTheirs: (name: string, libraries: string[]) =>
-      libraries.length
-        ? `Consultando ${libraries.length === 1 ? 'la biblioteca' : 'las bibliotecas'} de ${name}: ${libraries.join(', ')}. Cualquiera aquí puede desactivarla.`
-        : `Activada para ${name}, sin ninguna de sus bibliotecas elegida todavía. Cualquiera aquí puede desactivarla.`,
+      libraries.length === 1
+        ? `Consultando la biblioteca de ${name}: ${libraries[0]}. Cualquiera aquí puede desactivarla.`
+        : `Consultando las bibliotecas de ${name}: ${libraries.join(', ')}. Cualquiera aquí puede desactivarlas.`,
     libraryNobody: () => 'alguien que se ha ido',
-    libraryUnowned: () =>
-      'Activada desde antes de que las bibliotecas se eligieran canal por canal, y sin consultar nada. Desactívala, y su dueño podrá elegir de nuevo.',
     libraryStepIn: () =>
       'Entra para cambiar esto. Lo que Claude puede citar es cosa de quien está en la conversación.',
     notifications: () => 'Notificaciones',

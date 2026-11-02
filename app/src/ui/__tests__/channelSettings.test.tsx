@@ -497,22 +497,42 @@ describe('the library, a toggle per library', () => {
     });
   });
 
-  it('switches off when the last of yours goes off, and says when none is chosen', async () => {
-    await openLibrary({ library: true, libraryOwner: ME, libraries: ['me/notes'] }, ['me/philosophy', 'me/notes']);
+  it('stops consulting yours when the last of yours goes off', async () => {
+    await openLibrary({ library: true, libraries: { [ME]: ['me/notes'] } }, ['me/philosophy', 'me/notes']);
     expect(toggle('notes').props.value).toBe(true);
     act(() => toggle('notes').props.onValueChange(false));
-    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, { type: 'SET_LIBRARY', library: false });
-    act(() => tree.unmount());
-    await openLibrary({ library: true, libraryOwner: ME, libraries: [] }, ['me/philosophy', 'me/notes']);
-    expect(textOf(tree)).toContain('none of your libraries chosen');
+    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, {
+      type: 'SET_LIBRARY',
+      library: false,
+      owner: ME,
+    });
   });
 
-  it('shows somebody else’s on as whose and which, with the one switch to turn it off', async () => {
-    await openLibrary({ library: true, libraryOwner: THEM, libraries: ['dana/essays'] }, null, true);
+  it('shows somebody else’s on as whose and which, with the one switch to stop theirs', async () => {
+    await openLibrary({ library: true, libraries: { [THEM]: ['dana/essays'] } }, null, true);
     expect(textOf(tree)).toContain('Consulting Dana Chu’s library: essays.');
     expect(toggle('essays')).toBeUndefined();
     act(() => toggle('Consult').props.onValueChange(false));
-    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, { type: 'SET_LIBRARY', library: false });
+    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, {
+      type: 'SET_LIBRARY',
+      library: false,
+      owner: THEM,
+    });
+  });
+
+  it('offers yours beside somebody else’s that is already on', async () => {
+    await openLibrary(
+      { library: true, libraries: { [THEM]: ['dana/essays', 'dana/letters'] } },
+      ['me/philosophy']
+    );
+    expect(textOf(tree)).toContain('Consulting Dana Chu’s libraries: essays, letters.');
+    expect(toggle('philosophy').props.value).toBe(false);
+    act(() => toggle('philosophy').props.onValueChange(true));
+    expect(mockApp.act).toHaveBeenLastCalledWith(channel.id, {
+      type: 'SET_LIBRARY',
+      library: true,
+      libraries: ['me/philosophy'],
+    });
   });
 
   it('points somebody without a library connected at Floor Settings', async () => {

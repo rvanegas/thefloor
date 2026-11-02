@@ -133,7 +133,7 @@ caused; the list carries the meaning.
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Library** — A body of somebody's own writing, kept in mdc, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *mdc library* card, by signing in at mdc, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown to every member where the server offers libraries, switched on only by somebody with one connected, whose it then is (`ChannelState.libraryOwner`), a toggle per library of theirs choosing which (`ChannelState.libraries`), and off by anybody who may edit the channel. `ChannelState.library`. Never the app's own recordings, which are the *Record*
+- **Library** — A body of somebody's own writing, kept in mdc, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *mdc library* card, by signing in at mdc, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown to every member where the server offers libraries, switched on only by somebody with one connected, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Never the app's own recordings, which are the *Record*
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
@@ -1490,18 +1490,21 @@ then there was one per server, Rodrigo's, configured by `MDC_TOKEN`. See
 
 **And the channel setting that lets it**: a switch on *Channel Settings*,
 *Library* / *Consult*, off on every channel until somebody with a library
-connected turns it on — **and then it is theirs that the channel consults**
-(`ChannelState.libraryOwner`), on *Pro* and *Max* for **every press there,
-whoever presses** — the response model's terms — and only while they are in
-the channel. **Which of their libraries is a toggle each**, since 2026-11-01
-(`ChannelState.libraries`): the grant at mdc reaches all of them, and each
-toggle is consent for that one library in that room; none chosen consults
-nothing. `ChannelState.library`. Shown to every member, since what a reply
+connected turns one of theirs on — **and then theirs are among what the
+channel consults**, on *Pro* and *Max* for **every press there, whoever
+presses** — the response model's terms — and each owner's only while they are
+in the channel. **Which of their libraries is a toggle each**, since
+2026-11-01 (`ChannelState.libraries`, by owner): the grant at mdc reaches all
+of them, and each toggle is consent for that one library in that room.
+**Several people's at once**, also since 2026-11-01: each owner's consent is
+their own, and a press hands Claude a server per owner and says whose each is.
+`ChannelState.library` is on while anybody's is. Shown to every member, since what a reply
 may quote is something everybody in the channel may know; switched on only by
 a library's owner, since that is consent to their writing reaching the room's
-*Record*, and off by anybody who may edit the channel, which withdraws rather
-than exposes. Disconnecting, or deleting the account, switches it off in every
-channel. A reply that draws on it names the piece, in plain words.
+*Record*, and off by anybody who may edit the channel — one owner's, or
+everybody's — which withdraws rather than exposes. Disconnecting, or deleting
+the account, stops that person's in every channel and leaves anybody else's.
+A reply that draws on it names the piece, and whose it is, in plain words.
 
 **Never the app's own recordings or transcripts**, which are the *Record*:
 the library is writing from elsewhere, and nothing in a channel is written

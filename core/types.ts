@@ -1030,9 +1030,9 @@ export interface ChannelState {
    */
   responseModel: ResponseModel;
   /**
-   * Whether this channel's *Ask Claude* may consult an mdc library — its
-   * owner's own writing — on *Pro* and *Max*; *Standard* never does. Off on
-   * every new channel.
+   * Whether this channel's *Ask Claude* may consult mdc libraries — their
+   * owners' own writing — on *Pro* and *Max*; *Standard* never does. Off on
+   * every new channel, and true exactly while `libraries` names somebody.
    *
    * The channel's, whoever presses, for `responseModel`'s reason. **Switched
    * on only by somebody who has connected their own library** on *Floor
@@ -1044,21 +1044,14 @@ export interface ChannelState {
    */
   library: boolean;
   /**
-   * Whose library `library` consults: whoever switched it on, since
-   * 2026-11-01, when each account began connecting its own. Absent while it
-   * is off, and on a channel switched on before then — which consults
-   * nothing until somebody switches it on again.
+   * Whose libraries `library` consults, and which of each: an owner's mdc ids
+   * (`user/library`), sorted, under the account that switched them on — a
+   * toggle each on *Channel Settings*. Several owners at once since
+   * 2026-11-01; the grant at mdc reaches all of a person's libraries, and this
+   * selection is what a press asks mdc to open. Never holds an empty list:
+   * an owner's last toggle off removes them. Absent while off.
    */
-  libraryOwner?: UserId;
-  /**
-   * Which of the owner's libraries it consults, by mdc id (`user/library`):
-   * a toggle each on *Channel Settings*, since 2026-11-01. The grant at mdc
-   * reaches all of them, and this selection is what a press asks mdc to open.
-   * Empty while `library` is on means none chosen yet — an older build's
-   * switch, for an owner with several — and consults nothing. Absent while
-   * off.
-   */
-  libraries?: string[];
+  libraries?: Record<UserId, string[]>;
   recording: RecordingState;
   /** The most recent run that has finished, or null if none has. */
   lastRecording: FinishedRun | null;
@@ -1422,20 +1415,18 @@ export type ChannelAction =
    */
   | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
   /**
-   * Switches the channel's library on or off. Guarded as `SET_RESPONSE_MODEL`
-   * is; on, refused by the server from anybody without a library of their
-   * own connected, and it is then theirs that the channel consults.
+   * Switches libraries on or off. Guarded as `SET_RESPONSE_MODEL` is; on,
+   * refused by the server from anybody without a library of their own
+   * connected, and sets the switcher's own choice beside anybody else's.
    */
   | {
       type: 'SET_LIBRARY';
       userId: UserId;
       library: boolean;
-      /**
-       * Which of the switcher's libraries, when on. Absent from an older
-       * build, which knows one switch; the server fills it in before the
-       * reducer sees it.
-       */
+      /** On: the switcher's libraries to consult here; none removes theirs. */
       libraries?: string[];
+      /** Off: whose libraries to stop consulting; absent, everybody's. */
+      owner?: UserId;
     }
   | { type: 'CLAIM_FLOOR'; userId: UserId }
   | { type: 'RELEASE_FLOOR'; userId: UserId }
