@@ -76,19 +76,19 @@ export const LIBRARY_CONTINUATIONS = 2;
 export const MCP_BETA = 'mcp-client-2025-11-20';
 
 /**
- * What a library's MCP server is called inside one request: `mdc` for the
- * first owner's, `mdc-2` and on for the others', the API requiring each
+ * What a library's MCP server is called inside one request: `noesis` for the
+ * first owner's, `noesis-2` and on for the others', the API requiring each
  * server's name be unique.
  */
-export const LIBRARY_SERVER_NAME = 'mdc';
+export const LIBRARY_SERVER_NAME = 'noesis';
 
 export function libraryServerName(index: number): string {
   return index === 0 ? LIBRARY_SERVER_NAME : `${LIBRARY_SERVER_NAME}-${index + 1}`;
 }
 
 /**
- * The library's tools a press may use: mdc's reading tools, and nothing else.
- * **An allowlist although mdc's server writes nothing today** — mdc plans more
+ * The library's tools a press may use: noesis's reading tools, and nothing else.
+ * **An allowlist although noesis's server writes nothing today** — noesis plans more
  * tools, and one it adds should reach a room by a decision here, not by a
  * deploy there.
  */
@@ -104,7 +104,7 @@ export const LIBRARY_TOOLS = [
  * The two request fields that hand the libraries to Claude, which must
  * travel together: a server per owner, with that owner's token, and a
  * toolset naming each — every tool off by default, then the reading ones on.
- * Anthropic's servers call mdc with each token and run the tool loop inside
+ * Anthropic's servers call noesis with each token and run the tool loop inside
  * the one request.
  */
 export function libraryRequest(libraries: readonly ConsultedLibrary[]) {
@@ -153,7 +153,7 @@ export const CLAUDE_TIMEOUT_MS = 60_000;
 /**
  * The same, for a press that consults the library: several model turns in
  * one request, lookups between them, possibly a resumed pause and a retry
- * without mdc — all inside this one timer. The card says *Responding…*
+ * without noesis — all inside this one timer. The card says *Responding…*
  * throughout, so the room is told it is waiting.
  */
 export const CLAUDE_LIBRARY_TIMEOUT_MS = 120_000;
@@ -219,7 +219,7 @@ export function lengthRule(length: ReplyLength): string {
  * where none has signed in yet; named because whoever presses may be anybody
  * in the channel, and a reply should be able to say whose writing it quotes.
  *
- * **It overrides mdc's guide on citation in so many words**: the guide, read
+ * **It overrides noesis's guide on citation in so many words**: the guide, read
  * after this, asks for `## Related` and `## References` sections, which suit
  * a library chat and not a paste of plain lines.
  */
@@ -227,7 +227,7 @@ export function libraryRule(owner: string | null): string {
   const who = owner ?? 'the library’s owner';
   const whose = owner ? `${owner}’s` : 'the library owner’s';
   return [
-    `You can consult a library through the mdc tools: ${whose} own writing — essays, notes and ` +
+    `You can consult a library through the noesis tools: ${whose} own writing — essays, notes and ` +
       `conversations, dated and indexed by term. It is ${whose} whoever asked you, and ${who} may ` +
       'or may not be in this conversation. Consult it only when the conversation turns to ' +
       `something ${who} has written about; most turns need nothing from it. Read the guide tool ` +
@@ -243,7 +243,7 @@ export function libraryRule(owner: string | null): string {
 
 /**
  * `libraryRule` for a press consulting several people's libraries: who each
- * belongs to, by display name and by the ids mdc labels its results with,
+ * belongs to, by display name and by the ids noesis labels its results with,
  * since the same tools reach all of them and a reply quoting one has to be
  * able to say whose writing it is.
  */
@@ -257,7 +257,7 @@ export function librariesRule(
     )
     .join('; ');
   return [
-    'You can consult several libraries through the mdc tools, each one person’s own writing — ' +
+    'You can consult several libraries through the noesis tools, each one person’s own writing — ' +
       `essays, notes and conversations, dated and indexed by term: ${whose}. Every result names ` +
       'the library it came from. They are those people’s whoever asked you, and each of them may ' +
       'or may not be in this conversation. Consult them only when the conversation turns to ' +
@@ -284,7 +284,7 @@ const CITATION_HEADING = /^[ \t]*(?:#{1,6}[ \t]*)?(?:Related|References)[ \t]*:?
  * response with no lookup is all of its text, as before.
  *
  * Then **from a Related or References heading to the end is dropped**, in
- * case the model followed mdc's guide rather than the prompt: a paste is
+ * case the model followed noesis's guide rather than the prompt: a paste is
  * plain lines, and the heading would arrive as a literal `##`. Inline
  * citations are untouched.
  */
@@ -552,30 +552,30 @@ const FAILURES: Record<Exclude<ClaudeOutcome, 'posted'>, { status: number; error
 };
 
 /**
- * mdc, where people keep their own writing indexed by term, and whose library
+ * noesis, where people keep their own writing indexed by term, and whose library
  * a press may let Claude consult through the Messages API's MCP connector:
- * Anthropic's servers call mdc, not this one. Reading only. A library is an
- * account's own, connected on *Floor Settings* (mdc.ts), and is consulted
+ * Anthropic's servers call noesis, not this one. Reading only. A library is an
+ * account's own, connected on *Floor Settings* (noesis.ts), and is consulted
  * only in a channel whose *Library* switch its owner turned on, on Pro and Max.
  * See planning/decision/2026-10-27-claude-consults-its-owner-s-library-channel-by-channel.md
  * and planning/decision/2026-11-01-each-account-connects-its-own-mdc-library.md.
  */
 export interface LibraryOptions {
-  /** mdc's MCP server, `https://mdc.rvanegas.co/mcp` in production. */
+  /** noesis's MCP server, `https://noesis.rvanegas.co/mcp` in production. */
   url: string;
   /**
    * A current token for an account's own library, or null when it has none
-   * connected or mdc no longer honours it — `MdcConnections.accessToken`.
+   * connected or noesis no longer honours it — `NoesisConnections.accessToken`.
    * Since 2026-11-01 each account connects its own on *Floor Settings*; the
-   * one `MDC_TOKEN` this replaced was Rodrigo's alone.
+   * one `NOESIS_TOKEN` this replaced was Rodrigo's alone.
    */
   tokenFor: (accountId: string) => Promise<string | null>;
 }
 
 /**
- * One owner's libraries as a press consults them: mdc, with that owner's
+ * One owner's libraries as a press consults them: noesis, with that owner's
  * token, and whose they are. `url` names the libraries they chose here,
- * `?libraries=a,b`, which mdc opens and no others, since the grant reaches
+ * `?libraries=a,b`, which noesis opens and no others, since the grant reaches
  * all of the owner's.
  */
 export interface ConsultedLibrary {
@@ -583,13 +583,13 @@ export interface ConsultedLibrary {
   token: string;
   /** The account whose libraries they are: whoever switched them on here. */
   owner: string;
-  /** Which, by mdc id, for the prompt to say whose each is. */
+  /** Which, by noesis id, for the prompt to say whose each is. */
   libraries: string[];
 }
 
 /**
  * The libraries a press consults, an entry per owner, or none: only where
- * this server has mdc, the channel's *Library* is on, and the grade is *Pro*
+ * this server has noesis, the channel's *Library* is on, and the grade is *Pro*
  * or *Max* — *Standard* stays the plain, fast call. **Whoever presses**: the
  * switches are the channel's, as the grade is, and each owner's consent was
  * given when they turned theirs on, so who asks is deliberately not an
@@ -597,7 +597,7 @@ export interface ConsultedLibrary {
  *
  * Each owner's only while they are still in the channel: somebody who has
  * left took their consent with them, and everybody else's stays. An owner
- * who has disconnected, or whose grant mdc refuses, is passed over.
+ * who has disconnected, or whose grant noesis refuses, is passed over.
  */
 export async function librariesFor(
   library: LibraryOptions | undefined,
@@ -719,9 +719,9 @@ export class ClaudeResponder {
   /**
    * A press's request, start to finish, within the press's one timer.
    *
-   * **mdc unreachable is not a failed press.** A request that consulted the
+   * **noesis unreachable is not a failed press.** A request that consulted the
    * library and failed — without the timer having fired — is asked once more
-   * without it, and nothing in the reply says so; the warning names mdc, so
+   * without it, and nothing in the reply says so; the warning names noesis, so
    * the log does. A timeout is not retried: the time is already spent. A
    * lookup that merely errored comes back as an `mcp_tool_result` with
    * `is_error`, which Claude answers around and needs nothing here.
@@ -739,8 +739,8 @@ export class ClaudeResponder {
     } catch (error) {
       if (!library || signal.aborted) throw error;
       this.options.log?.warn(
-        { err: error, channel: channelId, mdc: library.map((each) => each.url) },
-        'claude request with the mdc library failed; asking without it'
+        { err: error, channel: channelId, noesis: library.map((each) => each.url) },
+        'claude request with the noesis library failed; asking without it'
       );
       return this.resumed(ask, record, length, signal, undefined);
     }

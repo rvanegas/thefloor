@@ -264,10 +264,10 @@ describe('The privacy policy', () => {
     });
 
     const library = {
-      url: 'https://mdc.example/mcp',
+      url: 'https://noesis.example/mcp',
       clientId: 'thefloor',
       clientSecret: 's',
-      callbackUrl: 'https://floor.example/mdc/callback',
+      callbackUrl: 'https://floor.example/noesis/callback',
     };
 
     it('says nothing of a library without one, and keeps Claude’s date', async () => {

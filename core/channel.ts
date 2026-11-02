@@ -800,7 +800,7 @@ export function canEditChannel(state: ChannelState, userId: UserId): boolean {
  * The state with `owner`'s libraries set to `ids`, deduplicated and sorted,
  * beside everybody else's — none removing theirs, and the last owner gone
  * switching `library` off. Unchanged, the same object, so a repeat is no
- * change. The reducer's, and the server's for what mdc or a disconnect
+ * change. The reducer's, and the server's for what noesis or a disconnect
  * decides without anybody pressing.
  */
 export function withLibraries(state: ChannelState, owner: UserId, ids: readonly string[]): ChannelState {

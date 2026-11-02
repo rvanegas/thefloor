@@ -841,19 +841,19 @@ export interface SupportView {
 }
 
 /**
- * What Floor Settings is told about your own mdc library: whether this server
+ * What Floor Settings is told about your own noesis library: whether this server
  * offers libraries at all, and whether yours is connected and whose it is at
- * mdc. Fetched when that screen opens, and again when the app comes back from
- * mdc's sign-in. Since 2026-11-01; an older server answers 404, read as no card.
+ * noesis. Fetched when that screen opens, and again when the app comes back from
+ * noesis's sign-in. Since 2026-11-01; an older server answers 404, read as no card.
  */
-export interface MdcView {
+export interface NoesisView {
   available: boolean;
   connected: boolean;
-  /** mdc's user name for the library, and the address it signs in to mdc with. */
+  /** noesis's user name for the library, and the address it signs in to noesis with. */
   user?: string;
   email?: string | null;
   connectedAt?: number;
-  /** Their library ids at mdc, `user/library`, read again at each ask. */
+  /** Their library ids at noesis, `user/library`, read again at each ask. */
   libraries?: string[];
 }
 
@@ -1823,7 +1823,7 @@ export type ClientAction =
   /**
    * On sets your own libraries here, and is refused from anybody without one
    * connected; off is `owner`'s, or everybody's. Refused from every account
-   * on a server that has no mdc. Unknown to a server that predates it, which
+   * on a server that has no noesis. Unknown to a server that predates it, which
    * an app never sends it to: such a server never offers the switch.
    */
   | { type: 'SET_LIBRARY'; library: boolean; libraries?: string[]; owner?: string }

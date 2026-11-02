@@ -6,7 +6,7 @@ consulted one library, Rodrigo's, through one bearer token on the server
 Since this change **every account may connect its own**, on *Floor Settings*,
 by signing in at mdc — and a channel's switch consults the library of whoever
 turned it on. What remains to ship it is
-`task/claude-draws-on-the-mdc-library-through-mcp.md`.
+`task/claude-draws-on-the-noesis-library-through-mcp.md`.
 
 ## Why, and what was decided elsewhere
 

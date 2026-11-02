@@ -31,7 +31,7 @@ import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 import type { LanguagePreference } from '../../../core/settings';
 import { useText } from '../i18n';
-import type { MdcView, ProView } from '../../../core/protocol';
+import type { NoesisView, ProView } from '../../../core/protocol';
 
 /**
  * The app and the account: how it looks, what it stores, and the two ways out.
@@ -639,7 +639,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         <Text style={type.muted}>{t.privacyNote()}</Text>
       </Card>
 
-      <MdcCard />
+      <NoesisCard />
 
       <ProCard />
 
@@ -787,23 +787,23 @@ const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes
  * force within a choice, and a subscription is not one of those.
  */
 /**
- * Your own mdc library, since 2026-11-01: connecting it is what lets you
+ * Your own noesis library, since 2026-11-01: connecting it is what lets you
  * switch a channel's *Library* on, and it is then yours that Claude consults
  * there. Drawn only where the server offers libraries — an older server
  * answers 404, read as no card, as `ProCard` reads a failure.
  *
- * **Connect opens mdc's sign-in in the browser**, not inside the app: the
- * server's callback sends a phone back with `thefloor://mdc`, which the
+ * **Connect opens noesis's sign-in in the browser**, not inside the app: the
+ * server's callback sends a phone back with `thefloor://noesis`, which the
  * app's other link handlers do not match, and the web app's tab is closed by
  * hand. Either way the status is read again whenever the app comes back to
  * the front, which is the one signal both have; *Connecting…* lasts until
  * then. Disconnect confirms, being the one direction that takes something
  * away from rooms other people are in.
  */
-function MdcCard() {
+function NoesisCard() {
   const app = useApp();
   const t = useText().homeSettings;
-  const [view, setView] = useState<MdcView | null>(null);
+  const [view, setView] = useState<NoesisView | null>(null);
   const [busy, setBusy] = useState<'connecting' | 'disconnecting' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -811,7 +811,7 @@ function MdcCard() {
     let cancelled = false;
     const read = async () => {
       try {
-        const next = await app.loadMdc();
+        const next = await app.loadNoesis();
         if (cancelled) return;
         setView(next);
         setBusy((was) => (was === 'connecting' ? null : was));
@@ -824,8 +824,8 @@ function MdcCard() {
       if (state === 'active') void read();
     });
     const link = Linking.addEventListener('url', ({ url }) => {
-      if (!url.startsWith('thefloor://mdc')) return;
-      setMessage(url.includes('result=failed') ? t.mdcFailed() : null);
+      if (!url.startsWith('thefloor://noesis')) return;
+      setMessage(url.includes('result=failed') ? t.noesisFailed() : null);
       void read();
     });
     return () => {
@@ -841,7 +841,7 @@ function MdcCard() {
     setMessage(null);
     setBusy('connecting');
     try {
-      const url = await app.connectMdc(Platform.OS === 'web' ? 'web' : 'app');
+      const url = await app.connectNoesis(Platform.OS === 'web' ? 'web' : 'app');
       await Linking.openURL(url);
     } catch (e) {
       setBusy(null);
@@ -850,17 +850,17 @@ function MdcCard() {
   };
 
   const disconnect = () =>
-    Alert.alert(t.mdcDisconnectAsk(), t.mdcDisconnectBody(), [
+    Alert.alert(t.noesisDisconnectAsk(), t.noesisDisconnectBody(), [
       { text: t.cancel(), style: 'cancel' },
       {
-        text: t.mdcDisconnect(),
+        text: t.noesisDisconnect(),
         style: 'destructive',
         onPress: async () => {
           setMessage(null);
           setBusy('disconnecting');
           try {
-            await app.disconnectMdc();
-            setView(await app.loadMdc());
+            await app.disconnectNoesis();
+            setView(await app.loadNoesis());
           } catch (e) {
             setMessage(e instanceof Error ? e.message : String(e));
           } finally {
@@ -872,33 +872,33 @@ function MdcCard() {
 
   return (
     <>
-      <SectionLabel>{t.mdcLibrary()}</SectionLabel>
+      <SectionLabel>{t.noesisLibrary()}</SectionLabel>
       <Card style={styles.stack}>
         {view.connected ? (
           <>
             <Text style={type.body}>
-              {t.mdcConnectedAs(view.user ?? '', view.email ?? null)}
+              {t.noesisConnectedAs(view.user ?? '', view.email ?? null)}
             </Text>
             <Text style={type.body}>
-              {t.mdcLibraries(
+              {t.noesisLibraries(
                 (view.libraries ?? []).map((id) => id.split('/').slice(1).join('/') || id)
               )}
             </Text>
             <Button
-              label={busy === 'disconnecting' ? t.mdcDisconnecting() : t.mdcDisconnect()}
+              label={busy === 'disconnecting' ? t.noesisDisconnecting() : t.noesisDisconnect()}
               disabled={busy !== null}
               onPress={disconnect}
             />
-            <Text style={type.muted}>{t.mdcConnectedNote()}</Text>
+            <Text style={type.muted}>{t.noesisConnectedNote()}</Text>
           </>
         ) : (
           <>
             <Button
-              label={busy === 'connecting' ? t.mdcConnecting() : t.mdcConnect()}
+              label={busy === 'connecting' ? t.noesisConnecting() : t.noesisConnect()}
               disabled={busy !== null}
               onPress={() => void connect()}
             />
-            <Text style={type.muted}>{t.mdcAbout()}</Text>
+            <Text style={type.muted}>{t.noesisAbout()}</Text>
           </>
         )}
         {message ? <Text style={type.muted}>{message}</Text> : null}

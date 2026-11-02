@@ -5,7 +5,7 @@ can now consult Rodrigo's **mdc library** — his own writing, some six hundred
 chats and documents, indexed by term on the `commons` box — so a reply can say
 *as you wrote in On Attention* and mean it. The first step of the integration
 mdc's `SERVER.md` (Phase 5 and after) heads towards. What remains to ship it is
-`task/claude-draws-on-the-mdc-library-through-mcp.md`.
+`task/claude-draws-on-the-noesis-library-through-mcp.md`.
 
 **Nothing in The Floor speaks MCP.** The Messages API's MCP connector (beta
 `mcp-client-2025-11-20`) is handed mdc's URL and a bearer token, and

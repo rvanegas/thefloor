@@ -22,7 +22,7 @@ import {
   type NotificationLevel,
 } from '../../../core/notifications';
 import type { ChannelState, ResponseModel, TranscriptionModel } from '../../../core/types';
-import type { MdcView } from '../../../core/protocol';
+import type { NoesisView } from '../../../core/protocol';
 import { API_URL } from '../api/config';
 import { api, type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
@@ -186,18 +186,18 @@ export function ChannelSettingsView({
   const library = channel.library ?? false;
   const mayChangeLibrary = view?.mayChangeLibrary ?? false;
   /**
-   * Your own libraries at mdc, for the toggles: read when the card is drawn,
-   * since a library made or deleted at mdc is news only mdc has. Null until
+   * Your own libraries at noesis, for the toggles: read when the card is drawn,
+   * since a library made or deleted at noesis is news only noesis has. Null until
    * read, and on a server that answers nothing.
    */
-  const [mdc, setMdc] = useState<MdcView | null>(null);
+  const [noesis, setNoesis] = useState<NoesisView | null>(null);
   useEffect(() => {
     if (!view?.libraryAvailable) return;
     let cancelled = false;
     (async () => {
       try {
-        const found = await app.loadMdc();
-        if (!cancelled) setMdc(found);
+        const found = await app.loadNoesis();
+        if (!cancelled) setNoesis(found);
       } catch {
         // An older server: the one switch, as before.
       }
@@ -604,7 +604,7 @@ export function ChannelSettingsView({
           channel={channel}
           me={app.me?.id ?? ''}
           nameOf={(id) => view.participants.find((p) => p.id === id)?.displayName ?? null}
-          mine={mdc?.connected ? (mdc.libraries ?? []) : null}
+          mine={noesis?.connected ? (noesis.libraries ?? []) : null}
           mayEdit={mayEdit}
           mayChangeLibrary={mayChangeLibrary}
           refusedWhy={community && !owner ? t.ownerOnly() : t.libraryStepIn()}
@@ -900,7 +900,7 @@ const styles = StyleSheet.create({
  */
 /**
  * *Library*, since 2026-11-01 one toggle per library of yours: the grant at
- * mdc reaches all of them, and each toggle is consent to that one library's
+ * noesis reaches all of them, and each toggle is consent to that one library's
  * writing reaching this room's *Record*. Turning the first on makes the
  * channel consult yours; turning the last off switches it off.
  *
@@ -926,7 +926,7 @@ function LibraryCard({
   me: string;
   /** Somebody's name as the room knows them, or null once they have left. */
   nameOf: (id: string) => string | null;
-  /** Your library ids at mdc, or null when you have none connected. */
+  /** Your library ids at noesis, or null when you have none connected. */
   mine: string[] | null;
   mayEdit: boolean;
   mayChangeLibrary: boolean;

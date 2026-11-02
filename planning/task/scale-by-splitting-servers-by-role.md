@@ -7,7 +7,7 @@ settled before volume arrives, not while it is arriving.
 both boxes was considered and rejected the same day: of everything on
 `floor` and `commons`, only the static sites (noesis, www) can run twice.
 thefloor keeps channel state in process memory, imitation's Telegram token
-admits one poller, minifiles and mdc keep their state on local disk, and two
+admits one poller, minifiles and noesis keep their state on local disk, and two
 A records at Namecheap are round-robin without health checks, not failover.
 So the boxes stay distinct, and grow along two axes: **media servers**
 (LiveKit, egress) and **everything else** (thefloor's server, and the
@@ -55,7 +55,7 @@ it is the expensive one, and because it is two jobs, not one:
   not balance by connection. Between rooms a channel can move freely, which
   is what the shared database buys.
 
-The commons applications' own state — mdc's `/srv/mdc`, minifiles'
+The commons applications' own state — noesis's `/srv/noesis`, minifiles'
 `hits.db`, imitation's single poller — is a separate question for whenever
 any of them grows, and none is near a limit. `rvanegas-site/PROJECTS.md` is
 where their placement is recorded.

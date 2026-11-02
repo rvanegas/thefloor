@@ -28,7 +28,7 @@ import {
   type RecordSources,
 } from '../src/claude';
 import { openDb } from '../src/db';
-import type { MdcOptions } from '../src/mdc';
+import type { NoesisOptions } from '../src/noesis';
 import { MemoryMailer } from '../src/mail';
 
 /**
@@ -153,12 +153,12 @@ describe('the instructions', () => {
 
   it('says nothing of a library unless the press consults one', () => {
     for (const length of ['brief', 'medium', 'extended'] as const) {
-      expect(systemPrompt(length)).not.toMatch(/library|mdc|Related/);
+      expect(systemPrompt(length)).not.toMatch(/library|noesis|Related/);
       expect(systemPrompt(length, undefined)).toBe(systemPrompt(length));
     }
   });
 
-  it('names the library’s owner, keeps citation inline against mdc’s guide, and keeps the limit', () => {
+  it('names the library’s owner, keeps citation inline against noesis’s guide, and keeps the limit', () => {
     const prompt = systemPrompt('medium', [{ owner: 'Rodrigo', libraries: ['rodrigo/notes'] }]);
     expect(prompt).toContain('Rodrigo’s own writing');
     expect(prompt).toContain('only when the conversation turns to something Rodrigo has written about');
@@ -267,27 +267,27 @@ let dir: string;
 beforeEach(() => {
   clock = T0;
   dir = mkdtempSync(join(tmpdir(), 'thefloor-claude-'));
-  mdcCalls.length = 0;
-  mdcRefuses = false;
-  mdcLibraries = ['alice/philosophy'];
+  noesisCalls.length = 0;
+  noesisRefuses = false;
+  noesisLibraries = ['alice/philosophy'];
 });
 
 /**
- * mdc, answered here: its token endpoint, `/me` and `/revoke`. A code trades
- * for `secret`, each refresh for `secret-<n>`, and `mdcRefuses` makes every
- * token request a 400, as mdc answers a grant it no longer honours.
+ * noesis, answered here: its token endpoint, `/me` and `/revoke`. A code trades
+ * for `secret`, each refresh for `secret-<n>`, and `noesisRefuses` makes every
+ * token request a 400, as noesis answers a grant it no longer honours.
  */
-const mdcCalls: Array<{ path: string; fields: Record<string, string> }> = [];
-let mdcRefuses = false;
-/** What mdc's `/me` lists as the person's libraries. */
-let mdcLibraries = ['alice/philosophy'];
-const fakeMdc = (async (input: unknown, init?: { body?: unknown }) => {
+const noesisCalls: Array<{ path: string; fields: Record<string, string> }> = [];
+let noesisRefuses = false;
+/** What noesis's `/me` lists as the person's libraries. */
+let noesisLibraries = ['alice/philosophy'];
+const fakeNoesis = (async (input: unknown, init?: { body?: unknown }) => {
   const url = new URL(String(input));
   const fields = Object.fromEntries(new URLSearchParams(String(init?.body ?? '')));
-  mdcCalls.push({ path: url.pathname, fields });
+  noesisCalls.push({ path: url.pathname, fields });
   if (url.pathname === '/token') {
-    if (mdcRefuses) return new Response('{"error":"invalid_grant"}', { status: 400 });
-    const n = mdcCalls.filter((call) => call.path === '/token').length;
+    if (noesisRefuses) return new Response('{"error":"invalid_grant"}', { status: 400 });
+    const n = noesisCalls.filter((call) => call.path === '/token').length;
     return Response.json({
       access_token: fields.grant_type === 'authorization_code' ? 'secret' : `secret-${n}`,
       refresh_token: `refresh-${n}`,
@@ -295,23 +295,23 @@ const fakeMdc = (async (input: unknown, init?: { body?: unknown }) => {
     });
   }
   if (url.pathname === '/me') {
-    return Response.json({ user: 'alice', email: 'alice@example.com', libraries: mdcLibraries });
+    return Response.json({ user: 'alice', email: 'alice@example.com', libraries: noesisLibraries });
   }
   return new Response(null, { status: 200 });
 }) as typeof fetch;
 
-const MDC: MdcOptions = {
-  url: 'https://mdc.example/mcp',
+const NOESIS: NoesisOptions = {
+  url: 'https://noesis.example/mcp',
   clientId: 'thefloor',
   clientSecret: 'client-secret',
-  callbackUrl: 'https://floor.example/mdc/callback',
-  fetch: fakeMdc,
+  callbackUrl: 'https://floor.example/noesis/callback',
+  fetch: fakeNoesis,
 };
 
-/** Connects an account's library the way the callback does, past mdc's sign-in. */
+/** Connects an account's library the way the callback does, past noesis's sign-in. */
 async function connect(accountId: string) {
-  const state = new URL(app.mdc!.start(accountId, 'app')).searchParams.get('state')!;
-  return app.mdc!.finish(state, 'code', undefined);
+  const state = new URL(app.noesis!.start(accountId, 'app')).searchParams.get('state')!;
+  return app.noesis!.finish(state, 'code', undefined);
 }
 
 afterEach(async () => {
@@ -325,7 +325,7 @@ afterEach(async () => {
 function boot(
   client?: ClaudeClient,
   timeoutMs?: number,
-  library?: MdcOptions,
+  library?: NoesisOptions,
   libraryTimeoutMs?: number
 ): App {
   app = buildApp({
@@ -637,7 +637,7 @@ describe('Ask Claude', () => {
 
 describe('what a response posts', () => {
   const text = (t: string) => ({ type: 'text', text: t });
-  const use = { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'mdc', input: {} };
+  const use = { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'noesis', input: {} };
   const result = { type: 'mcp_tool_result', tool_use_id: 'u', is_error: false, content: [] };
 
   it('is all of its text when nothing was looked up, and never the thinking', () => {
@@ -682,13 +682,13 @@ describe('what a response posts', () => {
 
 describe('which presses consult the library', () => {
   const LIB: LibraryOptions = {
-    url: 'https://mdc.example/mcp',
+    url: 'https://noesis.example/mcp',
     tokenFor: async (accountId) => ({ a: 'ta', b: 'tb' })[accountId] ?? null,
   };
   const grades = ['standard', 'pro', 'max'] as const;
   const on = { library: true, libraries: { a: ['a/x', 'a/y'] }, participants: ['a', 'b'] };
-  const a = { url: 'https://mdc.example/mcp?libraries=a%2Fx%2Ca%2Fy', token: 'ta', owner: 'a', libraries: ['a/x', 'a/y'] };
-  const b = { url: 'https://mdc.example/mcp?libraries=b%2Fz', token: 'tb', owner: 'b', libraries: ['b/z'] };
+  const a = { url: 'https://noesis.example/mcp?libraries=a%2Fx%2Ca%2Fy', token: 'ta', owner: 'a', libraries: ['a/x', 'a/y'] };
+  const b = { url: 'https://noesis.example/mcp?libraries=b%2Fz', token: 'tb', owner: 'b', libraries: ['b/z'] };
 
   it('is none while the channel’s switch is off, on every grade', async () => {
     for (const grade of grades) {
@@ -723,7 +723,7 @@ describe('which presses consult the library', () => {
 });
 
 describe('a press with the library', () => {
-  const LIBRARY = MDC;
+  const LIBRARY = NOESIS;
 
   const setUp = async (
     grade: 'standard' | 'pro' | 'max',
@@ -752,7 +752,7 @@ describe('a press with the library', () => {
     return { ...fake, ...people };
   };
 
-  it('hands mdc to Claude on Pro, reading tools only, whoever presses', async () => {
+  it('hands noesis to Claude on Pro, reading tools only, whoever presses', async () => {
     const { calls, bob, channelId } = await setUp('pro');
     // Bob owns nothing; the switch is the channel's.
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
@@ -764,12 +764,12 @@ describe('a press with the library', () => {
       mcp_servers: [
         {
           type: 'url',
-          url: 'https://mdc.example/mcp?libraries=alice%2Fphilosophy',
-          name: 'mdc',
+          url: 'https://noesis.example/mcp?libraries=alice%2Fphilosophy',
+          name: 'noesis',
           authorization_token: 'secret',
         },
       ],
-      tools: [{ type: 'mcp_toolset', mcp_server_name: 'mdc', default_config: { enabled: false } }],
+      tools: [{ type: 'mcp_toolset', mcp_server_name: 'noesis', default_config: { enabled: false } }],
     });
     const configs = (calls[0].body as { tools: Array<{ configs: Record<string, unknown> }> }).tools[0]
       .configs;
@@ -794,7 +794,7 @@ describe('a press with the library', () => {
 
   it('hands Claude a server per owner when several people’s are on, and says whose each is', async () => {
     const { calls, alice, bob, channelId } = await setUp('pro');
-    mdcLibraries = ['bob/essays'];
+    noesisLibraries = ['bob/essays'];
     await connect(bob.account.id);
     app.channels.dispatch(channelId, bob.account.id, {
       type: 'SET_LIBRARY',
@@ -807,16 +807,16 @@ describe('a press with the library', () => {
       .sort((x, y) => (x.id < y.id ? -1 : 1));
     const url = (id: string) =>
       id === alice.account.id
-        ? 'https://mdc.example/mcp?libraries=alice%2Fphilosophy'
-        : 'https://mdc.example/mcp?libraries=bob%2Fessays';
+        ? 'https://noesis.example/mcp?libraries=alice%2Fphilosophy'
+        : 'https://noesis.example/mcp?libraries=bob%2Fessays';
     expect(calls[0].body).toMatchObject({
       mcp_servers: [
-        { name: 'mdc', url: url(first.id) },
-        { name: 'mdc-2', url: url(second.id) },
+        { name: 'noesis', url: url(first.id) },
+        { name: 'noesis-2', url: url(second.id) },
       ],
       tools: [
-        { type: 'mcp_toolset', mcp_server_name: 'mdc' },
-        { type: 'mcp_toolset', mcp_server_name: 'mdc-2' },
+        { type: 'mcp_toolset', mcp_server_name: 'noesis' },
+        { type: 'mcp_toolset', mcp_server_name: 'noesis-2' },
       ],
     });
     const libraries = (id: string) => (id === alice.account.id ? ['alice/philosophy'] : ['bob/essays']);
@@ -835,7 +835,7 @@ describe('a press with the library', () => {
         model: 'claude-sonnet-5-5',
         content: [
           { type: 'text', text: 'Let me look that up.' },
-          { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'mdc', input: {} },
+          { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'noesis', input: {} },
           { type: 'mcp_tool_result', tool_use_id: 'u', is_error: false, content: [] },
           { type: 'text', text: `${answer}\n\n## Related\n\n| *On Attention*` },
         ],
@@ -856,9 +856,9 @@ describe('a press with the library', () => {
     ]);
   });
 
-  it('asks once more without mdc when a request with it fails, and posts that answer', async () => {
+  it('asks once more without noesis when a request with it fails, and posts that answer', async () => {
     const { calls, bob, channelId } = await setUp('pro', true, (call) => {
-      if (call.body.mcp_servers) throw new Error('mdc unreachable');
+      if (call.body.mcp_servers) throw new Error('noesis unreachable');
       return reply('Without the library.', { model: 'claude-sonnet-5-5' });
     });
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
@@ -909,9 +909,9 @@ describe('a press with the library', () => {
     const withLookups = reply('', {
       model: 'claude-sonnet-5-5',
       content: [
-        { type: 'mcp_tool_use', id: 'a', name: 'guide', server_name: 'mdc', input: {} },
+        { type: 'mcp_tool_use', id: 'a', name: 'guide', server_name: 'noesis', input: {} },
         { type: 'mcp_tool_result', tool_use_id: 'a', is_error: false, content: [] },
-        { type: 'mcp_tool_use', id: 'b', name: 'lookup_term', server_name: 'mdc', input: {} },
+        { type: 'mcp_tool_use', id: 'b', name: 'lookup_term', server_name: 'noesis', input: {} },
         { type: 'mcp_tool_result', tool_use_id: 'b', is_error: false, content: [] },
         { type: 'text', text: 'Found it.' },
       ],
@@ -926,9 +926,9 @@ describe('a press with the library', () => {
     expect(usageRows().map((row) => row.library_calls)).toEqual([2, 0, null]);
   });
 
-  it('ledgers no lookups when mdc failed and the press went without it', async () => {
+  it('ledgers no lookups when noesis failed and the press went without it', async () => {
     const { bob, channelId } = await setUp('pro', true, (call) => {
-      if (call.body.mcp_servers) throw new Error('mdc unreachable');
+      if (call.body.mcp_servers) throw new Error('noesis unreachable');
       return reply('Without the library.', { model: 'claude-sonnet-5-5' });
     });
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
@@ -959,7 +959,7 @@ describe('a press with the library', () => {
   it('resumes a paused turn with what it returned, and ledgers both halves', async () => {
     const working = [
       { type: 'text', text: 'Let me look that up.' },
-      { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'mdc', input: {} },
+      { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'noesis', input: {} },
       { type: 'mcp_tool_result', tool_use_id: 'u', is_error: false, content: [] },
     ];
     let n = 0;
@@ -992,7 +992,7 @@ describe('a press with the library', () => {
       model: 'claude-sonnet-5-5',
       stop_reason: 'pause_turn',
       content: [
-        { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'mdc', input: {} },
+        { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'noesis', input: {} },
         { type: 'mcp_tool_result', tool_use_id: 'u', is_error: false, content: [] },
       ],
     });
@@ -1034,18 +1034,18 @@ describe('a press with the library', () => {
 });
 
 describe('the library switch', () => {
-  // On names whatever mdc lists for whoever switches: the fake lists one set
+  // On names whatever noesis lists for whoever switches: the fake lists one set
   // for everybody, so a test with two owners changes it between connects.
   const set = (channelId: string, userId: string, library: unknown) =>
     app.channels.dispatch(channelId, userId, {
       type: 'SET_LIBRARY',
       library,
-      ...(library === true ? { libraries: app.mdc?.librariesOf(userId) ?? [] } : {}),
+      ...(library === true ? { libraries: app.noesis?.librariesOf(userId) ?? [] } : {}),
     } as never);
 
   it('is switched on as the library of whoever has one connected, and survives a restart', async () => {
     const { client } = fakeClient(() => reply('x'));
-    boot(client, undefined, MDC);
+    boot(client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
@@ -1056,23 +1056,23 @@ describe('the library switch', () => {
 
     app.channels.stop();
     await app.fastify.close();
-    boot(client, undefined, MDC);
+    boot(client, undefined, NOESIS);
     expect(app.channels.get(channelId)).toMatchObject({
       library: true,
       libraries: { [alice.account.id]: ['alice/philosophy'] },
     });
-    expect(app.mdc!.connected(alice.account.id)).toBe(true);
+    expect(app.noesis!.connected(alice.account.id)).toBe(true);
     expect(set(channelId, alice.account.id, false)).toMatchObject({ ok: true });
     expect(app.channels.get(channelId)!.library).toBe(false);
   });
 
   it('is refused on, by name, to anybody without a library connected, and is anybody’s to switch off', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, bob, channelId } = await room2();
     expect(set(channelId, bob.account.id, true)).toMatchObject({
       ok: false,
       code: 'forbidden',
-      error: 'Connect your mdc library on Floor Settings to offer it here.',
+      error: 'Connect your noesis library on Floor Settings to offer it here.',
     });
     expect(app.channels.get(channelId)!.library).toBe(false);
     await connect(alice.account.id);
@@ -1083,7 +1083,7 @@ describe('the library switch', () => {
   });
 
   it('refuses anything but true or false, even from somebody connected', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
     for (const value of ['yes', undefined, 1]) {
@@ -1091,7 +1091,7 @@ describe('the library switch', () => {
     }
   });
 
-  it('is no action at all on a server without mdc, or without Claude to consult it', async () => {
+  it('is no action at all on a server without noesis, or without Claude to consult it', async () => {
     boot(fakeClient(() => reply('x')).client);
     let { alice, channelId } = await room2();
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: false, code: 'invalid' });
@@ -1100,7 +1100,7 @@ describe('the library switch', () => {
     await app.fastify.close();
     rmSync(dir, { recursive: true, force: true });
     dir = mkdtempSync(join(tmpdir(), 'thefloor-claude-'));
-    boot(undefined, undefined, MDC);
+    boot(undefined, undefined, NOESIS);
     ({ alice, channelId } = await room2());
     expect(set(channelId, alice.account.id, false)).toMatchObject({ ok: false, code: 'invalid' });
     expect(app.channels.get(channelId)!.library).toBe(false);
@@ -1125,7 +1125,7 @@ describe('the library switch', () => {
       throw new Error('no channel message arrived');
     };
 
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     await app.fastify.listen({ port: 0, host: '127.0.0.1' });
     let { alice, bob, channelId } = await room2();
     await connect(alice.account.id);
@@ -1141,7 +1141,7 @@ describe('the library switch', () => {
     set(channelId, alice.account.id, true);
     expect(await firstView(bob.token, channelId)).toMatchObject({ mayChangeLibrary: true });
 
-    // Claude without mdc: neither field, as an old server sends neither.
+    // Claude without noesis: neither field, as an old server sends neither.
     app.channels.stop();
     await app.fastify.close();
     rmSync(dir, { recursive: true, force: true });
@@ -1156,7 +1156,7 @@ describe('the library switch', () => {
   });
 
   it('refuses on without naming which libraries', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
     const bare = app.channels.dispatch(channelId, alice.account.id, {
@@ -1168,8 +1168,8 @@ describe('the library switch', () => {
   });
 
   it('takes the libraries a new build names, the owner’s own only, beside anybody else’s', async () => {
-    mdcLibraries = ['alice/notes', 'alice/philosophy'];
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    noesisLibraries = ['alice/notes', 'alice/philosophy'];
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, bob, channelId } = await room2();
     await connect(alice.account.id);
     const choose = (userId: string, libraries: unknown) =>
@@ -1183,7 +1183,7 @@ describe('the library switch', () => {
     expect(choose(alice.account.id, 'alice/notes')).toMatchObject({ ok: false, code: 'invalid' });
 
     // Bob, with his own library, puts it on beside Alice's — and not hers.
-    mdcLibraries = ['bob/essays'];
+    noesisLibraries = ['bob/essays'];
     await connect(bob.account.id);
     expect(choose(bob.account.id, ['alice/notes'])).toMatchObject({ ok: false, code: 'invalid' });
     expect(choose(bob.account.id, ['bob/essays'])).toMatchObject({ ok: true });
@@ -1197,7 +1197,7 @@ describe('the library switch', () => {
     const { client } = fakeClient(() => reply('x'));
     app.channels.stop();
     await app.fastify.close();
-    boot(client, undefined, MDC);
+    boot(client, undefined, NOESIS);
     expect(app.channels.get(channelId)).toMatchObject({ library: true, libraries: both });
 
     // Alice may stop Bob's by name, and Alice's stays.
@@ -1213,9 +1213,9 @@ describe('the library switch', () => {
     });
   });
 
-  it('drops a library deleted at mdc from every channel, and goes off with none left', async () => {
-    mdcLibraries = ['alice/notes', 'alice/philosophy'];
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+  it('drops a library deleted at noesis from every channel, and goes off with none left', async () => {
+    noesisLibraries = ['alice/notes', 'alice/philosophy'];
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, {
@@ -1223,13 +1223,13 @@ describe('the library switch', () => {
       library: true,
       libraries: ['alice/notes', 'alice/philosophy'],
     } as never);
-    const look = () => app.fastify.inject({ method: 'GET', url: '/me/mdc', headers: auth(alice.token) });
+    const look = () => app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
 
-    mdcLibraries = ['alice/philosophy', 'alice/new'];
+    noesisLibraries = ['alice/philosophy', 'alice/new'];
     expect((await look()).json()).toMatchObject({ libraries: ['alice/philosophy', 'alice/new'] });
     expect(app.channels.get(channelId)!.libraries).toEqual({ [alice.account.id]: ['alice/philosophy'] });
 
-    mdcLibraries = ['alice/new'];
+    noesisLibraries = ['alice/new'];
     await look();
     expect(app.channels.get(channelId)!.library).toBe(false);
     expect(app.channels.get(channelId)).not.toHaveProperty('libraries');
@@ -1237,7 +1237,7 @@ describe('the library switch', () => {
 
   it('consults nothing once its owner has left the channel', async () => {
     const fake = fakeClient(() => reply('Plain.', { model: 'claude-sonnet-5-5' }));
-    boot(fake.client, undefined, MDC);
+    boot(fake.client, undefined, NOESIS);
     const { alice, bob, channelId } = await room2();
     app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
     set(channelId, alice.account.id, false);
@@ -1255,55 +1255,55 @@ describe('the library switch', () => {
   });
 });
 
-describe('connecting an mdc library', () => {
-  it('reads as unavailable where the server has no mdc', async () => {
+describe('connecting an noesis library', () => {
+  it('reads as unavailable where the server has no noesis', async () => {
     boot(fakeClient(() => reply('x')).client);
     const { alice } = await room2();
-    const status = await app.fastify.inject({ method: 'GET', url: '/me/mdc', headers: auth(alice.token) });
+    const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
     expect(status.json()).toEqual({ available: false, connected: false });
     const connecting = await app.fastify.inject({
       method: 'POST',
-      url: '/me/mdc/connect',
+      url: '/me/noesis/connect',
       headers: auth(alice.token),
       payload: {},
     });
     expect(connecting.statusCode).toBe(503);
   });
 
-  it('signs in at mdc and comes back connected, into the app or onto a page', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+  it('signs in at noesis and comes back connected, into the app or onto a page', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice } = await room2();
     const started = await app.fastify.inject({
       method: 'POST',
-      url: '/me/mdc/connect',
+      url: '/me/noesis/connect',
       headers: auth(alice.token),
       payload: { returnTo: 'app' },
     });
     const url = new URL(started.json().url);
-    expect(url.origin + url.pathname).toBe('https://mdc.example/authorize');
+    expect(url.origin + url.pathname).toBe('https://noesis.example/authorize');
     expect(url.searchParams.get('client_id')).toBe('thefloor');
-    expect(url.searchParams.get('redirect_uri')).toBe('https://floor.example/mdc/callback');
+    expect(url.searchParams.get('redirect_uri')).toBe('https://floor.example/noesis/callback');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
 
     const back = await app.fastify.inject({
       method: 'GET',
-      url: `/mdc/callback?state=${url.searchParams.get('state')}&code=abc`,
+      url: `/noesis/callback?state=${url.searchParams.get('state')}&code=abc`,
     });
     expect(back.statusCode).toBe(302);
-    expect(back.headers.location).toBe('thefloor://mdc?result=connected');
-    const exchange = mdcCalls.find((call) => call.path === '/token')!.fields;
+    expect(back.headers.location).toBe('thefloor://noesis?result=connected');
+    const exchange = noesisCalls.find((call) => call.path === '/token')!.fields;
     expect(exchange).toMatchObject({
       grant_type: 'authorization_code',
       code: 'abc',
       client_id: 'thefloor',
       client_secret: 'client-secret',
-      redirect_uri: 'https://floor.example/mdc/callback',
+      redirect_uri: 'https://floor.example/noesis/callback',
     });
     // The verifier is the challenge's.
     expect(createHash('sha256').update(exchange.code_verifier).digest('base64url')).toBe(
       url.searchParams.get('code_challenge')
     );
-    const status = await app.fastify.inject({ method: 'GET', url: '/me/mdc', headers: auth(alice.token) });
+    const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
     expect(status.json()).toMatchObject({
       available: true,
       connected: true,
@@ -1311,83 +1311,83 @@ describe('connecting an mdc library', () => {
       email: 'alice@example.com',
     });
     // The refresh token is sealed, never written as it came.
-    const row = app.db.prepare('SELECT refresh_token FROM mdc_connections').get() as { refresh_token: string };
+    const row = app.db.prepare('SELECT refresh_token FROM noesis_connections').get() as { refresh_token: string };
     expect(row.refresh_token).not.toContain('refresh-');
 
     // The same state twice is nothing: it was spent.
     const again = await app.fastify.inject({
       method: 'GET',
-      url: `/mdc/callback?state=${url.searchParams.get('state')}&code=abc`,
+      url: `/noesis/callback?state=${url.searchParams.get('state')}&code=abc`,
     });
     expect(again.statusCode).toBe(200);
     expect(again.body).toContain('was not connected');
 
     const web = await app.fastify.inject({
       method: 'POST',
-      url: '/me/mdc/connect',
+      url: '/me/noesis/connect',
       headers: auth(alice.token),
       payload: { returnTo: 'web' },
     });
     const state = new URL(web.json().url).searchParams.get('state');
-    const page = await app.fastify.inject({ method: 'GET', url: `/mdc/callback?state=${state}&code=def` });
+    const page = await app.fastify.inject({ method: 'GET', url: `/noesis/callback?state=${state}&code=def` });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('Your library is connected');
   });
 
-  it('says so, into the app, when the person declines at mdc', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+  it('says so, into the app, when the person declines at noesis', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice } = await room2();
-    const state = new URL(app.mdc!.start(alice.account.id, 'app')).searchParams.get('state');
-    const back = await app.fastify.inject({ method: 'GET', url: `/mdc/callback?state=${state}&error=access_denied` });
-    expect(back.headers.location).toBe('thefloor://mdc?result=failed');
-    expect(app.mdc!.connected(alice.account.id)).toBe(false);
+    const state = new URL(app.noesis!.start(alice.account.id, 'app')).searchParams.get('state');
+    const back = await app.fastify.inject({ method: 'GET', url: `/noesis/callback?state=${state}&error=access_denied` });
+    expect(back.headers.location).toBe('thefloor://noesis?result=failed');
+    expect(app.noesis!.connected(alice.account.id)).toBe(false);
   });
 
-  it('refreshes an expired token once for presses at the same moment, and drops a grant mdc refuses', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+  it('refreshes an expired token once for presses at the same moment, and drops a grant noesis refuses', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice } = await room2();
     await connect(alice.account.id);
-    expect(await app.mdc!.accessToken(alice.account.id)).toBe('secret');
+    expect(await app.noesis!.accessToken(alice.account.id)).toBe('secret');
     clock += 3600 * 1000;
     const both = await Promise.all([
-      app.mdc!.accessToken(alice.account.id),
-      app.mdc!.accessToken(alice.account.id),
+      app.noesis!.accessToken(alice.account.id),
+      app.noesis!.accessToken(alice.account.id),
     ]);
     expect(both).toEqual(['secret-2', 'secret-2']);
-    expect(mdcCalls.filter((call) => call.fields.grant_type === 'refresh_token')).toHaveLength(1);
-    expect(mdcCalls.at(-1)!.fields.refresh_token).toBe('refresh-1');
+    expect(noesisCalls.filter((call) => call.fields.grant_type === 'refresh_token')).toHaveLength(1);
+    expect(noesisCalls.at(-1)!.fields.refresh_token).toBe('refresh-1');
 
     clock += 3600 * 1000;
-    mdcRefuses = true;
-    expect(await app.mdc!.accessToken(alice.account.id)).toBeNull();
-    expect(app.mdc!.connected(alice.account.id)).toBe(false);
+    noesisRefuses = true;
+    expect(await app.noesis!.accessToken(alice.account.id)).toBeNull();
+    expect(app.noesis!.connected(alice.account.id)).toBe(false);
   });
 
-  it('disconnecting switches off every channel consulting it, and revokes at mdc', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+  it('disconnecting switches off every channel consulting it, and revokes at noesis', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
     const gone = await app.fastify.inject({
       method: 'POST',
-      url: '/me/mdc/disconnect',
+      url: '/me/noesis/disconnect',
       headers: auth(alice.token),
     });
     expect(gone.statusCode).toBe(204);
     expect(app.channels.get(channelId)!.library).toBe(false);
-    expect(app.mdc!.connected(alice.account.id)).toBe(false);
-    expect(mdcCalls.at(-1)).toMatchObject({ path: '/revoke', fields: { token: 'refresh-1' } });
+    expect(app.noesis!.connected(alice.account.id)).toBe(false);
+    expect(noesisCalls.at(-1)).toMatchObject({ path: '/revoke', fields: { token: 'refresh-1' } });
   });
 
   it('goes with the account, and the library with it from every channel', async () => {
-    boot(fakeClient(() => reply('x')).client, undefined, MDC);
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
     const deleted = await app.fastify.inject({ method: 'DELETE', url: '/me', headers: auth(alice.token) });
     expect(deleted.statusCode).toBe(204);
-    expect(app.db.prepare('SELECT COUNT(*) AS n FROM mdc_connections').get()).toEqual({ n: 0 });
-    expect(mdcCalls.at(-1)!.path).toBe('/revoke');
+    expect(app.db.prepare('SELECT COUNT(*) AS n FROM noesis_connections').get()).toEqual({ n: 0 });
+    expect(noesisCalls.at(-1)!.path).toBe('/revoke');
     expect(app.channels.get(channelId)?.library ?? false).toBe(false);
   });
 });

@@ -638,7 +638,7 @@ export function chooseWhatToShare(
  * **It says where and when without its filename**, since 2026-11-01: a first
  * line `The Floor — <channel>` and the date as `yyyy-mm-dd`, which carries the
  * year the log's day leaves out and reads the same in every language. A copy
- * pasted somewhere, or a download renamed, used to lose both; mdc's import
+ * pasted somewhere, or a download renamed, used to lose both; noesis's import
  * reads them from here.
  *
  * **Its batch transcript as held, or its live lines read afresh**, walking

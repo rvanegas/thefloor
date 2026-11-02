@@ -739,26 +739,26 @@ export const es: Strings = {
     proRestore: () => 'Restaurar compras',
     termsOfUse: () => 'Condiciones de uso',
     proNotFound: () => 'No se encontr\u00f3 ninguna suscripci\u00f3n Pro para esta cuenta.',
-    mdcLibrary: () => 'Biblioteca de mdc',
-    mdcAbout: () =>
-      'Conecta tu biblioteca de mdc y podrás dejar que Claude la consulte en los canales que elijas, en Ajustes del canal. Al conectarla se abre el acceso a mdc en tu navegador.',
-    mdcConnect: () => 'Conectar',
-    mdcConnecting: () => 'Conectando…',
-    mdcConnectedAs: (user: string, email: string | null) =>
+    noesisLibrary: () => 'Biblioteca de noesis',
+    noesisAbout: () =>
+      'Conecta tu biblioteca de noesis y podrás dejar que Claude la consulte en los canales que elijas, en Ajustes del canal. Al conectarla se abre el acceso a noesis en tu navegador.',
+    noesisConnect: () => 'Conectar',
+    noesisConnecting: () => 'Conectando…',
+    noesisConnectedAs: (user: string, email: string | null) =>
       email ? `Conectada como ${user} (${email}).` : `Conectada como ${user}.`,
-    mdcLibraries: (libraries: string[]) =>
+    noesisLibraries: (libraries: string[]) =>
       libraries.length
         ? `${libraries.length === 1 ? 'Tu biblioteca' : 'Tus bibliotecas'} allí: ${libraries.join(', ')}.`
-        : 'Todavía no tienes ninguna biblioteca en mdc.',
-    mdcConnectedNote: () =>
+        : 'Todavía no tienes ninguna biblioteca en noesis.',
+    noesisConnectedNote: () =>
       'Elige cuáles puede consultar un canal en sus Ajustes del canal. Al desconectarla se desactivan en todos los canales.',
-    mdcDisconnect: () => 'Desconectar',
-    mdcDisconnecting: () => 'Desconectando…',
-    mdcDisconnectAsk: () => '¿Desconectar tu biblioteca de mdc?',
-    mdcDisconnectBody: () =>
-      'Claude deja de consultarla en todos los canales donde está activada. La biblioteca sigue en mdc, y puedes volver a conectarla cuando quieras.',
-    mdcFailed: () =>
-      'Tu biblioteca no se conectó. Vuelve a intentarlo y termina de acceder a mdc en el navegador.',
+    noesisDisconnect: () => 'Desconectar',
+    noesisDisconnecting: () => 'Desconectando…',
+    noesisDisconnectAsk: () => '¿Desconectar tu biblioteca de noesis?',
+    noesisDisconnectBody: () =>
+      'Claude deja de consultarla en todos los canales donde está activada. La biblioteca sigue en noesis, y puedes volver a conectarla cuando quieras.',
+    noesisFailed: () =>
+      'Tu biblioteca no se conectó. Vuelve a intentarlo y termina de acceder a noesis en el navegador.',
     storeUnreachable: () => 'Ahora mismo no se puede acceder a la App Store.',
     proNotConfirmed: () =>
       'La App Store lo acept\u00f3, pero aqu\u00ed todav\u00eda no se pudo confirmar. Se volver\u00e1 a intentar la pr\u00f3xima vez que abras la app.',
@@ -859,10 +859,10 @@ export const es: Strings = {
     // *Dueño*, as for a community's owner: see `ownerSuffix`.
     libraryNote: () =>
       'Si está activada, Claude puede apoyarse en los escritos del dueño de cada biblioteca al responder, y nombra cualquier texto que cite y de quién es. Se aplica en Pro y Max, a quien pregunte a Claude.',
-    libraryWho: () => 'Conecta tu biblioteca de mdc en Ajustes de The Floor para ofrecerla aquí.',
+    libraryWho: () => 'Conecta tu biblioteca de noesis en Ajustes de The Floor para ofrecerla aquí.',
     libraryChoose: () =>
       'Activa las bibliotecas que Claude puede consultar aquí. Cada una que actives es tu consentimiento para que sus escritos lleguen al Grabado de este canal.',
-    libraryNoneYet: () => 'Todavía no tienes ninguna biblioteca en mdc. Crea una allí y aparecerá aquí.',
+    libraryNoneYet: () => 'Todavía no tienes ninguna biblioteca en noesis. Crea una allí y aparecerá aquí.',
     libraryTheirs: (name: string, libraries: string[]) =>
       libraries.length === 1
         ? `Consultando la biblioteca de ${name}: ${libraries[0]}. Cualquiera aquí puede desactivarla.`

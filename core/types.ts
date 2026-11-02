@@ -1030,7 +1030,7 @@ export interface ChannelState {
    */
   responseModel: ResponseModel;
   /**
-   * Whether this channel's *Ask Claude* may consult mdc libraries — their
+   * Whether this channel's *Ask Claude* may consult noesis libraries — their
    * owners' own writing — on *Pro* and *Max*; *Standard* never does. Off on
    * every new channel, and true exactly while `libraries` names somebody.
    *
@@ -1044,11 +1044,11 @@ export interface ChannelState {
    */
   library: boolean;
   /**
-   * Whose libraries `library` consults, and which of each: an owner's mdc ids
+   * Whose libraries `library` consults, and which of each: an owner's noesis ids
    * (`user/library`), sorted, under the account that switched them on — a
    * toggle each on *Channel Settings*. Several owners at once since
-   * 2026-11-01; the grant at mdc reaches all of a person's libraries, and this
-   * selection is what a press asks mdc to open. Never holds an empty list:
+   * 2026-11-01; the grant at noesis reaches all of a person's libraries, and this
+   * selection is what a press asks noesis to open. Never holds an empty list:
    * an owner's last toggle off removes them. Absent while off.
    */
   libraries?: Record<UserId, string[]>;

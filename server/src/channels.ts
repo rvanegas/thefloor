@@ -1144,15 +1144,15 @@ export class ChannelRegistry {
      */
     private reachable: (userId: string) => boolean = () => true,
     /**
-     * Whether an account has its own mdc library connected (mdc.ts), and so
+     * Whether an account has its own noesis library connected (noesis.ts), and so
      * may switch a channel's library on — which makes it theirs that the
      * channel consults — and which libraries it has to choose from. `null`
-     * when this server has no mdc, or no Claude to consult it, and then
+     * when this server has no noesis, or no Claude to consult it, and then
      * nobody may. See `LibraryOptions` in claude.ts.
      */
     private libraryConnections: {
       connected: (userId: string) => boolean;
-      /** The person's mdc library ids as last read: what a selection may name. */
+      /** The person's noesis library ids as last read: what a selection may name. */
       librariesOf: (userId: string) => string[];
     } | null = null
   ) {
@@ -2200,7 +2200,7 @@ export class ChannelRegistry {
   }
 
   /**
-   * A person's libraries as mdc now lists them: each channel consulting
+   * A person's libraries as noesis now lists them: each channel consulting
    * theirs keeps only those still there, and stops consulting them when none
    * it had chosen is left. A library made since is never added — it is
    * toggled on where it is wanted.
@@ -2874,7 +2874,7 @@ export class ChannelRegistry {
     // that writing reaching this room's Record — so on is for somebody with a
     // library of their own connected, naming only their own, on top of the
     // reducer's channel guard; several people's may be on at once. Off is
-    // anybody's who may edit the channel. A server without mdc refuses it as
+    // anybody's who may edit the channel. A server without noesis refuses it as
     // no action at all, so the state can never claim a switch that reaches
     // nothing.
     if (action.type === 'SET_LIBRARY') {
@@ -2894,7 +2894,7 @@ export class ChannelRegistry {
         if (!connections.connected(userId)) {
           return {
             ok: false,
-            error: 'Connect your mdc library on Floor Settings to offer it here.',
+            error: 'Connect your noesis library on Floor Settings to offer it here.',
             code: 'forbidden',
           };
         }

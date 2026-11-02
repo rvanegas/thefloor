@@ -722,3 +722,28 @@ it('adds the notification answer empty, and never guesses it from an address', (
   ).toEqual({ n: 0 });
   db.close();
 });
+
+it('drops mdc_connections, whose grants the new client secret cannot open', () => {
+  const path = join(dir, 'mdc.db');
+  // The table as the server wrote it before noesis was renamed from mdc.
+  const before = openDb(path);
+  seedAccounts(before);
+  before.exec('ALTER TABLE noesis_connections RENAME COLUMN noesis_user TO mdc_user');
+  before.exec('ALTER TABLE noesis_connections RENAME COLUMN noesis_email TO mdc_email');
+  before.exec('ALTER TABLE noesis_connections RENAME TO mdc_connections');
+  before
+    .prepare(
+      `INSERT INTO mdc_connections (account_id, mdc_user, mdc_email, refresh_token, connected_at)
+       VALUES (?,?,?,?,?)`
+    )
+    .run('acct_a', 'rodvandur', 'a@example.com', 'sealed', 1);
+  before.close();
+
+  const db = openDb(path);
+
+  expect(tableNames(db)).not.toContain('mdc_connections');
+  expect(
+    db.prepare('SELECT COUNT(*) AS n FROM noesis_connections').get() as { n: number }
+  ).toEqual({ n: 0 });
+  db.close();
+});

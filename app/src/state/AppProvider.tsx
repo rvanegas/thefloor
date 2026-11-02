@@ -22,7 +22,7 @@ import type {
   ChannelView,
   ScreenDevice,
   SupportView,
-  MdcView,
+  NoesisView,
   ProView,
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
@@ -611,15 +611,15 @@ interface AppValue extends AppState {
    */
   loadPro: () => Promise<ProView>;
   /**
-   * Your own mdc library, for Floor Settings: whether this server offers
+   * Your own noesis library, for Floor Settings: whether this server offers
    * libraries and whether yours is connected. Held nowhere, for `loadPro`'s
-   * reason, and read again when the app returns from mdc's sign-in.
+   * reason, and read again when the app returns from noesis's sign-in.
    */
-  loadMdc: () => Promise<MdcView>;
-  /** mdc's sign-in URL for connecting yours, coming back to the app or to a page. */
-  connectMdc: (returnTo: 'app' | 'web') => Promise<string>;
+  loadNoesis: () => Promise<NoesisView>;
+  /** noesis's sign-in URL for connecting yours, coming back to the app or to a page. */
+  connectNoesis: (returnTo: 'app' | 'web') => Promise<string>;
   /** Disconnects yours: off in every channel, and forgotten by the server. */
-  disconnectMdc: () => Promise<void>;
+  disconnectNoesis: () => Promise<void>;
   /**
    * The questions you have asked of The Floor, with any answers.
    *
@@ -2870,19 +2870,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return api.pro(state.token);
       },
 
-      loadMdc: async () => {
+      loadNoesis: async () => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        return api.mdc(state.token);
+        return api.noesis(state.token);
       },
 
-      connectMdc: async (returnTo) => {
+      connectNoesis: async (returnTo) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        return (await api.connectMdc(state.token, returnTo)).url;
+        return (await api.connectNoesis(state.token, returnTo)).url;
       },
 
-      disconnectMdc: async () => {
+      disconnectNoesis: async () => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        await api.disconnectMdc(state.token);
+        await api.disconnectNoesis(state.token);
       },
 
       loadHelp: async () => {

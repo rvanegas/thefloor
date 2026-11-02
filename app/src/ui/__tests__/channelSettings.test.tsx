@@ -445,16 +445,16 @@ describe('the description belongs to the public page', () => {
 });
 
 describe('the library, a toggle per library', () => {
-  const noLibrary = mockApp.loadMdc.getMockImplementation()!;
-  afterEach(() => mockApp.loadMdc.mockImplementation(noLibrary));
+  const noLibrary = mockApp.loadNoesis.getMockImplementation()!;
+  afterEach(() => mockApp.loadNoesis.mockImplementation(noLibrary));
 
-  /** The card, with the server offering libraries and this reader's own at mdc. */
+  /** The card, with the server offering libraries and this reader's own at noesis. */
   async function openLibrary(
     state: Partial<ChannelStateLike>,
     mine: string[] | null,
     mayChangeLibrary = mine !== null
   ) {
-    mockApp.loadMdc.mockImplementation(async () =>
+    mockApp.loadNoesis.mockImplementation(async () =>
       mine === null
         ? { available: true, connected: false, user: undefined, email: undefined }
         : ({ available: true, connected: true, user: 'me', email: null, libraries: mine } as never)
@@ -538,7 +538,7 @@ describe('the library, a toggle per library', () => {
   it('points somebody without a library connected at Floor Settings', async () => {
     await openLibrary({}, null, false);
     expect(toggle('Consult').props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Connect your mdc library on Floor Settings');
+    expect(textOf(tree)).toContain('Connect your noesis library on Floor Settings');
   });
 });
 

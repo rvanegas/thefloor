@@ -307,31 +307,32 @@ const anthropicKey = process.env.ANTHROPIC_API_KEY;
 const claude = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : undefined;
 
 /**
- * mdc, whose libraries *Ask Claude* may consult — each account connecting its
- * own on *Floor Settings*, by signing in at mdc (mdc.ts). Off unless
- * `MDC_CLIENT_ID` and `MDC_CLIENT_SECRET` are set: The Floor's registration as
- * an OAuth client of mdc, made by mdc's `scripts/add_client.py` with
- * `MDC_CALLBACK_URL` as its one redirect. Meaningless without the key above.
- * Anthropic's servers call `MDC_URL` with each owner's token, so it has to be
+ * noesis, whose libraries *Ask Claude* may consult — each account connecting its
+ * own on *Floor Settings*, by signing in at noesis (noesis.ts). Off unless
+ * `NOESIS_CLIENT_ID` and `NOESIS_CLIENT_SECRET` are set: The Floor's registration as
+ * an OAuth client of noesis, made by noesis's `scripts/add_client.py` with
+ * `NOESIS_CALLBACK_URL` as its one redirect. Meaningless without the key above.
+ * Anthropic's servers call `NOESIS_URL` with each owner's token, so it has to be
  * reachable from outside and served over HTTPS. See planning/CREDENTIALS.md.
  *
- * `MDC_TOKEN` and `MDC_IDENTIFIERS`, the one library of Rodrigo's that this
- * replaced on 2026-11-01, are read only to say they are ignored.
+ * Any `MDC_*` setting is read only to say it is ignored: noesis was called mdc
+ * until 2026-11-02, and a box's .env still holding the old names would
+ * otherwise leave the library off with nothing to say why.
  */
-const mdcUrl = process.env.MDC_URL || 'https://mdc.rvanegas.co/mcp';
-const mdcClientId = process.env.MDC_CLIENT_ID;
-const mdcClientSecret = process.env.MDC_CLIENT_SECRET;
-const mdcCallbackUrl = process.env.MDC_CALLBACK_URL || 'https://thefloor.rvanegas.co/mdc/callback';
-if (mdcClientId && (!mdcUrl.startsWith('https://') || !mdcCallbackUrl.startsWith('https://'))) {
+const noesisUrl = process.env.NOESIS_URL || 'https://noesis.rvanegas.co/mcp';
+const noesisClientId = process.env.NOESIS_CLIENT_ID;
+const noesisClientSecret = process.env.NOESIS_CLIENT_SECRET;
+const noesisCallbackUrl = process.env.NOESIS_CALLBACK_URL || 'https://thefloor.rvanegas.co/noesis/callback';
+if (noesisClientId && (!noesisUrl.startsWith('https://') || !noesisCallbackUrl.startsWith('https://'))) {
   // Refused rather than ignored, as FREE_TRANSCRIPT_MINUTES is below: every
   // library press would fail and quietly fall back, and nothing would say why.
-  throw new Error('MDC_URL and MDC_CALLBACK_URL must be https:// URLs.');
+  throw new Error('NOESIS_URL and NOESIS_CALLBACK_URL must be https:// URLs.');
 }
 const library =
-  mdcClientId && mdcClientSecret
-    ? { url: mdcUrl, clientId: mdcClientId, clientSecret: mdcClientSecret, callbackUrl: mdcCallbackUrl }
+  noesisClientId && noesisClientSecret
+    ? { url: noesisUrl, clientId: noesisClientId, clientSecret: noesisClientSecret, callbackUrl: noesisCallbackUrl }
     : undefined;
-const retiredMdcSettings = ['MDC_TOKEN', 'MDC_IDENTIFIERS'].filter((name) => process.env[name]);
+const retiredLibrarySettings = Object.keys(process.env).filter((name) => name.startsWith('MDC_'));
 
 /**
  * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
@@ -448,7 +449,7 @@ app.fastify
           : !claude
             ? 'set, and unused without ANTHROPIC_API_KEY'
             : { url: library.url, client: library.clientId, callback: library.callbackUrl },
-        ...(retiredMdcSettings.length ? { ignored: retiredMdcSettings } : {}),
+        ...(retiredLibrarySettings.length ? { ignored: retiredLibrarySettings } : {}),
         // Worth a line for the same reason `review` is: these decide what
         // anybody may spend, and reading .env is not how anybody should find
         // out. Everybody gets free minutes a week; the account marks that

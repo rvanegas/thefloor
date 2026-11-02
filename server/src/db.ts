@@ -855,18 +855,18 @@ CREATE TABLE IF NOT EXISTS tokens (
 );
 CREATE INDEX IF NOT EXISTS tokens_account ON tokens(account_id);
 
--- An account's own mdc library, connected on Floor Settings by signing in at
--- mdc (mdc.ts). One per account. The refresh token is sealed with a key derived
--- from MDC_CLIENT_SECRET, so the database alone reaches nobody's library; mdc
+-- An account's own noesis library, connected on Floor Settings by signing in at
+-- noesis (noesis.ts). One per account. The refresh token is sealed with a key derived
+-- from NOESIS_CLIENT_SECRET, so the database alone reaches nobody's library; noesis
 -- rotates it on every refresh. The access token is never written. Cleared with
 -- the account, and on Disconnect.
-CREATE TABLE IF NOT EXISTS mdc_connections (
+CREATE TABLE IF NOT EXISTS noesis_connections (
   account_id    TEXT PRIMARY KEY REFERENCES accounts(id),
-  mdc_user      TEXT NOT NULL,
-  mdc_email     TEXT,
+  noesis_user      TEXT NOT NULL,
+  noesis_email     TEXT,
   refresh_token TEXT NOT NULL,
   connected_at  INTEGER NOT NULL,
-  -- The library ids mdc lists for this person (a JSON array), read at
+  -- The library ids noesis lists for this person (a JSON array), read at
   -- connecting and again whenever Floor Settings asks: what a channel's
   -- toggles offer, and what a channel's selection is pruned to.
   libraries     TEXT
@@ -2180,7 +2180,7 @@ CREATE TABLE IF NOT EXISTS claude_usage (
   outcome            TEXT NOT NULL,
   -- Null when the press did not consult the library; else how many lookups
   -- Claude made, across a resumed pause — 0 when it looked nothing up, or
-  -- when mdc failed and the press was asked again without it. Since
+  -- when noesis failed and the press was asked again without it. Since
   -- 2026-10-27; what says whether lookups happen where they should not.
   library_calls      INTEGER
 );
@@ -2368,6 +2368,10 @@ function hasColumn(db: Db, table: string, column: string): boolean {
  * created fresh under the new names — does nothing.
  */
 function renameLegacyTables(db: Db): void {
+  // noesis was called mdc until 2026-11-02, and The Floor registered with it
+  // again under the new name: a new client secret, so no refresh token sealed
+  // under the old one can be opened. Everybody connects again on Floor Settings.
+  if (hasTable(db, 'mdc_connections')) db.exec('DROP TABLE mdc_connections');
   if (hasTable(db, 'sessions') && !hasTable(db, 'channels')) {
     db.exec('ALTER TABLE sessions RENAME TO channels');
   }
@@ -2399,10 +2403,10 @@ function renameLegacyTables(db: Db): void {
 /** Additive migrations for databases created before a column existed. */
 function migrate(db: Db): void {
   const connectionColumns = db
-    .prepare('PRAGMA table_info(mdc_connections)')
+    .prepare('PRAGMA table_info(noesis_connections)')
     .all() as Array<{ name: string }>;
   if (!connectionColumns.some((c) => c.name === 'libraries')) {
-    db.exec('ALTER TABLE mdc_connections ADD COLUMN libraries TEXT');
+    db.exec('ALTER TABLE noesis_connections ADD COLUMN libraries TEXT');
   }
   const columns = db
     .prepare('PRAGMA table_info(recordings)')

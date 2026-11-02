@@ -47,7 +47,7 @@ here has to be read in order, and no entry depends on another.
 | Transcripts, and what `/privacy` claims | AssemblyAI |
 | Push on Android | Firebase service account |
 | Claude's *Respond*, and what `/privacy` claims about it | Anthropic |
-| Claude consulting somebody's own writing, the *Library* switch and *Floor Settings*' mdc card | mdc client |
+| Claude consulting somebody's own writing, the *Library* switch and *Floor Settings*' noesis card | noesis client |
 | Session tokens, and the journal | The credential this project issues |
 
 `bin/env-pull` / `bin/env-push` and `server/.env` are the closing paragraph of
@@ -365,37 +365,37 @@ Deliberately separate, so no single leak is worse than it has to be:
   the old. Nothing stored depends on it — the replies are pastes here, and
   `claude_usage` holds counts rather than anything keyed to the credential.
 
-- **mdc client** — `MDC_CLIENT_ID` and `MDC_CLIENT_SECRET`, The Floor's
-  registration as an OAuth client of mdc, made on `commons` by mdc's
+- **noesis client** — `NOESIS_CLIENT_ID` and `NOESIS_CLIENT_SECRET`, The Floor's
+  registration as an OAuth client of noesis, made on `commons` by noesis's
   `scripts/add_client.py thefloor --name "The Floor" --redirect
-  https://thefloor.rvanegas.co/mdc/callback`, which prints both once. The
+  https://thefloor.rvanegas.co/noesis/callback`, which prints both once. The
   eleventh, since 2026-11-01 —
   decision/2026-11-01-each-account-connects-its-own-mdc-library.md. It
   replaced `MDC_TOKEN`, one bearer token for Rodrigo's library alone, added
-  2026-10-27; that token and `MDC_IDENTIFIERS` are now read only to log that
-  they are ignored, and the token's line in mdc's `users.toml` is deleted
-  once the client is in.
+  2026-10-27. noesis was called mdc until 2026-11-02, when the client was
+  registered again under the new names, its redirect `/noesis/callback`; any
+  `MDC_*` setting left in `.env` is read only to log that it is ignored.
 
   **It reads nobody's library by itself.** It lets this server finish a
-  person's sign-in at mdc (`/mdc/callback`) and refresh or revoke the grant
-  that sign-in made. A leak lets somebody pose as The Floor on mdc's sign-in
+  person's sign-in at noesis (`/noesis/callback`) and refresh or revoke the grant
+  that sign-in made. A leak lets somebody pose as The Floor on noesis's sign-in
   page and refresh grants they also hold, which they cannot read here; it
   spends nothing.
 
-  **What it holds up: every person's grant**, in `mdc_connections`, one
+  **What it holds up: every person's grant**, in `noesis_connections`, one
   refresh token per account that connected a library, sealed with a key
-  derived from `MDC_CLIENT_SECRET` (HKDF, AES-256-GCM; `server/src/mdc.ts`),
+  derived from `NOESIS_CLIENT_SECRET` (HKDF, AES-256-GCM; `server/src/noesis.ts`),
   so a copy of the database alone reaches nobody's library. **Rotating the
   secret therefore disconnects everybody**, who connect again on *Floor
   Settings*: re-run `add_client.py` (a new secret, the old one dead at once),
   replace both lines, `bin/env-push`, restart. The access tokens a press sends
   live an hour in memory, and **travel to Anthropic in every library request**,
-  as the Record does — Anthropic's servers call mdc with them; this one only
-  refreshes them. Each reaches one person's libraries, and mdc's server offers
-  no write since mdc `43be338`, a property of mdc, so the allowlist in the
-  request is still what keeps a later mdc tool out of a room.
+  as the Record does — Anthropic's servers call noesis with them; this one only
+  refreshes them. Each reaches one person's libraries, and noesis's server offers
+  no write since noesis `43be338`, a property of noesis, so the allowlist in the
+  request is still what keeps a later noesis tool out of a room.
 
-  Marked `# env-push: optional`, with `MDC_URL` and `MDC_CALLBACK_URL`, which
+  Marked `# env-push: optional`, with `NOESIS_URL` and `NOESIS_CALLBACK_URL`, which
   are settings rather than secrets.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the

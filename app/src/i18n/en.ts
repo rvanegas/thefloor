@@ -965,30 +965,30 @@ export const en = {
     termsOfUse: () => 'Terms of Use',
     proNotFound: () => 'No Pro subscription was found for this account.',
     /**
-     * Your own mdc library, connected by signing in at mdc: what lets you
+     * Your own noesis library, connected by signing in at noesis: what lets you
      * switch a channel's *Library* on, which is then yours that Claude
      * consults there. Since 2026-11-01; see GLOSSARY.md.
      */
-    mdcLibrary: () => 'mdc library',
-    mdcAbout: () =>
-      'Connect your mdc library and you can let Claude consult it in the channels you choose, on Channel Settings. Connecting opens mdc’s sign-in in your browser.',
-    mdcConnect: () => 'Connect',
-    mdcConnecting: () => 'Connecting…',
-    mdcConnectedAs: (user: string, email: string | null) =>
+    noesisLibrary: () => 'noesis library',
+    noesisAbout: () =>
+      'Connect your noesis library and you can let Claude consult it in the channels you choose, on Channel Settings. Connecting opens noesis’s sign-in in your browser.',
+    noesisConnect: () => 'Connect',
+    noesisConnecting: () => 'Connecting…',
+    noesisConnectedAs: (user: string, email: string | null) =>
       email ? `Connected as ${user} (${email}).` : `Connected as ${user}.`,
-    mdcLibraries: (libraries: string[]) =>
+    noesisLibraries: (libraries: string[]) =>
       libraries.length
         ? `Your ${libraries.length === 1 ? 'library' : 'libraries'} there: ${libraries.join(', ')}.`
-        : 'You have no library in mdc yet.',
-    mdcConnectedNote: () =>
+        : 'You have no library in noesis yet.',
+    noesisConnectedNote: () =>
       'Choose which a channel may consult on its Channel Settings. Disconnecting switches them off in every channel.',
-    mdcDisconnect: () => 'Disconnect',
-    mdcDisconnecting: () => 'Disconnecting…',
-    mdcDisconnectAsk: () => 'Disconnect your mdc library?',
-    mdcDisconnectBody: () =>
-      'Claude stops consulting it in every channel where it is on. The library itself stays in mdc, and you can connect it again at any time.',
-    mdcFailed: () =>
-      'Your library was not connected. Try again, and finish signing in to mdc in the browser.',
+    noesisDisconnect: () => 'Disconnect',
+    noesisDisconnecting: () => 'Disconnecting…',
+    noesisDisconnectAsk: () => 'Disconnect your noesis library?',
+    noesisDisconnectBody: () =>
+      'Claude stops consulting it in every channel where it is on. The library itself stays in noesis, and you can connect it again at any time.',
+    noesisFailed: () =>
+      'Your library was not connected. Try again, and finish signing in to noesis in the browser.',
     storeUnreachable: () => 'The App Store cannot be reached right now.',
     /**
      * The server would not confirm a purchase StoreKit says succeeded. Not
@@ -1119,11 +1119,11 @@ export const en = {
     libraryNote: () =>
       'When on, Claude may draw on each library owner’s own writing while it answers, and names any piece it quotes and whose it is. It applies on Pro and Max, to whoever asks Claude.',
     /** Since 2026-11-01, when each account began connecting its own library. */
-    libraryWho: () => 'Connect your mdc library on Floor Settings to offer it here.',
+    libraryWho: () => 'Connect your noesis library on Floor Settings to offer it here.',
     /** The toggles, one per library of yours: each is consent for that one. */
     libraryChoose: () =>
       'Turn on the libraries Claude may consult here. Each one you turn on is your consent to its writing reaching this channel’s Record.',
-    libraryNoneYet: () => 'You have no library in mdc yet. Make one there, and it will show here.',
+    libraryNoneYet: () => 'You have no library in noesis yet. Make one there, and it will show here.',
     /** One per somebody else whose libraries are on here; several may be. */
     libraryTheirs: (name: string, libraries: string[]) =>
       libraries.length === 1
