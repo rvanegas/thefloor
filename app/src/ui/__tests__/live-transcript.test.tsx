@@ -712,6 +712,78 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
+  it('sends the text to noesis from Share, asking which library only of somebody with several', async () => {
+    const { Alert } = require('react-native');
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 1_000, 'worth keeping')],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [room('room_1', NOW, NOW + 60_000, [])],
+    } as never);
+    const noesis = jest.spyOn(api, 'noesis').mockResolvedValue({
+      available: true,
+      connected: true,
+      canSend: true,
+      libraries: ['me/essays'],
+    });
+    const sent = jest.spyOn(api, 'sendToNoesis').mockResolvedValue({ file: '2026/x.chat.md' });
+    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const answers = [2];
+    const sheet = jest
+      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
+      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(answers.shift()!));
+    showChannel(transcribed());
+    let tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    await act(async () => shareOf(tree).props.onPress());
+    expect(sheet.mock.calls[0][0]).toMatchObject({
+      options: ['Audio', 'Text', 'Send to noesis', 'Cancel'],
+      cancelButtonIndex: 3,
+    });
+    // One library: no second question.
+    expect(sheet).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveBeenCalledWith(expect.anything(), {
+      library: 'me/essays',
+      filename: expect.any(String),
+      text: expect.stringContaining('worth keeping'),
+    });
+    expect(alert).toHaveBeenLastCalledWith('Sent to essays in noesis.');
+    act(() => tree.unmount());
+
+    // Several: which, by its own name.
+    noesis.mockResolvedValue({
+      available: true,
+      connected: true,
+      canSend: true,
+      libraries: ['me/essays', 'me/journal'],
+    });
+    sent.mockClear();
+    sheet.mockClear();
+    answers.push(2, 1);
+    tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+    await act(async () => shareOf(tree).props.onPress());
+    expect(sheet.mock.calls[1][0]).toMatchObject({ options: ['essays', 'journal', 'Cancel'] });
+    expect(sent.mock.calls[0][1]).toMatchObject({ library: 'me/journal' });
+    act(() => tree.unmount());
+
+    // Not granted: no third answer at all.
+    noesis.mockResolvedValue({ available: true, connected: true, canSend: false, libraries: ['me/essays'] });
+    sheet.mockClear();
+    answers.push(3);
+    tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+    await act(async () => shareOf(tree).props.onPress());
+    expect(sheet.mock.calls[0][0]).toMatchObject({ options: ['Audio', 'Text', 'Cancel'] });
+    act(() => tree.unmount());
+    for (const spy of [noesis, sent, alert, sheet]) spy.mockRestore();
+  });
+
   it('shares the text of a segment whose audio is still being mixed', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [line('l1', ME, 'Me', NOW + 12_000, 'said while recording')],

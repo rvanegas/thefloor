@@ -31,6 +31,14 @@ import type { Db } from './db';
  *   and again by `refreshLibraries` whenever Floor Settings or a channel's
  *   card asks: what the channel toggles offer. The grant reaches all of them;
  *   a channel's selection is sent with each press (claude.ts).
+ * - **Sending a room's text** (`send`, since 2026-11-02) files it in one of
+ *   the person's libraries through noesis's import — the one thing The Floor
+ *   writes there, and only with the `import` scope, which noesis's operator
+ *   grants this client alone and its sign-in names. Asked for at every
+ *   connecting; a connection made before it lacks it (`canSend`) and connects
+ *   again to have it. Before sending, the person's display name here is added
+ *   to the names noesis keeps as their voice, so their lines are filed as
+ *   their own words and everybody else's as context.
  */
 export interface NoesisOptions {
   /** noesis's MCP endpoint, which Anthropic's servers call; its origin is the authorization server. */
@@ -54,7 +62,17 @@ export interface NoesisStatus {
   connectedAt?: number;
   /** The person's library ids at noesis, `user/library`, as last read. */
   libraries?: string[];
+  /** Whether the grant includes filing a room's text (`import`); false for one made before it was asked. */
+  canSend?: boolean;
 }
+
+/** What `send` came to: the file noesis wrote, or why nothing was. */
+export type NoesisSent =
+  | { ok: true; file: string | null }
+  | { ok: false; reason: 'not_connected' | 'no_grant' | 'not_yours' | 'busy' | 'allowance' | 'failed'; message?: string };
+
+/** The scope that lets this client file conversations at noesis, which its operator grants. */
+export const NOESIS_IMPORT_SCOPE = 'import';
 
 interface Pending {
   accountId: string;
@@ -70,6 +88,8 @@ interface Row {
   refresh_token: string;
   connected_at: number;
   libraries: string | null;
+  /** The scopes noesis granted, space-separated, as its token response said; null before they were kept. */
+  scopes: string | null;
 }
 
 /** How long a sign-in begun on *Floor Settings* may take, as long as noesis's own. */
@@ -108,6 +128,7 @@ export class NoesisConnections {
       redirect_uri: this.options.callbackUrl,
       code_challenge: createHash('sha256').update(verifier).digest('base64url'),
       code_challenge_method: 'S256',
+      scope: NOESIS_IMPORT_SCOPE,
       state,
     }).toString();
     return url.toString();
@@ -140,11 +161,11 @@ export class NoesisConnections {
     if (!me) return { ok: false, returnTo: entry.returnTo, reason: 'me' };
     this.db
       .prepare(
-        `INSERT INTO noesis_connections (account_id, noesis_user, noesis_email, refresh_token, connected_at, libraries)
-         VALUES (?, ?, ?, ?, ?, ?)
+        `INSERT INTO noesis_connections (account_id, noesis_user, noesis_email, refresh_token, connected_at, libraries, scopes)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT (account_id) DO UPDATE SET noesis_user = excluded.noesis_user,
            noesis_email = excluded.noesis_email, refresh_token = excluded.refresh_token,
-           connected_at = excluded.connected_at, libraries = excluded.libraries`
+           connected_at = excluded.connected_at, libraries = excluded.libraries, scopes = excluded.scopes`
       )
       .run(
         entry.accountId,
@@ -152,7 +173,8 @@ export class NoesisConnections {
         me.email,
         this.seal(tokens.refresh_token),
         this.now(),
-        JSON.stringify(me.libraries)
+        JSON.stringify(me.libraries),
+        tokens.scope ?? ''
       );
     this.access.set(entry.accountId, {
       token: tokens.access_token,
@@ -170,8 +192,68 @@ export class NoesisConnections {
           email: row.noesis_email,
           connectedAt: row.connected_at,
           libraries: parseLibraries(row.libraries),
+          canSend: grants(row, NOESIS_IMPORT_SCOPE),
         }
       : { connected: false };
+  }
+
+  /**
+   * Files `text` — a room's, as *Share* hands it — in `library`, one of the
+   * person's, through noesis's import. Sent again, it replaces what the same
+   * conversation filed before (noesis knows one by its turns). `speaker` is
+   * the person's display name here, added first to the names noesis keeps as
+   * their voice where it is missing; best effort, since the text is worth
+   * filing even when that fails.
+   */
+  async send(accountId: string, library: string, filename: string, text: string, speaker: string): Promise<NoesisSent> {
+    const row = this.row(accountId);
+    if (!row) return { ok: false, reason: 'not_connected' };
+    if (!grants(row, NOESIS_IMPORT_SCOPE)) return { ok: false, reason: 'no_grant' };
+    if (!parseLibraries(row.libraries).includes(library)) return { ok: false, reason: 'not_yours' };
+    const token = await this.accessToken(accountId);
+    if (!token) return { ok: false, reason: 'not_connected' };
+    const doFetch = this.options.fetch ?? fetch;
+    const bearer = { Authorization: `Bearer ${token}` };
+    try {
+      await this.keepSpeaker(token, speaker);
+    } catch (error) {
+      this.log?.warn({ err: error }, 'noesis: could not add a speaker name');
+    }
+    const url = new URL(`/libraries/${library}/import`, this.origin);
+    url.search = new URLSearchParams({ filename, replace: 'true' }).toString();
+    let response: Response;
+    try {
+      response = await doFetch(url, {
+        method: 'POST',
+        headers: { ...bearer, 'Content-Type': 'text/markdown; charset=utf-8' },
+        body: text,
+      });
+    } catch (error) {
+      this.log?.warn({ err: error }, 'noesis: could not reach the import');
+      return { ok: false, reason: 'failed' };
+    }
+    if (response.status === 401 || response.status === 403) return { ok: false, reason: 'no_grant' };
+    if (response.status === 402) return { ok: false, reason: 'allowance' };
+    if (response.status === 409) return { ok: false, reason: 'busy' };
+    if (!response.ok) {
+      return { ok: false, reason: 'failed', message: await detailOf(response) };
+    }
+    return finished(await response.text());
+  }
+
+  /** Adds `speaker` to the names noesis keeps as the person's voice, where it is not among them already. */
+  private async keepSpeaker(token: string, speaker: string): Promise<void> {
+    const name = speaker.trim();
+    if (!name) return;
+    const me = await this.whoIs(token);
+    if (!me || me.names.some((kept) => kept.toLowerCase() === name.toLowerCase())) return;
+    const doFetch = this.options.fetch ?? fetch;
+    const response = await doFetch(new URL('/me/names', this.origin), {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ names: [...me.names, name] }),
+    });
+    if (!response.ok) throw new Error(`noesis /me/names answered ${response.status}`);
   }
 
   /** The person's library ids as last read; empty when none is connected. */
@@ -246,9 +328,10 @@ export class NoesisConnections {
       this.forget(accountId);
       return null;
     }
+    // A refresh keeps the grant's scopes; noesis says so, and an answer without them leaves the last.
     this.db
-      .prepare('UPDATE noesis_connections SET refresh_token = ? WHERE account_id = ?')
-      .run(this.seal(tokens.refresh_token), accountId);
+      .prepare('UPDATE noesis_connections SET refresh_token = ?, scopes = COALESCE(?, scopes) WHERE account_id = ?')
+      .run(this.seal(tokens.refresh_token), tokens.scope ?? null, accountId);
     this.access.set(accountId, { token: tokens.access_token, expiresAt: this.now() + tokens.expires_in * 1000 });
     return tokens.access_token;
   }
@@ -280,7 +363,7 @@ export class NoesisConnections {
 
   private async whoIs(
     accessToken: string
-  ): Promise<{ user: string; email: string | null; libraries: string[] } | null> {
+  ): Promise<{ user: string; email: string | null; libraries: string[]; names: string[] } | null> {
     const doFetch = this.options.fetch ?? fetch;
     const response = await doFetch(new URL('/me', this.origin), {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -290,9 +373,15 @@ export class NoesisConnections {
       user?: string;
       email?: string | null;
       libraries?: unknown;
+      names?: unknown;
     };
     if (!body.user) return null;
-    return { user: body.user, email: body.email ?? null, libraries: parseLibraries(body.libraries) };
+    return {
+      user: body.user,
+      email: body.email ?? null,
+      libraries: parseLibraries(body.libraries),
+      names: parseLibraries(body.names),
+    };
   }
 
   private row(accountId: string): Row | undefined {
@@ -317,7 +406,7 @@ export class NoesisConnections {
   }
 }
 
-/** A list of library ids, from noesis or from the column; anything else is none. */
+/** A list of strings — library ids, or a person's names — from noesis or from the column; anything else is none. */
 function parseLibraries(value: unknown): string[] {
   let list = value;
   if (typeof value === 'string') {
@@ -330,8 +419,66 @@ function parseLibraries(value: unknown): string[] {
   return Array.isArray(list) ? list.filter((id): id is string => typeof id === 'string') : [];
 }
 
+/**
+ * A name noesis's import takes, from the one *Share* gives the file: no
+ * separators, no leading dot, not empty, and Markdown, which noesis reads The
+ * Floor's text as whatever it is called.
+ */
+export function noesisFilename(name: string): string {
+  const stem = name
+    .replace(/[\\/\u0000-\u001f]+/g, '-')
+    .replace(/^[.\s]+/, '')
+    .replace(/\.(md|txt)$/i, '')
+    .trim()
+    .slice(0, 120);
+  return `${stem || 'The Floor'}.md`;
+}
+
+function grants(row: Row, scope: string): boolean {
+  return (row.scopes ?? '').split(' ').includes(scope);
+}
+
+/**
+ * What noesis's import came to, from its server-sent events: the run's `done`,
+ * with the files it changed, or its `error`. A run that exits non-zero says
+ * why in its last line of output.
+ */
+export function finished(stream: string): NoesisSent {
+  let output = '';
+  for (const block of stream.split(/\n\n+/)) {
+    const event = /^event: (\w+)$/m.exec(block)?.[1];
+    const data = /^data: (.*)$/m.exec(block)?.[1];
+    if (!event || data === undefined) continue;
+    let payload: { text?: string; exit_code?: number; changed?: Record<string, string>; message?: string };
+    try {
+      payload = JSON.parse(data);
+    } catch {
+      continue;
+    }
+    if (event === 'output') output += payload.text ?? '';
+    if (event === 'error') return { ok: false, reason: 'failed', message: payload.message };
+    if (event === 'done') {
+      if (payload.exit_code === 0) return { ok: true, file: Object.keys(payload.changed ?? {})[0] ?? null };
+      const last = output.trim().split('\n').at(-1);
+      return { ok: false, reason: 'failed', message: last || undefined };
+    }
+  }
+  return { ok: false, reason: 'failed', message: 'the import ended without saying how' };
+}
+
+async function detailOf(response: Response): Promise<string | undefined> {
+  try {
+    const body = (await response.json()) as { detail?: unknown };
+    return typeof body.detail === 'string' ? body.detail : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 interface TokenResponse {
   access_token: string;
   refresh_token: string;
   expires_in: number;
+  /** The scopes granted, space-separated; noesis names them whenever there are any. */
+  scope?: string;
 }

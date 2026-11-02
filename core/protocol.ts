@@ -855,6 +855,12 @@ export interface NoesisView {
   connectedAt?: number;
   /** Their library ids at noesis, `user/library`, read again at each ask. */
   libraries?: string[];
+  /**
+   * Whether the connection may send a room's text to those libraries — the
+   * *Record* tab's *Send to noesis*. False for one made before 2026-11-02,
+   * which connects again to have it; absent from an older server.
+   */
+  canSend?: boolean;
 }
 
 /**

@@ -126,7 +126,7 @@ export async function shareTextFile(
  * and in whatever folder they land in. When it ended is what tells them
  * apart, and it is the thing a person would look for anyway.
  */
-function exportName(name: string, at: number): string {
+export function exportName(name: string, at: number): string {
   const safeName = name.replace(/[^\w\- ]/g, '').trim() || 'channel';
   return `The Floor — ${safeName} — ${stamp(at)}`;
 }

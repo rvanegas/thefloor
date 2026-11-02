@@ -890,6 +890,16 @@ function NoesisCard() {
               onPress={disconnect}
             />
             <Text style={type.muted}>{t.noesisConnectedNote()}</Text>
+            {view.canSend === false ? (
+              <>
+                <Text style={type.muted}>{t.noesisSendNeedsReconnect()}</Text>
+                <Button
+                  label={busy === 'connecting' ? t.noesisConnecting() : t.noesisReconnect()}
+                  disabled={busy !== null}
+                  onPress={() => void connect()}
+                />
+              </>
+            ) : null}
           </>
         ) : (
           <>

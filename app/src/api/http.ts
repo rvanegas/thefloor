@@ -415,6 +415,13 @@ export const api = {
   connectNoesis: (token: string, returnTo: 'app' | 'web') =>
     request<{ url: string }>('/me/noesis/connect', { method: 'POST', token, body: { returnTo } }),
 
+  /**
+   * Files a room's text — what Share hands over — in one of your libraries at
+   * noesis; the path noesis wrote it at, or an `ApiError` saying why not.
+   */
+  sendToNoesis: (token: string, body: { library: string; filename: string; text: string }) =>
+    request<{ file: string | null }>('/me/noesis/send', { method: 'POST', token, body }),
+
   /** Switches your library off everywhere, and forgets it here. */
   disconnectNoesis: (token: string) =>
     request<void>('/me/noesis/disconnect', { method: 'POST', token }),

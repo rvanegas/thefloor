@@ -869,7 +869,11 @@ CREATE TABLE IF NOT EXISTS noesis_connections (
   -- The library ids noesis lists for this person (a JSON array), read at
   -- connecting and again whenever Floor Settings asks: what a channel's
   -- toggles offer, and what a channel's selection is pruned to.
-  libraries     TEXT
+  libraries     TEXT,
+  -- The scopes noesis granted (space-separated): import lets the person send
+  -- a room's text to a library of theirs. Null for a connection made before
+  -- they were kept, which is one made before import was asked for.
+  scopes        TEXT
 );
 
 -- A contact pair is stored once, with a_id < b_id so the pair has a single
@@ -2407,6 +2411,9 @@ function migrate(db: Db): void {
     .all() as Array<{ name: string }>;
   if (!connectionColumns.some((c) => c.name === 'libraries')) {
     db.exec('ALTER TABLE noesis_connections ADD COLUMN libraries TEXT');
+  }
+  if (!connectionColumns.some((c) => c.name === 'scopes')) {
+    db.exec('ALTER TABLE noesis_connections ADD COLUMN scopes TEXT');
   }
   const columns = db
     .prepare('PRAGMA table_info(recordings)')

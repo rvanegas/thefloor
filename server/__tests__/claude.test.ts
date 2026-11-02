@@ -28,7 +28,7 @@ import {
   type RecordSources,
 } from '../src/claude';
 import { openDb } from '../src/db';
-import type { NoesisOptions } from '../src/noesis';
+import { noesisFilename, type NoesisOptions } from '../src/noesis';
 import { MemoryMailer } from '../src/mail';
 
 /**
@@ -270,6 +270,10 @@ beforeEach(() => {
   noesisCalls.length = 0;
   noesisRefuses = false;
   noesisLibraries = ['alice/philosophy'];
+  noesisScope = 'import';
+  noesisNames = [];
+  noesisImport = () =>
+    new Response('event: output\ndata: {"text": "imported"}\n\nevent: done\ndata: {"exit_code": 0, "changed": {"2026/2026-11-02-lunch.chat.md": "abc"}, "deleted": []}\n\n');
 });
 
 /**
@@ -277,14 +281,32 @@ beforeEach(() => {
  * for `secret`, each refresh for `secret-<n>`, and `noesisRefuses` makes every
  * token request a 400, as noesis answers a grant it no longer honours.
  */
-const noesisCalls: Array<{ path: string; fields: Record<string, string> }> = [];
+const noesisCalls: Array<{
+  path: string;
+  fields: Record<string, string>;
+  method?: string;
+  query?: Record<string, string>;
+  body?: string;
+}> = [];
 let noesisRefuses = false;
 /** What noesis's `/me` lists as the person's libraries. */
 let noesisLibraries = ['alice/philosophy'];
-const fakeNoesis = (async (input: unknown, init?: { body?: unknown }) => {
+/** The scopes noesis grants at a sign-in: `import` since 2026-11-02, nothing before. */
+let noesisScope = 'import';
+/** The names noesis keeps as the person's voice, which `PUT /me/names` replaces. */
+let noesisNames: string[] = [];
+/** How noesis's import answers. */
+let noesisImport: () => Response = () => new Response(null, { status: 500 });
+const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: string }) => {
   const url = new URL(String(input));
   const fields = Object.fromEntries(new URLSearchParams(String(init?.body ?? '')));
-  noesisCalls.push({ path: url.pathname, fields });
+  noesisCalls.push({
+    path: url.pathname,
+    fields,
+    method: init?.method,
+    query: Object.fromEntries(url.searchParams),
+    body: typeof init?.body === 'string' ? init.body : undefined,
+  });
   if (url.pathname === '/token') {
     if (noesisRefuses) return new Response('{"error":"invalid_grant"}', { status: 400 });
     const n = noesisCalls.filter((call) => call.path === '/token').length;
@@ -292,11 +314,17 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown }) => {
       access_token: fields.grant_type === 'authorization_code' ? 'secret' : `secret-${n}`,
       refresh_token: `refresh-${n}`,
       expires_in: 3600,
+      ...(noesisScope ? { scope: noesisScope } : {}),
     });
   }
-  if (url.pathname === '/me') {
-    return Response.json({ user: 'alice', email: 'alice@example.com', libraries: noesisLibraries });
+  if (url.pathname === '/me/names') {
+    noesisNames = JSON.parse(String(init?.body)).names;
+    return Response.json({ names: noesisNames });
   }
+  if (url.pathname === '/me') {
+    return Response.json({ user: 'alice', email: 'alice@example.com', libraries: noesisLibraries, names: noesisNames });
+  }
+  if (url.pathname.endsWith('/import')) return noesisImport();
   return new Response(null, { status: 200 });
 }) as typeof fetch;
 
@@ -1284,6 +1312,7 @@ describe('connecting an noesis library', () => {
     expect(url.searchParams.get('client_id')).toBe('thefloor');
     expect(url.searchParams.get('redirect_uri')).toBe('https://floor.example/noesis/callback');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
+    expect(url.searchParams.get('scope')).toBe('import');
 
     const back = await app.fastify.inject({
       method: 'GET',
@@ -1389,6 +1418,78 @@ describe('connecting an noesis library', () => {
     expect(app.db.prepare('SELECT COUNT(*) AS n FROM noesis_connections').get()).toEqual({ n: 0 });
     expect(noesisCalls.at(-1)!.path).toBe('/revoke');
     expect(app.channels.get(channelId)?.library ?? false).toBe(false);
+  });
+});
+
+describe('sending a room’s text to noesis', () => {
+  const TEXT = 'The Floor — Lunch\n2026-11-02 · 12:00–12:30\n\nAlice · 12:00\nMine.\n\nBob · 12:01\nHis.';
+  const send = (token: string, payload: object) =>
+    app.fastify.inject({ method: 'POST', url: '/me/noesis/send', headers: auth(token), payload });
+
+  it('files it in a library of yours, replacing what it filed before, your name kept as your voice', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
+    const { alice } = await room2();
+    await connect(alice.account.id);
+    const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
+    expect(status.json()).toMatchObject({ connected: true, canSend: true });
+    noesisNames = ['Prompt'];
+    const sent = await send(alice.token, {
+      library: 'alice/philosophy',
+      filename: 'The Floor — Lunch — 2026-11-02 1230',
+      text: TEXT,
+    });
+    expect(sent.statusCode).toBe(200);
+    expect(sent.json()).toEqual({ file: '2026/2026-11-02-lunch.chat.md' });
+    expect(noesisNames).toEqual(['Prompt', 'Alice']);
+    const filed = noesisCalls.find((call) => call.path === '/libraries/alice/philosophy/import')!;
+    expect(filed.method).toBe('POST');
+    expect(filed.query).toEqual({ filename: 'The Floor — Lunch — 2026-11-02 1230.md', replace: 'true' });
+    expect(filed.body).toBe(TEXT);
+    // A name already kept, in any case, is not added again.
+    noesisNames = ['alice'];
+    await send(alice.token, { library: 'alice/philosophy', filename: 'x', text: TEXT });
+    expect(noesisNames).toEqual(['alice']);
+  });
+
+  it('refuses a library not yours, a grant made before sending was asked for, and says why noesis did', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
+    const { alice, bob } = await room2();
+    expect((await send(bob.token, { library: 'alice/philosophy', text: TEXT })).statusCode).toBe(409);
+    await connect(alice.account.id);
+    expect((await send(alice.token, { library: 'bob/notes', text: TEXT })).statusCode).toBe(404);
+    expect((await send(alice.token, { library: 'alice/philosophy', text: ' ' })).statusCode).toBe(400);
+    noesisImport = () =>
+      new Response('event: output\ndata: {"text": "checking\\n✗ a title another file has\\n"}\n\nevent: done\ndata: {"exit_code": 1, "changed": {}, "deleted": []}\n\n');
+    const failed = await send(alice.token, { library: 'alice/philosophy', text: TEXT });
+    expect(failed.statusCode).toBe(502);
+    expect(failed.json()).toEqual({ error: '✗ a title another file has', reason: 'failed' });
+    noesisImport = () => Response.json({ detail: 'a run is in progress in this library' }, { status: 409 });
+    expect((await send(alice.token, { library: 'alice/philosophy', text: TEXT })).json().reason).toBe('busy');
+
+    noesisScope = '';
+    await connect(alice.account.id);
+    const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
+    expect(status.json()).toMatchObject({ connected: true, canSend: false });
+    const before = noesisCalls.length;
+    const refused = await send(alice.token, { library: 'alice/philosophy', text: TEXT });
+    expect(refused.statusCode).toBe(403);
+    expect(noesisCalls.slice(before).some((call) => call.path.endsWith('/import'))).toBe(false);
+  });
+
+  it('keeps the grant’s scopes across a refresh', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
+    const { alice } = await room2();
+    await connect(alice.account.id);
+    clock += 3600 * 1000;
+    noesisScope = '';
+    expect(await app.noesis!.accessToken(alice.account.id)).toBe('secret-2');
+    expect(app.noesis!.status(alice.account.id).canSend).toBe(true);
+  });
+
+  it('names the file as noesis takes it', () => {
+    expect(noesisFilename('The Floor — a/b — 2026-11-02 1230')).toBe('The Floor — a-b — 2026-11-02 1230.md');
+    expect(noesisFilename('..hidden.txt')).toBe('hidden.md');
+    expect(noesisFilename('')).toBe('The Floor.md');
   });
 });
 

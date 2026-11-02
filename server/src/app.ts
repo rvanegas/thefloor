@@ -82,7 +82,7 @@ import {
   readVoices,
   type ClaudeClient,
 } from './claude';
-import { NoesisConnections, type NoesisOptions } from './noesis';
+import { NoesisConnections, noesisFilename, type NoesisOptions } from './noesis';
 import {
   formatTranscript,
   MEDIA_LABEL,
@@ -3825,6 +3825,38 @@ export function buildApp(options: BuildOptions = {}): App {
           : '<p>Close this window and try again from <strong>Floor Settings</strong>.</p>',
       })
     );
+  });
+
+  /**
+   * Sends a room's text to one of your libraries at noesis — the *Record*
+   * tab's *Send to noesis*, since 2026-11-02. The text is what *Share* hands
+   * over, made by the app as it is for Share, so the two never disagree;
+   * noesis files it as a conversation, your lines as yours by your display
+   * name here. `filename` is Share's, made safe for noesis, which takes a
+   * name and never a path.
+   */
+  fastify.post('/me/noesis/send', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    if (!noesis || !channels.libraryAvailable()) {
+      return reply.code(503).send({ error: 'This server offers no library.' });
+    }
+    const body = request.body as { library?: unknown; filename?: unknown; text?: unknown } | undefined;
+    if (typeof body?.library !== 'string' || typeof body.text !== 'string' || !body.text.trim()) {
+      return reply.code(400).send({ error: 'A library and some text are required.' });
+    }
+    const sent = await noesis.send(
+      account.id,
+      body.library,
+      noesisFilename(typeof body.filename === 'string' ? body.filename : ''),
+      body.text,
+      account.display_name
+    );
+    if (sent.ok) return { file: sent.file };
+    const status = { not_connected: 409, no_grant: 403, not_yours: 404, busy: 409, allowance: 402, failed: 502 }[
+      sent.reason
+    ];
+    return reply.code(status).send({ error: sent.message ?? sent.reason, reason: sent.reason });
   });
 
   /**

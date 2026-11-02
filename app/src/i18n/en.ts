@@ -971,7 +971,7 @@ export const en = {
      */
     noesisLibrary: () => 'noesis library',
     noesisAbout: () =>
-      'Connect your noesis library and you can let Claude consult it in the channels you choose, on Channel Settings. Connecting opens noesis’s sign-in in your browser.',
+      'Connect your noesis library and you can let Claude consult it in the channels you choose, on Channel Settings, and send a room’s text to it from Share on the Record tab. Connecting opens noesis’s sign-in in your browser.',
     noesisConnect: () => 'Connect',
     noesisConnecting: () => 'Connecting…',
     noesisConnectedAs: (user: string, email: string | null) =>
@@ -981,7 +981,11 @@ export const en = {
         ? `Your ${libraries.length === 1 ? 'library' : 'libraries'} there: ${libraries.join(', ')}.`
         : 'You have no library in noesis yet.',
     noesisConnectedNote: () =>
-      'Choose which a channel may consult on its Channel Settings. Disconnecting switches them off in every channel.',
+      'Choose which a channel may consult on its Channel Settings. Share on the Record tab sends a room’s text to one. Disconnecting switches them off in every channel.',
+    /** A connection made before sending was asked for, which a new sign-in brings up to date. */
+    noesisSendNeedsReconnect: () =>
+      'To send a room’s text to your library, connect again: noesis will ask whether The Floor may add conversations to it.',
+    noesisReconnect: () => 'Connect again',
     noesisDisconnect: () => 'Disconnect',
     noesisDisconnecting: () => 'Disconnecting…',
     noesisDisconnectAsk: () => 'Disconnect your noesis library?',
@@ -1486,6 +1490,20 @@ export const en = {
     /** A segment kept as audio and as text, on its line. */
     keptBoth: () => 'Audio + Text',
     roomTextCopied: () => 'The text is copied.',
+    /**
+     * Share's third answer, since 2026-11-02, offered to somebody whose noesis
+     * library is connected with sending granted: the segment's text, filed in
+     * a library of theirs as a conversation. *noesis* stays lower-case, as it
+     * names itself.
+     */
+    sendToNoesis: () => 'Send to noesis',
+    /** Which library, asked only of somebody with more than one. */
+    sendToWhichLibrary: () => 'Send to which library?',
+    sentToNoesis: (library: string) => `Sent to ${library} in noesis.`,
+    couldNotSendToNoesis: () => 'Could not send to noesis',
+    /** The grant predates sending, or noesis withdrew it. */
+    noesisSendNotGranted: () =>
+      'Connect your noesis library again on Floor Settings to send to it.',
     /**
      * The *Record* tab's two switches: what this channel keeps of what is
      * said, beside `audio`. Either, both or neither. See `KeepSwitches`.

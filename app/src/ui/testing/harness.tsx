@@ -899,6 +899,7 @@ export const downloadMock = () => ({
   shareRecording: jest.fn(async () => {}),
   shareTrack: jest.fn(async () => {}),
   shareTextFile: jest.fn(async () => 'shared'),
+  exportName: jest.fn((name: string) => `The Floor — ${name}`),
 });
 
 export const uploadMock = () => ({

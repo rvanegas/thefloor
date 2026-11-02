@@ -32,8 +32,8 @@ import type {
 } from '../../../core/protocol';
 import { intoBlocks, lettered, type TranscriptBlock } from '../../../core/transcript';
 import type { ChannelState, Keep, ReplyLength } from '../../../core/types';
-import { shareRecording, shareTextFile } from '../api/download';
-import { api } from '../api/http';
+import { exportName, shareRecording, shareTextFile } from '../api/download';
+import { api, ApiError } from '../api/http';
 import { copyText } from '../clipboard';
 import { subscribeLiveLines } from '../live/lines';
 import { useApp } from '../state/AppProvider';
@@ -155,6 +155,26 @@ export function RecordTab({
   const [roomsAsked, askRooms] = React.useReducer((n: number) => n + 1, 0);
   const roomsHeld = React.useRef<RoomView[] | null>(null);
   roomsHeld.current = rooms;
+  /**
+   * Your noesis libraries that Share may send a segment's text to: none
+   * unless this server offers libraries and yours is connected with sending
+   * granted. Asked once as the tab opens; an older server, or a failure, is none.
+   */
+  const [libraries, setLibraries] = React.useState<readonly string[]>([]);
+  React.useEffect(() => {
+    const token = app.token;
+    if (!token) return;
+    let current = true;
+    api
+      .noesis(token)
+      .then((view) => {
+        if (current && view.available && view.connected && view.canSend) setLibraries(view.libraries ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [app.token]);
 
   const recordingKey = recordings.map((r) => r.id).join(',');
   React.useEffect(() => {
@@ -369,6 +389,7 @@ export function RecordTab({
               channelId={channelId}
               name={name}
               item={item}
+              libraries={libraries}
               renderRecording={renderRecording}
             />
           ))}
@@ -386,11 +407,13 @@ function Segment({
   channelId,
   name,
   item,
+  libraries,
   renderRecording,
 }: {
   channelId: string;
   name: string;
   item: SegmentItem;
+  libraries: readonly string[];
   renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
 }) {
   const t = useText().channel;
@@ -403,6 +426,7 @@ function Segment({
         channelId={channelId}
         name={name}
         item={item}
+        libraries={libraries}
         renderRecording={renderRecording}
         open={open}
         onToggle={() => setOpen((was) => !was)}
@@ -471,6 +495,7 @@ export function SegmentLine({
   channelId,
   name,
   item,
+  libraries = [],
   renderRecording,
   open = false,
   onToggle = () => {},
@@ -478,6 +503,8 @@ export function SegmentLine({
   channelId: string;
   name: string;
   item: SegmentItem;
+  /** Your noesis libraries Share may send the text to; none hides the choice. */
+  libraries?: readonly string[];
   renderRecording?: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
   open?: boolean;
   onToggle?: () => void;
@@ -485,7 +512,8 @@ export function SegmentLine({
   const t = useText().channel;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
-  const [choosing, setChoosing] = React.useState(false);
+  /** The web's inline choice, and everywhere but iOS which library: what is being chosen, if anything. */
+  const [choosing, setChoosing] = React.useState<false | 'what' | 'library'>(false);
   const { segment, recording } = item;
   // A paste is an instant, said by its own entry's name and time; there are
   // no hours to give it and nothing to share but what Copy already takes.
@@ -493,6 +521,7 @@ export function SegmentLine({
   const audio = !!recording && !recording.mixing;
   // Pastes count: they are text, and are shared with the lines around them.
   const text = item.lines.length > 0 || item.pastes.length > 0;
+  const noesis = text && libraries.length > 0;
   const available = (audio || text) && !busy;
   const span = t.roomSpan(segment.startedAt, segment.endedAt);
   const kept =
@@ -503,7 +532,51 @@ export function SegmentLine({
         : t.keepText();
   const label = `${span} · ${kept}`;
 
-  const share = async (what: 'audio' | 'text') => {
+  /**
+   * Files the text in `library` at noesis — what Share would hand over, under
+   * the name it would give the file — and says where it went, or why not.
+   */
+  const send = async (library: string) => {
+    if (!app.token || busy) return;
+    setBusy(true);
+    try {
+      await api.sendToNoesis(app.token, {
+        library,
+        filename: exportName(name, recording?.endedAt ?? segment.endedAt ?? Date.now()),
+        text: await segmentText(app.token, channelId, item, name, t),
+      });
+      Alert.alert(t.sentToNoesis(libraryName(library)));
+    } catch (e) {
+      Alert.alert(
+        t.couldNotSendToNoesis(),
+        e instanceof ApiError && e.status === 403
+          ? t.noesisSendNotGranted()
+          : e instanceof Error
+            ? e.message
+            : String(e)
+      );
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const chooseLibrary = () => {
+    if (libraries.length === 1) return void send(libraries[0]);
+    if (Platform.OS !== 'ios') return setChoosing('library');
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: t.sendToWhichLibrary(),
+        options: [...libraries.map(libraryName), t.cancel()],
+        cancelButtonIndex: libraries.length,
+      },
+      (index) => {
+        if (index < libraries.length) void send(libraries[index]);
+      }
+    );
+  };
+
+  const share = async (what: 'audio' | 'text' | 'noesis') => {
+    if (what === 'noesis') return chooseLibrary();
     if (!app.token || busy) return;
     setBusy(true);
     try {
@@ -536,8 +609,8 @@ export function SegmentLine({
       hitSlop={spacing(1)}
       onPress={() =>
         Platform.OS === 'web'
-          ? setChoosing(!choosing)
-          : chooseWhatToShare(t, span, { audio, text }, (what) => void share(what))
+          ? setChoosing(choosing ? false : 'what')
+          : chooseWhatToShare(t, span, { audio, text, noesis }, (what) => void share(what))
       }
       style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >
@@ -545,21 +618,36 @@ export function SegmentLine({
     </Pressable>
   );
 
-  const choice = choosing ? (
-    <View style={styles.shareChoice}>
-      {(['audio', 'text'] as const).map((what) => (
-        <Button
-          key={what}
-          label={what === 'audio' ? t.audio() : t.keepText()}
-          disabled={what === 'audio' ? !audio : !text}
-          onPress={() => {
-            setChoosing(false);
-            void share(what);
-          }}
-        />
-      ))}
-    </View>
-  ) : null;
+  const choice =
+    choosing === 'what' ? (
+      <View style={styles.shareChoice}>
+        {(noesis ? (['audio', 'text', 'noesis'] as const) : (['audio', 'text'] as const)).map((what) => (
+          <Button
+            key={what}
+            label={what === 'audio' ? t.audio() : what === 'text' ? t.keepText() : t.sendToNoesis()}
+            disabled={what === 'audio' ? !audio : !text}
+            onPress={() => {
+              setChoosing(false);
+              void share(what);
+            }}
+          />
+        ))}
+      </View>
+    ) : choosing === 'library' ? (
+      <View style={styles.shareChoice}>
+        {libraries.map((library) => (
+          <Button
+            key={library}
+            label={libraryName(library)}
+            onPress={() => {
+              setChoosing(false);
+              void send(library);
+            }}
+          />
+        ))}
+        <Button label={t.cancel()} onPress={() => setChoosing(false)} />
+      </View>
+    ) : null;
 
   if (recording && renderRecording) {
     return (
@@ -602,32 +690,47 @@ export function SegmentLine({
 export function chooseWhatToShare(
   t: Strings['channel'],
   span: string,
-  has: { audio: boolean; text: boolean },
-  then: (what: 'audio' | 'text') => void
+  has: { audio: boolean; text: boolean; noesis?: boolean },
+  then: (what: 'audio' | 'text' | 'noesis') => void
 ): void {
   if (Platform.OS === 'ios') {
     const disabledButtonIndices: number[] = [];
     if (!has.audio) disabledButtonIndices.push(0);
     if (!has.text) disabledButtonIndices.push(1);
+    // *Send to noesis* only where it can be done, after the two Share always offers.
+    const options = [t.audio(), t.keepText(), ...(has.noesis ? [t.sendToNoesis()] : []), t.cancel()];
     ActionSheetIOS.showActionSheetWithOptions(
       {
         title: t.shareSpan(span),
-        options: [t.audio(), t.keepText(), t.cancel()],
-        cancelButtonIndex: 2,
+        options,
+        cancelButtonIndex: options.length - 1,
         disabledButtonIndices,
       },
       (index) => {
         if (index === 0 && has.audio) then('audio');
         if (index === 1 && has.text) then('text');
+        if (index === 2 && has.noesis) then('noesis');
       }
     );
     return;
   }
-  Alert.alert(t.shareSpan(span), undefined, [
-    { text: t.cancel(), style: 'cancel' },
+  const buttons = [
     ...(has.audio ? [{ text: t.audio(), onPress: () => then('audio') }] : []),
     ...(has.text ? [{ text: t.keepText(), onPress: () => then('text') }] : []),
-  ]);
+    ...(has.noesis ? [{ text: t.sendToNoesis(), onPress: () => then('noesis') }] : []),
+  ];
+  // Android draws three buttons at most; with three answers, a tap outside is the cancel.
+  Alert.alert(
+    t.shareSpan(span),
+    undefined,
+    buttons.length < 3 ? [{ text: t.cancel(), style: 'cancel' as const }, ...buttons] : buttons,
+    { cancelable: true }
+  );
+}
+
+/** A library's own name, without its owner's: `alice/essays` is *essays*. */
+function libraryName(id: string): string {
+  return id.split('/').slice(1).join('/') || id;
 }
 
 /**
@@ -1245,8 +1348,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing(0.5),
   },
   segmentLabel: { flexShrink: 1 },
+  // Wraps: a library's name is as long as its owner made it, and there may be several.
   shareChoice: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     justifyContent: 'flex-end',
     gap: spacing(1),
     paddingBottom: spacing(0.5),
