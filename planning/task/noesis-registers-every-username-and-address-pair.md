@@ -41,13 +41,35 @@ Roxana.
   lowercase letters, digits and `_`, four to thirty, compared without case;
   noesis stops issuing `-`, and its derived names respect the floor of four.
 
+## Renames work on both sides
+
+Decided 2026-11-02: a person renames themselves at either end and both follow,
+whether the pair is a reservation or a real noesis account.
+
+- **noesis renames the pair**, whichever end asked. For a reservation that is
+  the register alone. For an account it is what `rename_user.py` does today —
+  accounts.db, the OAuth grants (which keep working under the new name), the
+  libraries' directory and so every library id `<user>/<library>` — made a
+  self-service operation instead of an operator's script, and refused while a
+  run holds one of the person's libraries.
+- **A rename at The Floor** (the Contact screen) asks noesis, and writes the
+  Floor username only once noesis has accepted it.
+- **A rename at noesis has to reach The Floor**, which today it cannot: an
+  account that never connected has no grant to read `/me` with. So noesis
+  tells its confidential clients — a signed call to each, naming address, old
+  name and new — and The Floor renames the account it holds under that
+  address; a connected account's `/me` on refresh is the second check.
+- **What The Floor saved under the old name follows.** The library ids in
+  `noesis_connections.libraries` and in each channel's chosen libraries hold
+  `<old>/<library>`; `rename_user.py` currently lists them for somebody to
+  choose again, and this replaces that with a rewrite on The Floor's side.
+- **The old Floor username keeps answering as an invite link** —
+  `/i/<old>/<pin>` reaches the renamed person — since a rename otherwise
+  breaks every link they handed out. Whether the old name stays reserved
+  against anybody else, and for how long, is the same question at noesis.
+
 ## Open
 
-- **Renames once a real noesis account exists.** The user name is inside
-  noesis's library ids (`user/library`) and renaming one is the operator's
-  `rename_user.py`. Likely: The Floor may rename freely while the pair is a
-  reservation, and not once the noesis account exists — or a rename at The
-  Floor renames the account too, at that cost.
 - **Reconciliation of what exists**, before either end enforces anything. A
   script first, counting: Floor accounts whose address has a noesis account
   under another name; Floor usernames held at noesis by another address;
