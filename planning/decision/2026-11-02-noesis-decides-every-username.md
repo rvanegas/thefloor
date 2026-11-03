@@ -61,17 +61,26 @@ problem go away; until then, being unable to change is the simple rule.
 
 Refusals are server sentences the app already draws, so no build is needed.
 
-## Turning it on, in this order
+## How it was turned on, 2026-11-03
 
-1. Deploy noesis; `client_names.py thefloor` on its box.
-2. Deploy The Floor, `NOESIS_NAMES` unset: nothing asks noesis yet, though the
-   connected-library refusals apply at once.
-3. `bin/export-names > floor-names.tsv`; on noesis's box
-   `scripts/reserve_names.py < floor-names.tsv`, a plan, then `--apply
-   --renames floor-renames.tsv`; then `bin/rename-users floor-renames.tsv`, a
-   preview, and `--write`. noesis wins where the two disagree. Delete both
-   files, which hold addresses.
-4. `NOESIS_NAMES=on` in `server/.env`, `bin/env-push`, restart.
+1. noesis deployed; `client_names.py thefloor` on its box.
+2. The Floor deployed with `NOESIS_NAMES` unset: nothing asked noesis yet,
+   though the connected-library refusals applied at once.
+3. `bin/export-names`, then noesis's `scripts/reserve_names.py` — a plan, then
+   `--apply --renames` — then `bin/rename-users`, a preview and `--write`:
+   44 accounts, 5 already matching and 38 reserved. noesis was to win where
+   the two disagreed, and did once (`@Golf` became `@arysbatista`, its display
+   name kept); the other disagreement went The Floor's way, by renaming the
+   noesis account `ambonnel` to `nannick` with `rename_user.py`.
+4. `NOESIS_NAMES=on`, `bin/env-push`, restart.
+
+**`NOESIS_NAMES` was then retired**, the same day: it existed to hold noesis
+back until the names here were reconciled, and once they were, switching it
+off could only hand out names noesis does not know — which is the drift step
+3 removed. noesis now decides wherever The Floor's noesis client is
+configured; without it, as on a development server, names are derived here.
+A noesis outage therefore stops signups rather than creating names to
+reconcile later. A box still carrying the setting is told it is ignored.
 
 ## Deliberately not built
 

@@ -342,12 +342,11 @@ export interface BuildOptions {
    */
   library?: NoesisOptions;
   /**
-   * noesis's register of names (names.ts): this client's credentials, and
-   * `enforced` — signing up and renaming asking noesis, which decides —
-   * turned on only once the names already here have been reconciled with
-   * noesis's (`bin/export-names`).
+   * noesis's register of names (names.ts): this client's credentials, with
+   * which noesis decides every username — a signup's, and every rename.
+   * Absent, names are derived here.
    */
-  names?: NamesOptions & { enforced: boolean };
+  names?: NamesOptions;
   /**
    * Turns speech into text as it is spoken — the live transcript. Optional
    * for `transcription`'s reason, and needs `media` too: without a room to
@@ -1044,7 +1043,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * other identifier has no pair there.
    */
   const registered = (identifier: string): boolean =>
-    !!names && !!options.names?.enforced && identifier.includes('@');
+    !!names && identifier.includes('@');
   /**
    * Why a username or address cannot change: while a library is connected
    * both are the noesis account's too, and the name begins every library id

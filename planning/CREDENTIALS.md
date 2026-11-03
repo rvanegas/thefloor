@@ -389,7 +389,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   names and rename people who have no noesis account yet. And `add_client.py`
   replaces the whole registration, so after a rotation run `client_names.py`
   (and `client_imports.py`) again, or the register refuses this server and
-  every signup fails while `NOESIS_NAMES=on`.
+  every signup fails.
 
   **What it holds up: every person's grant**, in `noesis_connections`, one
   refresh token per account that connected a library, sealed with a key

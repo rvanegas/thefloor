@@ -67,7 +67,8 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
   return new Response(null, { status: 200 });
 }) as typeof fetch;
 
-function start(enforced: boolean) {
+/** The app, with The Floor's noesis client — and so the register — or without it. */
+function start(register: boolean) {
   app = buildApp({
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
@@ -79,7 +80,9 @@ function start(enforced: boolean) {
       callbackUrl: 'https://floor.example/noesis/callback',
       fetch: fakeNoesis,
     },
-    names: { origin: 'https://noesis.example', clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis, enforced },
+    names: register
+      ? { origin: 'https://noesis.example', clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis }
+      : undefined,
   });
 }
 
@@ -148,7 +151,7 @@ describe('signing up', () => {
     ).toBe(401);
   });
 
-  it('derives the name here, as before, until the register is turned on', async () => {
+  it('derives the name here, as before, on a server without The Floor’s noesis client', async () => {
     await app.fastify.close();
     start(false);
     const alice = await signIn('alice@example.com', 'Alice');
@@ -204,10 +207,10 @@ describe('a connected library', () => {
     return signedUp;
   }
 
-  it('fixes the username, saying why, whether or not the register is on', async () => {
-    for (const enforced of [true, false]) {
+  it('fixes the username, saying why, with or without the register', async () => {
+    for (const register of [true, false]) {
       await app.fastify.close();
-      start(enforced);
+      start(register);
       const alice = await connected('alice@example.com', 'somebody');
       const before = app.accounts.byId(alice.account.id)!.username!;
       asked = [];
