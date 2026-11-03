@@ -92,6 +92,21 @@ function recording(channelId: string, initiator: string, at: number) {
 }
 
 describe('rooms', () => {
+  it('open the first sitting of a channel made with its creator present', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const created = app.channels.create(alice.account.id, []);
+    if (!created.ok) throw new Error(created.error);
+    expect(rows(created.channel.id)).toEqual([
+      expect.objectContaining({ opened_at: clock, closed_at: null }),
+    ]);
+
+    clock += 1_000;
+    app.channels.dispatch(created.channel.id, alice.account.id, { type: 'STEP_OUT' });
+    expect(rows(created.channel.id)).toEqual([
+      expect.objectContaining({ opened_at: clock - 1_000, closed_at: clock }),
+    ]);
+  });
+
   it('open on the first step in and close on the last step out', async () => {
     const { alice, bob, channelId } = await channel();
     for (const room of rows(channelId)) expect(room.closed_at).not.toBeNull();

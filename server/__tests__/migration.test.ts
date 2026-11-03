@@ -747,3 +747,57 @@ it('drops mdc_connections, whose grants the new client secret cannot open', () =
   ).toEqual({ n: 0 });
   db.close();
 });
+
+it('writes the first sitting a channel made with somebody present went without', () => {
+  const path = join(dir, 'first-sittings.db');
+  const before = openDb(path);
+  seedAccounts(before);
+  const channel = before.prepare(
+    `INSERT INTO channels (id, initiator_id, invitee_id, created_at, participants)
+     VALUES (?, 'acct_a', 'acct_b', ?, '["acct_a","acct_b"]')`
+  );
+  const room = before.prepare(
+    'INSERT INTO rooms (id, channel_id, opened_at, closed_at) VALUES (?, ?, ?, ?)'
+  );
+  const segment = before.prepare(
+    'INSERT INTO segments (id, channel_id, started_at, ended_at, text) VALUES (?, ?, ?, ?, 1)'
+  );
+  const line = before.prepare(
+    `INSERT INTO live_lines (id, channel_id, identity, display_name, start_at, end_at, text)
+     VALUES (?, ?, 'acct_a', 'A', ?, ?, 'hello')`
+  );
+  // Older than rooms: what it kept before its first room is not reconstructed.
+  channel.run('chan_old', 100);
+  segment.run('seg_old', 'chan_old', 200, 300);
+  room.run('room_old', 'chan_old', 1_000, 2_000);
+  // Made since, its first sitting missed and its second written.
+  channel.run('chan_later', 3_000);
+  segment.run('seg_later', 'chan_later', 3_100, 3_500);
+  line.run('line_later', 'chan_later', 3_200, 3_600);
+  room.run('room_later', 'chan_later', 5_000, 6_000);
+  // Made since and still in its first sitting.
+  channel.run('chan_live', 7_000);
+  segment.run('seg_live', 'chan_live', 7_100, null);
+  // Made since and kept nothing: no sitting to show, so none written.
+  channel.run('chan_empty', 8_000);
+  before.close();
+
+  const rooms = (db: ReturnType<typeof openDb>) =>
+    db
+      .prepare('SELECT channel_id, opened_at, closed_at FROM rooms ORDER BY channel_id, opened_at')
+      .all() as Array<{ channel_id: string; opened_at: number; closed_at: number | null }>;
+  const db = openDb(path);
+  expect(rooms(db)).toEqual([
+    { channel_id: 'chan_later', opened_at: 3_000, closed_at: 3_600 },
+    { channel_id: 'chan_later', opened_at: 5_000, closed_at: 6_000 },
+    { channel_id: 'chan_live', opened_at: 7_000, closed_at: null },
+    { channel_id: 'chan_old', opened_at: 1_000, closed_at: 2_000 },
+  ]);
+  const written = rooms(db);
+  db.close();
+
+  // And nothing the second time.
+  const again = openDb(path);
+  expect(rooms(again)).toEqual(written);
+  again.close();
+});

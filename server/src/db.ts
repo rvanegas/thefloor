@@ -2069,7 +2069,8 @@ CREATE INDEX IF NOT EXISTS live_lines_channel
 -- A room: one LiveKit room from creation to deletion, which is a channel's
 -- sitting from the first person here to the last gone, guests included. Null
 -- closed_at while anybody is. See rooms.ts. None exist before 2026-10-09,
--- and none are reconstructed.
+-- and none are reconstructed but a new channel's first, which went unwritten
+-- until 2026-11-03 — see restoreFirstSittings.
 CREATE TABLE IF NOT EXISTS rooms (
   id                TEXT PRIMARY KEY,
   channel_id        TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -3118,6 +3119,66 @@ function migrate(db: Db): void {
   db.exec(
     'CREATE INDEX IF NOT EXISTS recording_consents_account ON recording_consents(account_id)'
   );
+  restoreFirstSittings(db);
+}
+
+/**
+ * **Writes the first sitting of every channel made since rooms began that
+ * went without one**, which until 2026-11-03 was every channel made with its
+ * creator present: `create` placed it past the edge a room is opened on (see
+ * `beganWithSomebodyHere` in channels.ts), so what that sitting kept was in no
+ * room and drawn nowhere.
+ *
+ * The sitting is put back from what it kept rather than inferred: it opened
+ * when the channel was made, and closed with the last thing kept before the
+ * channel's first written room — a segment's end, a paste, a live line's end
+ * — or is still open if a segment in it is, for `Rooms.restore` to close at
+ * this boot. So its hours may end early by however long people sat on after
+ * the last thing kept, which the log cannot show anyway.
+ *
+ * Only channels made after the first room ever written: an older channel's
+ * keeping before its first room is the sittings before rooms existed, which
+ * are not reconstructed. And it finds nothing the second time, the sitting it
+ * writes then being the channel's first room, opened at its creation.
+ */
+function restoreFirstSittings(db: Db): void {
+  const since = (db.prepare('SELECT MIN(opened_at) AS at FROM rooms').get() as { at: number | null })
+    .at;
+  if (since === null) return;
+  const channels = db
+    .prepare(
+      `SELECT c.id, c.created_at,
+              (SELECT MIN(r.opened_at) FROM rooms r WHERE r.channel_id = c.id) AS first_room
+         FROM channels c
+        WHERE c.created_at >= ?`
+    )
+    .all(since) as Array<{ id: string; created_at: number; first_room: number | null }>;
+  const kept = db.prepare(
+    `SELECT MAX(at) AS last, SUM(running) AS running FROM (
+       SELECT ended_at AS at, ended_at IS NULL AS running FROM segments
+        WHERE channel_id = ? AND started_at >= ? AND started_at < ?
+       UNION ALL
+       SELECT pasted_at, 0 FROM pastes
+        WHERE channel_id = ? AND pasted_at >= ? AND pasted_at < ?
+       UNION ALL
+       SELECT end_at, 0 FROM live_lines
+        WHERE channel_id = ? AND start_at >= ? AND start_at < ?
+     )`
+  );
+  const insert = db.prepare(
+    'INSERT INTO rooms (id, channel_id, opened_at, closed_at) VALUES (?, ?, ?, ?)'
+  );
+  for (const channel of channels) {
+    const until = channel.first_room ?? Number.MAX_SAFE_INTEGER;
+    if (until <= channel.created_at) continue;
+    const window = [channel.id, channel.created_at, until];
+    const found = kept.get(...window, ...window, ...window) as {
+      last: number | null;
+      running: number | null;
+    };
+    if (found.last === null && !found.running) continue;
+    insert.run(newId('room'), channel.id, channel.created_at, found.running ? null : found.last);
+  }
 }
 
 export function sha256(value: string): string {

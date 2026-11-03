@@ -1698,6 +1698,7 @@ export class ChannelRegistry {
     // Written immediately so a live row always carries its projection — that
     // invariant is what lets the migration tell a ghost from a channel.
     this.persistChannel(channel);
+    this.beganWithSomebodyHere(channel, createdAt);
     this.emit([channel.id]);
     // A second delivery of the invite the socket has just carried, for anyone
     // whose app is not running to receive it. Not a replacement: the in-app
@@ -1849,6 +1850,7 @@ export class ChannelRegistry {
     const channel = createChannel({ id, initiator: owner, invitees: [], now: createdAt });
     this.channels.set(channel.id, channel);
     this.persistChannel(channel);
+    this.beganWithSomebodyHere(channel, createdAt);
     this.emit([channel.id]);
     return this.makeCommunity(channel.id, owner, name);
   }
@@ -4722,6 +4724,19 @@ export class ChannelRegistry {
         this.connectivity.expired += 1;
       }
     }
+  }
+
+  /**
+   * **The sitting a channel begins with, when it begins with somebody here.**
+   * `commit` opens a room on the edge from nobody here to somebody, and a
+   * channel `create` makes has its creator present from the start — so it is
+   * placed in the registry already past that edge, and its first sitting was
+   * never written: everything it kept, live transcript included, was in no
+   * room and so in nothing the *Record* tab draws, until 2026-11-03. Asked of
+   * `peopleHere` for the reason the edge is, and at the moment of creation.
+   */
+  private beganWithSomebodyHere(channel: ChannelState, now: number): void {
+    if (peopleHere(channel).length > 0) this.rooms.opened(channel.id, now);
   }
 
   private commit(before: ChannelState, after: ChannelState): void {
