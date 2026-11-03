@@ -1245,28 +1245,6 @@ describe('the library switch', () => {
     });
   });
 
-  it('follows a noesis user renamed, in every channel’s choice and survives a restart', async () => {
-    noesisLibraries = ['alice/notes'];
-    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
-    const { alice, channelId } = await room2();
-    await connect(alice.account.id);
-    app.channels.dispatch(channelId, alice.account.id, {
-      type: 'SET_LIBRARY',
-      library: true,
-      libraries: ['alice/notes'],
-    } as never);
-    app.channels.renameLibraryUser('alice', 'alice_n');
-    app.channels.renameLibraryUser('nobody', 'somebody');
-    expect(app.channels.get(channelId)).toMatchObject({
-      library: true,
-      libraries: { [alice.account.id]: ['alice_n/notes'] },
-    });
-    app.channels.stop();
-    await app.fastify.close();
-    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
-    expect(app.channels.get(channelId)!.libraries).toEqual({ [alice.account.id]: ['alice_n/notes'] });
-  });
-
   it('drops a library deleted at noesis from every channel, and goes off with none left', async () => {
     noesisLibraries = ['alice/notes', 'alice/philosophy'];
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);

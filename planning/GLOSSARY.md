@@ -135,7 +135,7 @@ caused; the list carries the meaning.
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown to every member where the server offers libraries, switched on only by somebody with one connected, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, with *Send to noesis*
-- **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up — except once noesis decides it (`NOESIS_NAMES=on`), when it is their noesis user name too, and a rename at either end renames both
+- **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up — except once noesis decides it (`NOESIS_NAMES=on`), when it is their noesis user name too; and **fixed, with the address, while a noesis library is connected**
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
 - **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
@@ -3157,11 +3157,12 @@ a username exists. `core/derivedNames.ts` is the derivation.
 `server/src/names.ts`): it is the same name as the person's noesis user name,
 compared without case, and one address is one name across both. A signup is
 named by noesis — the display name's stem suggested — and a rename on the
-Contact screen is made at noesis first, renaming their noesis account and its
-libraries too; a rename made at noesis arrives here signed. Under it a
-username can be changed but not given up. **A name somebody was renamed from
+Contact screen is made at noesis first, which allows it only while the person
+has no noesis account; under it a username can be changed but not given up.
+**While a noesis library is connected, the username and the address cannot
+change at all**, register or no register. **A name somebody was renamed from
 still reaches them** as an invite or member link until somebody else takes it
-(`username_aliases`), here or by a rename at noesis alike.
+(`username_aliases`).
 
 **It is not the name anybody is called by.** That is the *display name*, which
 is what appears in every roster, invitation and recording, need not be unique,

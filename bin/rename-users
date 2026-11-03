@@ -1,0 +1,124 @@
+#!/bin/bash
+#
+# Renames accounts here to the names noesis decided.
+#
+#   bin/rename-users renames.tsv                 preview, against the deployed server
+#   bin/rename-users renames.tsv --write         do it
+#   bin/rename-users renames.tsv --local [...]   the development database instead
+#
+# One `email<TAB>old<TAB>new` per line, as noesis's `scripts/reserve_names.py
+# --apply --renames` writes them: where noesis already had another name for an
+# address, or the name here was somebody else's there, noesis — the source of
+# truth since decision/2026-11-02-noesis-decides-every-username.md — wins, and
+# the account here follows. The operator's rename_user.py at noesis is the
+# other source of such a line, written by hand.
+#
+# A preview by default, the trade bin/backfill-usernames makes: every line,
+# the username the account has now, and whoever here already holds the new
+# one, which would stop the write. `--write` renames in one transaction, and
+# keeps each old name answering as an invite or member link (username_aliases)
+# until somebody else takes it. A line whose account no longer has the old
+# name is left alone.
+#
+# Nothing needs restarting: usernames are read from the database on every
+# lookup. Library ids saved here are untouched, since noesis's own names did
+# not change.
+set -euo pipefail
+
+HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
+KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
+REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+LOCAL_DB="$ROOT/server/thefloor.db"
+
+local_mode=false
+write=false
+file=""
+
+for arg in "$@"; do
+  case "$arg" in
+    --local) local_mode=true ;;
+    --write) write=true ;;
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    -*) echo "Unknown option: $arg" >&2; exit 1 ;;
+    *) file="$arg" ;;
+  esac
+done
+[ -n "$file" ] && [ -f "$file" ] || { echo "Usage: bin/rename-users renames.tsv [--write] [--local]" >&2; exit 1; }
+
+# Each line checked before it is written into SQL: names are the alphabet a
+# username is made of, and an address loses nothing by having its quotes
+# doubled.
+values=""
+while IFS= read -r line || [ -n "$line" ]; do
+  [ -z "$line" ] && continue
+  # Split by hand: `read` folds a run of tabs into one, which loses an empty old name.
+  email=${line%%$'\t'*}
+  rest=${line#*$'\t'}
+  old=${rest%%$'\t'*}
+  new=${rest#*$'\t'}
+  [[ "$new" =~ ^[a-z0-9_]{4,30}$ ]] || { echo "Not a name noesis gives: '$new' (for $email)" >&2; exit 1; }
+  [[ "$old" =~ ^[A-Za-z0-9_]*$ ]] || { echo "Not a username: '$old' (for $email)" >&2; exit 1; }
+  values+="${values:+,}('${email//\'/\'\'}', '$old', '$new')"
+done < "$file"
+[ -n "$values" ] || { echo "Nothing to rename."; exit 0; }
+
+run() {
+  if $local_mode; then
+    sqlite3 "$@" "$LOCAL_DB"
+  else
+    ssh -i "$KEY" -o BatchMode=yes "$HOST" \
+      "sqlite3$(printf ' %q' "$@") '$REMOTE_DB'"
+  fi
+}
+
+if $local_mode; then
+  [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
+  where=local
+else
+  where=production
+fi
+
+if $write; then
+  echo "→ $where · writing"
+  open="BEGIN IMMEDIATE;"
+  keep="
+INSERT INTO username_aliases (username, account_id, renamed_at)
+  SELECT r.old, a.id, CAST(strftime('%s', 'now') AS INTEGER) * 1000
+  FROM temp.r r JOIN accounts a ON a.identifier = r.email COLLATE NOCASE
+  WHERE r.old <> '' AND a.username = r.old COLLATE NOCASE
+  ON CONFLICT (username) DO UPDATE SET account_id = excluded.account_id, renamed_at = excluded.renamed_at;
+DELETE FROM username_aliases WHERE username IN (SELECT new FROM temp.r);
+UPDATE accounts
+SET username = (SELECT r.new FROM temp.r r WHERE r.email = accounts.identifier COLLATE NOCASE)
+WHERE id IN (
+  SELECT a.id FROM temp.r r JOIN accounts a ON a.identifier = r.email COLLATE NOCASE
+  WHERE COALESCE(a.username, '') = r.old COLLATE NOCASE);
+SELECT changes() AS renamed;
+COMMIT;"
+  flags=(-bail -header -column -cmd '.timeout 2000')
+else
+  echo "→ $where · preview, nothing will be written"
+  open=""
+  keep=""
+  flags=(-readonly -header -column -cmd '.timeout 2000')
+fi
+
+run "${flags[@]}" <<<"
+$open
+CREATE TEMP TABLE r (email TEXT, old TEXT, new TEXT);
+INSERT INTO temp.r VALUES $values;
+
+SELECT r.email,
+       COALESCE('@' || NULLIF(r.old, ''), '-') AS old,
+       '@' || r.new AS new,
+       CASE WHEN a.id IS NULL THEN 'no account'
+            WHEN COALESCE(a.username, '') <> r.old COLLATE NOCASE THEN 'now @' || COALESCE(a.username, '-') || ', left alone'
+            ELSE '' END AS note,
+       COALESCE((SELECT h.identifier FROM accounts h
+                 WHERE h.username = r.new COLLATE NOCASE AND h.id IS NOT a.id), '') AS new_held_by
+FROM temp.r r LEFT JOIN accounts a ON a.identifier = r.email COLLATE NOCASE;
+$keep"

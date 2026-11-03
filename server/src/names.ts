@@ -1,5 +1,3 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-
 /**
  * noesis's register of names, which decides every username here.
  *
@@ -15,12 +13,13 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  *   free and the address's if not. noesis unreachable means the account cannot
  *   be made; signing in to an existing one never asks.
  * - **Renaming on the Contact screen asks noesis first** (`choose`), which
- *   renames the noesis account too when there is one, libraries and all.
- * - **A rename made at noesis arrives at `/noesis/renamed`**, a POST signed
- *   with this client's secret (`signedByNoesis`), since an account that never
- *   connected has no grant to notice it with.
- * - **An address moves at noesis only while it is a reservation's** (`move`):
- *   a noesis account's address is how its owner signs in there.
+ *   renames a reservation and refuses a noesis account's name.
+ * - **An address moves at noesis only while it is a reservation's** (`move`).
+ * - **A noesis account's name and address are fixed**, at both ends: renaming
+ *   one would have to reach every library id saved under it, and nothing
+ *   makes that reliable until sign-in moves out of both applications. So
+ *   while a library is connected neither changes here at all (app.ts), and
+ *   noesis refuses either for any account of its own.
  *
  * The register answers this client by its id and secret, as HTTP Basic, on
  * nobody's behalf; noesis's operator marks it with `scripts/client_names.py`.
@@ -74,16 +73,6 @@ export class NoesisNames {
   /** Moves the address's reservation to another; refused as `taken` for a noesis account's. */
   async move(email: string, newEmail: string): Promise<NamesAnswer> {
     return this.call('PUT', '/names/address', { email, new_email: newEmail });
-  }
-
-  /** Whether a rename's body came from noesis: its HMAC under this client's secret. */
-  signedByNoesis(body: string, signature: string | undefined): boolean {
-    if (!signature) return false;
-    const expected = Buffer.from(
-      'sha256=' + createHmac('sha256', this.options.clientSecret).update(body).digest('hex')
-    );
-    const given = Buffer.from(signature);
-    return given.length === expected.length && timingSafeEqual(given, expected);
   }
 
   private async call(method: string, path: string, body: object): Promise<NamesAnswer> {

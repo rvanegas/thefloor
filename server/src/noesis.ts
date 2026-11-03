@@ -320,21 +320,6 @@ export class NoesisConnections {
     }
   }
 
-  /**
-   * A noesis user renamed (names.ts): the connections to their library say
-   * the new name, and list their libraries under it, as noesis now does.
-   */
-  renameUser(old: string, renamed: string): void {
-    const rows = this.db
-      .prepare('SELECT account_id, libraries FROM noesis_connections WHERE noesis_user = ?')
-      .all(old) as Array<{ account_id: string; libraries: string | null }>;
-    for (const row of rows) {
-      this.db
-        .prepare('UPDATE noesis_connections SET noesis_user = ?, libraries = ? WHERE account_id = ?')
-        .run(renamed, JSON.stringify(renameLibraryIds(parseLibraries(row.libraries), old, renamed)), row.account_id);
-    }
-  }
-
   private forget(accountId: string): void {
     this.access.delete(accountId);
     this.db.prepare('DELETE FROM noesis_connections WHERE account_id = ?').run(accountId);
@@ -432,11 +417,6 @@ export class NoesisConnections {
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
   }
-}
-
-/** Library ids `<user>/<library>` with `old`'s now `renamed`'s; everybody else's as they were. */
-export function renameLibraryIds(ids: readonly string[], old: string, renamed: string): string[] {
-  return ids.map((id) => (id.startsWith(`${old}/`) ? `${renamed}/${id.slice(old.length + 1)}` : id));
 }
 
 /** A list of strings — library ids, or a person's names — from noesis or from the column; anything else is none. */

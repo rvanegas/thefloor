@@ -342,11 +342,10 @@ export interface BuildOptions {
    */
   library?: NoesisOptions;
   /**
-   * noesis's register of names (names.ts): this client's credentials, which
-   * are enough for a rename made at noesis to be heard at `/noesis/renamed`.
-   * `enforced` is the rest — signing up and renaming asking noesis, which
-   * decides — and is turned on only once the names already here have been
-   * reconciled with noesis's (`bin/export-names`).
+   * noesis's register of names (names.ts): this client's credentials, and
+   * `enforced` — signing up and renaming asking noesis, which decides —
+   * turned on only once the names already here have been reconciled with
+   * noesis's (`bin/export-names`).
    */
   names?: NamesOptions & { enforced: boolean };
   /**
@@ -519,9 +518,7 @@ export function buildApp(options: BuildOptions = {}): App {
   fastify.addContentTypeParser(
     'application/json',
     { parseAs: 'string' },
-    (request, body: string, done) => {
-      // Kept for the one route that checks a signature over the bytes sent.
-      (request as FastifyRequest & { rawBody?: string }).rawBody = body;
+    (_request, body: string, done) => {
       if (!body || body.trim() === '') return done(null, {});
       try {
         done(null, JSON.parse(body));
@@ -1048,6 +1045,14 @@ export function buildApp(options: BuildOptions = {}): App {
    */
   const registered = (identifier: string): boolean =>
     !!names && !!options.names?.enforced && identifier.includes('@');
+  /**
+   * Why a username or address cannot change: while a library is connected
+   * both are the noesis account's too, and the name begins every library id
+   * saved here. Fixed rather than kept in step, until sign-in moves out of
+   * both applications (decision/2026-11-02-noesis-decides-every-username.md).
+   */
+  const FIXED_WHILE_CONNECTED =
+    'Your username and email address are also your noesis account’s, so they can’t be changed while your noesis library is connected.';
 
   const channels = new ChannelRegistry(
     db,
@@ -3332,6 +3337,10 @@ export function buildApp(options: BuildOptions = {}): App {
         .code(503)
         .send({ error: 'Changing your address is temporarily unavailable.' });
     }
+    // Refused before a code is sent, which would otherwise be spent on a no.
+    if (noesis?.connected(account.id)) {
+      return reply.code(409).send({ error: FIXED_WHILE_CONNECTED });
+    }
 
     const code = accounts.issueCode(identifier, now());
     if (code) {
@@ -3366,6 +3375,10 @@ export function buildApp(options: BuildOptions = {}): App {
       | undefined;
     if (!body?.identifier || !body?.code) {
       return reply.code(400).send({ error: 'identifier and code are required' });
+    }
+    // Asked again here: a library may have been connected since the code was sent.
+    if (noesis?.connected(account.id)) {
+      return reply.code(409).send({ error: FIXED_WHILE_CONNECTED });
     }
 
     if (!accounts.consumeCode(body.identifier, body.code, now())) {
@@ -3524,33 +3537,35 @@ export function buildApp(options: BuildOptions = {}): App {
       client that ever wants to offer an alternative spelling needs to be able
       to tell the two apart.
     */
-    if (changes.username !== undefined && registered(account.identifier)) {
+    const wanted = changes.username === undefined ? undefined : normaliseUsername(changes.username) ?? '';
+    const renaming =
+      wanted !== undefined && foldUsername(wanted) !== foldUsername(account.username ?? '');
+    // Fixed while a library is connected: the name is the noesis account's
+    // too, and the start of every library id saved here (names.ts).
+    if (renaming && noesis?.connected(account.id)) {
+      return reply.code(409).send({ error: FIXED_WHILE_CONNECTED });
+    }
+    if (renaming && registered(account.identifier)) {
       /*
-        noesis decides (names.ts), and renames its account too when there is
-        one — libraries and all — so it is asked before anything is written
-        here. The case typed is kept here, noesis's name being the same one
-        folded. Somebody here already holding it is refused first, since
-        noesis may not yet know every name here and a rename it has made would
-        then have nowhere to land.
+        noesis decides (names.ts), so it is asked before anything is written
+        here: it renames a reservation, and refuses a noesis account's name,
+        which is fixed. The case typed is kept here, noesis's name being the
+        same one folded. Somebody here already holding it is refused first,
+        since noesis may not yet know every name here.
       */
-      const wanted = normaliseUsername(changes.username) ?? '';
       if (wanted === '') {
         return reply.code(400).send({
           error: 'Your username is also your noesis user name, so it can be changed but not removed.',
         });
       }
-      if (!account.username || foldUsername(account.username) !== foldUsername(wanted)) {
-        const holder = accounts.byUsername(wanted);
-        if (holder && holder.id !== account.id && holder.username && foldUsername(holder.username) === foldUsername(wanted)) {
-          return reply.code(409).send({ error: new UsernameTakenError().message });
-        }
-        const answer = await names!.choose(account.identifier.trim().toLowerCase(), wanted);
-        if (!answer.ok) {
-          const status = answer.reason === 'invalid' ? 400 : answer.reason === 'unreachable' ? 503 : 409;
-          return reply.code(status).send({ error: answer.message });
-        }
-        // What noesis did reaches channels here as it would from a rename made there.
-        renamedAtNoesis(account.username, answer.user);
+      const holder = accounts.byUsername(wanted!);
+      if (holder && holder.id !== account.id && holder.username && foldUsername(holder.username) === foldUsername(wanted!)) {
+        return reply.code(409).send({ error: new UsernameTakenError().message });
+      }
+      const answer = await names!.choose(account.identifier.trim().toLowerCase(), wanted!);
+      if (!answer.ok) {
+        const status = answer.reason === 'invalid' ? 400 : answer.reason === 'unreachable' ? 503 : 409;
+        return reply.code(status).send({ error: answer.message });
       }
     }
     let updated;
@@ -3931,58 +3946,6 @@ export function buildApp(options: BuildOptions = {}): App {
           : '<p>Close this window and try again from <strong>Floor Settings</strong>.</p>',
       })
     );
-  });
-
-  /**
-   * A noesis user name changed, by a rename from either end: every library id
-   * saved here under the old one — a connection's list, a channel's choice —
-   * now begins with the new one, as noesis's do. Folded, since noesis keeps
-   * names lowercase and a username here keeps the case it was typed in.
-   */
-  const renamedAtNoesis = (old: string | null | undefined, renamed: string): void => {
-    if (!old) return;
-    const from = foldUsername(old);
-    if (from === renamed) return;
-    noesis?.renameUser(from, renamed);
-    channels.renameLibraryUser(from, renamed);
-  };
-
-  /**
-   * A rename made at noesis — by the person there, by its operator, or by the
-   * reconciliation of names that were here before the register — told to The
-   * Floor, which keeps the name noesis decides (names.ts). Signed with this
-   * client's secret, since it changes somebody's username on nobody's
-   * session; noesis asks again until it is answered, so a refusal here is
-   * one it will repeat.
-   */
-  fastify.post('/noesis/renamed', async (request, reply) => {
-    if (!names) return reply.code(404).send({ error: 'Not found.' });
-    const raw = (request as FastifyRequest & { rawBody?: string }).rawBody ?? '';
-    const signature = request.headers['x-noesis-signature'];
-    if (!names.signedByNoesis(raw, typeof signature === 'string' ? signature : undefined)) {
-      return reply.code(401).send({ error: 'Not signed by noesis.' });
-    }
-    const body = request.body as { email?: unknown; old?: unknown; new?: unknown } | undefined;
-    const renamed = typeof body?.new === 'string' ? normaliseUsername(body.new) : null;
-    if (typeof body?.email !== 'string' || typeof body.old !== 'string' || !renamed) {
-      return reply.code(400).send({ error: 'email, old and new are required.' });
-    }
-    const result = accounts.applyNoesisRename(body.email, body.old, renamed, now());
-    renamedAtNoesis(body.old, foldUsername(renamed));
-    if (result.result === 'taken') {
-      request.log.warn({ old: body.old, renamed }, 'names: a noesis rename is held here by somebody else');
-      return reply.code(409).send({ error: new UsernameTakenError().message });
-    }
-    if (result.result === 'renamed') {
-      homeNotifier.notify([
-        result.account.id,
-        ...accounts
-          .contactsFor(result.account.id)
-          .map((entry) => entry.account.id)
-          .filter(Boolean),
-      ]);
-    }
-    return reply.code(204).send();
   });
 
   /**

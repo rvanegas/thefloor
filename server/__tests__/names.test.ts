@@ -1,10 +1,10 @@
-import { createHmac } from 'node:crypto';
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 
 /**
  * noesis decides every username (names.ts): a signup is named there, a rename
- * here is made there first, and a rename there arrives here signed. noesis is
+ * here is made there first, and while a library is connected neither the
+ * username nor the address changes at all. noesis is
  * answered by a register kept in this file — a name per address, and the
  * four-to-thirty lowercase rule — which is all of its behaviour The Floor sees.
  */
@@ -112,19 +112,6 @@ async function signIn(identifier: string, displayName: string) {
 const rename = (token: string, username: string) =>
   app.fastify.inject({ method: 'POST', url: '/me', headers: auth(token), payload: { username } });
 
-function renamedAtNoesis(body: object, secret = SECRET) {
-  const payload = JSON.stringify(body);
-  return app.fastify.inject({
-    method: 'POST',
-    url: '/noesis/renamed',
-    headers: {
-      'content-type': 'application/json',
-      'x-noesis-signature': 'sha256=' + createHmac('sha256', secret).update(payload).digest('hex'),
-    },
-    payload,
-  });
-}
-
 describe('signing up', () => {
   it('takes the username noesis gives, suggesting the display name’s', async () => {
     const alice = await signIn('Alice@example.com', 'Alice');
@@ -208,38 +195,58 @@ describe('renaming here', () => {
   });
 });
 
-describe('a rename made at noesis', () => {
-  it('is refused unsigned, or signed with anything but this client’s secret', async () => {
-    await signIn('alice@example.com', 'Alice');
-    const body = { email: 'alice@example.com', old: 'alice', new: 'alice_n' };
-    expect((await renamedAtNoesis(body, 'wrong')).statusCode).toBe(401);
-    expect(
-      (await app.fastify.inject({ method: 'POST', url: '/noesis/renamed', payload: body })).statusCode
-    ).toBe(401);
-  });
-
-  it('renames the account here, and every library id saved under the old name', async () => {
-    const alice = await signIn('alice@example.com', 'Alice');
-    const state = new URL(app.noesis!.start(alice.account.id, 'app')).searchParams.get('state')!;
+describe('a connected library', () => {
+  async function connected(identifier: string, user: string) {
+    const signedUp = await signIn(identifier, 'Somebody');
+    signedIn = { user, email: identifier };
+    const state = new URL(app.noesis!.start(signedUp.account.id, 'app')).searchParams.get('state')!;
     expect((await app.noesis!.finish(state, 'code', undefined)).ok).toBe(true);
-    expect(app.noesis!.librariesOf(alice.account.id)).toEqual(['alice/notes']);
+    return signedUp;
+  }
 
-    const answered = await renamedAtNoesis({ email: 'alice@example.com', old: 'alice', new: 'alice_n' });
-    expect(answered.statusCode).toBe(204);
-    expect(app.accounts.byId(alice.account.id)!.username).toBe('alice_n');
-    expect(app.accounts.byUsername('alice')!.id).toBe(alice.account.id);
-    expect(app.noesis!.status(alice.account.id)).toMatchObject({ user: 'alice_n', libraries: ['alice_n/notes'] });
-    // Told twice, as a retry would, is the same rename.
-    expect((await renamedAtNoesis({ email: 'alice@example.com', old: 'alice', new: 'alice_n' })).statusCode).toBe(204);
+  it('fixes the username, saying why, whether or not the register is on', async () => {
+    for (const enforced of [true, false]) {
+      await app.fastify.close();
+      start(enforced);
+      const alice = await connected('alice@example.com', 'somebody');
+      const before = app.accounts.byId(alice.account.id)!.username!;
+      asked = [];
+      const refused = await rename(alice.token, 'alice_two');
+      expect(refused.statusCode).toBe(409);
+      expect(refused.json().error).toMatch(/can’t be changed while your noesis library is connected/);
+      expect((await rename(alice.token, '')).statusCode).toBe(409);
+      expect(app.accounts.byId(alice.account.id)!.username).toBe(before);
+      expect(asked).toEqual([]);
+      // The same name, in another case, is no change.
+      expect((await rename(alice.token, before.toUpperCase())).statusCode).toBe(200);
+    }
   });
 
-  it('is nothing to do for an address nobody here has, and refused while somebody here holds the name', async () => {
-    const alice = await signIn('alice@example.com', 'Alice');
-    await signIn('bob@example.com', 'Bob');
-    expect((await renamedAtNoesis({ email: 'nobody@example.com', old: 'nobody', new: 'nobody_n' })).statusCode).toBe(204);
-    expect((await renamedAtNoesis({ email: 'alice@example.com', old: 'alice', new: 'bob1' })).statusCode).toBe(204);
-    expect((await renamedAtNoesis({ email: 'alice@example.com', old: 'bob1', new: 'bob2' })).statusCode).toBe(409);
-    expect(app.accounts.byId(alice.account.id)!.username).toBe('bob1');
+  it('fixes the address before a code is sent, and again when one comes back', async () => {
+    const alice = await connected('alice@example.com', 'somebody');
+    const asking = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/email',
+      headers: auth(alice.token),
+      payload: { identifier: 'alice@new.example' },
+    });
+    expect(asking.statusCode).toBe(409);
+    const code = app.accounts.issueCode('alice@new.example', clock)!;
+    const confirming = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/email/confirm',
+      headers: auth(alice.token),
+      payload: { identifier: 'alice@new.example', code },
+    });
+    expect(confirming.statusCode).toBe(409);
+    expect(app.accounts.byId(alice.account.id)!.identifier).toBe('alice@example.com');
+  });
+
+  it('frees both once it is disconnected, for a name noesis still holds as a reservation', async () => {
+    const alice = await connected('alice@example.com', 'somebody');
+    await app.noesis!.disconnect(alice.account.id);
+    expect((await rename(alice.token, 'alice_two')).statusCode).toBe(200);
+    expect(register.get('alice@example.com')).toBe('alice_two');
   });
 });
 

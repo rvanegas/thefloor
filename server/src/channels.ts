@@ -117,7 +117,6 @@ import type { AudioTrack, MediaServer, PlaybackSession } from './media';
 import type { RecordingStore } from './storage';
 import { createPushNotifier, notifications, type PushNotifier } from './push';
 import { pairSpan, UsageMeter } from './usage';
-import { renameLibraryIds } from './noesis';
 
 export const TICK_INTERVAL_MS = 500;
 
@@ -2215,25 +2214,6 @@ export class ChannelRegistry {
       const chosen = channel.libraries?.[userId];
       if (!chosen) continue;
       const next = withLibraries(channel, userId, chosen.filter((id) => exists.has(id)));
-      if (next === channel) continue;
-      this.commit(channel, next);
-      changed.push(channel.id);
-    }
-    if (changed.length) this.emit(changed);
-  }
-
-  /**
-   * A noesis user renamed (names.ts): every channel's choice of their
-   * libraries names them by the new name, whoever's choice it is, since a
-   * library id begins with its owner's user name.
-   */
-  renameLibraryUser(old: string, renamed: string): void {
-    const changed: string[] = [];
-    for (const channel of this.channels.values()) {
-      let next = channel;
-      for (const [owner, chosen] of Object.entries(channel.libraries ?? {})) {
-        next = withLibraries(next, owner, renameLibraryIds(chosen, old, renamed));
-      }
       if (next === channel) continue;
       this.commit(channel, next);
       changed.push(channel.id);

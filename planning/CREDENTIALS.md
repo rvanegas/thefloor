@@ -383,15 +383,13 @@ Deliberately separate, so no single leak is worse than it has to be:
 
   **Since 2026-11-02 it also speaks for The Floor at noesis's register of
   names** (`server/src/names.ts`), once noesis's operator has marked the
-  client with `scripts/client_names.py thefloor --hook
-  https://thefloor.rvanegas.co/noesis/renamed`: as HTTP Basic it reserves and
-  renames anybody's user name at noesis — a noesis account's too, moving its
-  libraries — and noesis signs the renames it sends to `/noesis/renamed` with
-  it. **That makes a leak worse than the paragraph above**: somebody holding
-  it can rename anybody's noesis account, and anybody's username here. And
-  `add_client.py` replaces the whole registration, so after a rotation run
-  `client_names.py` (and `client_imports.py`) again, or the register refuses
-  this server and every signup fails while `NOESIS_NAMES=on`.
+  client with `scripts/client_names.py thefloor`: as HTTP Basic it reserves
+  names for addresses, and renames or moves a reservation — never a noesis
+  account's name or address, which are fixed. A leak lets somebody reserve
+  names and rename people who have no noesis account yet. And `add_client.py`
+  replaces the whole registration, so after a rotation run `client_names.py`
+  (and `client_imports.py`) again, or the register refuses this server and
+  every signup fails while `NOESIS_NAMES=on`.
 
   **What it holds up: every person's grant**, in `noesis_connections`, one
   refresh token per account that connected a library, sealed with a key

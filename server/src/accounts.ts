@@ -504,37 +504,6 @@ export class Accounts {
   }
 
   /**
-   * A rename made at noesis, arriving at `/noesis/renamed`: the account under
-   * that address — or, failing that, holding the old name — takes the new one.
-   * `none` when nobody here is either, which is nothing to do; `taken` when
-   * somebody here already holds the new name, which noesis will ask again.
-   */
-  applyNoesisRename(
-    email: string,
-    old: string,
-    renamed: string,
-    now: number
-  ): { result: 'renamed' | 'same'; account: AccountRow } | { result: 'none' | 'taken' } {
-    const account =
-      this.byIdentifier(email) ??
-      (this.db
-        .prepare('SELECT * FROM accounts WHERE username = ? COLLATE NOCASE')
-        .get(foldUsername(old)) as AccountRow | undefined);
-    if (!account) return { result: 'none' };
-    if (account.username && foldUsername(account.username) === foldUsername(renamed)) {
-      return { result: 'same', account };
-    }
-    try {
-      this.db.prepare('UPDATE accounts SET username = ? WHERE id = ?').run(renamed, account.id);
-    } catch (error) {
-      if (isUniqueViolation(error)) return { result: 'taken' };
-      throw error;
-    }
-    this.recordRename(account.id, account.username, now);
-    return { result: 'renamed', account: this.byId(account.id)! };
-  }
-
-  /**
    * Whether this account transcribes without limit: the hand-set mark.
    * Everybody else has free minutes a week, which `transcriptMsSince` counts.
    */

@@ -9,11 +9,12 @@
 # none — the input noesis's `scripts/reserve_names.py` reads, which is how the
 # names given out here before noesis decided them (names.ts) become noesis's:
 # kept where it agrees, reserved where they are free, and otherwise renamed
-# here through `/noesis/renamed`, noesis winning. The order is in
+# here by bin/rename-users, noesis winning. The order is in
 # planning/decision/2026-11-02-noesis-decides-every-username.md:
 #
 #   bin/export-names > floor-names.tsv
-#   then, on noesis's box, reserve_names.py < floor-names.tsv, and --apply
+#   on noesis's box, reserve_names.py < floor-names.tsv, then --apply --renames
+#   bin/rename-users floor-renames.tsv, then --write
 #
 # Read-only. Addresses only, since noesis keeps a name per address; tombstones
 # (`erased:…`) have nobody behind them.
