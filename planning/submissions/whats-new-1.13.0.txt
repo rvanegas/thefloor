@@ -1,0 +1,11 @@
+Claude's replies are read aloud as they arrive, in the language each is written in. A bar above the footer offers Restart and Stop while one is read. Read aloud, in Floor Settings, turns it off and chooses a voice for each language.
+
+Brief, Medium and Extended replies from Ask Claude run to about 50, 150 and 450 words.
+
+Connect your noesis library in Floor Settings, and turn on Library in a channel's Settings to let Claude consult it there. Claude names any piece it quotes and whose it is. Several members' libraries can be on in one channel, and anybody present can switch one off. Send to noesis, under Share on the Record tab, files a room's text in your own library.
+
+A shared room's text names its channel and the full date.
+
+Playing a film stops a recording, and starting a recording pauses a film.
+
+The green pill comes back after the connection drops and returns. A live transcript stays off after a restart when its switch says off.
