@@ -297,6 +297,8 @@ let noesisScope = 'import';
 let noesisNames: string[] = [];
 /** How noesis's import answers. */
 let noesisImport: () => Response = () => new Response(null, { status: 500 });
+/** Who noesis's `/me` says signed in: the account connecting, unless a test says otherwise. */
+let noesisWho: { user: string; email: string } = { user: 'alice', email: 'alice@example.com' };
 const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: string }) => {
   const url = new URL(String(input));
   const fields = Object.fromEntries(new URLSearchParams(String(init?.body ?? '')));
@@ -322,7 +324,7 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
     return Response.json({ names: noesisNames });
   }
   if (url.pathname === '/me') {
-    return Response.json({ user: 'alice', email: 'alice@example.com', libraries: noesisLibraries, names: noesisNames });
+    return Response.json({ ...noesisWho, libraries: noesisLibraries, names: noesisNames });
   }
   if (url.pathname.endsWith('/import')) return noesisImport();
   return new Response(null, { status: 200 });
@@ -337,7 +339,9 @@ const NOESIS: NoesisOptions = {
 };
 
 /** Connects an account's library the way the callback does, past noesis's sign-in. */
-async function connect(accountId: string) {
+async function connect(accountId: string, who?: { user: string; email: string }) {
+  const email = app.accounts.byId(accountId)!.identifier;
+  noesisWho = who ?? { user: email.split('@')[0], email };
   const state = new URL(app.noesis!.start(accountId, 'app')).searchParams.get('state')!;
   return app.noesis!.finish(state, 'code', undefined);
 }
@@ -1239,6 +1243,28 @@ describe('the library switch', () => {
     expect(app.channels.get(channelId)!.libraries).toEqual({
       [alice.account.id]: ['alice/notes', 'alice/philosophy'],
     });
+  });
+
+  it('follows a noesis user renamed, in every channel’s choice and survives a restart', async () => {
+    noesisLibraries = ['alice/notes'];
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
+    const { alice, channelId } = await room2();
+    await connect(alice.account.id);
+    app.channels.dispatch(channelId, alice.account.id, {
+      type: 'SET_LIBRARY',
+      library: true,
+      libraries: ['alice/notes'],
+    } as never);
+    app.channels.renameLibraryUser('alice', 'alice_n');
+    app.channels.renameLibraryUser('nobody', 'somebody');
+    expect(app.channels.get(channelId)).toMatchObject({
+      library: true,
+      libraries: { [alice.account.id]: ['alice_n/notes'] },
+    });
+    app.channels.stop();
+    await app.fastify.close();
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
+    expect(app.channels.get(channelId)!.libraries).toEqual({ [alice.account.id]: ['alice_n/notes'] });
   });
 
   it('drops a library deleted at noesis from every channel, and goes off with none left', async () => {

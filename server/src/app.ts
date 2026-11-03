@@ -23,7 +23,7 @@ import { capacityOf, keepForPlay, keepOf, keepingOf } from '../../core/channel';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { isNavAction, NAV_ACTIONS } from '../../core/navigation';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
-import { usernameProblem } from '../../core/username';
+import { foldUsername, normaliseUsername, usernameProblem } from '../../core/username';
 import {
   isColorSchemePreference,
   isLanguagePreference,
@@ -83,6 +83,7 @@ import {
   type ClaudeClient,
 } from './claude';
 import { NoesisConnections, noesisFilename, type NoesisOptions } from './noesis';
+import { NoesisNames, type NamesOptions } from './names';
 import {
   formatTranscript,
   MEDIA_LABEL,
@@ -341,6 +342,14 @@ export interface BuildOptions {
    */
   library?: NoesisOptions;
   /**
+   * noesis's register of names (names.ts): this client's credentials, which
+   * are enough for a rename made at noesis to be heard at `/noesis/renamed`.
+   * `enforced` is the rest — signing up and renaming asking noesis, which
+   * decides — and is turned on only once the names already here have been
+   * reconciled with noesis's (`bin/export-names`).
+   */
+  names?: NamesOptions & { enforced: boolean };
+  /**
    * Turns speech into text as it is spoken — the live transcript. Optional
    * for `transcription`'s reason, and needs `media` too: without a room to
    * listen to there is nothing to stream. Absent, the switch is never offered
@@ -510,7 +519,9 @@ export function buildApp(options: BuildOptions = {}): App {
   fastify.addContentTypeParser(
     'application/json',
     { parseAs: 'string' },
-    (_request, body: string, done) => {
+    (request, body: string, done) => {
+      // Kept for the one route that checks a signature over the bytes sent.
+      (request as FastifyRequest & { rawBody?: string }).rawBody = body;
       if (!body || body.trim() === '') return done(null, {});
       try {
         done(null, JSON.parse(body));
@@ -1028,6 +1039,16 @@ export function buildApp(options: BuildOptions = {}): App {
       })
     : null;
 
+  // noesis's register of names (names.ts), and whether it decides them yet.
+  const names = options.names ? new NoesisNames(options.names) : null;
+  /**
+   * Whether this address's username is noesis's to decide. Only addresses
+   * are: noesis keeps a name per address, and an account signed in by some
+   * other identifier has no pair there.
+   */
+  const registered = (identifier: string): boolean =>
+    !!names && !!options.names?.enforced && identifier.includes('@');
+
   const channels = new ChannelRegistry(
     db,
     accounts,
@@ -1455,13 +1476,46 @@ export function buildApp(options: BuildOptions = {}): App {
     // that distinction matters: the box on the sign-in screen starts clear on
     // every device, so reading a missing field as a refusal would make the
     // second phone somebody signs in on revoke what the first one granted.
-    const result = accounts.verifyCode(
-      body.identifier,
-      body.code,
-      body.displayName,
-      now(),
-      body.marketingEmail === true
-    );
+    let result: ReturnType<typeof accounts.verifyCode>;
+    if (registered(body.identifier) && !accounts.byIdentifier(body.identifier)) {
+      /*
+        A signup, whose username is noesis's to decide (names.ts). Asked only
+        once the code has proved the address — before, anybody could reserve a
+        name for any address by guessing at codes — and so a noesis that does
+        not answer costs the code: the account cannot be made without a name,
+        and a provisional one would be a name noesis never agreed to.
+      */
+      if (!accounts.consumeCode(body.identifier, body.code, now())) {
+        return reply.code(401).send({ error: 'Invalid or expired code.' });
+      }
+      let username: string | null;
+      try {
+        username = await names!.nameFor(
+          body.identifier.trim().toLowerCase(),
+          accounts.usernameSuggestions(body.displayName)
+        );
+      } catch (error) {
+        request.log.warn({ err: error }, 'names: noesis gave no username for a signup');
+        return reply.code(503).send({
+          error: 'Your account could not be made just now. Ask for a new code and try again in a minute.',
+        });
+      }
+      result = accounts.establish(
+        body.identifier,
+        body.displayName,
+        now(),
+        body.marketingEmail === true,
+        username
+      );
+    } else {
+      result = accounts.verifyCode(
+        body.identifier,
+        body.code,
+        body.displayName,
+        now(),
+        body.marketingEmail === true
+      );
+    }
     // One message for every failure mode, so this cannot be used to discover
     // which identifiers have accounts.
     if (!result) return reply.code(401).send({ error: 'Invalid or expired code.' });
@@ -3318,6 +3372,29 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(401).send({ error: 'Invalid or expired code.' });
     }
 
+    /*
+      The username belongs to this address at noesis (names.ts), so the pair
+      moves first. noesis moves a reservation and refuses a noesis account's
+      address, which is how its owner signs in there; the account here stays
+      where it was rather than drifting from its pair. Asked only when the
+      address is free here, so that noesis is never moved for a change this
+      route would then refuse.
+    */
+    const elsewhere = accounts.byIdentifier(body.identifier);
+    if (
+      registered(account.identifier) &&
+      registered(body.identifier) &&
+      (!elsewhere || elsewhere.id === account.id)
+    ) {
+      const pair = await names!.move(
+        account.identifier.trim().toLowerCase(),
+        body.identifier.trim().toLowerCase()
+      );
+      if (!pair.ok) {
+        return reply.code(pair.reason === 'unreachable' ? 503 : 409).send({ error: pair.message });
+      }
+    }
+
     const moved = accounts.changeIdentifier(
       account.id,
       body.identifier,
@@ -3447,9 +3524,38 @@ export function buildApp(options: BuildOptions = {}): App {
       client that ever wants to offer an alternative spelling needs to be able
       to tell the two apart.
     */
+    if (changes.username !== undefined && registered(account.identifier)) {
+      /*
+        noesis decides (names.ts), and renames its account too when there is
+        one — libraries and all — so it is asked before anything is written
+        here. The case typed is kept here, noesis's name being the same one
+        folded. Somebody here already holding it is refused first, since
+        noesis may not yet know every name here and a rename it has made would
+        then have nowhere to land.
+      */
+      const wanted = normaliseUsername(changes.username) ?? '';
+      if (wanted === '') {
+        return reply.code(400).send({
+          error: 'Your username is also your noesis user name, so it can be changed but not removed.',
+        });
+      }
+      if (!account.username || foldUsername(account.username) !== foldUsername(wanted)) {
+        const holder = accounts.byUsername(wanted);
+        if (holder && holder.id !== account.id && holder.username && foldUsername(holder.username) === foldUsername(wanted)) {
+          return reply.code(409).send({ error: new UsernameTakenError().message });
+        }
+        const answer = await names!.choose(account.identifier.trim().toLowerCase(), wanted);
+        if (!answer.ok) {
+          const status = answer.reason === 'invalid' ? 400 : answer.reason === 'unreachable' ? 503 : 409;
+          return reply.code(status).send({ error: answer.message });
+        }
+        // What noesis did reaches channels here as it would from a rename made there.
+        renamedAtNoesis(account.username, answer.user);
+      }
+    }
     let updated;
     try {
-      updated = accounts.updateProfile(account.id, changes);
+      updated = accounts.updateProfile(account.id, changes, now());
     } catch (e) {
       if (e instanceof UsernameTakenError) {
         return reply.code(409).send({ error: e.message });
@@ -3825,6 +3931,58 @@ export function buildApp(options: BuildOptions = {}): App {
           : '<p>Close this window and try again from <strong>Floor Settings</strong>.</p>',
       })
     );
+  });
+
+  /**
+   * A noesis user name changed, by a rename from either end: every library id
+   * saved here under the old one — a connection's list, a channel's choice —
+   * now begins with the new one, as noesis's do. Folded, since noesis keeps
+   * names lowercase and a username here keeps the case it was typed in.
+   */
+  const renamedAtNoesis = (old: string | null | undefined, renamed: string): void => {
+    if (!old) return;
+    const from = foldUsername(old);
+    if (from === renamed) return;
+    noesis?.renameUser(from, renamed);
+    channels.renameLibraryUser(from, renamed);
+  };
+
+  /**
+   * A rename made at noesis — by the person there, by its operator, or by the
+   * reconciliation of names that were here before the register — told to The
+   * Floor, which keeps the name noesis decides (names.ts). Signed with this
+   * client's secret, since it changes somebody's username on nobody's
+   * session; noesis asks again until it is answered, so a refusal here is
+   * one it will repeat.
+   */
+  fastify.post('/noesis/renamed', async (request, reply) => {
+    if (!names) return reply.code(404).send({ error: 'Not found.' });
+    const raw = (request as FastifyRequest & { rawBody?: string }).rawBody ?? '';
+    const signature = request.headers['x-noesis-signature'];
+    if (!names.signedByNoesis(raw, typeof signature === 'string' ? signature : undefined)) {
+      return reply.code(401).send({ error: 'Not signed by noesis.' });
+    }
+    const body = request.body as { email?: unknown; old?: unknown; new?: unknown } | undefined;
+    const renamed = typeof body?.new === 'string' ? normaliseUsername(body.new) : null;
+    if (typeof body?.email !== 'string' || typeof body.old !== 'string' || !renamed) {
+      return reply.code(400).send({ error: 'email, old and new are required.' });
+    }
+    const result = accounts.applyNoesisRename(body.email, body.old, renamed, now());
+    renamedAtNoesis(body.old, foldUsername(renamed));
+    if (result.result === 'taken') {
+      request.log.warn({ old: body.old, renamed }, 'names: a noesis rename is held here by somebody else');
+      return reply.code(409).send({ error: new UsernameTakenError().message });
+    }
+    if (result.result === 'renamed') {
+      homeNotifier.notify([
+        result.account.id,
+        ...accounts
+          .contactsFor(result.account.id)
+          .map((entry) => entry.account.id)
+          .filter(Boolean),
+      ]);
+    }
+    return reply.code(204).send();
   });
 
   /**

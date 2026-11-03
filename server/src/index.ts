@@ -330,6 +330,29 @@ const library =
     : undefined;
 
 /**
+ * noesis's register of names (names.ts), with the same client's credentials
+ * and independent of Claude: a rename made at noesis is heard at
+ * `/noesis/renamed` whenever they are set. `NOESIS_NAMES=on` is the rest —
+ * noesis deciding each signup's username and every rename — and stays off
+ * until the names already here are reconciled with noesis's
+ * (`bin/export-names`, then noesis's `scripts/reserve_names.py --apply`),
+ * since a register that does not know them would hand them out again.
+ */
+const noesisNames = process.env.NOESIS_NAMES;
+if (noesisNames !== undefined && noesisNames !== 'on' && noesisNames !== 'off') {
+  throw new Error('NOESIS_NAMES is on or off.');
+}
+const names =
+  noesisClientId && noesisClientSecret
+    ? {
+        origin: new URL(noesisUrl).origin,
+        clientId: noesisClientId,
+        clientSecret: noesisClientSecret,
+        enforced: noesisNames === 'on',
+      }
+    : undefined;
+
+/**
  * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
  * was retired on 2026-10-10: the mark is the `transcripts_unlimited` column
  * alone, set with
@@ -386,6 +409,7 @@ const app = buildApp({
   streaming,
   claude,
   library,
+  names,
   freeTranscriptMinutes,
   logger: true,
 });
@@ -444,6 +468,8 @@ app.fastify
           : !claude
             ? 'set, and unused without ANTHROPIC_API_KEY'
             : { url: library.url, client: library.clientId, callback: library.callbackUrl },
+        // Whether noesis decides usernames yet, which changes what signing up needs.
+        names: !names ? 'not configured' : names.enforced ? 'noesis decides' : 'renames heard, not enforced',
         // Worth a line for the same reason `review` is: these decide what
         // anybody may spend, and reading .env is not how anybody should find
         // out. Everybody gets free minutes a week; the account marks that

@@ -467,9 +467,71 @@ export class Accounts {
    * same reason the index does and the two cannot part company.
    */
   byUsername(username: string): AccountRow | undefined {
-    return this.db
-      .prepare('SELECT * FROM accounts WHERE username = ? COLLATE NOCASE')
-      .get(foldUsername(username.trim())) as AccountRow | undefined;
+    const name = foldUsername(username.trim());
+    // Whoever holds the name now, and only failing that whoever was renamed
+    // from it — so a link handed out under an old name still reaches its
+    // owner, and never once somebody else has taken the name.
+    return (
+      (this.db
+        .prepare('SELECT * FROM accounts WHERE username = ? COLLATE NOCASE')
+        .get(name) as AccountRow | undefined) ??
+      (this.db
+        .prepare(
+          `SELECT accounts.* FROM username_aliases
+             JOIN accounts ON accounts.id = username_aliases.account_id
+            WHERE username_aliases.username = ? COLLATE NOCASE`
+        )
+        .get(name) as AccountRow | undefined)
+    );
+  }
+
+  /**
+   * Remembers that `accountId` was called `old`, for `byUsername`, and forgets
+   * any older claim on the name it is called now.
+   */
+  private recordRename(accountId: string, old: string | null, now: number): void {
+    const current = this.byId(accountId)?.username;
+    if (current) {
+      this.db.prepare('DELETE FROM username_aliases WHERE username = ? COLLATE NOCASE').run(current);
+    }
+    if (!old || (current && foldUsername(old) === foldUsername(current))) return;
+    this.db
+      .prepare(
+        `INSERT INTO username_aliases (username, account_id, renamed_at) VALUES (?, ?, ?)
+         ON CONFLICT (username) DO UPDATE SET account_id = excluded.account_id, renamed_at = excluded.renamed_at`
+      )
+      .run(old, accountId, now);
+  }
+
+  /**
+   * A rename made at noesis, arriving at `/noesis/renamed`: the account under
+   * that address — or, failing that, holding the old name — takes the new one.
+   * `none` when nobody here is either, which is nothing to do; `taken` when
+   * somebody here already holds the new name, which noesis will ask again.
+   */
+  applyNoesisRename(
+    email: string,
+    old: string,
+    renamed: string,
+    now: number
+  ): { result: 'renamed' | 'same'; account: AccountRow } | { result: 'none' | 'taken' } {
+    const account =
+      this.byIdentifier(email) ??
+      (this.db
+        .prepare('SELECT * FROM accounts WHERE username = ? COLLATE NOCASE')
+        .get(foldUsername(old)) as AccountRow | undefined);
+    if (!account) return { result: 'none' };
+    if (account.username && foldUsername(account.username) === foldUsername(renamed)) {
+      return { result: 'same', account };
+    }
+    try {
+      this.db.prepare('UPDATE accounts SET username = ? WHERE id = ?').run(renamed, account.id);
+    } catch (error) {
+      if (isUniqueViolation(error)) return { result: 'taken' };
+      throw error;
+    }
+    this.recordRename(account.id, account.username, now);
+    return { result: 'renamed', account: this.byId(account.id)! };
   }
 
   /**
@@ -567,7 +629,8 @@ export class Accounts {
    */
   updateProfile(
     accountId: string,
-    changes: { displayName?: string; im?: ImHandles; username?: string }
+    changes: { displayName?: string; im?: ImHandles; username?: string },
+    now: number
   ): AccountRow | undefined {
     const account = this.byId(accountId);
     if (!account) return undefined;
@@ -599,6 +662,7 @@ export class Accounts {
           if (isUniqueViolation(e)) throw new UsernameTakenError();
           throw e;
         }
+        this.recordRename(accountId, account.username, now);
       }
     }
 
@@ -1681,7 +1745,12 @@ export class Accounts {
     identifier: string,
     displayName: string | undefined,
     now: number,
-    marketingEmail?: boolean
+    marketingEmail?: boolean,
+    /**
+     * A new account's username as noesis gave it (names.ts), in place of the
+     * one derived here; ignored for an account that exists already.
+     */
+    username?: string | null
   ): {
     account: AccountRow;
     token: string;
@@ -1733,7 +1802,8 @@ export class Accounts {
             )
             .run(candidate, id, chosen, now)
       );
-      this.deriveUsername(accountId, chosen, id);
+      if (username) this.giveUsername(accountId, username);
+      else this.deriveUsername(accountId, chosen, id);
       account = this.byId(accountId)!;
       resolved = this.resolveInvitesFor(account);
     } else if (name && name !== account.display_name) {
@@ -1774,6 +1844,30 @@ export class Accounts {
    * leaves the account as accounts have always been: named, and with a
    * username to choose on the Contact screen. It must never cost a signup.
    */
+  /**
+   * The stem a new account's username is best made from, offered to noesis
+   * as a suggestion: the display name's, which is what `deriveUsername` tries
+   * first too. noesis falls back to the address itself.
+   */
+  usernameSuggestions(displayName: string | undefined): string[] {
+    const stem = displayName?.trim() ? usernameStem(displayName.trim()) : null;
+    return stem ? [stem] : [];
+  }
+
+  /**
+   * Gives a new account the username noesis decided. Somebody here holding
+   * it already is a name noesis has not yet been told of — an account from
+   * before the register — and the account is left without one rather than
+   * the signup failing, as `deriveUsername` leaves it when nothing is free.
+   */
+  private giveUsername(accountId: string, username: string): void {
+    try {
+      this.db.prepare('UPDATE accounts SET username = ? WHERE id = ?').run(username, accountId);
+    } catch (error) {
+      if (!isUniqueViolation(error)) throw error;
+    }
+  }
+
   private deriveUsername(
     accountId: string,
     displayName: string,
@@ -3109,6 +3203,10 @@ export class Accounts {
     // an answer written to nobody is not a thing worth keeping a row for.
     this.db
       .prepare('DELETE FROM help_questions WHERE account_id = ?')
+      .run(accountId);
+
+    this.db
+      .prepare('DELETE FROM username_aliases WHERE account_id = ?')
       .run(accountId);
 
     this.db

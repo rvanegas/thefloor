@@ -876,6 +876,16 @@ CREATE TABLE IF NOT EXISTS noesis_connections (
   scopes        TEXT
 );
 
+-- A username somebody has since been renamed from, here or at noesis (names.ts),
+-- so the invite and member links they handed out under it still reach them:
+-- consulted only when nobody holds the name now, and the pin is checked as
+-- ever. Cleared with the account.
+CREATE TABLE IF NOT EXISTS username_aliases (
+  username    TEXT PRIMARY KEY COLLATE NOCASE,
+  account_id  TEXT NOT NULL REFERENCES accounts(id),
+  renamed_at  INTEGER NOT NULL
+);
+
 -- A contact pair is stored once, with a_id < b_id so the pair has a single
 -- canonical row regardless of who asked. requester_id records the direction,
 -- which is what distinguishes an incoming request from an outgoing one.

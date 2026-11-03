@@ -159,6 +159,19 @@ export class NoesisConnections {
     if (!tokens) return { ok: false, returnTo: entry.returnTo, reason: 'token' };
     const me = await this.whoIs(tokens.access_token);
     if (!me) return { ok: false, returnTo: entry.returnTo, reason: 'me' };
+    /*
+      The noesis account has to be this account's own: the same address, and
+      so — noesis deciding names (names.ts) — the same username. Somebody who
+      signed in at noesis under another address is refused rather than
+      linked, and the grant they just made is given back.
+    */
+    const mine = this.db
+      .prepare('SELECT identifier FROM accounts WHERE id = ?')
+      .get(entry.accountId) as { identifier: string } | undefined;
+    if (!mine || !me.email || mine.identifier.trim().toLowerCase() !== me.email.trim().toLowerCase()) {
+      await this.post('/revoke', { token: tokens.refresh_token }).catch(() => undefined);
+      return { ok: false, returnTo: entry.returnTo, reason: 'address' };
+    }
     this.db
       .prepare(
         `INSERT INTO noesis_connections (account_id, noesis_user, noesis_email, refresh_token, connected_at, libraries, scopes)
@@ -307,6 +320,21 @@ export class NoesisConnections {
     }
   }
 
+  /**
+   * A noesis user renamed (names.ts): the connections to their library say
+   * the new name, and list their libraries under it, as noesis now does.
+   */
+  renameUser(old: string, renamed: string): void {
+    const rows = this.db
+      .prepare('SELECT account_id, libraries FROM noesis_connections WHERE noesis_user = ?')
+      .all(old) as Array<{ account_id: string; libraries: string | null }>;
+    for (const row of rows) {
+      this.db
+        .prepare('UPDATE noesis_connections SET noesis_user = ?, libraries = ? WHERE account_id = ?')
+        .run(renamed, JSON.stringify(renameLibraryIds(parseLibraries(row.libraries), old, renamed)), row.account_id);
+    }
+  }
+
   private forget(accountId: string): void {
     this.access.delete(accountId);
     this.db.prepare('DELETE FROM noesis_connections WHERE account_id = ?').run(accountId);
@@ -404,6 +432,11 @@ export class NoesisConnections {
     decipher.setAuthTag(tag);
     return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
   }
+}
+
+/** Library ids `<user>/<library>` with `old`'s now `renamed`'s; everybody else's as they were. */
+export function renameLibraryIds(ids: readonly string[], old: string, renamed: string): string[] {
+  return ids.map((id) => (id.startsWith(`${old}/`) ? `${renamed}/${id.slice(old.length + 1)}` : id));
 }
 
 /** A list of strings — library ids, or a person's names — from noesis or from the column; anything else is none. */
