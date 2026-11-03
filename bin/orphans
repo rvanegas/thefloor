@@ -35,13 +35,11 @@
 # ordering argument that governs the sweep itself. A saved list is a list that
 # was true once.
 #
-# Two exclusions, both deliberate:
-#
-#   - Keys under `sess_` prefixes, which predate the 2026-08-10 Session →
-#     Channel rename. They are dev-era leftovers, one of them is in the local
-#     development database, and they are a separate question from this one.
-#   - Anything whose prefix is not exactly `chan_<id>/rec_<id>/`. The bucket
-#     holds nothing else today; if it ever does, this declines to guess.
+# One exclusion, deliberate: anything whose prefix is not exactly
+# `chan_<id>/rec_<id>/`. The bucket holds nothing else today; if it ever does,
+# this declines to guess. The dev-era `sess_` keys from before the 2026-08-10
+# Session → Channel rename were the last such thing, deleted by hand on
+# 2026-11-03.
 #
 # A whole prefix goes, not the keys a row would have named: the `EG_*.json`
 # egress manifests LiveKit writes are collected by nothing in `objectKeysOf`,
