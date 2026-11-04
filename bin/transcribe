@@ -4,13 +4,13 @@
 # batch API — the provider and the request the server uses for recordings.
 #
 # **A tool for whoever runs it, and nothing to do with the app.** It runs on
-# this machine, reads no database and writes nothing: the text goes to stdout
-# and nowhere else, so it belongs to no account, no channel and no recording,
-# and no screen ever shows it. The server's code is borrowed only so the
+# this machine and reads no database: the text goes to a file beside the
+# audio and nowhere else, so it belongs to no account, no channel and no
+# recording, and no screen ever shows it. The server's code is borrowed only so the
 # request cannot drift from the one recordings make.
 #
-#   bin/transcribe talk.m4a              one line per utterance, to stdout
-#   bin/transcribe talk.m4a --json       the lines as JSON, with times and confidence
+#   bin/transcribe talk.m4a              one line per utterance, to talk.txt
+#   bin/transcribe talk.m4a --json       to talk.json, with times and confidence
 #   bin/transcribe talk.m4a --pro        Universal-3.5 Pro rather than Universal-2
 #   bin/transcribe talk.m4a --no-diarize one voice assumed, as for a stem
 #   bin/transcribe talk.m4a --keep       leave the job at AssemblyAI afterwards
@@ -20,6 +20,10 @@
 # construction (server/src/transcription.ts's header); a file from anywhere
 # else is usually a room. Each line is labelled `A`, `B`, … by voice, and a
 # change of voice always starts a new line.
+#
+# The output is the audio's path with its extension replaced, and an existing
+# one is refused before anything is uploaded — a transcript is paid for, so it
+# is never overwritten.
 #
 # Lines are timed from the start of the file and made by `intoLines`, so they
 # break where a recording's would. The script half is

@@ -8,10 +8,11 @@
  * from the same words by `intoLines`.
  *
  * In: the key as `ASSEMBLYAI_API_KEY`, the file and flags as arguments.
- * Out: on stdout, one line per utterance, or the utterances as JSON; progress
- * on stderr, so the output can be redirected whole.
+ * Out: beside the audio, same basename — `.txt` with one line per utterance,
+ * or `.json` with `--json`. Progress on stderr; stdout is the path written.
  */
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { parse, join } from 'path';
 
 import type { TranscriptionModel } from '../../core/types';
 import { AssemblyAiTranscription, type Utterance } from '../src/transcription';
@@ -37,6 +38,15 @@ const model: TranscriptionModel = flag('pro') ? 'pro' : 'standard';
 const diarize = !flag('no-diarize');
 const json = flag('json');
 const keep = flag('keep');
+
+const { dir, name } = parse(file);
+const out = join(dir, `${name}.${json ? 'json' : 'txt'}`);
+// Checked before the upload rather than at the write, so that a transcript
+// already there is never lost and a refused run spends nothing.
+if (existsSync(out)) {
+  console.error(`${out} already exists; move it aside first`);
+  process.exit(1);
+}
 
 /** `h:mm:ss`, or `m:ss` under an hour. */
 function clock(ms: number): string {
@@ -88,9 +98,11 @@ async function main() {
             `, language ${polled.languageCode ?? 'not detected'}` +
             (polled.billedMs != null ? `, ${clock(polled.billedMs)} billed` : '')
         );
-        console.log(
-          json ? JSON.stringify({ id, ...polled }, null, 2) : render(polled.utterances)
+        writeFileSync(
+          out,
+          (json ? JSON.stringify({ id, ...polled }, null, 2) : render(polled.utterances)) + '\n'
         );
+        console.log(out);
         return;
       }
       await new Promise((r) => setTimeout(r, POLL_MS));
