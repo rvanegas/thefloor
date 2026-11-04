@@ -1,0 +1,82 @@
+#!/bin/bash
+#
+# Transcribes an audio file, with its voices told apart, through AssemblyAI's
+# batch API — the provider and the request the server uses for recordings.
+#
+# **A tool for whoever runs it, and nothing to do with the app.** It runs on
+# this machine, reads no database and writes nothing: the text goes to stdout
+# and nowhere else, so it belongs to no account, no channel and no recording,
+# and no screen ever shows it. The server's code is borrowed only so the
+# request cannot drift from the one recordings make.
+#
+#   bin/transcribe talk.m4a              one line per utterance, to stdout
+#   bin/transcribe talk.m4a --json       the lines as JSON, with times and confidence
+#   bin/transcribe talk.m4a --pro        Universal-3.5 Pro rather than Universal-2
+#   bin/transcribe talk.m4a --no-diarize one voice assumed, as for a stem
+#   bin/transcribe talk.m4a --keep       leave the job at AssemblyAI afterwards
+#
+# **Voices are separated by default, which is the opposite of the server's
+# default for a stem.** A stem is one microphone and so one voice by
+# construction (server/src/transcription.ts's header); a file from anywhere
+# else is usually a room. Each line is labelled `A`, `B`, … by voice, and a
+# change of voice always starts a new line.
+#
+# Lines are timed from the start of the file and made by `intoLines`, so they
+# break where a recording's would. The script half is
+# server/scripts/transcribe.ts, which calls the provider class directly rather
+# than restating its request.
+#
+# **It spends money**: the per-hour rate in planning/CREDENTIALS.md, on the
+# account's balance, billed whether the result is kept or not. The billed
+# duration is printed at the end.
+#
+# The job is deleted at AssemblyAI once the text is back, as the server
+# deletes its own, unless `--keep`. What that deletion does at their end is
+# not established — see `forget` in server/src/transcription.ts.
+#
+# The key is `ASSEMBLYAI_API_KEY` from the environment, else server/.env, else
+# the copy bin/env-pull keeps in ~/.config/thefloor/server.env. It is read
+# here and handed to the script in the environment, never printed.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TSX="$ROOT/server/node_modules/.bin/tsx"
+PULLED=${THEFLOOR_ENV:-$HOME/.config/thefloor/server.env}
+
+file=""
+for arg in "$@"; do
+  case "$arg" in
+    --json|--pro|--no-diarize|--keep) ;;
+    # The whole comment block, however long it grows — as bin/db does.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    --*) echo "Unknown option: $arg" >&2; exit 1 ;;
+    *)
+      [ -z "$file" ] || { echo "One file at a time" >&2; exit 1; }
+      file=$arg
+      ;;
+  esac
+done
+
+[ -n "$file" ] || { echo "Usage: bin/transcribe <audio-file> [--json] [--pro] [--no-diarize] [--keep]" >&2; exit 1; }
+[ -f "$file" ] || { echo "No such file: $file" >&2; exit 1; }
+[ -x "$TSX" ] || { echo "No tsx at $TSX — run bin/worktree-setup" >&2; exit 1; }
+
+# The last assignment wins, as it would for a shell sourcing the file; quotes
+# around the value are dropped.
+key_in() {
+  [ -f "$1" ] || return 0
+  sed -n 's/^ASSEMBLYAI_API_KEY=//p' "$1" | tail -n 1 | sed "s/^[\"']//; s/[\"']$//"
+}
+
+key=${ASSEMBLYAI_API_KEY:-}
+[ -n "$key" ] || key=$(key_in "$ROOT/server/.env")
+[ -n "$key" ] || key=$(key_in "$PULLED")
+[ -n "$key" ] || {
+  echo "No ASSEMBLYAI_API_KEY in the environment, server/.env or $PULLED" >&2
+  exit 1
+}
+
+ASSEMBLYAI_API_KEY=$key exec "$TSX" "$ROOT/server/scripts/transcribe.ts" "$@"
