@@ -4,22 +4,19 @@
  * the channel who are not in it are sent a few sentences of it as a
  * notification. Once per room, and never again in it.
  *
- * **From its beginning** means the *live transcript* was listening within
- * `DIGEST_GRACE_MS` of the room opening, and has not stopped since — not
- * paused, not switched off, the room not emptied. A digest of a room's first
- * five minutes is then a digest of the conversation so far, which is what a
- * member deciding whether to step in wants. A transcript switched on later
- * would be a digest of a conversation's middle presented as its whole, so it
- * sends nothing, and neither does one that stopped: the room is passed over
- * rather than waited on. The grace is for *Record automatically* with both
- * switches on, whose text waits to begin with the audio
- * (`startsTextWithAudio` in core) — a step or two after the arrival that
- * opened the room, and on the same instant in the ordinary case.
+ * **The beginning is the room's first transcribed line** — the earliest
+ * moment in the room after which the *live transcript* recorded something
+ * said, its `start_at` — however long after the room opened that was, and
+ * however many people are in it. **And the transcript must run the whole
+ * five minutes from there**: paused, switched off or the room emptied at any
+ * point after that line, and the room is passed over rather than waited on,
+ * since the digest is of a conversation transcribed throughout. Stops before
+ * the first line do not count; nothing had begun.
  *
  * A room that resumes inside `ROOM_DEPARTURE_MS` is the same room, so one
- * already digested is not digested again, and one whose transcript was
- * interrupted by emptying is not either. A restart ends the room and the
- * transcript with it, so nothing here needs to survive one.
+ * already digested is not digested again, and one emptied after its first
+ * line is not either. A restart ends the room and the transcript with it, so
+ * nothing here needs to survive one.
  *
  * Optional as *Ask Claude* is: without `ANTHROPIC_API_KEY` there is no client
  * and nothing is attached. What was said goes to Anthropic without anybody
@@ -33,12 +30,6 @@ import { newId, type Db } from './db';
 
 /** How long a room must have been transcribed, from its beginning. */
 export const DIGEST_AFTER_MS = 5 * 60_000;
-
-/**
- * How long after a room opens its transcript may begin and still be said to
- * have begun with it. See the file's comment.
- */
-export const DIGEST_GRACE_MS = 10_000;
 
 /**
  * Sonnet, as `task/a-digest-of-each-call-and-of-the-channel.md` chose, at low
@@ -70,8 +61,12 @@ export type DigestOutcome = 'sent' | 'empty' | 'refused' | 'error' | 'timeout' |
 interface Watch {
   roomId: string;
   openedAt: number;
-  /** When its transcript began, or null while it has not. */
+  /** When its first transcribed line began, or null while there is none. */
   since: number | null;
+  /** The last commit at which it was not being transcribed, if any. */
+  stoppedAt: number | null;
+  /** Whether it was being transcribed at the last commit. */
+  transcribing: boolean;
   /** Digested, being digested, or passed over: nothing more is done in it. */
   done: boolean;
 }
@@ -80,6 +75,8 @@ export interface RoomDigestsOptions {
   client: ClaudeClient;
   db: Db;
   now: () => number;
+  /** When the first line said in a channel at or after `from` began, or null. */
+  firstLine: (channelId: string, from: number) => number | null;
   /** What was said in a channel between two instants, oldest first. */
   liveLines: (
     channelId: string,
@@ -103,30 +100,43 @@ export class RoomDigests {
    */
   opened(channelId: string, roomId: string, openedAt: number): void {
     if (this.watches.get(channelId)?.roomId === roomId) return;
-    this.watches.set(channelId, { roomId, openedAt, since: null, done: false });
+    this.watches.set(channelId, {
+      roomId,
+      openedAt,
+      since: null,
+      stoppedAt: null,
+      transcribing: false,
+      done: false,
+    });
   }
 
   /** Called on every commit, with the channel as it now stands. */
   follow(state: ChannelState, now: number): void {
     const watch = this.watches.get(state.id);
     if (!watch || watch.done) return;
-    const transcribing = isTranscribingLive(state);
-    if (watch.since === null) {
-      if (!transcribing) {
-        if (now - watch.openedAt > DIGEST_GRACE_MS) watch.done = true;
-        return;
-      }
-      if (now - watch.openedAt <= DIGEST_GRACE_MS) watch.since = now;
-      else watch.done = true;
-      return;
-    }
-    if (!transcribing) watch.done = true;
+    watch.transcribing = isTranscribingLive(state);
+    if (watch.transcribing) return;
+    // Remembered rather than judged: the first line is found on the tick,
+    // and a stop between its beginning and its being written still counts.
+    watch.stoppedAt = now;
+    if (watch.since !== null) watch.done = true;
   }
 
   /** Called on every tick: digests whichever rooms have reached five minutes. */
   sweep(now: number): void {
     for (const [channelId, watch] of this.watches) {
-      if (watch.done || watch.since === null) continue;
+      if (watch.done) continue;
+      if (watch.since === null) {
+        // Asked only while it is being transcribed, since only then can a
+        // first line arrive.
+        if (!watch.transcribing) continue;
+        watch.since = this.options.firstLine(channelId, watch.openedAt);
+        if (watch.since === null) continue;
+      }
+      if (watch.stoppedAt !== null && watch.stoppedAt > watch.since) {
+        watch.done = true;
+        continue;
+      }
       if (now - watch.since < DIGEST_AFTER_MS) continue;
       watch.done = true;
       void this.digest(channelId, watch.openedAt, now);

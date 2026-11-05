@@ -201,7 +201,7 @@ caused; the list carries the meaning.
 - **Mute (four things, one word)** — The word does four jobs and only the first is the user's; they are separated in the entry
 - **Nav action — `home` / `swipeOut` / `swipeIn` / `liveCard`** — The four ways between Home and the channel you are standing in, named so they can be counted against each other: the Home glyph and the right swipe are the same journey out, the pinned live line and the left swipe the same journey in — the swipe going to the topmost hoisted bar, which is the live line whenever one is drawn. Named by the *control* rather than by the outcome, because two of them mean the same thing to the application and differ only in what the thumb did, which is the whole question. Counted in `nav_counts`, which holds no account — so it can say which way is common and can never say what any one person did
 - **Notification kinds — invited / arrived / accepted / pinged / digest** — The five things this server sends to a phone; only *pinged* is words somebody wrote, only *accepted* is about a person rather than a room, and only *digest* is words Claude wrote
-- **Digest** — What a *room* has said in its first five minutes, a few sentences by Claude from its *live transcript*, sent once per room as a notification to the members not *present* — only where the transcript was listening from the room's beginning and never stopped. The word is the code's; on a phone it is the channel's title over Claude's sentences. Since 2026-11-05
+- **Digest** — What a *room* has said in its first five minutes, a few sentences by Claude from its *live transcript*, sent once per room as a notification to the members not *present* — five minutes after the room's first transcribed line, and only if the transcript ran all five without stopping; nobody need be there but the speaker. The word is the code's; on a phone it is the channel's title over Claude's sentences. Since 2026-11-05
 - **Notification answer** — `accounts.notifications` — whether the app may reach somebody when it is not running, as their client last said: granted, undetermined or denied, and **null for nobody has said**. Not the same fact as holding a *device token*, which proves only the first
 - **Paused (of arrivals)** — That the server has stopped announcing arrivals to somebody who was sent them for a week and never opened the app, until they do; `NOTIFICATION_PAUSE_MS` and `accounts.unanswered_since`. **Arrivals alone**, both in what is withheld and in what counts towards the week — the other three kinds are one person aiming something at another and go on being sent. A state the server infers, and the only one that makes the app quieter without anybody choosing it: not a *notification level*, which is a choice, and not a *notification answer*, which is the phone's
 - **Unanswered (of an arrival)** — Announced to somebody who has not been seen since; the oldest one outstanding is `accounts.unanswered_since`, and a week of it is what *paused* measures
@@ -2148,10 +2148,11 @@ who are not *present* — the *nearby* included, being beside the room rather
 than in it. Since 2026-11-05; `server/src/digest.ts`, and
 `decision/2026-11-05-a-room-is-digested-once-five-minutes-in.md` for why.
 
-**Only a room transcribed from its beginning**: the transcript listening within
-ten seconds of the room opening, and not paused, switched off or emptied
-since. A transcript begun later would be a digest of a conversation's middle
-presented as its whole. Not stored: it exists as the notification and nowhere
+**The five minutes begin at the room's first transcribed line** — when the
+earliest thing the *live transcript* wrote down in it was said — however late
+the transcript was switched on and however few are there. **And it must run
+all five**: paused, switched off or emptied after that line, and the room is
+passed over; a stop before anything was said does not count. Not stored: it exists as the notification and nowhere
 else, which is why nothing sweeps it. Not the channel digest of
 `task/a-digest-of-each-call-and-of-the-channel.md`, which is per call, kept,
 and for the people who were on it.

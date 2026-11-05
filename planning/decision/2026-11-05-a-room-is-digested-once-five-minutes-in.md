@@ -5,18 +5,25 @@ from its beginning, the channel's members who are not present are sent a
 notification carrying an AI-written digest of the conversation so far, based
 on the transcript — once per room. Built the same day as `server/src/digest.ts`.
 
-**"From its beginning" is the *live transcript* listening within ten seconds
-of the room opening** (`DIGEST_GRACE_MS`) and never stopping after. Exactly
-at the opening would miss *Record automatically* with both switches on, whose
-text waits to begin with the audio a commit or two later
-(`startsTextWithAudio`). A transcript begun later, or one paused, switched off
-or emptied out before five minutes, passes the room over rather than waiting:
-a digest of a conversation's middle reads as a digest of the whole. A room
-resumed inside `ROOM_DEPARTURE_MS` is the same room, so it is not digested
-twice; a restart ends the room and the transcript, so nothing is persisted.
+**"Its beginning" is the room's first transcribed line**, Rodrigo's
+correction the same day: the earliest moment in the room after which the
+*live transcript* recorded something said — that line's `start_at` — with no
+limit on how long after the room opened, and no minimum of people present.
+The first build had read it as the transcript listening within ten seconds
+of the room opening, which passed over a room whose text was switched on a
+minute in; that limit is gone.
 
-**Five minutes are counted from when the transcript began**, and what is read
-is every live line from the room's opening. A room in which nothing was
+**And the transcript must have continued the full five minutes**, his second
+condition: paused, switched off or emptied out after the first line, and the
+room is passed over rather than waited on. A stop before anything was said
+does not count, since nothing had begun. The first line is found on the tick,
+after its turn is written, so a stop is remembered by time and judged
+against the line's `start_at` once it is known — a stop between a turn
+beginning and its being written still counts. A room resumed inside
+`ROOM_DEPARTURE_MS` is the same room, so it is not digested twice; a restart
+ends the room and the transcript, so nothing is persisted.
+
+What is read is every live line in the room. A room in which nothing was
 transcribed asks nobody. The recipients are worked out when Claude answers,
 not when it was asked, so somebody who stepped in meanwhile is not sent it:
 members not `present`, which takes in the *nearby*. Guests have no phone to

@@ -1278,6 +1278,14 @@ export function buildApp(options: BuildOptions = {}): App {
         client: options.claude,
         db,
         now,
+        firstLine: (channelId, from) =>
+          (
+            db
+              .prepare(
+                'SELECT MIN(start_at) first FROM live_lines WHERE channel_id = ? AND start_at >= ?'
+              )
+              .get(channelId, from) as { first: number | null }
+          ).first,
         liveLines: sources.liveLines,
         send: (channelId, text) => channels.announceDigest(channelId, text),
         timeoutMs: options.claudeTimeoutMs,

@@ -1,7 +1,7 @@
 import { buildApp, type App } from '../src/app';
 import type { ClaudeClient } from '../src/claude';
 import { newId } from '../src/db';
-import { DIGEST_AFTER_MS, DIGEST_GRACE_MS, DIGEST_MODEL, DIGEST_SYSTEM, clip } from '../src/digest';
+import { DIGEST_AFTER_MS, DIGEST_MODEL, DIGEST_SYSTEM, clip } from '../src/digest';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
 import { MemoryPusher } from '../src/push';
@@ -75,8 +75,8 @@ async function signIn(identifier: string, displayName: string) {
 }
 
 /**
- * Alice (on the house) present with the transcript switched on as the room
- * opens; Bob a member, absent, with a phone; Carol present too.
+ * Alice (on the house) present, switching the transcript on `textAfterMs`
+ * after the room opens; Bob a member, absent, with a phone.
  */
 async function room(textAfterMs = 0) {
   const alice = await signIn('alice@example.com', 'Alice');
@@ -162,19 +162,51 @@ describe('the digest', () => {
     expect(ledger).toEqual([{ account_id: null, outcome: 'sent' }]);
   });
 
-  it('is not sent for a room whose transcript began late', async () => {
-    const { channelId } = await room(DIGEST_GRACE_MS + 1);
+  it('counts the five minutes from the first line, however late the transcript began', async () => {
+    const { channelId } = await room(3 * 60_000);
+    await wait(2 * 60_000);
     said(channelId, 'Alice', 'Anyway.');
-    await wait(DIGEST_AFTER_MS + 1_000);
+    await wait(DIGEST_AFTER_MS - 1_000);
     expect(calls).toHaveLength(0);
+    await wait(1_000);
+    expect(calls).toHaveLength(1);
+    expect(digestsTo('bob-phone')).toHaveLength(1);
   });
 
-  it('is not sent for a room whose transcript stopped', async () => {
+  it('does not count a stop before anything was said', async () => {
+    const { alice, channelId } = await room();
+    await wait(60_000);
+    expect((await turnOn(alice.token, channelId, false)).statusCode).toBe(200);
+    expect((await turnOn(alice.token, channelId)).statusCode).toBe(200);
+    await wait(1_000);
+    said(channelId, 'Alice', 'Hello.');
+    await wait(DIGEST_AFTER_MS);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('is not sent for a room whose transcript stopped within the five minutes', async () => {
     const { alice, channelId } = await room();
     said(channelId, 'Alice', 'Hello.');
     await wait(60_000);
     expect((await turnOn(alice.token, channelId, false)).statusCode).toBe(200);
     expect((await turnOn(alice.token, channelId)).statusCode).toBe(200);
+    await wait(DIGEST_AFTER_MS);
+    expect(calls).toHaveLength(0);
+  });
+
+  it('counts a stop that came before the first line was written but after it began', async () => {
+    const { alice, channelId } = await room();
+    const began = clock;
+    clock += 1_000;
+    expect((await turnOn(alice.token, channelId, false)).statusCode).toBe(200);
+    expect((await turnOn(alice.token, channelId)).statusCode).toBe(200);
+    // The turn lands afterwards, dated from when it began.
+    app.db
+      .prepare(
+        `INSERT INTO live_lines (id, channel_id, identity, display_name, start_at, end_at, text)
+         VALUES (?, ?, 'Alice', 'Alice', ?, ?, 'Hello.')`
+      )
+      .run(newId('line'), channelId, began, began + 500);
     await wait(DIGEST_AFTER_MS);
     expect(calls).toHaveLength(0);
   });

@@ -332,7 +332,8 @@ describe('The privacy policy', () => {
       const at = page.indexOf('one exception to its never speaking on its own');
       expect(at).toBeGreaterThan(claudeAt);
       expect(at).toBeLessThan(nextAt);
-      expect(page).toContain('five minutes in, what has been said so far is sent to Anthropic');
+      expect(page).toContain('five minutes after it first writes down something said in a conversation');
+      expect(page).toContain('what has been said so far is sent to Anthropic');
       expect(page).toContain('members who are not in the conversation');
       expect(page).toContain(`last updated ${DIGEST_PRIVACY_UPDATED}`);
     });

@@ -315,12 +315,12 @@ unnoticed for far longer.</p>
   // the Record to Anthropic with nobody having pressed anything.
   const digest = !!(claude && live);
   const digestParagraph = `<p>There is one exception to its never speaking on its own. In a channel
-whose live transcript has been on from the moment its conversation began, five
-minutes in, what has been said so far is sent to ${claude} as text, with the
-names it was kept under, and ${claude} returns a few sentences about it. Those
-are sent once, as a notification, to the channel's members who are not in the
-conversation, and are not kept by The Floor. A conversation whose transcript
-began late or stopped is not sent.</p>
+whose live transcript is on, five minutes after it first writes down something
+said in a conversation, if it has not stopped in between, what has been said so
+far is sent to ${claude} as text, with the names it was kept under, and
+${claude} returns a few sentences about it. Those are sent once, as a
+notification, to the channel's members who are not in the conversation, and
+are not kept by The Floor.</p>
 `;
   const libraryParagraph = `<p>This server can also give Claude a library: one person's own writing,
 kept in noesis, a service the people who run The Floor keep. Anybody with an noesis
