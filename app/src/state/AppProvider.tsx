@@ -49,11 +49,15 @@ import { traceSocket } from '../api/socketTrace';
 import { shouldReport } from './attention';
 import { storage } from './storage';
 import {
+  cancelNearbyReminder,
   onNotificationTap,
   registerIfGranted,
+  registerPingActions,
+  scheduleNearbyReminder,
   sweepArrivals,
   sweepChannel,
 } from '../push';
+import { whenFor, type NearbyChoice } from './nearbyWhen';
 import {
   useNotificationAsk,
   type NotificationAsk,
@@ -595,6 +599,18 @@ interface AppValue extends AppState {
    * since the screen was drawn, or somebody pinged them a moment ago.
    */
   ping: (channelId: string, targetId: string, text: string) => Promise<void>;
+  /**
+   * Says when you can come in, as somebody nearby — the chooser on your own
+   * People card, and a ping's buttons by way of `notificationTap`.
+   *
+   * `now` is plain *Nearby* again, a declaration with no *when*, over the
+   * socket like the rung. The rest go over HTTP, which is the one route that
+   * also tells whoever pinged you; see `Channels.answerPing`. A named time
+   * sets a local reminder for it, and every other answer withdraws one.
+   * Rejects with the server's sentence when refused — you have stepped in
+   * since the screen was drawn.
+   */
+  sayWhen: (channelId: string, choice: NearbyChoice) => Promise<void>;
   /**
    * Asks Claude for a reply of one of three lengths, since 2026-10-22. The
    * *Responding…* every screen shows comes from the channel's state, not from
@@ -2157,10 +2173,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // A tap on a notification, from either direction it can arrive. Mounted once
   // and independent of sign-in state, because the tap that launched the app is
   // read before the stored token has been restored.
+  //
+  // **A ping's button is held until there is a token to send it with**, for
+  // the same reason: it is usually the response that launched the app, which
+  // arrives before sign-in has been read back. The tap still opens the
+  // channel, so the person who answered sees their card say so.
+  const [pendingAnswer, setPendingAnswer] = useState<{
+    channelId: string;
+    choice: NearbyChoice;
+  } | null>(null);
   useEffect(
-    () => onNotificationTap((channelId) => setNotificationTap({ channelId })),
+    () =>
+      onNotificationTap((channelId, answer) => {
+        setNotificationTap({ channelId });
+        if (channelId && answer) setPendingAnswer({ channelId, choice: answer });
+      }),
     []
   );
+
+  // The buttons, in whatever language the app is speaking. Registered again
+  // when that changes, the titles being words.
+  useEffect(() => {
+    void registerPingActions({
+      soon: words.pingAnswerSoon(),
+      in20: words.pingAnswerIn20(),
+      flow: words.pingAnswerFlow(),
+    });
+  }, [words]);
 
   /**
    * Ships the audio log off the phone, for the one account that asked to see it.
@@ -2837,6 +2876,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         return api.profile(state.token, accountId);
       },
 
+      sayWhen: async (channelId, choice) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        const when = whenFor(choice, serverNow());
+        // Either way this device has now declared here, which is what draws
+        // the arrival line — the same bookkeeping `act` does for the rung, and
+        // not a no-op: a wait that began as a lost connection is not in it.
+        setState((s) =>
+          s.nearbyIn.includes(channelId)
+            ? s
+            : { ...s, nearbyIn: [...s.nearbyIn, channelId] }
+        );
+        if (when === null) {
+          realtime.act(channelId, { type: 'DECLARE_NEARBY' });
+          void cancelNearbyReminder(channelId);
+          return;
+        }
+        await api.answerNearby(state.token, channelId, when);
+        if (when.kind !== 'at') {
+          void cancelNearbyReminder(channelId);
+          return;
+        }
+        // On this device's clock, which is the one a scheduled notification
+        // is kept against; `serverNow` is the one the promise was made in.
+        const name = state.channelViews[channelId]?.channel.name ?? null;
+        void scheduleNearbyReminder(
+          channelId,
+          when.at - (serverNow() - Date.now()),
+          words.nearbyReminderTitle(),
+          name ? words.nearbyReminderBodyIn(name) : words.nearbyReminderBody()
+        );
+      },
+
       ping: async (channelId, targetId, text) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         // Empty means no words rather than an empty sentence, and the server
@@ -3246,6 +3317,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           action.type === 'ATTENTION_EXPIRED' ||
           action.type === 'LEAVE_CHANNEL'
         ) {
+          // And the reminder of a *when* said here: arriving keeps the
+          // promise, and leaving withdraws it. See `sayWhen`.
+          void cancelNearbyReminder(channelId);
           setState((s) => {
             if (!s.nearbyIn.includes(channelId) && !(channelId in s.nearbyArrival)) {
               return s;
@@ -3338,6 +3412,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       expiry,
     ]
   );
+
+  // A ping's button, sent once there is somebody signed in to send it as.
+  // Dropped rather than retried on a refusal: the usual one is that they have
+  // stepped in since, which is the better answer, and the channel screen the
+  // same tap opened says where they stand either way.
+  const { sayWhen } = value;
+  useEffect(() => {
+    if (!pendingAnswer || !state.token) return;
+    setPendingAnswer(null);
+    void sayWhen(pendingAnswer.channelId, pendingAnswer.choice).catch(() => {});
+  }, [pendingAnswer, state.token, sayWhen]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

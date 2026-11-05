@@ -65,7 +65,10 @@ import {
   isWithheld,
   lastPresenceAt,
   lastPresenceByOthers,
+  nearbyHoldsUntil,
   nearbyMs,
+  nearbyWhenFor,
+  nearbyWhenOf,
   otherParticipants,
   reduce,
   subscribeable,
@@ -115,7 +118,12 @@ import { Mixer, mixKeyFor } from './mixes';
 import { publishedKeyFor } from './publication';
 import type { AudioTrack, MediaServer, PlaybackSession } from './media';
 import type { RecordingStore } from './storage';
-import { createPushNotifier, notifications, type PushNotifier } from './push';
+import {
+  createPushNotifier,
+  describeNearbyWhen,
+  notifications,
+  type PushNotifier,
+} from './push';
 import { pairSpan, UsageMeter } from './usage';
 
 export const TICK_INTERVAL_MS = 500;
@@ -1044,6 +1052,23 @@ export class ChannelRegistry {
    * to be able to say who is asking as well as what they said.
    */
   private pingedWith = new Map<string, { by: string; text: string }>();
+  /**
+   * Who sent the ping that opened each window, words or none — keyed as
+   * `lastPingedAt` is.
+   *
+   * `pingedWith` already names a sender, but only where there were words, and
+   * the wordless ping is the ordinary case. Answering one with a *when* has to
+   * know whom to tell, which is the only thing this is for. See `answerPing`.
+   */
+  private pingedBy = new Map<string, string>();
+  /**
+   * The window each answer was given in, by the `lastPingedAt` value that
+   * opened it, so a ping is answered to its sender once. A second tap on the
+   * same notification — or a chip after it — changes the card and tells
+   * nobody: the sender has their answer, and a corrected one arriving as a
+   * second audible notification is a conversation, which this is not.
+   */
+  private pingAnsweredFor = new Map<string, number>();
 
   /**
    * Told what `SilenceNotice` describes. Set by the composition root, which
@@ -2929,6 +2954,14 @@ export class ChannelRegistry {
       // and costs nothing when there is none, `attentive` echoing at its own
       // rate. Before the apply, so the snapshot it emits carries the stamp.
       this.attentive(userId, [channelId]);
+      // **A `when` that is there and is not one is refused**, rather than
+      // left to the reducer, which would quietly read it as plain *Nearby*.
+      // The reducer's leniency is for snapshots and old servers; a client
+      // sending garbage under the name is a bug worth an error frame.
+      const when = (action as { when?: unknown }).when;
+      if (when !== undefined && !nearbyWhenFor(when, this.now())) {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
       const declared = this.apply(channelId, userId, action);
       this.capNearby(userId, channelId);
       return declared;
@@ -4954,6 +4987,10 @@ export class ChannelRegistry {
         declaredNearby[declaredNearby.length - 1]!,
         'nearby'
       );
+      // A *when* added to a declaration already standing is a renewal, which
+      // the edge above keeps quiet — the room was told when they arrived on
+      // the rung, and the card says the rest. Only a declaration that brings
+      // its *when* with it says one, which is `announceActive` reading it.
     }
     if (after.status === 'active' && arrived) {
       if (after.floor.holder !== null) this.assertSilence(after);
@@ -5152,6 +5189,10 @@ export class ChannelRegistry {
     // The flap this absorbs is one connection ringing one phone repeatedly,
     // which this still absorbs — the people who did not flap have no stamp to
     // suppress them.
+    // What a declaration said about when, in the lock screen's words, worked
+    // out once: it is the same sentence to everybody, being relative to now.
+    const said = how === 'nearby' ? nearbyWhenOf(channel, arrived) : null;
+    const when = said ? describeNearbyWhen(said, now) : null;
     for (const userId of absent) {
       const key = this.announceKey(channel.id, userId);
       const last = this.lastAnnouncedAt.get(key);
@@ -5163,7 +5204,8 @@ export class ChannelRegistry {
           this.nameFor(channel, userId),
           this.displayName(arrived),
           channel.id,
-          how
+          how,
+          when
         )
       );
     }
@@ -5262,6 +5304,13 @@ export class ChannelRegistry {
   private expireInattentive(state: ChannelState, now: number): ChannelState {
     let next = state;
     for (const userId of state.participants) {
+      // **A named time holds the wait open until it has come and gone**,
+      // whatever attention says — somebody who said *free at three* is
+      // expected not to be touching their phone before then. Both arms, so a
+      // build that predates the report is held the same way. See
+      // `nearbyHoldsUntil`.
+      const held = nearbyHoldsUntil(next, userId);
+      if (held !== null && now < held) continue;
       const known =
         this.attentiveAt.get(this.attentionKey(state.id, userId)) !== undefined;
       if (known) {
@@ -5603,6 +5652,7 @@ export class ChannelRegistry {
     // would otherwise be shown against it.
     if (trimmed) this.pingedWith.set(key, { by: senderId, text: trimmed });
     else this.pingedWith.delete(key);
+    this.pingedBy.set(key, senderId);
 
     // The durable half, and the only thing in this method that outlives the
     // process. `lastPingedAt` above is the limit and is forgiven by a restart;
@@ -5635,6 +5685,85 @@ export class ChannelRegistry {
     // once the card's own tap was forgotten, the profile composer coming back
     // on reopening. Emitted the way the nearby echo is, without a dispatch.
     this.emit([channelId]);
+    return { ok: true };
+  }
+
+  /**
+   * Answers a ping with a *when* — the buttons on the notification, and the
+   * chooser under the People roster, *When can you come in?*.
+   *
+   * **It is a declaration**, `DECLARE_NEARBY` with the `when`, through
+   * `dispatch` like any other: so the answer is a state on the card and never
+   * a message — planning/decision/2026-11-04-nearby-says-when.md says why.
+   * What it adds is the one thing a declaration does not do — tell the person
+   * who asked. Over HTTP rather than the socket because the buttons may run
+   * with the app just launched, before any socket is open.
+   *
+   * **Refused to somebody present**: they have answered already, by coming,
+   * and a declaration would step them out of the room to say so.
+   *
+   * **The sender is told once per ping**, inside `WAITING_WINDOW_MS` of it —
+   * longer than the ping's own five minutes, since somebody in the flow
+   * answers when they surface, and an answer ten minutes late is the
+   * ordinary case rather than a stale one. Past that, or with no ping open,
+   * this is a declaration and nothing more. See `pingAnsweredFor`.
+   */
+  answerPing(
+    channelId: string,
+    userId: string,
+    when: unknown
+  ): { ok: true } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (!isParticipant(channel, userId)) {
+      return { ok: false, error: 'Not your channel.', code: 'forbidden' };
+    }
+    const now = this.now();
+    const said = nearbyWhenFor(when, now);
+    if (!said) return { ok: false, error: 'Not an answer.', code: 'invalid' };
+    if (isPresent(channel, userId)) {
+      return { ok: false, error: 'You are already here.', code: 'conflict' };
+    }
+
+    const key = this.pingKey(channelId, userId);
+    const pingedAt = this.lastPingedAt.get(key);
+    const sender = this.pingedBy.get(key);
+    const owed =
+      pingedAt !== undefined &&
+      sender !== undefined &&
+      now - pingedAt < WAITING_WINDOW_MS &&
+      this.pingAnsweredFor.get(key) !== pingedAt &&
+      isParticipant(channel, sender);
+    // **The sender hears the answer, not the arrival as well.** A sender who
+    // is nearby is absent, and the declaration below would announce *Todd is
+    // nearby, free in 20 min* to them a moment before the answer says *Todd:
+    // free in 20 min* — the same news twice, both audible. Marking them
+    // announced is what the window is for: they are about to be told.
+    if (owed) {
+      this.lastAnnouncedAt.set(this.announceKey(channelId, sender), now);
+    }
+
+    const declared = this.dispatch(channelId, userId, {
+      type: 'DECLARE_NEARBY',
+      when: said,
+    } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
+    if (!declared.ok) return declared;
+
+    if (owed) {
+      this.pingAnsweredFor.set(key, pingedAt);
+      const after = this.channels.get(channelId) ?? channel;
+      this.push.notify(
+        [sender],
+        notifications.answered(
+          this.nameFor(after, sender),
+          this.displayName(userId),
+          describeNearbyWhen(said, now),
+          channelId
+        )
+      );
+    }
     return { ok: true };
   }
 
@@ -8710,6 +8839,7 @@ export class ChannelRegistry {
       // somebody was standing by when nothing has heard from them since the
       // restart.
       declaredNearbyAt: {},
+      nearbyWhen: {},
       // Restored, where almost everything around it is not — see `durableOf`.
       // A motion is not a claim a live process made; it is two people's
       // agreement, or one person waiting for a second, and a restart is nothing

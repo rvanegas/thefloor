@@ -594,6 +594,17 @@ label that wraps or truncates is worse than a line of its own. **It may show
 neither answer as chosen**, which is the state before anybody has answered —
 a switch that guessed would be a control reporting a state the app is not in.
 
+**The second `choice` is *When can you come in?***, since 2026-11-04: a card
+under the People roster, drawn only while you are nearby, with five answers —
+*Now · Few min · 20 min · 1 hr · In the flow*. Five split three and two on a
+phone, so the longest answer sits in the two-wide row: at 375 points the top
+row's segments are about 99 points and the bottom's about 148, against about
+85 for *In the flow* or *Concentrado*. Keep the short forms short — the top
+row is the one with no room. It shows no answer chosen for a named time this
+device did not pick (`choiceFor`), and **is never disabled while an answer is
+in flight**, a disabled control owing a sentence that would show for a fifth
+of a second. `NearbyWhenCard` in `app/src/ui/channelCards.tsx`.
+
 **`disabled` refuses the whole control and fades only the words.** The track
 and the raised segment stay exactly as they are, because what is chosen has
 to go on being legible while it cannot be changed — `colors.disabled` behind

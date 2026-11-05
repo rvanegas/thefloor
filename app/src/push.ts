@@ -5,6 +5,11 @@ import { ANDROID_CHANNEL_IDS } from '../../core/notifications';
 import { api } from './api/http';
 import { noteNotificationPermission } from './api/notify';
 import type { Permission } from './state/notificationAsk';
+import {
+  NEARBY_ACTION_PREFIX,
+  choiceOfAction,
+  type NearbyChoice,
+} from './state/nearbyWhen';
 
 /**
  * Being reachable when the app is not running.
@@ -476,11 +481,22 @@ function channelOf(notification: Notifications.Notification): string | null {
  * the live rooms and let the person choose. That is the reading for a
  * notification sent by a server predating the field, for one whose payload is
  * malformed, and for one that genuinely is about nowhere.
+ *
+ * **And which answer, when it was one of a ping's buttons**, since
+ * 2026-11-04 — *a few minutes*, *in 20*, *in the flow*. Null for a plain tap.
+ * An answer is handled once and then cleared, because the launch response is
+ * otherwise handed back on every later launch, and a button pressed on
+ * Tuesday would go on answering pings nobody had sent.
  */
 export function onNotificationTap(
-  handle: (channelId: string | null) => void
+  handle: (channelId: string | null, answer: NearbyChoice | null) => void
 ): () => void {
   let cancelled = false;
+  const respond = (response: Notifications.NotificationResponse) => {
+    const answer = choiceOfAction(response.actionIdentifier);
+    if (answer !== null) Notifications.clearLastNotificationResponse();
+    handle(channelOf(response.notification), answer);
+  };
 
   // Caught rather than left to reject: this reads a payload the app did not
   // write, at the one moment where an unhandled rejection is a launch failure
@@ -488,16 +504,103 @@ export function onNotificationTap(
   void Notifications.getLastNotificationResponseAsync()
     .then((response) => {
       if (cancelled || !response) return;
-      handle(channelOf(response.notification));
+      respond(response);
     })
     .catch(() => {});
 
-  const subscription = Notifications.addNotificationResponseReceivedListener(
-    (response) => handle(channelOf(response.notification))
-  );
+  const subscription =
+    Notifications.addNotificationResponseReceivedListener(respond);
 
   return () => {
     cancelled = true;
     subscription.remove();
   };
+}
+
+/**
+ * The buttons a ping carries, registered under the category the server names
+ * on every ping (`category: 'ping'` in server/src/push.ts). Three of the five
+ * choices: *now* is the notification's own tap, and *1 hr* is one more button
+ * than a long press comfortably holds.
+ *
+ * **They open the app**, and that is the installed library's limit rather
+ * than a preference. `opensAppToForeground: false` is documented in
+ * `expo-notifications` 55's own types as never reaching a listener when the
+ * app has been killed, and on iOS no background task runs for an action
+ * either — so the quiet version answers when the app happens to be
+ * suspended and silently drops the answer when it is not, which is most of
+ * the time somebody is in the flow. A launch that answers beats a button
+ * that sometimes does nothing. See
+ * planning/decision/2026-11-04-nearby-says-when.md.
+ *
+ * Called again whenever the language changes, the titles being words.
+ * Swallowed on failure: a ping without buttons is still a ping.
+ */
+export async function registerPingActions(titles: {
+  soon: string;
+  in20: string;
+  flow: string;
+}): Promise<void> {
+  if (Platform.OS === 'web') return;
+  const action = (choice: NearbyChoice, buttonTitle: string) => ({
+    identifier: `${NEARBY_ACTION_PREFIX}${choice}`,
+    buttonTitle,
+    options: { opensAppToForeground: true },
+  });
+  try {
+    await Notifications.setNotificationCategoryAsync('ping', [
+      action('soon', titles.soon),
+      action('in20', titles.in20),
+      action('flow', titles.flow),
+    ]);
+  } catch {
+    // Nothing to say to anybody: the ping arrives without its buttons.
+  }
+}
+
+/** One reminder per channel, so a newer *when* replaces an older one. */
+function reminderId(channelId: string): string {
+  return `nearby-reminder:${channelId}`;
+}
+
+/**
+ * Reminds you, at the time you named, that you said you would be free.
+ *
+ * **Local and not pushed**: it is your own promise, it needs no server to
+ * keep, and it fires whether or not the server still has you nearby — a
+ * promise does not lapse because a declaration did. `at` is on this device's
+ * clock; the caller converts. Marked `reachesInApp` so the in-app handler
+ * raises it over an open app, which is where a person who forgot might be.
+ */
+export async function scheduleNearbyReminder(
+  channelId: string,
+  at: number,
+  title: string,
+  body: string
+): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(reminderId(channelId));
+    await Notifications.scheduleNotificationAsync({
+      identifier: reminderId(channelId),
+      content: { title, body, data: { channelId, reachesInApp: true } },
+      trigger: {
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: new Date(at),
+      },
+    });
+  } catch {
+    // A reminder that could not be set is a reminder that does not come;
+    // the card still says when, which is the half other people read.
+  }
+}
+
+/** Withdraws the reminder: you stepped in, stepped out, or said otherwise. */
+export async function cancelNearbyReminder(channelId: string): Promise<void> {
+  if (Platform.OS === 'web') return;
+  try {
+    await Notifications.cancelScheduledNotificationAsync(reminderId(channelId));
+  } catch {
+    // Nothing scheduled is the ordinary case.
+  }
 }

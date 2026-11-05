@@ -31,6 +31,7 @@ import {
   idleMs,
   isWaiting,
   nearbyMs,
+  nearbyWhenOf,
   canInvite,
   canControlPlayback,
   canMuteOther,
@@ -93,6 +94,7 @@ import {
   FooterAction,
   GuestCard,
   MicrophoneSilent,
+  NearbyWhenCard,
   ParticipantCard,
   PlaybackBlocked,
   audioTone,
@@ -3302,6 +3304,19 @@ export function ChannelView({
               />
             ))}
           </View>
+
+          {/*
+            Under the roster, because what it sets is a line on your own card
+            in it. Drawn while you are nearby and at no other time: the
+            question has no meaning on either other rung. See
+            `NearbyWhenCard`.
+          */}
+          {iAmNearby ? (
+            <NearbyWhenCard
+              when={nearbyWhenOf(channel, me)}
+              onChoose={(choice) => app.sayWhen(channel.id, choice)}
+            />
+          ) : null}
 
           {/*
             Under the roster rather than on each card, because it is one fact

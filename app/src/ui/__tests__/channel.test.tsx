@@ -1369,6 +1369,92 @@ describe('Channel', () => {
   });
 
   /**
+   * *When can you come in?*, since 2026-11-04 — the second, optional tap on
+   * the rung. Drawn while you are nearby and at no other time, and a choice
+   * rather than a tab strip, since it answers a question on the screen.
+   */
+  describe('saying when', () => {
+    const view = () =>
+      render(<ChannelView
+          channelId="sess_1"
+          audio={AUDIO}
+          onClose={() => {}}
+          onExit={() => {}}
+        />);
+
+    it('is asked of somebody nearby, with plain nearby chosen', () => {
+      showChannel(
+        channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW))
+      );
+      const tree = view();
+      expect(textOf(tree)).toContain('When can you come in?');
+      for (const answer of ['Now', 'Few min', '20 min', '1 hr', 'In the flow']) {
+        expect(findChoice(tree, answer)).toBeDefined();
+      }
+      expect(findChoice(tree, 'Now')!.props.accessibilityState.checked).toBe(
+        true
+      );
+      act(() => tree.unmount());
+    });
+
+    it('is asked of nobody in the room or out of it', () => {
+      showChannel(channelOf((c) => c));
+      const out = view();
+      expect(textOf(out)).not.toContain('When can you come in?');
+      act(() => out.unmount());
+
+      showChannel(
+        channelOf((c) => reduce(c, { type: 'ENTER', userId: ME }, NOW))
+      );
+      const inside = view();
+      expect(textOf(inside)).not.toContain('When can you come in?');
+      act(() => inside.unmount());
+    });
+
+    it('sends the answer for this channel', () => {
+      showChannel(
+        channelOf((c) => reduce(c, { type: 'DECLARE_NEARBY', userId: ME }, NOW))
+      );
+      const tree = view();
+      act(() => findChoice(tree, 'In the flow')!.props.onPress());
+      expect(mockApp.sayWhen).toHaveBeenCalledWith('sess_1', 'flow');
+      act(() => tree.unmount());
+    });
+
+    it('puts what somebody said on their card, in place of the clock', () => {
+      showChannel(
+        channelOf((c) => {
+          let s = reduce(c, {
+            type: 'DECLARE_NEARBY',
+            userId: THEM,
+            when: { kind: 'flow' },
+          }, NOW);
+          s = reduce(s, { type: 'ENTER', userId: ME }, NOW);
+          return s;
+        })
+      );
+      const tree = view();
+      expect(textOf(tree)).toContain('Nearby · in the flow');
+      act(() => tree.unmount());
+    });
+
+    it('counts a named time down from what was promised', () => {
+      showChannel(
+        channelOf((c) =>
+          reduce(c, {
+            type: 'DECLARE_NEARBY',
+            userId: THEM,
+            when: { kind: 'at', at: NOW + 20 * 60_000 },
+          }, NOW)
+        )
+      );
+      const tree = view();
+      expect(textOf(tree)).toContain('Nearby · free in 20 minutes');
+      act(() => tree.unmount());
+    });
+  });
+
+  /**
    * The arrival, which was a card with two buttons until 2026-09-15 and had
    * no test at all. It is one line now, and the reason it is one line is that
    * everything else on the card was already on the screen — so what these two

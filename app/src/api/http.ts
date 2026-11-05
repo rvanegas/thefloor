@@ -14,7 +14,7 @@ import type {
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
 import type { NotificationLevel } from '../../../core/notifications';
-import type { ReplyLength } from '../../../core/types';
+import type { NearbyWhen, ReplyLength } from '../../../core/types';
 import type { AccountSettings } from '../../../core/settings';
 import type { NavAction } from '../../../core/navigation';
 import type { Tried, TriedId } from '../../../core/tried';
@@ -658,6 +658,18 @@ export const api = {
     request<{ ok: true }>(`/channels/${channelId}/ping`, {
       method: 'POST',
       body: { targetId, text: text ?? null },
+      token,
+    }),
+
+  /**
+   * Says when you can come in — a ping's buttons, and the chooser on your own
+   * People card. A declaration with a *when*, which also tells whoever pinged
+   * you if a ping is open. Refused when you are already in the room.
+   */
+  answerNearby: (token: string, channelId: string, when: NearbyWhen) =>
+    request<{ ok: true }>(`/channels/${channelId}/nearby`, {
+      method: 'POST',
+      body: { when },
       token,
     }),
 

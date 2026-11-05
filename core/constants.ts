@@ -597,6 +597,18 @@ export const ATTENTION_WINDOW_MS = WAITING_WINDOW_MS;
 export const MAX_NEARBY_CHANNELS = 5;
 
 /**
+ * How far ahead a *when* may name a time — *free at 4pm* said at noon.
+ *
+ * A stated time holds a declaration open until it arrives (see
+ * `nearbyHoldsUntil`), so this is also the longest anybody can be *nearby*
+ * without touching their phone. Past an afternoon the claim stops being
+ * *within reach* and becomes a calendar entry, which this is not. A later
+ * time is clamped to it rather than refused: the person meant *later*, and
+ * four hours is the latest later this rung will say.
+ */
+export const MAX_NEARBY_AHEAD_MS = 4 * 60 * 60 * 1000;
+
+/**
  * How often a client says it is still attending.
  *
  * Attention moves on a gesture and on the app being frontmost, neither of

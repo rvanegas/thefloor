@@ -417,6 +417,10 @@ export const es: Strings = {
     present: () => 'Presente',
     onAnotherCall: () => 'En otra llamada',
     nearbyFor: (since: string) => `Cerca ${since}`,
+    nearbyInTheFlow: () => 'Cerca · concentrado',
+    nearbySoon: () => 'Cerca · unos minutos',
+    nearbyFreeIn: (inWhat: string) => `Cerca · libre en ${inWhat}`,
+    nearbyFreeNow: () => 'Cerca · libre ya',
     steppedOut: () => 'Ha salido',
     steppedOutAgo: (since: string) => `Sali\u00f3 hace ${since}`,
     /**
@@ -1213,6 +1217,12 @@ export const es: Strings = {
     rungNearby: () => 'Cerca',
     rungNearbyHintOn: () => 'Est\u00e1s cerca. Toca para reiniciar la espera',
     rungNearbyHint: () => 'Que se te pueda localizar sin entrar en la conversaci\u00f3n',
+    nearbyWhenQuestion: () => '\u00bfCu\u00e1ndo puedes entrar?',
+    whenNow: () => 'Ahora',
+    whenSoon: () => 'Unos min',
+    whenIn20: () => '20 min',
+    whenIn60: () => '1 h',
+    whenFlow: () => 'Concentrado',
     rungOut: () => 'Fuera',
     rungOutHintPresent: () => 'Salir de la conversaci\u00f3n',
     rungOutHintNearby: () => 'Dejar de estar localizable aqu\u00ed',
@@ -1459,6 +1469,13 @@ export const es: Strings = {
   },
   provider: {
     couldNotAcceptInvitation: () => 'No se ha podido aceptar la invitaci\u00f3n.',
+    pingAnswerSoon: () => 'Unos minutos',
+    pingAnswerIn20: () => 'En 20 minutos',
+    pingAnswerFlow: () => 'Concentrado',
+    nearbyReminderTitle: () => 'Dijiste que estar\u00edas libre',
+    nearbyReminderBody: () => 'M\u00e1s o menos ahora. Entra cuando puedas.',
+    nearbyReminderBodyIn: (channel: string) =>
+      `M\u00e1s o menos ahora, en ${channel}. Entra cuando puedas.`,
     inviteRefused: (refusal) => {
       switch (refusal) {
         case 'used':

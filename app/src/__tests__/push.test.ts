@@ -405,13 +405,22 @@ describe('a tap on a notification', () => {
   const listen =
     Notifications.addNotificationResponseReceivedListener as jest.Mock;
 
-  const response = (data: unknown) =>
+  /**
+   * A response as iOS hands one up: the default identifier for a plain tap,
+   * `nearby:<choice>` for one of a ping's buttons. Never absent on a phone.
+   */
+  const response = (
+    data: unknown,
+    actionIdentifier: string = Notifications.DEFAULT_ACTION_IDENTIFIER
+  ) =>
     ({
+      actionIdentifier,
       notification: { request: { content: { data } } },
     }) as Notifications.NotificationResponse;
 
   /** The listener the module registered, to deliver a tap through by hand. */
-  const deliver = (data: unknown) => listen.mock.calls[0][0](response(data));
+  const deliver = (data: unknown, action?: string) =>
+    listen.mock.calls[0][0](response(data, action));
 
   /**
    * Lets the launch read's `.then` run. Nothing in the module awaits it —
@@ -434,7 +443,7 @@ describe('a tap on a notification', () => {
 
     deliver({ channelId: 'chan_1', kind: 'pinged' });
 
-    expect(handle).toHaveBeenCalledWith('chan_1');
+    expect(handle).toHaveBeenCalledWith('chan_1', null);
   });
 
   /**
@@ -453,7 +462,7 @@ describe('a tap on a notification', () => {
 
       deliver({ channelId: 'chan_9', kind });
 
-      expect(handle).toHaveBeenCalledWith('chan_9');
+      expect(handle).toHaveBeenCalledWith('chan_9', null);
     }
   );
 
@@ -469,7 +478,7 @@ describe('a tap on a notification', () => {
     onNotificationTap(handle);
     await settle();
 
-    expect(handle).toHaveBeenCalledWith('chan_2');
+    expect(handle).toHaveBeenCalledWith('chan_2', null);
   });
 
   /** An icon launch. Nothing was tapped, so there is nowhere to be taken. */
@@ -494,6 +503,53 @@ describe('a tap on a notification', () => {
    * `channelId`. The empty string goes with them, being a falsy id that would
    * otherwise pass a `typeof` test and open a screen for a channel nobody has.
    */
+  /**
+   * **A ping's button hands up its answer as well as its channel**, and is
+   * cleared so the launch read cannot hand it up again on the next launch —
+   * a button pressed once would otherwise go on answering pings for ever.
+   */
+  it('hands up the answer a ping button carried, once', async () => {
+    const handle = jest.fn();
+    onNotificationTap(handle);
+    await settle();
+
+    deliver({ channelId: 'chan_3', kind: 'pinged' }, 'nearby:in20');
+
+    expect(handle).toHaveBeenCalledWith('chan_3', 'in20');
+    expect(Notifications.clearLastNotificationResponse).toHaveBeenCalled();
+  });
+
+  it('answers from the button that launched the app', async () => {
+    lastResponse.mockResolvedValue(
+      response({ channelId: 'chan_4' }, 'nearby:flow')
+    );
+    const handle = jest.fn();
+
+    onNotificationTap(handle);
+    await settle();
+
+    expect(handle).toHaveBeenCalledWith('chan_4', 'flow');
+  });
+
+  /**
+   * Only `nearby:` and only the five words after it. Anything else iOS hands
+   * back is a tap, which still opens the channel and answers nothing.
+   */
+  it('reads no answer into an action it does not know', async () => {
+    const handle = jest.fn();
+    onNotificationTap(handle);
+    await settle();
+
+    deliver({ channelId: 'chan_5' }, 'nearby:tomorrow');
+    deliver({ channelId: 'chan_5' }, 'in20');
+
+    expect(handle.mock.calls).toEqual([
+      ['chan_5', null],
+      ['chan_5', null],
+    ]);
+    expect(Notifications.clearLastNotificationResponse).not.toHaveBeenCalled();
+  });
+
   it('reports a tap whose payload names nothing, as nothing', async () => {
     const handle = jest.fn();
     onNotificationTap(handle);
@@ -505,7 +561,12 @@ describe('a tap on a notification', () => {
     deliver(undefined);
 
     expect(handle).toHaveBeenCalledTimes(4);
-    expect(handle.mock.calls).toEqual([[null], [null], [null], [null]]);
+    expect(handle.mock.calls).toEqual([
+      [null, null],
+      [null, null],
+      [null, null],
+      [null, null],
+    ]);
   });
 
   /**

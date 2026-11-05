@@ -556,6 +556,16 @@ export const en = {
     onAnotherCall: () => 'On another call',
     /** `since` is already a phrase — see `relativeTime.duration`. */
     nearbyFor: (since: string) => `Nearby ${since}`,
+    /**
+     * The four *Nearby* lines that say when, in place of the attention clock:
+     * what somebody said about coming in is the more useful half of the line
+     * once they have said it. `inWhat` is a `relativeTime.duration` phrase.
+     * See `NearbyWhen` in core/types.ts.
+     */
+    nearbyInTheFlow: () => 'Nearby · in the flow',
+    nearbySoon: () => 'Nearby · a few minutes',
+    nearbyFreeIn: (inWhat: string) => `Nearby · free in ${inWhat}`,
+    nearbyFreeNow: () => 'Nearby · free now',
     steppedOut: () => 'Stepped out',
     steppedOutAgo: (since: string) => `Stepped out ${since}`,
     /**
@@ -1562,6 +1572,17 @@ export const en = {
     rungNearby: () => 'Nearby',
     rungNearbyHintOn: () => 'You are nearby. Tap to restart the wait',
     rungNearbyHint: () => 'Be reachable without joining the conversation',
+    /**
+     * The chooser on your own People card while you are nearby — a question
+     * and five short answers, short because they share a phone's width. See
+     * `NearbyWhenCard`.
+     */
+    nearbyWhenQuestion: () => 'When can you come in?',
+    whenNow: () => 'Now',
+    whenSoon: () => 'Few min',
+    whenIn20: () => '20 min',
+    whenIn60: () => '1 hr',
+    whenFlow: () => 'In the flow',
     rungOut: () => 'Out',
     rungOutHintPresent: () => 'Leave the conversation',
     rungOutHintNearby: () => 'Stop being reachable here',
@@ -1831,6 +1852,18 @@ export const en = {
    */
   provider: {
     couldNotAcceptInvitation: () => 'Could not accept the invitation.',
+    /**
+     * A ping's three buttons, on a long press of the notification. See
+     * `registerPingActions` in push.ts.
+     */
+    pingAnswerSoon: () => 'A few minutes',
+    pingAnswerIn20: () => 'In 20 minutes',
+    pingAnswerFlow: () => 'In the flow',
+    /** The reminder at the time you named. See `scheduleNearbyReminder`. */
+    nearbyReminderTitle: () => "You said you'd be free",
+    nearbyReminderBody: () => 'About now. Step in when you can.',
+    nearbyReminderBodyIn: (channel: string) =>
+      `About now, in ${channel}. Step in when you can.`,
     /**
      * Why an invite link was refused, said here rather than by the server so
      * that it can be said in Spanish. The English is the server's own

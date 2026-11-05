@@ -36,6 +36,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 159 | The two renamed settings | `server/src/settings-wire.ts` |
 | — | `mediaRoom` | `core/channel.ts`, `server/src/channels.ts` |
 | — | `declaredNearbyAt` optionality | `core/channel.ts` |
+| — | `nearbyWhen` optionality | `core/types.ts`, `core/channel.ts` |
 | 175 | The pre-attention fallback | `server/src/channels.ts`, `server/src/release.ts`, `app/src/ui/ChannelView.tsx` |
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
@@ -512,6 +513,32 @@ degradation rather than breakage and is not fixable from the server.
 **Do not delete `idleMs` alongside it.** The two clocks answer different
 questions and both are live: `idleMs` is how long since anybody heard anything,
 which is what a dropped connection is timed by and what *Stepped out* counts.
+
+---
+
+## No gate — `nearbyWhen` optionality
+
+`ChannelState.nearbyWhen?`, added 2026-11-04 with the *when* a declaration may
+carry, and read through `nearbyWhenOf` with a `?.` for the reason the entry
+above gives: only a server older than the field — a rollback — can produce a
+snapshot without it. A deploy retires it, not a floor, and the reducer's own
+`?? {}` where it clears the map goes with it.
+
+**Nothing else here is a shim, and it is worth saying which way round each
+half degrades.** A client older than the field ignores it: its People cards
+say *Nearby 3m* rather than *Nearby · in the flow*, and somebody held open by a
+named time reads *Nearby* past the fifteen minutes with the attention clock
+climbing — true, and unexplained. An old client also has no `ping` category
+registered, so a ping reaches it with no buttons, which is the ping it always
+was. The other direction is the deploy order and not code: a server older
+than the `when` on `DECLARE_NEARBY` drops the field and declares plain
+*Nearby*, and one older than `POST /channels/:id/nearby` answers 404 to the
+chooser and the buttons. **Deploy before uploading a build that sends either.**
+
+**Do not delete `nearbyWhenFor`'s leniency alongside it.** The reducer reading
+junk as plain *Nearby* is not compatibility; it is the reducer refusing to
+trust the wire, which the server's own refusal in `dispatch` duplicates on
+purpose.
 
 ---
 

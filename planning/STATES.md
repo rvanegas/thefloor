@@ -592,6 +592,15 @@ outlive the state it is aligned with. Nothing on the wire depends on the choice
 — the server sends a moment and each client decides how long it is worth
 drawing.
 
+**A declaration that names a time is the one *Nearby* that outlasts the
+window**, since 2026-11-04: *free in 40 minutes* holds the person nearby,
+through inattention, until the time plus `WAITING_WINDOW_MS`
+(`nearbyHoldsUntil`, read by `expireInattentive`). The safe direction above
+only gets safer — the mark still expires at fifteen minutes and the state
+later. *In the flow* and *a few minutes* name no moment and hold nothing, so
+"nearby" is still never more than fifteen minutes stale unless somebody said
+when they would be back. GLOSSARY.md § *When (nearby)*.
+
 **It is the act, not the notification** — an earlier draft recorded the arrival
 push instead and lost every step-in that was suppressed or had nobody to notify.
 And it is **not** the reader's `lastPresentAt`, which the heartbeat refreshes and

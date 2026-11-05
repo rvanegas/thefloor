@@ -339,6 +339,7 @@ export const mockApp = {
   // Resolves, which is what the card's wordless shortcut expects; the tests
   // about a refusal make it reject.
   ping: jest.fn(async () => {}),
+  sayWhen: jest.fn(async () => {}),
   // Resolves, as a reply posted would; the tests about a failure make it reject.
   askClaude: jest.fn(async () => {}),
   // A channel with no guest links, which is every channel until somebody makes

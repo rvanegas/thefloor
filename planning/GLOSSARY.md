@@ -97,10 +97,11 @@ caused; the list carries the meaning.
 - **Motion to remove** — One member's open proposal that another be removed, carried the moment a second member agrees and lapsing after a day; withheld from the person it is about, withdrawable by whoever moved, and impossible in a channel of two
 - **Removal notice** — The card on the *Channels* list telling somebody a channel's members removed them, and the only account they are given of it; it names the channel and names no member, and *Close* deletes it for every device
 - **Refusal** — The server's sentence for a channel action it would not take, shown as a card at the top of that channel — *That did not go through*, the sentence, *Got it*. Not a greyed control, which is the same rule seen before the press; a refusal is a race the greying lost. Held on this install only, unlike a *removal notice*, and only the registry's refusals: one by a reducer guard says nothing on the wire
-- **Nearby / Stepped out** — The two things a People card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside
+- **Nearby / Stepped out** — The two things a People card says about somebody who is not here; *nearby* is now also something you can declare and step out of, declaring it is an arrival — it notifies the absent, dates *stepped out* from the tap, and restarts its own clock when tapped again on the rung — and it says in a line who arrived rather than stepping you in or asking whether to; stepping into one channel leaves you nearby in the others rather than stepped out of them, five at once being the limit and a sixth evicting the oldest; Home pins a bar for each channel you are nearby in, beneath the one you are present in and alongside it, and hoists a channel nobody is in but somebody is beside; since 2026-11-04 a declaration may also say *when*
+- **When (nearby)** — What somebody nearby says about coming in, since 2026-11-04: *in the flow*, *a few minutes*, or *free* at a named time; said from a chooser under the roster or a ping's buttons, shown on their People card in place of the attention clock, and a named time holds them nearby until it has passed by a window. `NearbyWhen` in core; never a message
 - **Offline** — Not a word about the network but a state: the socket to the server gone for ten seconds, at which point queued actions are discarded and the app becomes one screen saying so — except on a device showing a film, where a playing film goes on over that screen under a strip saying the same. The media room is a separate connection and may be fine, so you can be offline and still hear the room — what it means is that nothing can be *changed*, the microphone included
 - **Owner** — Whoever made a channel into a *community*, and the only one in it who holds the controls (`holdsTheControls`): invitations and guests, removal, media and recordings, muting anybody else, the name and description, the link, deleting. Other members mute themselves, claim the floor, paste and ping. Cannot leave or be moved against. No other channel has one
-- **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open
+- **Ping** — A notification to one person in a channel who is not there, saying somebody wants them; sent only from the room or beside it, by somebody *present* or *nearby*, and only to a contact; its words stay on their profile card while the window is open; answerable from the notification with a *when*, which tells the sender once
 - **On another call** — What the roster says instead of *Present* about somebody whose phone is held for another call, taken with *Hold & Accept*; still in the room, neither hearing nor heard, and back to *Present* when the call is taken off hold (`ChannelState.onAnotherCall`)
 - **Present** — In a channel, able to hear and be heard, right now: holding a connection to its media room
 - **Podcast** — What a *public channel* is called on screen, since 2026-10-04: *This channel is a podcast* on *Channel Settings*, where it was *Public page*. Never a *community* too. `public` in the code
@@ -2104,6 +2105,40 @@ above, so a person retired **for** inattention arriving there would restart the
 claim that expiring was meant to end. Nobody is told to ping somebody the room
 has just given up on.
 
+**And since 2026-11-04 a declaration may say when** — see *When (nearby)*,
+which is the one thing that lets a declaration outlast the fifteen minutes.
+
+## When (nearby)
+
+**What somebody nearby says about coming in.** Three answers that are not the
+same: *in the flow* — busy with something of their own and no idea when; *a
+few minutes*; and *free* at a named time, offered as *in 20* and *in an hour*.
+Plain *Nearby*, with no *when*, still means *now, if you call*. From the
+transcript of 2026-10-07, where Todd was pinged in the middle of a recording
+and his silence could have meant anything.
+
+**A state on a card, never a message.** It is a qualification of a
+*declaration* — `nearbyWhen` beside `declaredNearbyAt`, set and cleared with
+it — and is shown on that person's People card in place of the attention
+clock: *Nearby · in the flow*, *Nearby · free in 18 minutes*, and *Nearby ·
+free now* once the time has come. Never *late*: the card reports what was
+said and does not grade it. A lapsed connection never has one, being nobody's
+statement.
+
+**Two ways to say it, and both are a declaration.** The chooser under the
+roster — *When can you come in?* — drawn while you are nearby and at no other
+time; and the three buttons on a ping's notification, which open the app to
+answer (the installed library cannot run a button with the app killed). When
+a ping is open on you the sender is told, once per ping, as a `pinged`
+notification — *Bob: free in 20 min.* — and nobody else is told anything
+beyond what a declaration already announces.
+
+**Only a named time changes anything but words.** It holds the declaration
+open, through inattention, until the time plus the ordinary window
+(`nearbyHoldsUntil`), and sets a local reminder on the phone of the person who
+named it. *In the flow* and *a few minutes* name no moment and hold nothing.
+See `decision/2026-11-04-nearby-says-when.md`.
+
 ## Notification kinds — invited / arrived / accepted / pinged
 
 **The four things this server sends to a phone**, named in
@@ -2286,6 +2321,10 @@ may be sent, the record is written after it has decided, and nothing in the
 application reads the table. Swept at `USAGE_RETENTION_MS` with the rest of
 the meter, and described on `/privacy`. See
 `decision/2026-09-15-the-funnel-is-instrumented-where-it-leaks.md`.
+
+**And it can be answered, since 2026-11-04**, with a *when* — its
+notification carries three buttons. The answer is a declaration, not a
+reply in a thread, and reaches the sender once; see *When (nearby)*.
 
 ## On another call
 
@@ -5212,6 +5251,9 @@ are settled:
                           enough for the footer's fifth of a phone
     Ping                  Aviso — *avisar* as the verb
     Nearby                Cerca
+    When (nearby)         *¿Cuándo puedes entrar?* — *Concentrado* for in the
+                          flow, *Unos minutos* (*Unos min* on the chooser),
+                          *libre en…* and *libre ya* on the card
     Paste                 Lo pegado — *Pegado por* over one, *Lo último
                           pegado* on a guest's page; *portapapeles* is the
                           device's clipboard only, as in *Pegar mi

@@ -23,15 +23,21 @@ import {
   isPresent,
   isWaiting,
   nearbyMs,
+  nearbyWhenOf,
 } from '../../../core/channel';
-import type { Guest } from '../../../core/types';
+import type { Guest, NearbyWhen } from '../../../core/types';
 import type { SessionAudio } from '../audio/useSessionAudio';
 import { useApp } from '../state/AppProvider';
-import { Button, Card } from './components';
+import { Button, Card, Segmented } from './components';
 import { styles } from './channelStyles';
 import { ago, duration } from './relativeTime';
 import { colors, formatSeconds, type } from './theme';
 import { useText, type Strings } from '../i18n';
+import {
+  NEARBY_CHOICES,
+  choiceFor,
+  type NearbyChoice,
+} from '../state/nearbyWhen';
 
 /**
  * One of the four controls in the pinned footer: an icon, a word, and the
@@ -391,6 +397,88 @@ export function GuestCard({
  * It is still a report of noise being made rather than an inference from who
  * is permitted, which is the distinction this paragraph is about.
  */
+/**
+ * The *Nearby* line, with what they said about when if they said anything.
+ *
+ * A named time counts down to itself and then reads *free now* rather than
+ * going negative or vanishing: they are still nearby, the window held open
+ * past it by `nearbyHoldsUntil`, and *free now* is their own promise come
+ * due — which is exactly when it is worth pinging them. Never *late*: the card
+ * reports what somebody said, and has no business grading it.
+ */
+function nearbyLine(
+  t: Strings['channelCards'],
+  when: NearbyWhen | null,
+  now: number,
+  sinceAttention: number
+): string {
+  if (when === null) return t.nearbyFor(duration(sinceAttention));
+  if (when.kind === 'flow') return t.nearbyInTheFlow();
+  if (when.kind === 'soon') return t.nearbySoon();
+  return when.at > now
+    ? t.nearbyFreeIn(duration(when.at - now))
+    : t.nearbyFreeNow();
+}
+
+/**
+ * *When can you come in?* — on the People tab, under the roster, for as long
+ * as you are nearby and nowhere else.
+ *
+ * **Optional, and never in the way of the rung.** Tapping *Nearby* is still
+ * one tap and still means *now, if you call*; this is the second tap for
+ * somebody who has something more to say — *in the flow*, *a few minutes*,
+ * *free in 20*. The answer is a state on your People card and nothing else
+ * unless a ping is open on you, when the person who sent it is told. See
+ * `AppValue.sayWhen`.
+ *
+ * **A card with a question and a `choice`**, the shape STYLE.md § *Segmented*
+ * gives an answer to a question on the screen. Five answers split three and
+ * two on a phone, which is the control's own rule. A named time this device
+ * did not pick shows no answer chosen rather than a guess — see `choiceFor`.
+ *
+ * `when` is yours, off the snapshot.
+ */
+export function NearbyWhenCard({
+  when,
+  onChoose,
+}: {
+  when: NearbyWhen | null;
+  onChoose: (choice: NearbyChoice) => Promise<void>;
+}) {
+  const t = useText().channel;
+  const [picked, setPicked] = useState<NearbyChoice | null>(null);
+  const labels: Record<NearbyChoice, string> = {
+    now: t.whenNow(),
+    soon: t.whenSoon(),
+    in20: t.whenIn20(),
+    in60: t.whenIn60(),
+    flow: t.whenFlow(),
+  };
+  // `''` is no answer: a value no option carries, which is how `Segmented`
+  // draws a choice with nothing chosen.
+  const chosen = choiceFor(when, picked) ?? ('' as NearbyChoice);
+  return (
+    <Card>
+      <Text style={type.muted}>{t.nearbyWhenQuestion()}</Text>
+      <Segmented
+        role="choice"
+        options={NEARBY_CHOICES.map((value) => ({ value, label: labels[value] }))}
+        value={chosen}
+        // **Never disabled while an answer is in flight**, though that would
+        // stop a double tap: STYLE.md wants a sentence beside a disabled
+        // control, and one shown for a fifth of a second is worse than a
+        // second declaration, which changes nothing the first did not.
+        onChange={(choice) => {
+          setPicked(choice);
+          // A refusal corrects itself: the usual one is that you have stepped
+          // in since, and the snapshot that says so takes this card away.
+          void onChoose(choice).catch(() => {});
+        }}
+      />
+    </Card>
+  );
+}
+
 export function ParticipantCard({
   channel,
   participant,
@@ -786,7 +874,18 @@ export function ParticipantCard({
         // reader to work out how much of the fifteen minutes is left. See
         // `attentiveAt`, and `waitingFor` for what is shown when the server
         // has no attention clock for them.
-        t.nearbyFor(duration(attention ?? waitingFor ?? 0))
+        //
+        // **Unless they said when, since 2026-11-04**, and then that is the
+        // line. *Nearby 20s* answers whether a notification will find them;
+        // *Nearby · free in 18 minutes* answers whether it is worth sending
+        // one, which is the question the person reading this card is asking.
+        // See `nearbyLine`.
+        nearbyLine(
+          t,
+          nearbyWhenOf(channel, participant.id),
+          now,
+          attention ?? waitingFor ?? 0
+        )
       : channel.everPresent.includes(participant.id)
         ? // **The presence clock, not the attention clock.** For one day this
           // read `Away ${duration(attention)}`, on the argument that *stepped

@@ -3,6 +3,7 @@ import { createPrivateKey, sign, type KeyObject } from 'node:crypto';
 
 import { PRESENCE_LIFETIME_MS } from '../../core/constants';
 import { ANDROID_CHANNEL_IDS } from '../../core/notifications';
+import type { NearbyWhen } from '../../core/types';
 import type {
   NotificationAlert,
   NotificationKind,
@@ -218,6 +219,16 @@ export interface PushMessage {
    * received.
    */
   reachesInApp: boolean;
+  /**
+   * The iOS notification category, which is what decides the buttons a
+   * long press shows — or absent for none.
+   *
+   * Only `ping` today, on a ping and nothing else: its buttons answer it with
+   * a *when*, and the app registers them under this name at launch (see
+   * `registerPingActions` in app/src/push.ts). An arrival with them would be
+   * offering to answer a question nobody asked.
+   */
+  category?: 'ping';
 }
 
 /**
@@ -297,6 +308,26 @@ export interface PushMessage {
  * They compose messages and send nothing. Deciding that somebody should be
  * told remains the registry's, exactly as before.
  */
+/**
+ * A *when* as the lock screen says it, relative to `now`.
+ *
+ * Relative rather than a clock time because the server does not know the
+ * recipient's time zone, and a notification lives minutes rather than hours:
+ * *free in 20 min* is true for as long as anybody will read it. The app says
+ * the same thing its own way, in both languages — see `nearbyWhenLabel`.
+ */
+export function describeNearbyWhen(when: NearbyWhen, now: number): string {
+  if (when.kind === 'flow') return 'in the flow';
+  if (when.kind === 'soon') return 'free in a few minutes';
+  const minutes = Math.max(1, Math.round((when.at - now) / 60_000));
+  if (minutes < 60) return `free in ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest === 0
+    ? `free in ${hours} hr`
+    : `free in ${hours} hr ${rest} min`;
+}
+
 export const notifications = {
   /**
    * You have been added to a channel, whether or not it existed a moment ago.
@@ -388,7 +419,8 @@ export const notifications = {
     channelName: string,
     whoArrived: string,
     channelId: string,
-    how: 'stepped in' | 'nearby' = 'stepped in'
+    how: 'stepped in' | 'nearby' = 'stepped in',
+    when: string | null = null
   ): PushMessage {
     return {
       kind: 'arrived',
@@ -404,7 +436,9 @@ export const notifications = {
        */
       body:
         how === 'nearby'
-          ? `${whoArrived} is nearby.`
+          ? when
+            ? `${whoArrived} is nearby, ${when}.`
+            : `${whoArrived} is nearby.`
           : `${whoArrived} stepped in.`,
       channelId,
       collapseKey: channelId,
@@ -507,6 +541,40 @@ export const notifications = {
       lifetimeMs: PRESENCE_LIFETIME_MS,
       // The only one of the four that is delivered to a phone whose app is
       // open. See the field.
+      reachesInApp: true,
+      // The buttons that answer it with a *when*. See `answered` below.
+      category: 'ping',
+    };
+  },
+
+  /**
+   * Your ping was answered with a *when* — *Todd: free in 20 min.*
+   *
+   * **A `pinged` in every way a rule can see**, on the precedent `invited`
+   * set for two bodies under one kind: it is the other half of the same
+   * exchange, between the same two people, about the same room, and the
+   * person it goes to asked a question and is waiting for exactly this. So
+   * it is audible where a ping is, reaches an open app where a ping does, and
+   * collapses into nothing, being a sentence somebody chose — with one tap,
+   * but chose. A new kind would be a new row in every preferences table to
+   * say what `pinged` says.
+   *
+   * No category: an answer is not a question.
+   */
+  answered(
+    channelName: string,
+    who: string,
+    when: string,
+    channelId: string
+  ): PushMessage {
+    return {
+      kind: 'pinged',
+      title: channelName,
+      body: `${who}: ${when}.`,
+      channelId,
+      collapseKey: null,
+      threadId: ASKING_THREAD,
+      lifetimeMs: PRESENCE_LIFETIME_MS,
       reachesInApp: true,
     };
   },
@@ -774,6 +842,7 @@ export class ApnsPusher implements Pusher, LiveActivityEnder, BadgeSetter {
         // somebody is asking for you share one stack across every channel,
         // and an arrival stacks with its own room. See `threadId`.
         'thread-id': message.threadId,
+        ...(message.category ? { category: message.category } : {}),
       },
       // **Under `body`, and the nesting is not ours to choose.** For a
       // *remote* notification `expo-notifications` does not hand the app the

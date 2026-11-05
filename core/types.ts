@@ -648,6 +648,24 @@ export interface WatchState {
   history: WatchParty[];
 }
 
+/**
+ * When somebody who is *nearby* expects to be able to come in.
+ *
+ * - `flow` — *in the flow*: busy with something of their own, no idea when.
+ * - `soon` — *a few minutes*: no time named, and not long.
+ * - `at` — *free at* a time, server-clock milliseconds. The one kind that
+ *   changes anything but a sentence: it holds the declaration open until
+ *   then. See `nearbyHoldsUntil`.
+ *
+ * Three kinds and not a number, because the first two are not durations
+ * nobody bothered to type: *I don't know* and *not long* are the answers, and
+ * a guessed figure would be a promise nobody made.
+ */
+export type NearbyWhen =
+  | { kind: 'flow' }
+  | { kind: 'soon' }
+  | { kind: 'at'; at: number };
+
 export interface ChannelState {
   id: string;
   /**
@@ -1199,6 +1217,23 @@ export interface ChannelState {
    * predates it — see SHIMS.md.
    */
   declaredNearbyAt: Partial<Record<UserId, number>>;
+  /**
+   * When each declarer expects to be able to come in, for the ones who said.
+   *
+   * **A qualification of a declaration and nothing on its own**: only ever
+   * set beside `declaredNearbyAt`, and cleared at every site that clears that
+   * — a lapsed connection never has one, being nobody's statement. Plain
+   * *Nearby*, with no entry here, still means *now, if you call*.
+   *
+   * The answer Todd wanted to a ping he could not leave his recording for —
+   * *in the flow*, *a few minutes*, *free at a known time* — said in one tap,
+   * on the rung or from the notification. See `NearbyWhen`, and
+   * planning/decision/2026-11-04-nearby-says-when.md.
+   *
+   * Volatile, as `declaredNearbyAt` is. Optional, so a snapshot from a server
+   * older than it reads as nobody having said — see SHIMS.md.
+   */
+  nearbyWhen?: Partial<Record<UserId, NearbyWhen>>;
   disconnectedAt: Partial<Record<UserId, number>>;
   /**
    * The last evidence that each user was in this channel — refreshed by
@@ -1263,7 +1298,7 @@ export type ChannelAction =
    * Refused to guests by omission from `GUEST_ACTIONS`: a seat has no
    * notification to be one away from.
    */
-  | { type: 'DECLARE_NEARBY'; userId: UserId }
+  | { type: 'DECLARE_NEARBY'; userId: UserId; when?: NearbyWhen }
   /**
    * Asks `inviteeId` in. Any current participant may; whether the two are
    * contacts is the server's to check, contacts being a server-side concern

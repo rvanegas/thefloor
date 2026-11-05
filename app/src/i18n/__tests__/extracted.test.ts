@@ -213,6 +213,10 @@ describe('the two languages', () => {
       // them. See `homeSettings.english` in en.ts.
       'homeSettings.english',
       'homeSettings.spanish',
+      // *20 min*, one of the *when* answers: a number and the abbreviation
+      // both languages use for it. Its neighbour *1 hr* differs, *h* being
+      // the Spanish one.
+      'channel.whenIn20',
     ]);
     const differences: string[] = [];
     const walk = (a: unknown, b: unknown, path: string) => {

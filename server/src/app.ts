@@ -4280,6 +4280,27 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * Answers a ping with a *when*: *in the flow*, *a few minutes*, *free at*.
+   *
+   * Over HTTP for a reason `ping` does not have: the buttons that send it sit
+   * on a notification, and run with the app in the background or not running
+   * at all, where there is no socket to send an action on. What it does is a
+   * declaration and is answered by the snapshot like one; the reply here is
+   * only whether it was taken. See `Channels.answerPing`.
+   */
+  fastify.post('/channels/:id/nearby', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { when?: unknown } | undefined;
+    const result = channels.answerPing(id, account.id, body?.when);
+    if (!result.ok) {
+      return reply.code(statusFor(result.code)).send({ error: result.error });
+    }
+    return { ok: true };
+  });
+
+  /**
    * How loudly this channel may interrupt whoever is asking.
    *
    * Over HTTP and not the socket, for the reason `ping` is: it changes nothing

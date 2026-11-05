@@ -185,6 +185,30 @@ describe('what a notification asks APNs to replace', () => {
     const aps = requests[0].payload.aps as { 'thread-id': string };
     expect(aps['thread-id']).toBe('chan_1');
   });
+
+  /**
+   * The category is what puts a ping's buttons under a long press, and it is
+   * read by iOS from `aps` and nowhere else — under `body`, where the app's
+   * own fields go, it would be data the phone never acts on. Only a ping has
+   * one: an arrival with the buttons would answer a question nobody asked.
+   */
+  it('names the category that carries a ping\'s buttons, and only a ping\'s', async () => {
+    await pusher().send(
+      ['token'],
+      notifications.pinged('Standup', 'Alice', null, 'chan_1'),
+      'audible'
+    );
+    await pusher().send(
+      ['token'],
+      notifications.arrived('Standup', 'Alice', 'chan_1'),
+      'silent'
+    );
+
+    expect((requests[0].payload.aps as Record<string, unknown>).category).toBe(
+      'ping'
+    );
+    expect('category' in (requests[1].payload.aps as object)).toBe(false);
+  });
 });
 
 describe('what a notification is allowed to interrupt', () => {

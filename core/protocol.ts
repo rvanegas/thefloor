@@ -5,6 +5,7 @@ import type { Tried } from './tried';
 import type {
   ChannelState,
   Clip,
+  NearbyWhen,
   ResponseModel,
   TranscriptionModel,
   UserId,
@@ -1755,8 +1756,14 @@ export type ClientAction =
    * from outside the room it announces itself to the people who are not there,
    * saying *nearby* rather than *stepped in*. See
    * planning/decision/2026-09-12-a-declaration-is-an-arrival.md.
+   *
+   * **`when` since 2026-11-04**, optional: *in the flow*, *a few minutes* or
+   * *free at* a time, said with the declaration. A server older than it reads
+   * the action and drops the field, which is plain *Nearby* — the right
+   * reading of a qualification it cannot keep. Deploy before a build that
+   * sends it all the same, so the chips do something. See SHIMS.md.
    */
-  | { type: 'DECLARE_NEARBY' }
+  | { type: 'DECLARE_NEARBY'; when?: NearbyWhen }
   /**
    * Give up presence because this device stopped attending — never a tap.
    *

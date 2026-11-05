@@ -31,6 +31,15 @@ jest.mock('expo-notifications', () => ({
   addNotificationResponseReceivedListener: jest.fn(() => ({
     remove: jest.fn(),
   })),
+  // A ping's buttons and the reminder of a *when*, since 2026-11-04. The
+  // identifier is the library's own string, so a response built with it in a
+  // test reads exactly as a plain tap does on a phone.
+  DEFAULT_ACTION_IDENTIFIER: 'expo.modules.notifications.actions.DEFAULT',
+  clearLastNotificationResponse: jest.fn(),
+  setNotificationCategoryAsync: jest.fn(async () => null),
+  scheduleNotificationAsync: jest.fn(async () => ''),
+  cancelScheduledNotificationAsync: jest.fn(async () => {}),
+  SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
 jest.mock('expo-device', () => ({ isDevice: false }));

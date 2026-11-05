@@ -1200,6 +1200,8 @@ describe('a ping', () => {
         threadId: ASKING_THREAD,
         lifetimeMs: PRESENCE_LIFETIME_MS,
         reachesInApp: true,
+        // The buttons that answer it with a *when*, since 2026-11-04.
+        category: 'ping',
       },
     ]);
   });

@@ -7,6 +7,7 @@ import {
   MAX_CHANNEL_PARTICIPANTS,
   MAX_CLIP_LENGTH,
   MAX_COMMUNITY_MEMBERS,
+  MAX_NEARBY_AHEAD_MS,
   MAX_SPEAKING_GUESTS,
   MIN_PARTICIPANTS_TO_REMOVE,
   REMOVAL_MOTION_WINDOW_MS,
@@ -75,6 +76,7 @@ import type {
   GuestId,
   Keep,
   MemberLink,
+  NearbyWhen,
   RemovalMotion,
   UserId,
 } from './types';
@@ -177,6 +179,7 @@ export function createChannel(params: {
     claude: null,
     waiting: [],
     declaredNearbyAt: {},
+    nearbyWhen: {},
     disconnectedAt: {},
     lastPresentAt: {},
   };
@@ -634,6 +637,70 @@ export function nearbyMs(
   const declared = state.declaredNearbyAt?.[userId];
   if (declared !== undefined) return Math.max(0, now - declared);
   return idleMs(state, userId, now);
+}
+
+/**
+ * A *when* off the wire, made into one this reducer will keep — or nothing.
+ *
+ * Anything that is not one of the three shapes is nothing, which is plain
+ * *Nearby*: a malformed qualification costs the qualification, not the
+ * declaration it came with. A time is clamped to `MAX_NEARBY_AHEAD_MS` rather
+ * than refused, the person having meant *later*; a time already past is
+ * *a few minutes*, which is what somebody who has just missed their own
+ * deadline means by it. To the *nearest* whole minute, since a card reads to
+ * the minute: rounding up put as much as fifty-nine seconds on a promise, and
+ * the card said *free in 21 minutes* to somebody who had just tapped *20*.
+ */
+export function nearbyWhenFor(
+  when: unknown,
+  now: number
+): NearbyWhen | undefined {
+  if (typeof when !== 'object' || when === null) return undefined;
+  const kind = (when as { kind?: unknown }).kind;
+  if (kind === 'flow' || kind === 'soon') return { kind };
+  if (kind !== 'at') return undefined;
+  const at = (when as { at?: unknown }).at;
+  if (typeof at !== 'number' || !Number.isFinite(at)) return undefined;
+  if (at <= now) return { kind: 'soon' };
+  const latest = now + MAX_NEARBY_AHEAD_MS;
+  return { kind: 'at', at: Math.min(Math.round(at / 60_000) * 60_000, latest) };
+}
+
+/**
+ * What this person said about when, while they are nearby by declaration.
+ *
+ * Read through here rather than off the map, so that a stray entry — a
+ * snapshot from mid-transition, a server that predates the clearing — can
+ * never qualify a wait that is nobody's statement.
+ */
+export function nearbyWhenOf(
+  state: ChannelState,
+  userId: UserId
+): NearbyWhen | null {
+  if (!isWaiting(state, userId)) return null;
+  if (state.declaredNearbyAt?.[userId] === undefined) return null;
+  return state.nearbyWhen?.[userId] ?? null;
+}
+
+/**
+ * Until when a stated time keeps this declaration alive regardless of
+ * attention, or null when nothing does.
+ *
+ * **The time they named plus the ordinary window**, so somebody who said
+ * *free at three* is still nearby at five past, and lapses fifteen minutes
+ * after the moment they promised exactly as they would have fifteen minutes
+ * after a plain tap. Before the time, inattention is the expected state —
+ * they said they were busy — and retiring them for it would turn a promise
+ * into a disappearance. *In the flow* and *a few minutes* hold nothing: they
+ * name no moment to hold until.
+ */
+export function nearbyHoldsUntil(
+  state: ChannelState,
+  userId: UserId
+): number | null {
+  const when = nearbyWhenOf(state, userId);
+  if (when?.kind !== 'at') return null;
+  return when.at + WAITING_WINDOW_MS;
 }
 
 /**
@@ -3025,6 +3092,8 @@ function reduceAction(
         // the fault this stamp was added to fix, arrived at from the other
         // side.
         declaredNearbyAt: stillDeclared,
+        // And whatever they said about when, which this arrival answers.
+        nearbyWhen: without(state.nearbyWhen ?? {}, action.userId),
         present: [...state.present, action.userId],
         // **The first arrival opens a sitting**, and a sitting begins with the
         // live transcript the channel asks for — unless it asks for the audio
@@ -3093,8 +3162,19 @@ function reduceAction(
      * planning/decision/2026-09-12-a-declaration-is-an-arrival.md.
      */
     case 'DECLARE_NEARBY': {
+      // **What they said about when goes with every declaration, and a
+      // declaration without one clears it** — *Nearby* again after *in 20* is
+      // *now, if you call*, and the older sentence would be a stale promise.
+      // Normalised against this clock rather than trusted: see `nearbyWhenFor`.
+      const when = nearbyWhenFor(action.when, now);
+      const withWhen = (next: ChannelState): ChannelState => ({
+        ...next,
+        nearbyWhen: when
+          ? { ...next.nearbyWhen, [action.userId]: when }
+          : without(next.nearbyWhen ?? {}, action.userId),
+      });
       if (isPresent(state, action.userId)) {
-        return stepOut(state, action.userId, now, { exit: 'nearby' });
+        return withWhen(stepOut(state, action.userId, now, { exit: 'nearby' }));
       }
       // **Re-declaring in place restarts the wait, since 2026-09-13.** It was
       // an early return that handed the same object back, on the reasoning
@@ -3135,14 +3215,14 @@ function reduceAction(
       // moves Home's own ordering directly — `lastPresenceAt` folds the two
       // kinds of stamp together and reads the fresher, so the room stops
       // looking idle by way of this one rather than by way of `lastActiveAt`.
-      return {
+      return withWhen({
         ...state,
         waiting: state.waiting.includes(action.userId)
           ? state.waiting
           : [...state.waiting, action.userId],
         declaredNearbyAt: { ...state.declaredNearbyAt, [action.userId]: now },
         lastPresentAt: { ...state.lastPresentAt, [action.userId]: now },
-      };
+      });
     }
 
     case 'DISCONNECT_EXPIRED':
@@ -4238,8 +4318,9 @@ function stepOut(
       ...state,
       waiting: state.waiting.filter((id) => id !== userId),
       // The declaration is over, so its clock goes with it — the same clearing
-      // ENTER does, from the other rung.
+      // ENTER does, from the other rung. And what it said about when.
       declaredNearbyAt: stillDeclared,
+      nearbyWhen: without(state.nearbyWhen ?? {}, userId),
     };
   }
   const present = state.present.filter((id) => id !== userId);
@@ -4299,6 +4380,10 @@ function stepOut(
           : exit === 'dropped'
             ? state.declaredNearbyAt
             : without(state.declaredNearbyAt, userId),
+      // Nobody present has a *when*, so this is only ever removing a key that
+      // is not there — and a declaration from inside the room sets its own
+      // afterwards, in `DECLARE_NEARBY`. Stated so the two maps go together.
+      nearbyWhen: without(state.nearbyWhen ?? {}, userId),
       // A departing floor-holder's claim is force-released, exactly as if
       // released voluntarily. Dropped connections take this same path.
       floor:
@@ -4546,6 +4631,7 @@ function dropParticipant(
     // over it — every map keyed by these people goes the same way, so none
     // of them is the one somebody forgets.
     declaredNearbyAt: without(gone.declaredNearbyAt, userId),
+    nearbyWhen: without(gone.nearbyWhen ?? {}, userId),
     invitedBy,
     everPresent: gone.everPresent.filter((id) => id !== userId),
     // Dropped for tidiness rather than necessity: claimDelayMs ranks only
