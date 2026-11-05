@@ -32,3 +32,11 @@ tune it up or down"*. Rodrigo did not want the model judging how dense or
 valuable an hour was. And participants want the raw transcript out too, to
 paste into their own tools, as Todd does with Otter. The history this builds
 up is `the-channel-is-one-long-conversation.md`.
+
+**A first piece shipped 2026-11-05, and it is not this.** A room transcribed
+from its beginning sends the absent members a digest of its first five minutes,
+once, as a notification and nowhere else —
+`decision/2026-11-05-a-room-is-digested-once-five-minutes-in.md`. It answers
+the model (Sonnet) and the house pays; the per-call digest, the journal, the
+preamble and the newcomer's distillation are all still to do, and
+`server/src/digest.ts` is where the next prompt would sit beside it.

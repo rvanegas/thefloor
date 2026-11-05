@@ -63,6 +63,9 @@ export const PARTICIPATION_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
  */
 export const NOTIFICATION_PAUSE_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** How long APNs keeps trying to deliver a digest; see `notifications.digest`. */
+export const DIGEST_LIFETIME_MS = 60 * 60 * 1000;
+
 /**
  * The stack that somebody asking for you lands in.
  *
@@ -182,7 +185,7 @@ export interface PushMessage {
    */
   lifetimeMs: number;
   /**
-   * Which of the four this is, as `notifications` below names them.
+   * Which of them this is, as `notifications` below names them.
    *
    * Carried because the recipient's setting for this channel decides how it
    * arrives, and the setting is expressed per kind — a person who wants only
@@ -669,7 +672,40 @@ export const notifications = {
       reachesInApp: false,
     };
   },
+
+  /**
+   * What a room has said in its first five minutes, to a member who is not
+   * in it — Claude's words, from the *live transcript*. Since 2026-11-05;
+   * see digest.ts for when it is sent.
+   *
+   * **A key of its own, `${channelId}:digest`.** On the room's key, the next
+   * arrival would replace a paragraph about the conversation with a line
+   * about who walked in, which is the worse version of the news; on the
+   * membership key, it could overwrite an invitation. Once per room, so the
+   * only thing it can replace is the last room's digest, which is what a
+   * newer one is for.
+   *
+   * **It reaches an open app**, as a ping does and for the ping's reason:
+   * nothing in the app shows it, so being in the app is no evidence of
+   * having read it. Its lifetime is an hour — longer than an arrival's,
+   * since what was said stays true after the room has moved on, and shorter
+   * than an invitation's, since the point of it is the room that is still
+   * going.
+   */
+  digest(channelName: string, text: string, channelId: string): PushMessage {
+    return {
+      kind: 'digest',
+      title: channelName,
+      body: text,
+      channelId,
+      collapseKey: `${channelId}:digest`,
+      threadId: channelId,
+      lifetimeMs: DIGEST_LIFETIME_MS,
+      reachesInApp: true,
+    };
+  },
 };
+
 
 /** What one address's send did, for the caller to log. */
 export interface PushResult {
@@ -865,7 +901,7 @@ export class ApnsPusher implements Pusher, LiveActivityEnder, BadgeSetter {
         // interrupted by, and putting a banner over the app they are holding
         // would be exactly the interruption they declined.
         alert,
-        // Which of the four, so the app can tidy up after them. iOS never
+        // Which kind, so the app can tidy up after them. iOS never
         // expires a notification it has already delivered — `apns-expiration`
         // bounds retrying, not display — so an arrival announcing a room that
         // emptied hours ago sits there until something removes it, and only

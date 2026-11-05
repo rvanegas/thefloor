@@ -163,6 +163,13 @@ export const LIBRARY_PRIVACY_UPDATED = '1 November 2026';
  */
 export const CLAUDE_PRIVACY_UPDATED = '22 October 2026';
 
+/**
+ * When the page last changed for a reader whose server can both ask Claude
+ * and transcribe live, which is where the digest paragraph is. The latest of
+ * the dates, on the same terms.
+ */
+export const DIGEST_PRIVACY_UPDATED = '5 November 2026';
+
 export function privacyPage(options: PolicyOptions = {}): string {
   const { contactEmail, transcription, cohorts, pro } = options;
   const live = !!(options.liveTranscription && transcription);
@@ -303,6 +310,18 @@ unnoticed for far longer.</p>
   // claimed about what that server keeps of a search, which is not checkable
   // from here — this page's rule, as for Anthropic.
   const library = !!(claude && options.library);
+  // Inside Claude's section, and only where a live transcript can exist:
+  // without one there is nothing to digest. The one time this server sends
+  // the Record to Anthropic with nobody having pressed anything.
+  const digest = !!(claude && live);
+  const digestParagraph = `<p>There is one exception to its never speaking on its own. In a channel
+whose live transcript has been on from the moment its conversation began, five
+minutes in, what has been said so far is sent to ${claude} as text, with the
+names it was kept under, and ${claude} returns a few sentences about it. Those
+are sent once, as a notification, to the channel's members who are not in the
+conversation, and are not kept by The Floor. A conversation whose transcript
+began late or stopped is not sent.</p>
+`;
   const libraryParagraph = `<p>This server can also give Claude a library: one person's own writing,
 kept in noesis, a service the people who run The Floor keep. Anybody with an noesis
 library may connect it on <em>Floor Settings</em>, by signing in to noesis there;
@@ -328,7 +347,7 @@ what the Record already says.</p>
 under the name <em>Claude</em>, for everybody in the channel to read, and is
 deleted with the channel, on the same schedule as everything else in it. Every screen in the channel says <em>Responding…</em>
 in place of <em>Ask Claude</em> while the reply is being written.</p>
-${library ? libraryParagraph : ''}
+${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}
 `
     : '';
 
@@ -343,7 +362,13 @@ ${library ? libraryParagraph : ''}
       path: '/privacy',
     }),
     standfirst: `The Floor · last updated ${
-      library ? LIBRARY_PRIVACY_UPDATED : claude ? CLAUDE_PRIVACY_UPDATED : PRIVACY_UPDATED
+      digest
+        ? DIGEST_PRIVACY_UPDATED
+        : library
+          ? LIBRARY_PRIVACY_UPDATED
+          : claude
+            ? CLAUDE_PRIVACY_UPDATED
+            : PRIVACY_UPDATED
     }`,
     body: `
 <p>The Floor is for talking with people you already know. This

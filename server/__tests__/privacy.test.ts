@@ -11,7 +11,14 @@ import {
 import { NOTIFY_HEADER } from '../src/release';
 import { buildApp, type App } from '../src/app';
 import { toTransaction, type AppStoreVerifier } from '../src/appStore';
-import { CLAUDE_PRIVACY_UPDATED, LIBRARY_PRIVACY_UPDATED, PRIVACY_UPDATED } from '../src/privacy';
+import {
+  CLAUDE_PRIVACY_UPDATED,
+  DIGEST_PRIVACY_UPDATED,
+  LIBRARY_PRIVACY_UPDATED,
+  PRIVACY_UPDATED,
+} from '../src/privacy';
+import { MemoryMediaServer } from '../src/media';
+import { MemoryStreaming } from '../src/streaming';
 import { MemoryTranscription } from '../src/transcription';
 
 /**
@@ -302,6 +309,32 @@ describe('The privacy policy', () => {
       expect(page).not.toContain(`last updated ${CLAUDE_PRIVACY_UPDATED}`);
       // The Record paragraph above it still stands as written.
       expect(page).toContain('Nothing else is sent');
+    });
+
+    it('says nothing of a digest where nothing is transcribed live', async () => {
+      app = buildApp({ dbPath: ':memory:', claude: noClient });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).not.toContain('one exception to its never speaking on its own');
+      expect(page).not.toContain(DIGEST_PRIVACY_UPDATED);
+    });
+
+    it('says what a digest sends and to whom, where there can be one, with its own date', async () => {
+      app = buildApp({
+        dbPath: ':memory:',
+        transcription: new MemoryTranscription(),
+        streaming: new MemoryStreaming(),
+        media: new MemoryMediaServer(),
+        claude: noClient,
+      });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      const claudeAt = page.indexOf('<h2>Claude</h2>');
+      const nextAt = page.indexOf('<h2>', claudeAt + 1);
+      const at = page.indexOf('one exception to its never speaking on its own');
+      expect(at).toBeGreaterThan(claudeAt);
+      expect(at).toBeLessThan(nextAt);
+      expect(page).toContain('five minutes in, what has been said so far is sent to Anthropic');
+      expect(page).toContain('members who are not in the conversation');
+      expect(page).toContain(`last updated ${DIGEST_PRIVACY_UPDATED}`);
     });
 
     it('names both processors where both are configured', async () => {

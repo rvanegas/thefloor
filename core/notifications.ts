@@ -10,7 +10,7 @@
  */
 
 /**
- * The four notifications this system sends, named as `push.ts` names them.
+ * The notifications this system sends, named as `push.ts` names them — five since `digest`, below.
  *
  * There were four before 2026-08-22 as well, and not the same four.
  * `started` — somebody opened a channel with you — was folded into
@@ -20,7 +20,17 @@
  * and `invited`'s sentence covers both cases, since a channel is never named
  * at creation and "Invited you to a channel" is what a new one is.
  */
-export type NotificationKind = 'invited' | 'arrived' | 'pinged' | 'accepted';
+export type NotificationKind = 'invited' | 'arrived' | 'pinged' | 'accepted' | 'digest';
+
+/**
+ * `digest` joined them on 2026-11-05: what a room has said so far, written by
+ * Claude from its *live transcript* once it has run five minutes from the
+ * room's beginning, sent to the members who are not there. A kind of its own
+ * because it is swept by neither of the app's sweeps — it is the only copy
+ * of what it says, so clearing it on a clock or on opening the channel would
+ * be deleting something nobody had read. At every level it lands as an
+ * arrival does: the channel talking about itself. See server/src/digest.ts.
+ */
 
 /**
  * `accepted` joined them on 2026-09-13, and is the first that is not about a

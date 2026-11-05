@@ -843,6 +843,18 @@ export class ChannelRegistry {
     sweep(): void;
     hasLines(channelId: string): boolean;
   } | null = null;
+  /**
+   * The digest sent to the absent once a room has been transcribed five
+   * minutes from its beginning — attached by the composition root, which
+   * alone holds a Claude client. Told of each room's opening, followed on
+   * every commit and swept on every tick. See server/src/digest.ts.
+   */
+  private digests: {
+    opened(channelId: string, roomId: string, openedAt: number): void;
+    follow(state: ChannelState, now: number): void;
+    sweep(now: number): void;
+    forget(channelId: string): void;
+  } | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private usageTimer: ReturnType<typeof setInterval> | null = null;
@@ -1267,6 +1279,11 @@ export class ChannelRegistry {
     for (const state of this.channels.values()) live.sync(state);
   }
 
+  /** Gives the registry its digests. Rooms already standing are not digested. */
+  attachDigests(digests: NonNullable<ChannelRegistry['digests']>): void {
+    this.digests = digests;
+  }
+
   /** Whether a channel has any live transcript, for its snapshot. */
   hasLiveTranscript(channelId: string): boolean {
     return this.live?.hasLines(channelId) ?? false;
@@ -1488,6 +1505,7 @@ export class ChannelRegistry {
   tick(): void {
     this.live?.sweep();
     const now = this.now();
+    this.digests?.sweep(now);
     const changed: string[] = [];
     /**
      * Anybody a tick has just put on the *nearby* rung, so the cap can be
@@ -4894,7 +4912,8 @@ export class ChannelRegistry {
     const herePeople = peopleHere(after).length;
     const wereHere = peopleHere(before).length;
     if (wereHere === 0 && herePeople > 0) {
-      this.rooms.opened(after.id, this.now());
+      const roomId = this.rooms.opened(after.id, this.now());
+      this.digests?.opened(after.id, roomId, this.now());
       this.roomEmptiedAt.delete(after.id);
     }
     if (wereHere > 0 && herePeople === 0) {
@@ -5023,6 +5042,7 @@ export class ChannelRegistry {
       // channel that no longer exists. The poll would never visit it again.
       this.usage.closeChannel(after.id);
       this.closePlayback(after.id);
+      this.digests?.forget(after.id);
       // A backstop, not the mechanism: participants leave on their own once
       // told the channel ended. This guarantees the room does not outlive it.
       setTimeout(() => {
@@ -5053,6 +5073,9 @@ export class ChannelRegistry {
     // nobody had stated yet.
     this.autoRecord(after);
     this.live?.sync(this.channels.get(after.id) ?? after);
+    // After the automatic start, for the same reason: text that waited to
+    // begin with the audio has begun by now, and that is the room's beginning.
+    this.digests?.follow(this.channels.get(after.id) ?? after, this.now());
   }
 
   /**
@@ -5207,6 +5230,25 @@ export class ChannelRegistry {
           how,
           when
         )
+      );
+    }
+  }
+
+  /**
+   * Sends a room's digest to the members who are not in it: not present,
+   * which takes in anybody nearby — they are beside the room, not in it.
+   * Asked when the digest is ready rather than when it was asked for, so
+   * somebody who stepped in while Claude was writing is not sent it. Not
+   * windowed as arrivals are: there is one per room. See digest.ts.
+   */
+  announceDigest(channelId: string, text: string): void {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') return;
+    for (const userId of channel.participants) {
+      if (channel.present.includes(userId)) continue;
+      this.push.notify(
+        [userId],
+        notifications.digest(this.nameFor(channel, userId), text, channel.id)
       );
     }
   }

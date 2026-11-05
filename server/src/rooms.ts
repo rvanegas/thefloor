@@ -54,14 +54,17 @@ export class Rooms {
 
   constructor(private db: Db) {}
 
-  /** The channel has gone from nobody here to somebody. */
-  opened(channelId: string, now: number): void {
+  /**
+   * The channel has gone from nobody here to somebody. Returns the room's
+   * id, the same one when it resumed.
+   */
+  opened(channelId: string, now: number): string {
     const last = this.db
       .prepare(
         'SELECT * FROM rooms WHERE channel_id = ? ORDER BY opened_at DESC LIMIT 1'
       )
       .get(channelId) as RoomRow | undefined;
-    if (last && last.closed_at === null) return;
+    if (last && last.closed_at === null) return last.id;
     if (
       last &&
       last.closed_at !== null &&
@@ -69,11 +72,13 @@ export class Rooms {
       now - last.closed_at <= ROOM_DEPARTURE_MS
     ) {
       this.db.prepare('UPDATE rooms SET closed_at = NULL WHERE id = ?').run(last.id);
-      return;
+      return last.id;
     }
+    const id = newId('room');
     this.db
       .prepare('INSERT INTO rooms (id, channel_id, opened_at) VALUES (?, ?, ?)')
-      .run(newId('room'), channelId, now);
+      .run(id, channelId, now);
+    return id;
   }
 
   /** The last person here has gone. */

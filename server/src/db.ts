@@ -2178,6 +2178,9 @@ CREATE INDEX IF NOT EXISTS transcript_usage_recording
 -- row deleted, so an erased account's spend still adds up. grade is the
 -- channel's *Response model* at the press; model is what served it, which
 -- a refusal fallback can make different from what was asked.
+-- Since 2026-11-05 a room's digest is a row too: grade 'digest', no
+-- account, since nobody pressed anything, and outcome 'sent' where a press
+-- has 'posted'. See digest.ts.
 CREATE TABLE IF NOT EXISTS claude_usage (
   id                 TEXT PRIMARY KEY,
   at                 INTEGER NOT NULL,
@@ -2191,7 +2194,7 @@ CREATE TABLE IF NOT EXISTS claude_usage (
   cache_read_tokens  INTEGER NOT NULL,
   -- The API's own, or null where the request never answered.
   stop_reason        TEXT,
-  -- 'posted' | 'too_long' | 'empty' | 'refused' | 'error' | 'timeout' | 'gone'
+  -- 'posted' | 'sent' | 'too_long' | 'empty' | 'refused' | 'error' | 'timeout' | 'gone'
   outcome            TEXT NOT NULL,
   -- Null when the press did not consult the library; else how many lookups
   -- Claude made, across a resumed pause — 0 when it looked nothing up, or

@@ -82,6 +82,7 @@ import {
   readVoices,
   type ClaudeClient,
 } from './claude';
+import { RoomDigests } from './digest';
 import { NoesisConnections, noesisFilename, type NoesisOptions } from './noesis';
 import { NoesisNames, type NamesOptions } from './names';
 import {
@@ -1267,6 +1268,23 @@ export function buildApp(options: BuildOptions = {}): App {
         log: { warn: (details, message) => fastify.log.warn(details, message) },
       })
     : null;
+
+  // The digest, since 2026-11-05: wherever there is a Claude client, since a
+  // room with no live transcript is never digested anyway. See digest.ts.
+  if (options.claude) {
+    const sources = databaseSources(db, channels.rooms, transcripts);
+    channels.attachDigests(
+      new RoomDigests({
+        client: options.claude,
+        db,
+        now,
+        liveLines: sources.liveLines,
+        send: (channelId, text) => channels.announceDigest(channelId, text),
+        timeoutMs: options.claudeTimeoutMs,
+        log: { warn: (details, message) => fastify.log.warn(details, message) },
+      })
+    );
+  }
 
   // Channels outlive the process that was holding them, so the first thing a
   // new one does is pick them up again — along with squaring the books on

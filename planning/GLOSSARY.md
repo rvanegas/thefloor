@@ -200,7 +200,8 @@ caused; the list carries the meaning.
 - **Mix** — The single file a finished recording becomes, made from its *stems*
 - **Mute (four things, one word)** — The word does four jobs and only the first is the user's; they are separated in the entry
 - **Nav action — `home` / `swipeOut` / `swipeIn` / `liveCard`** — The four ways between Home and the channel you are standing in, named so they can be counted against each other: the Home glyph and the right swipe are the same journey out, the pinned live line and the left swipe the same journey in — the swipe going to the topmost hoisted bar, which is the live line whenever one is drawn. Named by the *control* rather than by the outcome, because two of them mean the same thing to the application and differ only in what the thumb did, which is the whole question. Counted in `nav_counts`, which holds no account — so it can say which way is common and can never say what any one person did
-- **Notification kinds — invited / arrived / accepted / pinged** — The four things this server sends to a phone; only *pinged* is words somebody wrote, and only *accepted* is about a person rather than a room
+- **Notification kinds — invited / arrived / accepted / pinged / digest** — The five things this server sends to a phone; only *pinged* is words somebody wrote, only *accepted* is about a person rather than a room, and only *digest* is words Claude wrote
+- **Digest** — What a *room* has said in its first five minutes, a few sentences by Claude from its *live transcript*, sent once per room as a notification to the members not *present* — only where the transcript was listening from the room's beginning and never stopped. The word is the code's; on a phone it is the channel's title over Claude's sentences. Since 2026-11-05
 - **Notification answer** — `accounts.notifications` — whether the app may reach somebody when it is not running, as their client last said: granted, undetermined or denied, and **null for nobody has said**. Not the same fact as holding a *device token*, which proves only the first
 - **Paused (of arrivals)** — That the server has stopped announcing arrivals to somebody who was sent them for a week and never opened the app, until they do; `NOTIFICATION_PAUSE_MS` and `accounts.unanswered_since`. **Arrivals alone**, both in what is withheld and in what counts towards the week — the other three kinds are one person aiming something at another and go on being sent. A state the server infers, and the only one that makes the app quieter without anybody choosing it: not a *notification level*, which is a choice, and not a *notification answer*, which is the phone's
 - **Unanswered (of an arrival)** — Announced to somebody who has not been seen since; the oldest one outstanding is `accounts.unanswered_since`, and a week of it is what *paused* measures
@@ -2139,9 +2140,25 @@ open, through inattention, until the time plus the ordinary window
 named it. *In the flow* and *a few minutes* name no moment and hold nothing.
 See `decision/2026-11-04-nearby-says-when.md`.
 
-## Notification kinds — invited / arrived / accepted / pinged
+## Digest
 
-**The four things this server sends to a phone**, named in
+**What a room has said in its first five minutes**, written by Claude from the
+*live transcript* and sent once, as a notification, to the channel's members
+who are not *present* — the *nearby* included, being beside the room rather
+than in it. Since 2026-11-05; `server/src/digest.ts`, and
+`decision/2026-11-05-a-room-is-digested-once-five-minutes-in.md` for why.
+
+**Only a room transcribed from its beginning**: the transcript listening within
+ten seconds of the room opening, and not paused, switched off or emptied
+since. A transcript begun later would be a digest of a conversation's middle
+presented as its whole. Not stored: it exists as the notification and nowhere
+else, which is why nothing sweeps it. Not the channel digest of
+`task/a-digest-of-each-call-and-of-the-channel.md`, which is per call, kept,
+and for the people who were on it.
+
+## Notification kinds — invited / arrived / accepted / pinged / digest
+
+**The five things this server sends to a phone**, named in
 `core/notifications.ts` and composed in `server/src/push.ts`. Each name is a
 word the code already used rather than a coinage, and for three of them it is
 the first word of the sentence that lands on the lock screen.
@@ -2153,6 +2170,8 @@ the first word of the sentence that lands on the lock screen.
 - **accepted** — somebody you invited took it up: followed your *invite link*,
   or accepted your contact *request*. Added 2026-09-13.
 - **pinged** — somebody in a channel asked for you by name, in their own words.
+- **digest** — what a room has said in its first five minutes, in Claude's
+  words, to the members not in it. Added 2026-11-05; see *Digest*.
 
 **Two seams cut this set, and they do not fall in the same place**, which is
 the whole reason the names are worth having. By *what stays true*: `invited`
@@ -2162,13 +2181,20 @@ to send it*: `pinged` alone is a sentence a person composed, which is why it
 overwrites nothing, reaches an app that is already open, and is the one that
 makes a sound at the default level.
 
-**A third seam was looked for and is not there: where a tap lands.** All four
-open the channel they name, and none of them steps you into it — reasoned out
+**A third seam was looked for and is not there: where a tap lands.** All of
+them open the channel they name, and none of them steps you into it — reasoned out
 one kind at a time on 2026-09-15 and arriving at one rule, which is why the
 list above says nothing about it. See
 `decision/2026-09-15-a-notification-names-the-room-it-is-about.md`. *Step in*
 stays a second, deliberate tap on the footer, so *opened from a notification*
 is an ordinary instance of looking at a channel you are not in.
+
+**`digest` sits across both seams.** Nobody composed it, so it is silent at
+the default level like the room's other reports; but it is words, the only
+copy of them, so it overwrites nothing of the room's and nothing overwrites it
+but the next room's (`${channelId}:digest`), it reaches an app that is open,
+since nothing in the app shows it, and neither of the app's sweeps clears it.
+It lasts an hour.
 
 **`accepted` is the odd one and is the one to read the entry for.** The other
 three are a room reporting on itself to people who belong to it. This one
