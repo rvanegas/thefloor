@@ -1,0 +1,28 @@
+#!/bin/bash
+# After `ts deploy` is answered by the commit it sent, given the /healthz body.
+# Said, never acted on, and never a failed deploy.
+set -uo pipefail
+cd "$TS_ROOT"
+HEALTH="$1"
+
+# Whether the compatibility floor is due to rise: the census already permits it
+# (`oldestBuild` above `minBuild`, nothing silent) *and* the raise would free a
+# shim in planning/SHIMS.md, since the floor is permission to delete a shim and
+# not a record of the population.
+min=$(echo "$HEALTH" | sed -n 's/.*"minBuild":\([0-9]*\).*/\1/p')
+oldest=$(echo "$HEALTH" | sed -n 's/.*"oldestBuild":\([0-9]*\).*/\1/p')
+silent=$(echo "$HEALTH" | sed -n 's/.*"silentBuilds":\([0-9]*\).*/\1/p')
+if [ -n "$min" ] && [ -n "$oldest" ] && [ "$silent" = "0" ]; then
+  due=$(awk -F'|' -v lo="$min" -v hi="$oldest" '
+    $2 ~ /^ *[0-9]+ *$/ { g = $2 + 0; if (g > lo && g <= hi) { n++; if (!seen[g]++) gates = gates (gates ? ", " : "") g } }
+    END { if (n) printf "%d shim(s), gates %s", n, gates }' planning/SHIMS.md)
+  if [ -n "$due" ]; then
+    echo "↑ time to raise MIN_SUPPORTED_BUILD: it is $min and oldestBuild is $oldest;"
+    echo "  raising it to $oldest frees $due in planning/SHIMS.md"
+  fi
+fi
+
+# needrestart is told not to restart the media plane on its own, so stale
+# libraries there wait for a person — and a deploy is when one is at the
+# keyboard. Reported, never acted on.
+bin/restart-services --list || true

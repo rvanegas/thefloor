@@ -9,7 +9,7 @@
 //   bin/suspend-log --file PATH ...  somewhere other than the default
 //
 // The default log is ~/.local/state/thefloor/suspend.log, outside the tree on
-// purpose: `bin/deploy` rsyncs the working tree with --delete, so a capture
+// purpose: `ts deploy` rsyncs the working tree with --delete, so a capture
 // left inside it would be shipped to the box and then removed by the next
 // deploy.
 //

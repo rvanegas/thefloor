@@ -38,7 +38,7 @@ let clock = 1_700_000_000_000;
  * is `server/web/{stable,beta}/index.html` existing, which `bin/deploy-web`
  * builds and `.gitignore` excludes. So the test passed in a checkout that had
  * built a train at some point and failed in a fresh worktree, on a condition it
- * was not testing and nobody had stated. `bin/deploy` runs this suite, so the
+ * was not testing and nobody had stated. `ts deploy` runs this suite, so the
  * failing direction could refuse a deploy for it.
  *
  * An empty directory is the honest default: a box serving no train is an

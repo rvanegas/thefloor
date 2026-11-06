@@ -107,7 +107,7 @@ three.
   dead button (step 12). And **the roster's retirement to nearby is the box's
   own poll**, so a box behind on `reconcilePresence` fails step 13 for a reason
   that has nothing to do with the phone. Deploy `master` with all of it on,
-  confirm with `bin/health`, and only then put a build on a phone. AGENTS.md §
+  confirm with `ts health`, and only then put a build on a phone. AGENTS.md §
   *Never ship a wire change to a server before the client can speak it*.
 - **A debug account**, which is the `debug` column on the box. It gates the
   `AudioDebugPanel` at the foot of the channel screen and the shipping of the
@@ -410,7 +410,7 @@ offer *Step in* — the case that produced the change, where the roster said
 present and the phone knew better.
 
 **What a failure looks like.** A card stuck on *Present* for minutes is the box
-not reconciling: check `bin/health` against this checkout before suspecting the
+not reconciling: check `ts health` against this checkout before suspecting the
 phone. A card that goes straight to *Stepped out* is the grace being skipped,
 which loses the honest reading of a flap.
 

@@ -10,7 +10,7 @@
 #   bin/growth --local         the development database on this machine
 #   bin/growth --list          the report names and what each answers
 #
-# Read-only, always. Nothing here is a thing you would edit by hand; bin/db
+# Read-only, always. Nothing here is a thing you would edit by hand; ts db
 # --write is where editing lives and it makes you ask for it.
 #
 # ── The three classes ───────────────────────────────────────────────────────
@@ -510,7 +510,7 @@ report_weeks() {
 .print ''
 -- A week with nobody in it is not a row. That is the honest shape for a
 -- GROUP BY and it does mean the gaps have to be read off the dates rather
--- than seen as a flat line; bin/db is where to go if a dense calendar is
+-- than seen as a flat line; ts db is where to go if a dense calendar is
 -- ever the question.
 --
 -- `to_date` is the running total of everybody who had arrived by the end of
@@ -1237,7 +1237,7 @@ for arg in "$@"; do
     --local) local_mode=true ;;
     --list) list_reports; exit 0 ;;
     # The whole comment block, however long it grows — the same reasoning as
-    # bin/db, where a fixed line range truncated the help the moment the header
+    # ts db, where a fixed line range truncated the help the moment the header
     # gained a line.
     -h|--help)
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
@@ -1273,7 +1273,7 @@ if $local_mode; then
   # A checkout that has never run the server has the file — sqlite makes one on
   # open — and nothing in it. The bare `no such table: accounts` that follows
   # reads as a broken script rather than as an empty database, which is the
-  # same trap `bin/worktree-setup` exists for one level up.
+  # same trap `ts worktree-setup` exists for one level up.
   if ! sqlite3 -readonly "$LOCAL_DB" \
        "SELECT 1 FROM sqlite_master WHERE type='table' AND name='accounts'" \
        | grep -q 1; then
@@ -1287,7 +1287,7 @@ fi
 
 echo "→ production · accounts are arrivals, not installs"
 # Over stdin rather than interpolated into the remote shell, for the reason
-# bin/db spells out: $, backticks and backslashes are all live in that position
+# ts db spells out: $, backticks and backslashes are all live in that position
 # and these queries contain them.
 exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
   "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \

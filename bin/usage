@@ -86,7 +86,7 @@ usage_minutes() {
 -- that person's `listen`, which counts the media participant among the things
 -- they are hearing. See channels.ts `meterRoom` and the comment above the
 -- playback spans in `commit` — the two answer different questions and neither
--- is the other's total. Nothing here reports it now; bin/db is where to go
+-- is the other's total. Nothing here reports it now; ts db is where to go
 -- if the shared track's own minutes are ever the question.
 --
 -- Two things this total is not. Egress minutes are attributed to whoever
@@ -466,7 +466,7 @@ ORDER BY presses DESC;
 .print ''
 -- Everybody gets FREE_TRANSCRIPT_MINUTES a calendar week (60 unless set),
 -- recordings and the live transcript together; `transcripts_unlimited` lifts
--- it, set by hand with bin/db --write. `this_week` counts accounts that have
+-- it, set by hand with ts db --write. `this_week` counts accounts that have
 -- spent anything since Monday 00:00 UTC.
 --
 -- Needs the 2026-10-10 table. Against a box that has not had that deploy
@@ -818,7 +818,7 @@ for arg in "$@"; do
     --local) local_mode=true ;;
     --list) list_reports; exit 0 ;;
     # The whole comment block, however long it grows — the same reasoning as
-    # bin/db, where a fixed line range truncated the help the moment the header
+    # ts db, where a fixed line range truncated the help the moment the header
     # gained a line.
     -h|--help)
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
@@ -857,7 +857,7 @@ fi
 
 echo "→ production · spans and bytes: last 30 days"
 # Over stdin rather than interpolated into the remote shell, for the reason
-# bin/db spells out: $, backticks and backslashes are all live in that position
+# ts db spells out: $, backticks and backslashes are all live in that position
 # and these queries contain them.
 exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
   "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \

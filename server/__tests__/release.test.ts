@@ -32,7 +32,7 @@ describe('release identity', () => {
 
     expect(body.ok).toBe(true);
     expect(body.minBuild).toBe(MIN_SUPPORTED_BUILD);
-    // Asserted as present rather than as 'unknown'. bin/deploy writes
+    // Asserted as present rather than as 'unknown'. ts deploy writes
     // deployed.json into this package on its way past and removes it again, so
     // an interrupted deploy can leave one behind and a test that demanded
     // 'unknown' would fail for a reason having nothing to do with the code.
@@ -62,7 +62,7 @@ describe('release identity', () => {
     }
   });
 
-  it('reads what bin/deploy stamped, and survives there being nothing to read', () => {
+  it('reads what ts deploy stamped, and survives there being nothing to read', () => {
     const dir = mkdtempSync(join(tmpdir(), 'thefloor-release-'));
     const cwd = process.cwd();
     try {

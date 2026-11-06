@@ -1537,7 +1537,7 @@ export class Accounts {
    * pins `silent` above zero permanently — which is the one condition under
    * which this whole reading is not to be trusted. Both exclusions are
    * narrower than they look: an erased row keeps its `last_build` for
-   * `bin/db` to read, and the demo accounts are still counted by everything
+   * `ts db` to read, and the demo accounts are still counted by everything
    * else that counts accounts.
    *
    * `erase` also nulls `last_seen_at`, so a tombstone is usually outside the

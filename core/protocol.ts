@@ -1025,7 +1025,7 @@ export interface HomeView {
    * screen gains an unread mark. See `ui/HomeView` and `state/helpSeen.ts`.
    *
    * **It is a fact about the database, not an event.** `bin/help publish`
-   * writes the row through `bin/db --write` and the server process is never
+   * writes the row through `ts db --write` and the server process is never
    * told, so this changes under a client rather than being pushed to it: the
    * mark appears on the next home snapshot. That is the same contract
    * `bin/help` already states — "they see it when they next look" — one screen

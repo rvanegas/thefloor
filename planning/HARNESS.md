@@ -55,7 +55,7 @@ human has to approve the call itself:
 ```json
 "permissions": {
   "ask": [
-    "Bash(bin/deploy:*)", "Bash(bin/deploy-all:*)", "Bash(bin/deploy-web:*)",
+    "Bash(ts deploy:*)", "Bash(bin/deploy-all:*)", "Bash(bin/deploy-web:*)",
     "Bash(bin/restart-services:*)",
     "Bash(bin/upload-ios:*)", "Bash(bin/submit-ios:*)",
     "Bash(git push:*)"
@@ -74,7 +74,7 @@ on it alone.
 - any `git push` whose refspec reaches `master`, or a bare push from `master`;
 - `git merge`, `git rebase` or `git fetch . <x>:master` that moves `master`;
 - `git tag -f released` and any push of a `build/*` tag;
-- `bin/deploy*`, `bin/upload-ios`, `bin/restart-services`, and `bin/submit-ios`
+- `ts deploy*`, `bin/upload-ios`, `bin/restart-services`, and `bin/submit-ios`
   without `--status`.
 
 `ask` rather than `deny`, because when the work has been asked for, the
@@ -121,7 +121,7 @@ right:
   `/Users/rodvandur/src/thefloor` itself rather than a worktree. Memory only
   today, and the cost was a commit nearly orphaned.
 - **`npm test` or `npx` in a tree with no `node_modules`**: deny with "this is
-  a fresh worktree; run `bin/worktree-setup`". That turns
+  a fresh worktree; run `ts worktree-setup`". That turns
   `jest: command not found` into the instruction it should have been. A
   `SessionStart` hook would miss it, because `EnterWorktree` happens mid-session.
 
@@ -173,14 +173,14 @@ This is a judgement call, not a mechanical fix. Three ways out:
 - **Split the list by audience**: the user-facing words (§ one of the
   glossary's three parts) as the routine read, code-only words on demand.
 - **A lookup instead of a read**: `bin/glossary <word>` printing the one line
-  and the entry's heading, like `bin/note find`. Then a session pays for the
+  and the entry's heading, like `ts note find`. Then a session pays for the
   terms it actually meets.
 
 ### 7. Resolve quoted task titles deterministically
 
 AGENTS.md's rule that `Do task "Track Usage"` refers to
 `planning/task/track-usage.md` is followed by the model and is already
-executable as `bin/note find`. **A `UserPromptSubmit` hook** can run that on
+executable as `ts note find`. **A `UserPromptSubmit` hook** can run that on
 each quoted string in the prompt and add one line of context per hit:
 `"Track Usage" → planning/task/track-usage.md (read it first)`. It prints
 nothing when there's no match. The rule then holds even on the turn the
@@ -207,7 +207,7 @@ contents table).
   hand from a session's suggestion.
 - **Indexes for the two large documents without one**: ASSEMBLY_PROMPT.md
   (55KB) and SHIMS.md (51KB). This is the 20KB rule AGENTS.md already states.
-- **Read-only allowlist entries** for `bin/health`, `bin/deploys`, `bin/note`,
+- **Read-only allowlist entries** for `ts health`, `ts deploys`, `ts note`,
   `bin/usage`, `npm test` and `npm run typecheck`. The `fewer-permission-prompts`
   skill will propose them from the transcripts. These are cosmetic under auto
   mode, but useful for any session not in it.

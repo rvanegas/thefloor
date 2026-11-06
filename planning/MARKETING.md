@@ -179,7 +179,7 @@ recency, and a roster showing *has the floor* as a state on a person.
 Instagram and every paid social surface need assets that are composed rather
 than captured, and there are none. **The store captures are in the
 repository**, in `assets/store/`, at full resolution and excluded from
-`bin/deploy` — a desktop folder is not a record for something a submission
+`ts deploy` — a desktop folder is not a record for something a submission
 depends on. The two the landing page uses are derived from them.
 
 **The central claim was thought unphotographable, and it turned out not to

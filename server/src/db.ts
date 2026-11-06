@@ -82,7 +82,7 @@ export interface AccountRow {
   donations_allowed: number | null;
   /**
    * Whether this account sees the diagnostic panel: 1 for yes, null or 0 for
-   * no. Nobody has it by default, and it is set by hand — `bin/db --write` —
+   * no. Nobody has it by default, and it is set by hand — `ts db --write` —
    * because it is not a preference and there is no screen that offers it.
    *
    * It gates a *read-only* display of the iOS audio session's intended and
@@ -136,14 +136,14 @@ export interface AccountRow {
   /**
    * Whether this account may see the invitation standings: 1 for yes, null or
    * 0 for no. Nobody has it by default and there is no screen that grants it —
-   * it is set by hand, `bin/db --write`, exactly like `debug` above and for a
+   * it is set by hand, `ts db --write`, exactly like `debug` above and for a
    * related reason. What it reveals is other people's names against a number,
    * which is the one thing this service otherwise promises not to publish.
    */
   leaderboard: number | null;
   /**
    * Whether this account may transcribe without limit: 1 for yes, null or 0
-   * for no. Set by hand — `bin/db --write` — like `debug` and `leaderboard`,
+   * for no. Set by hand — `ts db --write` — like `debug` and `leaderboard`,
    * and unlike either of those it is the only flag here that licenses
    * spending. Everybody else gets free transcription minutes each week,
    * which `transcript_usage` records.
@@ -847,7 +847,7 @@ CREATE TABLE IF NOT EXISTS tokens (
   -- The build this session last announced, or null if it has never said.
   --
   -- accounts.last_build is the same fact about a person and is still written,
-  -- for bin/db and for the write guard in requireAccount. It cannot answer
+  -- for ts db and for the write guard in requireAccount. It cannot answer
   -- the census, because one column cannot hold two devices' builds and the
   -- last writer wins — a phone on a current build would mask a tablet below
   -- the floor. See Accounts.buildsSeenSince.
@@ -2234,7 +2234,7 @@ CREATE TABLE IF NOT EXISTS channel_notification_levels (
 -- back into the same row.
 --
 -- **The answer columns are written by hand and by nothing else.** There is no
--- route that sets them; bin/help does, through bin/db --write. That makes this
+-- route that sets them; bin/help does, through ts db --write. That makes this
 -- the one table here whose most important column is edited by a person, which
 -- is why answer and answered_at are both nullable and why help.ts refuses
 -- to believe a timestamp that has no answer beside it — the pair can be left

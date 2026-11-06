@@ -1124,7 +1124,7 @@ export class ChannelRegistry {
      * Where loaded tracks live, and the reason they now outlive the process.
      *
      * A configured root is durable storage — it belongs beside the database,
-     * is excluded from `bin/deploy`'s `--delete`, and its contents survive a
+     * is excluded from `ts deploy`'s `--delete`, and its contents survive a
      * restart because `restore` reads them back. Absent, it falls back to a
      * directory under the system temp belonging to this registry alone, which
      * is what a test wants: nothing durable, and nothing shared.
@@ -4683,7 +4683,7 @@ export class ChannelRegistry {
    * each one audio still in the bucket and a row the sweep is holding.
    *
    * Only a person clears these, with `bin/orphans --delete`, and a person
-   * does it when reminded; so `/healthz` carries the count and `bin/health`
+   * does it when reminded; so `/healthz` carries the count and `ts health`
    * prints it. A row that has been marked is dropped within the hour and is
    * not counted.
    */
@@ -4718,7 +4718,7 @@ export class ChannelRegistry {
    * than convenience: counts rather than events, nothing per account, nothing
    * on disk, so this answers the question without recording anything about
    * anybody. It resets on restart, which is honest — read it off a box that
-   * has been up a while, and see `bin/health`.
+   * has been up a while, and see `ts health`.
    *
    * Derived from the state diff rather than from the two `report` calls, so
    * every route in and out is counted once — including the grace period

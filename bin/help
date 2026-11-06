@@ -76,7 +76,7 @@
 # Markdown — the screen renders it as plain text, so asterisks and brackets
 # arrive as asterisks and brackets. Newlines survive.
 #
-# Both writes go through `bin/db --write`, which is the only writable path to
+# Both writes go through `ts db --write`, which is the only writable path to
 # this database and makes you ask for it. Oldest first on purpose: a question
 # from a week ago is the one somebody has been waiting on.
 #
@@ -144,7 +144,7 @@
 # guessed at, and a build *ahead* of released is a tester and needs no advice.
 #
 # **The session may read that tree and may not write to anything**: Read, Grep
-# and Glob, and no Bash, so it cannot reach `bin/db`, this script, or your
+# and Glob, and no Bash, so it cannot reach `ts db`, this script, or your
 # working tree. What that rules out is the answer that needs somebody's own
 # rows looked at — write those by hand. What it is for is the far commoner
 # question about what the app does, where the answer is in `app/` and `core/`
@@ -194,7 +194,7 @@ for arg in "$@"; do
     --all) all=true ;;
     -h|--help)
       # The whole comment block, however long it grows — the same reader
-      # bin/db uses, for the same reason: a fixed line range silently
+      # ts db uses, for the same reason: a fixed line range silently
       # truncates the help the moment the header gains a line.
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
       exit 0
@@ -228,9 +228,9 @@ quote() {
   printf "'%s'" "$escaped"
 }
 
-# The id column out of bin/db's output, and nothing else in it.
+# The id column out of ts db's output, and nothing else in it.
 #
-# bin/db prints `-header -column` and offers no way to turn that off, so its
+# ts db prints `-header -column` and offers no way to turn that off, so its
 # output carries a header, a row of dashes, and every value padded to its
 # column's width. Matching the shape of an id positively is what survives all
 # three — and survives a version of sqlite3 that disagrees about whether an
@@ -242,13 +242,13 @@ ids_only() {
 
 # One value out of one question's row, whatever is in it.
 #
-# hex() and back, for the same reason ids_only() matches a shape: bin/db pads
+# hex() and back, for the same reason ids_only() matches a shape: ts db pads
 # every value to its column's width and puts a header and a row of dashes above
 # it, so a question with a newline or a run of spaces in it cannot be read back
 # out as typed. A hex string is one unbroken run of [0-9A-F] that survives all
 # of that decoration, and decoding it is exact.
 scalar() {
-  bin/db $local_flag "
+  ts db $local_flag "
     SELECT hex($1) AS value
       FROM help_questions q JOIN accounts a ON a.id = q.account_id
      WHERE q.id = $(quote "$2");
@@ -279,7 +279,7 @@ resolve() {
   fi
 
   local matches count
-  matches=$(bin/db $local_flag "
+  matches=$(ts db $local_flag "
     SELECT id FROM help_questions
      WHERE substr(id, 3, ${#prefix}) = $(quote "$prefix")
      ORDER BY asked_at ASC;
@@ -293,7 +293,7 @@ resolve() {
   if [ "$count" -gt 1 ]; then
     {
       echo "bin/help: $typed matches $count questions — say more of it:"
-      bin/db $local_flag "
+      ts db $local_flag "
         SELECT id,
                datetime(asked_at / 1000, 'unixepoch') AS asked,
                substr(replace(text, char(10), ' '), 1, 50) AS question
@@ -338,7 +338,7 @@ show() {
   [ "$width" -gt 80 ] && width=80
   width=$((width - 2))
 
-  blob=$(bin/db $local_flag "
+  blob=$(ts db $local_flag "
     SELECT hex(
       q.id || char(31)
       || a.display_name || char(31)
@@ -407,7 +407,7 @@ show() {
 # trim() in the statement rather than in the shell: trimming a string that may
 # contain newlines is a job bash does badly and sqlite does exactly.
 store_draft() {
-  bin/db $local_flag --write "
+  ts db $local_flag --write "
     UPDATE help_questions
        SET answer_draft = trim($(quote "$2")),
            drafted_at = unixepoch() * 1000
@@ -594,7 +594,7 @@ case "$verb" in
     where="WHERE q.answer IS NULL"
     $all && where=""
 
-    bin/db $local_flag "
+    ts db $local_flag "
       SELECT q.id,
              datetime(q.asked_at / 1000, 'unixepoch') AS asked,
              a.display_name AS name,
@@ -655,7 +655,7 @@ case "$verb" in
     [ -z "$arg_text" ] || usage_error "discard takes an id and nothing else"
     resolved=$(resolve "$arg_id") || exit 1
 
-    bin/db $local_flag --write "
+    ts db $local_flag --write "
       UPDATE help_questions
          SET answer_draft = NULL, drafted_at = NULL
        WHERE id = $(quote "$resolved");
@@ -697,12 +697,12 @@ case "$verb" in
       exit 0
     fi
 
-    waiting=$(bin/db $local_flag "
+    waiting=$(ts db $local_flag "
       SELECT id FROM help_questions
        WHERE answer IS NULL AND answer_draft IS NULL
        ORDER BY asked_at ASC;
     " | ids_only)
-    started=$(bin/db $local_flag "
+    started=$(ts db $local_flag "
       SELECT id FROM help_questions
        WHERE answer IS NULL AND answer_draft IS NOT NULL
        ORDER BY asked_at ASC;
@@ -767,7 +767,7 @@ case "$verb" in
     # — and it is the one worth being loud about, since an UPDATE that promotes
     # a NULL reports the same single changed row as one that promotes a
     # paragraph.
-    drafted=$(bin/db $local_flag "
+    drafted=$(ts db $local_flag "
       SELECT CASE WHEN answer_draft IS NULL THEN 'none' ELSE 'some' END AS state
         FROM help_questions WHERE id = $(quote "$resolved");
     " | tr -d ' \r' | grep -E '^(none|some)$' || true)
@@ -781,7 +781,7 @@ case "$verb" in
     # Moved rather than copied, in one statement reading its own row: a read
     # followed by a write of what was read leaves a window in which the answer
     # could be improved and the improvement silently dropped.
-    bin/db $local_flag --write "
+    ts db $local_flag --write "
       UPDATE help_questions
          SET answer = answer_draft,
              answered_at = unixepoch() * 1000,

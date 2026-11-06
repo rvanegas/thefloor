@@ -8,7 +8,7 @@
 #   bin/deploy-all --from web   resume at a stage, after fixing what stopped it
 #   bin/deploy-all --keep-going run the rest even after one fails
 #
-# The four, and they are `bin/deploy`, `bin/upload-ios`, `bin/deploy-web --beta`
+# The four, and they are `ts deploy`, `bin/upload-ios`, `bin/deploy-web --beta`
 # and `bin/android --apk` — each run exactly as it would be by hand, with no
 # flags this script invents and nothing it does itself. Every guard those
 # scripts carry still applies; this one adds only the guards that are about
@@ -59,7 +59,7 @@
 # It also means the server on the box is one commit behind the build that was
 # uploaded: the deploy shipped the revision that was checked out, and the bump
 # landed after it. That difference is a build number and nothing else, and it
-# is worth knowing before comparing `bin/health` against `app.json`.
+# is worth knowing before comparing `ts health` against `app.json`.
 #
 # ── Resuming, which is the guard that matters most ───────────────────────────
 #
@@ -87,7 +87,7 @@ STAGES=(server ios web android)
 
 stage_command() {
   case "$1" in
-    server)  echo "bin/deploy" ;;
+    server)  echo "ts deploy" ;;
     ios)     echo "bin/upload-ios" ;;
     web)     echo "bin/deploy-web --beta" ;;
     android) echo "bin/android --apk" ;;
@@ -96,7 +96,7 @@ stage_command() {
 
 stage_run() {
   case "$1" in
-    server)  bin/deploy ;;
+    server)  ts deploy ;;
     ios)     bin/upload-ios ;;
     web)     bin/deploy-web --beta ;;
     android) bin/android --apk ;;
@@ -122,8 +122,8 @@ while [ $# -gt 0 ]; do
     --from=*) from=${1#--from=} ;;
     --dry-run|-n) dry_run=true ;;
     --keep-going) keep_going=true ;;
-    # The whole comment block, however long it grows — same as bin/deploy and
-    # bin/db, and for the same reason: a fixed line range truncates the help
+    # The whole comment block, however long it grows — same as ts deploy and
+    # ts db, and for the same reason: a fixed line range truncates the help
     # the moment the header gains a line.
     -h|--help)
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
@@ -174,7 +174,7 @@ warnings=()
 
 # Clean, and not negotiable, because `bin/upload-ios` refuses a dirty tree —
 # it tags, and a tag naming a commit the build did not come from is worth
-# nothing. `bin/deploy` would take `--dirty`, but there is no way to ask for
+# nothing. `ts deploy` would take `--dirty`, but there is no way to ask for
 # that here: a run that shipped the working tree to the box and then stopped
 # dead at the upload is the worst of both, and between the two stages the
 # stricter rule is the one that governs.
@@ -192,8 +192,13 @@ fi
 KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
 if in_plan server || in_plan web; then
   if [ ! -r "${KEY/#\~/$HOME}" ]; then
-    problems+=("no ssh key at $KEY — bin/deploy and bin/deploy-web cannot reach the box")
+    problems+=("no ssh key at $KEY — ts deploy and bin/deploy-web cannot reach the box")
   fi
+fi
+
+# The server stage is technosophia's shared deploy, run through `ts`.
+if in_plan server && ! command -v ts >/dev/null; then
+  problems+=("ts is not on PATH — export PATH=\"\$HOME/src/technosophia:\$PATH\"")
 fi
 
 if in_plan ios; then

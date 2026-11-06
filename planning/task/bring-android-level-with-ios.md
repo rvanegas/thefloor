@@ -132,7 +132,7 @@ Three things to know before sending one:
 - **`accounts.debug` is a server-side column, not a build flag.** It arrives in
   `hello` and turns on the debug panel and the audio-log shipping in
   `AppProvider`. So a remote tester can be given diagnostics without a new
-  build: set the column for their account with `bin/db --write`. This matters
+  build: set the column for their account with `ts db --write`. This matters
   because a release build has no `__DEV__`, so the `[audio]` console trace that
   made the emulator legible is simply absent on their phone.
 

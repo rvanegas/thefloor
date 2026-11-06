@@ -1,0 +1,33 @@
+# What `ts deploy` never ships and never deletes on the box (an rsync filter
+# file: first match wins).
+#
+# node_modules is rebuilt on the far side for that architecture.
+- node_modules
+# Worktrees live inside the repository; none of them is the tree being shipped.
+- /.claude/
+# Anchored, and that is not cosmetic: a pattern with no leading slash matches a
+# directory of that name at any depth, which is what made `server/web/app` an
+# unshippable name.
+- /app/
+# The web trains: bin/deploy-web builds them from a tag and rsyncs them; they
+# are gitignored and never exist in a working checkout, so without these
+# --delete would take the web app off the air. server/web/dist is built by the
+# deploy-pre hook and must ship.
+- /server/web/stable/
+- /server/web/beta/
+# A wildcard with one exception, matching .gitignore: a .env~ or .env.bak is as
+# secret-bearing as .env, and the box's .env holds production secrets this must
+# never overwrite.
++ .env.example
+- .env*
+- *.db
+- *.db-*
+- dev-*.mjs
+# The box's own durable state: loaded tracks exist there and never here.
+- /server/tracks/
+# The store captures; the box serves small derivatives in server/public.
+- /assets/
+# Keys live under ~/.config/thefloor, outside this tree; excluded as well,
+# deliberately.
+- *.p8
+- fcm-service-account.json

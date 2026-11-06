@@ -14,7 +14,7 @@
 # also somebody else's identifier — every candidate is printed and nothing
 # else is.
 #
-# Read-only, always. Removing a contact by hand is bin/db --write.
+# Read-only, always. Removing a contact by hand is ts db --write.
 #
 # A row is one `contacts` row seen from this person's side. The table stores
 # each pair once, as (a_id, b_id), so `contact` is whichever of the two is not
@@ -44,7 +44,7 @@ for arg in "$@"; do
   case "$arg" in
     --local) local_mode=true ;;
     # The whole comment block, however long it grows — the same reasoning as
-    # bin/db, where a fixed line range truncated the help the moment the header
+    # ts db, where a fixed line range truncated the help the moment the header
     # gained a line.
     -h|--help)
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
@@ -130,7 +130,7 @@ fi
 
 echo "→ production"
 # Over stdin rather than interpolated into the remote shell, for the reason
-# bin/db spells out: $, backticks and backslashes are all live in that position.
+# ts db spells out: $, backticks and backslashes are all live in that position.
 exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
   "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \
   <<<"$sql"

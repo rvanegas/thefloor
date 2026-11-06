@@ -1,0 +1,32 @@
+#!/bin/bash
+# What `ts health` cannot say about thefloor's own fields, given the body.
+#
+#   minBuild / oldestBuild: the floor the server declares, and the oldest build
+#     that has called in the last thirty days. Raising the floor past that ends
+#     sessions on phones.
+#   silentBuilds: accounts in the window whose build is unknown (every build up
+#     to 36 sends nothing). While above zero, oldestBuild is a floor on the
+#     known population only, and no shim may be deleted on its strength.
+#   drops: since the process started; recovered is a socket back inside
+#     DISCONNECT_GRACE_MS, expired is somebody who lost their place.
+#   awaitingOrphans: deleted recordings past their week whose audio is still in
+#     the bucket. Only a person clears them.
+#   audio says only that this process was built with LiveKit configured, not
+#     that livekit-server is up: `journalctl -u livekit-server` is that.
+set -uo pipefail
+body="$1"
+field() { echo "$body" | sed -n "s/.*\"$1\":[[:space:]]*\"\{0,1\}\([^,\"}]*\)\"\{0,1\}.*/\1/p"; }
+
+silent=$(field silentBuilds)
+[ -z "$silent" ] || [ "$silent" = 0 ] \
+  || echo "! silentBuilds is $silent: oldestBuild is a floor on the known population only"
+awaiting=$(field awaitingOrphans)
+[ -z "$awaiting" ] || [ "$awaiting" = 0 ] || echo "! $awaiting orphaned recordings: run bin/orphans --delete"
+
+# The floor this checkout would deploy, against the one deployed.
+min=$(field minBuild)
+local_min=$(sed -n 's/^export const MIN_SUPPORTED_BUILD = \([0-9]*\).*/\1/p' \
+  "$TS_ROOT/server/src/release.ts" 2>/dev/null || true)
+if [ -n "$local_min" ] && [ "$local_min" != "$min" ]; then
+  echo "! this checkout's MIN_SUPPORTED_BUILD is $local_min, deployed is $min"
+fi

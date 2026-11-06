@@ -173,7 +173,7 @@ different SFU from the one the first was tested against.
 ## What survives: `bin/provision`
 
 Written for this and kept, because it is now the only written-down path from a
-bare Ubuntu 24.04 instance to one `bin/deploy` can target — which is the thing
+bare Ubuntu 24.04 instance to one `ts deploy` can target — which is the thing
 you want on the worst day, when the box is gone rather than merely small. It is
 idempotent, places no secrets, and does not start the service.
 
@@ -231,7 +231,7 @@ Two things it does that are not obvious:
   drifting into it and silently gaining read access to an API secret.
 
 Configs live in `/etc/livekit/` rather than `~/.config/thefloor/` for a reason
-worth restating: `bin/deploy` rsyncs `~/thefloor` with `--delete`, and `/etc` is
+worth restating: `ts deploy` rsyncs `~/thefloor` with `--delete`, and `/etc` is
 outside that tree by construction. A config a deploy can reach is one that works
 until the deploy after next removes it, and the failure arrives as "audio
 stopped" some minutes after a deploy that reported success.
@@ -250,7 +250,7 @@ what Cloud looked like.
 was taken on 2026-08-13 and was days stale within the week, while the box went
 on being the only live copy of seven credentials. Since 2026-08-19 the live
 local copy is `~/.config/thefloor/server.env`, mode 600, kept level with the box
-by **`bin/env-pull`** and **`bin/env-push`** — the same arrangement
+by **`ts env-pull`** and **`ts env-push`** — the same arrangement
 `bin/provision-livekit` has always had with `livekit.env`, and for the same
 reason: a credential authored locally can be backed up and diffed, and one that
 exists only on an instance cannot.
@@ -279,7 +279,7 @@ of the `.db` is normal here, not a symptom.
 
 ## Three traps found, all still live
 
-### `bin/deploy`'s health check lies about any box that is not the live one
+### `ts deploy`'s health check lies about any box that is not the live one
 
 It checks `https://thefloor.rvanegas.co`, which resolves to whatever owns the
 static IP. Deploying to a staging box therefore prints `✓` because *the old

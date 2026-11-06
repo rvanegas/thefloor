@@ -12,7 +12,7 @@ import { MemoryMediaServer } from '../src/media';
  * Everything here works the same way: build an app against a file on disk, do
  * things to it, close it, and build a second app against the same file. That
  * second `buildApp` is a server restart in every way that matters — it is the
- * `bin/deploy` that used to destroy every conversation on the box.
+ * `ts deploy` that used to destroy every conversation on the box.
  *
  * Two properties are worth stating because they pull in opposite directions.
  * What is durable has to come back exactly: a channel's name, its description,

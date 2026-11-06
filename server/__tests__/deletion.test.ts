@@ -676,7 +676,7 @@ describe('the sweep', () => {
 
   /**
    * Nothing clears these but a person, so the count has to be somewhere a
-   * person looks: `/healthz`, which `bin/health` prints.
+   * person looks: `/healthz`, which `ts health` prints.
    */
   it('counts on /healthz what is waiting for bin/orphans', async () => {
     const { channelId } = await deleted();

@@ -79,7 +79,7 @@ arrives next: a library worth having whose newest version has moved past 0.81.
    match the SDK major — done at 55; from here each hop is a major bump of the
    same twelve. `npx expo install --fix` does it.
 5. **The web app.** `react-native-web` is `~0.21.0` on every SDK from 55 to 57,
-   so this is the one axis that does not move. `bin/deploy` builds and ships it,
+   so this is the one axis that does not move. `ts deploy` builds and ships it,
    and the trains are the thing to smoke-test rather than to fear.
 
 ## How to do it

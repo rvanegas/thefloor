@@ -20,7 +20,7 @@
 // anything else, and this is what puts them where Apple can see them.
 //
 // **The demo code is not in that file, and this is why the split exists.**
-// bin/deploy rsyncs the tree with --delete, so credentials live in
+// ts deploy rsyncs the tree with --delete, so credentials live in
 // ~/.config/thefloor/demo-account.txt and nowhere near it. The file carries a
 // placeholder; the code is read here, substituted once, and never printed.
 // CREDENTIALS.md and DEMO-ACCOUNT.md have the wider rule.
@@ -148,7 +148,7 @@ function notesToSend() {
   if (!raw.includes(PLACEHOLDER)) {
     die(`${path.basename(file)} has no placeholder to fill`,
       `Expected the line: ${PLACEHOLDER}`,
-      'If the code was written in by hand, take it out again: bin/deploy',
+      'If the code was written in by hand, take it out again: ts deploy',
       'rsyncs this tree and credentials belong in demo-account.txt.');
   }
 

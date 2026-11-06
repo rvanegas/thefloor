@@ -165,7 +165,7 @@ export interface BuildOptions {
    * Where loaded tracks are kept, and what makes them outlive the process.
    *
    * Durable storage, so it belongs beside the database and outside anything
-   * `bin/deploy` synchronises — see `server/.env.example`. Unset, tracks go to
+   * `ts deploy` synchronises — see `server/.env.example`. Unset, tracks go to
    * a per-pid directory under the system temp and are swept at the next boot,
    * which is what every test wants and what production did until 2026-09-08.
    */
@@ -179,7 +179,7 @@ export interface BuildOptions {
    * to the box, so nothing writes them in a checkout except the tests that
    * need one to exist — and those were creating and then `rm -rf`ing
    * `server/web/stable` itself, a fixed real path. Two suites doing that at
-   * the same time delete each other's fixture, which is how a `bin/deploy`
+   * the same time delete each other's fixture, which is how a `ts deploy`
    * that overlapped anything else running the suite failed in `open`,
    * `train-root` and `guest-flow` and nowhere else. See
    * `decision/2026-09-17-the-tests-stopped-sharing-a-directory.md`.
@@ -365,7 +365,7 @@ export interface BuildOptions {
    * Since 2026-10-10, replacing one free transcript per account, which capped
    * the count and not the bill — one use of a twenty-minute pair cost about
    * ten cents, one of a three-hour four-way about two dollars. Defaults to
-   * `FREE_TRANSCRIPT_MINUTES_DEFAULT`. The mark is set by hand: `bin/db
+   * `FREE_TRANSCRIPT_MINUTES_DEFAULT`. The mark is set by hand: `ts db
    * --write "update accounts set transcripts_unlimited = 1 where identifier =
    * '…'"`.
    */
@@ -2486,13 +2486,13 @@ export function buildApp(options: BuildOptions = {}): App {
    * The two web trains, and the informational page at the root.
    *
    * `/app` is what the App Store release is, `/beta` what TestFlight has, and
-   * they are deployed by `bin/deploy-web` rather than by `bin/deploy` — see
+   * they are deployed by `bin/deploy-web` rather than by `ts deploy` — see
    * planning/decision/DECISIONS.md § *Three variants of deploy*. The server
    * serves whatever is on disk and knows nothing about which build that is.
    *
    * **The directories are `stable/` and `beta/`, not `app/`,** and that is not
    * a preference. An rsync pattern without a leading slash matches a directory
-   * of that name at *any* depth, so while `bin/deploy` excluded a bare `app/`
+   * of that name at *any* depth, so while `ts deploy` excluded a bare `app/`
    * a bundle in `web/app/` was silently never shipped: the deploy succeeded
    * and the page 404'd with nothing saying why. That exclude is anchored to
    * `/app/` now, so the hazard is gone and this is belt and braces — but do
@@ -4205,7 +4205,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * The invitation standings: who has brought the most people here.
    *
    * **Refused to anybody whose `leaderboard` column is not set**, which is
-   * nobody by default and is granted by hand with `bin/db --write`. It is the
+   * nobody by default and is granted by hand with `ts db --write`. It is the
    * only view in this application that lists people who have not agreed to be
    * listed to you — everywhere else, a name reaches you because you and they
    * both said yes. `/privacy` and `/support` promise there is no directory
@@ -6338,7 +6338,7 @@ export function buildApp(options: BuildOptions = {}): App {
       // per nobody. See Channels.connectivityCounts.
       //
       // **Spread flat rather than sent as an object**, which is a constraint
-      // this endpoint carries rather than a style: `bin/health` reads it with
+      // this endpoint carries rather than a style: `ts health` reads it with
       // sed and says so, nesting being the one thing that would break it.
       drops: connectivity.dropped,
       dropsRecovered: connectivity.recovered,

@@ -232,7 +232,7 @@ export class Devices {
       .run(accountId, keep);
   }
 
-  /** For tests and `bin/db`-shaped questions. */
+  /** For tests and `ts db`-shaped questions. */
   list(accountId: string): DeviceTokenRow[] {
     return this.db
       .prepare(

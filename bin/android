@@ -32,7 +32,7 @@
 # This exists because the Android dev loop is four environment facts that no
 # error message names. `expo run:android` on a machine missing any of them fails
 # somewhere inside Gradle, in the register of a compiler problem rather than the
-# missing install it is — the same shape as `bin/worktree-setup`'s
+# missing install it is — the same shape as `ts worktree-setup`'s
 # `jest: command not found`, and for the same reason.
 #
 # The four:

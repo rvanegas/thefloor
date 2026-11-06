@@ -40,7 +40,7 @@ const dbPath = process.env.DB_PATH ?? './thefloor.db';
  *
  * Beside the database by default, because it is the same kind of thing: state
  * this box holds that nothing else can reproduce. **It must stay outside what
- * `bin/deploy` synchronises** — that rsync runs with `--delete`, so a track
+ * `ts deploy` synchronises** — that rsync runs with `--delete`, so a track
  * root inside the synced tree would be emptied by the next deploy, which is
  * the failure this whole arrangement exists to end. `server/tracks/` is
  * excluded there for the same reason `*.db` is.
@@ -151,7 +151,7 @@ const pusher: (Pusher & LiveActivityEnder & BadgeSetter) | undefined =
  * **One path rather than three variables**, because Google issues the whole
  * thing as a single JSON file and splitting it across the environment is three
  * chances to paste a PEM with its newlines eaten. It lives outside the tree for
- * `bin/deploy`'s reason — see planning/CREDENTIALS.md — and the file is the
+ * `ts deploy`'s reason — see planning/CREDENTIALS.md — and the file is the
  * unit that gets copied there.
  *
  * **Undefined is the working state until the credential exists**, not a
@@ -351,7 +351,7 @@ const retiredNoesisNames = process.env.NOESIS_NAMES !== undefined;
  * was retired on 2026-10-10: the mark is the `transcripts_unlimited` column
  * alone, set with
  *
- *     bin/db --write "update accounts set transcripts_unlimited = 1 \
+ *     ts db --write "update accounts set transcripts_unlimited = 1 \
  *       where identifier = 'someone@example.com'"
  *
  * Read only to say it is ignored, so that a .env still carrying it does not

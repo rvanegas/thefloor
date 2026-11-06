@@ -18,7 +18,7 @@ what makes stage 2's bad case lossless, which is why it goes first.
 
 ## What a restart costs today
 
-`bin/deploy` restarts the `thefloor` unit. AGENTS.md says a deploy costs
+`ts deploy` restarts the `thefloor` unit. AGENTS.md says a deploy costs
 presence, not channels, and that is true — `restore()` revives every unended
 channel from its durable blob. What it leaves out is that the *conversation*
 does not survive, by design: `durableOf` (`server/src/channels.ts`) omits the
@@ -29,7 +29,7 @@ those are facts about the conversation rather than about the channel.
 | --- | --- |
 | Live audio | **Unaffected.** The app's LiveKit `Room` depends only on `[mediaRoom, token]` (`app/src/audio/useSessionAudio.ts`) and is independent of the server socket. The server only *mints* the join token, so a conversation in progress keeps flowing. |
 | The websocket | Drops; reconnects at 500ms→10s backoff, forever (`app/src/api/socket.ts`), re-sending `watch.home`, `watch.channel` and `ENTER` on open. |
-| Visible to the user | Usually nothing. `app/src/ui/useOfflineNotice.ts` hides the banner for 2.5s, and `bin/deploy` runs `npm install` *before* the restart, so the outage is process boot. |
+| Visible to the user | Usually nothing. `app/src/ui/useOfflineNotice.ts` hides the banner for 2.5s, and `ts deploy` runs `npm install` *before* the restart, so the outage is process boot. |
 | Presence | Held for `DISCONNECT_GRACE_MS`, a minute. |
 | The floor | **Lost.** The claim is released and must be re-made. |
 | Playback | **Lost.** It points at a temp file in `tmpdir()` that the dead process owned. |

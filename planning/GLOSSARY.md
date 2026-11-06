@@ -5077,7 +5077,7 @@ so no frozen name.
 A deployed build of the web app: `/app` (`stable/`, what the App Store release
 is) and `/beta` (`beta/`, what TestFlight has). `server/src/open.ts` is the one
 door that decides which a browser is sent to, from what that browser last used.
-Deployed by `bin/deploy-web`, not `bin/deploy`, and both directories are
+Deployed by `bin/deploy-web`, not `ts deploy`, and both directories are
 excluded from the latter's rsync — `--delete` would otherwise take them off the
 box. See decision/ § *Three variants of deploy*.
 

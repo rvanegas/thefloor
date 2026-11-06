@@ -322,7 +322,7 @@ describe('drafting an answer', () => {
  * the tab honest. See `app/src/state/helpSeen.ts`.
  *
  * **It changes under a client rather than being pushed to one.** `bin/help
- * publish` writes the row through `bin/db --write` and this process is never
+ * publish` writes the row through `ts db --write` and this process is never
  * told, so the mark appears on the next home snapshot — the same contract
  * `bin/help` already states, one screen earlier.
  */

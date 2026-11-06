@@ -6,7 +6,7 @@
 #   bin/backfill-usernames --write         do it
 #   bin/backfill-usernames --local [...]   the development database instead
 #
-# A preview by default, the same trade bin/db makes: it prints every account
+# A preview by default, the same trade ts db makes: it prints every account
 # without a username and what it would get, and writes nothing. `--write` runs
 # the identical statements and keeps the result, in one transaction.
 #
@@ -58,7 +58,7 @@ for arg in "$@"; do
     --local) local_mode=true ;;
     --write) write=true ;;
     # The whole comment block, however long it grows — the same reasoning as
-    # bin/db, where a fixed line range truncated the help the moment the header
+    # ts db, where a fixed line range truncated the help the moment the header
     # gained a line.
     -h|--help)
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
@@ -68,7 +68,7 @@ for arg in "$@"; do
   esac
 done
 
-[ -x "$TSX" ] || { echo "No tsx at $TSX — run bin/worktree-setup" >&2; exit 1; }
+[ -x "$TSX" ] || { echo "No tsx at $TSX — run ts worktree-setup" >&2; exit 1; }
 
 # Read rather than restated, so that changing the number of tries at signup
 # changes it here. Refused rather than defaulted if the line is ever written
@@ -81,7 +81,7 @@ tries=$(sed -n 's/^const DERIVED_USERNAME_TRIES = \([0-9]*\);$/\1/p' \
 }
 
 # Both trips go through here. Over stdin rather than interpolated into the
-# remote shell, for the reason bin/db spells out: $, backticks and backslashes
+# remote shell, for the reason ts db spells out: $, backticks and backslashes
 # are all live in that position — and the second trip carries display names.
 run() {
   if $local_mode; then

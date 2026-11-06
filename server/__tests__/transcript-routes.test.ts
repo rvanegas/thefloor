@@ -71,7 +71,7 @@ function build(withProvider = true, freeTranscriptMinutes?: number) {
   });
 }
 
-/** Lifts the free-use limit for one account, the way `bin/db --write` does. */
+/** Lifts the free-use limit for one account, the way `ts db --write` does. */
 function markUnlimited(id: string) {
   app.db
     .prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?')

@@ -1,0 +1,27 @@
+#!/bin/bash
+# Before `ts deploy` sends anything: tests, types, and the guest page.
+set -euo pipefail
+cd "$TS_ROOT"
+
+# core and server, not app: this ships the server, and a phone's rendering is
+# not something a deploy can break.
+echo "→ tests"
+npm test --prefix core --silent >/dev/null
+npm test --prefix server --silent >/dev/null
+
+# The tests alone are not a compile: jest and tsx both strip types without
+# checking them. Blocking on the two packages about to run on the box; warning
+# on the app, which is not. Not redirected: tsc writes its errors to stdout.
+echo "→ types"
+npm run typecheck --prefix core --silent
+npm run typecheck --prefix server --silent
+if ! npm run typecheck --prefix app --silent; then
+  echo "⚠ app does not typecheck — not shipped here, but the next build is" >&2
+fi
+
+# The guest page, bundled here rather than on the box: its build tools are
+# devDependencies and the box installs --omit=dev. Gitignored output, so the
+# tree stays clean. Not conditional: a stale bundle is a page a deploy behind
+# its server, and nothing on it would say so.
+echo "→ building the guest page"
+npm run build:web --prefix server --silent

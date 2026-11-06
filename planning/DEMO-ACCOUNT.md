@@ -15,7 +15,7 @@ published in the review notes, so anyone who reads them can sign in.**
 The identifiers, the code and the bearer tokens are **not in this file**. They
 are in `~/.config/thefloor/demo-account.txt`, mode 600, on the development
 machine — the same reasoning that keeps the `.p8` keys out of the tree, since
-`bin/deploy` rsyncs with `--delete` and a credential inside it is one a later
+`ts deploy` rsyncs with `--delete` and a credential inside it is one a later
 deploy removes.
 
 ---

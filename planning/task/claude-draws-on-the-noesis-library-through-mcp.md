@@ -16,7 +16,7 @@ in builds 392 and up, so this replaces a live setup.
 2. **Register The Floor** on `commons`:
    `docker compose run --rm -T noesis python scripts/add_client.py thefloor --name "The Floor" --redirect https://thefloor.rvanegas.co/noesis/callback`,
    its two lines straight into `~/.config/thefloor/server.env` without being
-   printed; remove `NOESIS_TOKEN` and `NOESIS_IDENTIFIERS` there; `bin/env-push`.
+   printed; remove `NOESIS_TOKEN` and `NOESIS_IDENTIFIERS` there; `ts env-push`.
 3. **Land and deploy** this branch (`noesis-connect`), then
    `bin/restart-services` if the deploy did not restart with the new env. The
    startup log's `library` line names the URL, client and callback.

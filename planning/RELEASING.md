@@ -42,7 +42,7 @@ overlap, and **nothing here is a synonym for any other line**:
 | Verb | What it does | Who is affected | Marked by |
 | --- | --- | --- | --- |
 | **land** | merge to `master`, **push**, delete the branch and worktree | nobody | `master` moves on the origin |
-| **deploy** | `bin/deploy` — server to the box | **everybody, within a minute** | `server/deployed.json`, `/healthz` |
+| **deploy** | `ts deploy` — server to the box | **everybody, within a minute** | `server/deployed.json`, `/healthz` |
 | **upload** | `bin/upload-ios` — archive, sign, send to App Store Connect, set What to Test from the commits and then distribute (`bin/testflight-notes`) | TestFlight testers, after processing | tag `build/<n>` |
 | **submit** | `bin/submit-ios` prepares it; a person presses Submit | nobody yet | nothing local |
 | **release** | make an approved build downloadable | **everybody who updates**, over days | tag `released` moves |
@@ -109,7 +109,7 @@ is to put the question where it can be answered in a word, not to guess which
 answer was meant. An oversight comes back as *"both, then"*; an intention comes
 back as *"no, just the deploy"*, and both are one line of the person's time.
 
-The check itself is `git diff` against what is live: `bin/health` says which
+The check itself is `git diff` against what is live: `ts health` says which
 commit the box is running, and `git describe --tags --match 'build/*'` says
 which build the last upload was cut from.
 
@@ -535,7 +535,7 @@ the wrong source.
 
 **It is a third variant of `deploy`, not a sixth verb.** Reaches everybody in a
 minute, reversible, needs nobody's permission — the same row of the table. It
-restarts nothing, so unlike `bin/deploy` it cannot interrupt a conversation.
+restarts nothing, so unlike `ts deploy` it cannot interrupt a conversation.
 
 One consequence to know rather than fix: `/open` prefers whichever train
 somebody last used, so a browser that met `/beta` stays on it after `/app`

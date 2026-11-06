@@ -34,7 +34,7 @@ rebuilding or re-hosting, RELEASING.md for getting a build to a phone.
 | Media config | `/etc/livekit/livekit.yaml` and `egress.yaml`, mode 600 |
 | Node | 22, required for the built-in `node:sqlite` |
 | Database | `/home/ubuntu/thefloor-data/thefloor.db`, outside the synced tree |
-| Deploy record | `/home/ubuntu/thefloor-data/deploys.log`, appended by `bin/deploy` and `bin/restart-services`, read by `bin/deploys`; a re-host carries it with the database |
+| Deploy record | `/home/ubuntu/thefloor-data/deploys.log`, appended by `ts deploy` and `bin/restart-services`, read by `ts deploys`; a re-host carries it with the database |
 | Logs | `journalctl -u thefloor`, `-u caddy`, `-u livekit-server`, `-u livekit-egress` |
 
 Node binds to loopback only; nothing reaches it except through Caddy. So does
@@ -99,7 +99,7 @@ planning/decision/ for 2026-09-21.
   `livekit-egress`, Redis, docker and containerd alone (`/etc/needrestart/
   conf.d/`, written by the two provisioners), because its 06:15 UTC restarts
   dropped calls and on 2026-09-30 left the SFU down for three hours. So stale
-  libraries in the media plane wait for a hand: `bin/deploy` ends by naming
+  libraries in the media plane wait for a hand: `ts deploy` ends by naming
   them, and `bin/restart-services` restarts them, refusing while anybody is
   in a call unless told `--anyway`.
   `thefloor` needs no such step, since every deploy restarts it.
@@ -110,7 +110,7 @@ planning/decision/ for 2026-09-21.
   keeps the cross-package `core/` imports working without a build step, but a
   compile step would start faster and use less memory if that ever matters.
 - **A deploy now happens next to live audio, and nobody has heard what that
-  sounds like.** `bin/deploy` runs `npm install` on the box and restarts, and
+  sounds like.** `ts deploy` runs `npm install` on the box and restarts, and
   since 2026-08-13 the SFU is on that same box. The line above is still true —
   a deploy costs presence, not channels — but it used to also be true that a
   deploy could not touch a conversation, *because* the media was elsewhere. That

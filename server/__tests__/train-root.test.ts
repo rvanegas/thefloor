@@ -26,7 +26,7 @@ let clock = 1_700_000_000_000;
  *
  * **It used to be `server/web`, the real one.** Three suites made a train
  * there and `rm -rf`'d it afterwards, so two runs of the suite at once — a
- * `bin/deploy` overlapping anybody else's `npm test`, which is the ordinary
+ * `ts deploy` overlapping anybody else's `npm test`, which is the ordinary
  * case rather than a strange one — deleted each other's fixtures mid-assertion
  * and failed in `open`, `train-root` and `guest-flow`. `mkdtemp` is the
  * pattern `export.test.ts` and `playback.test.ts` already use for the same

@@ -81,7 +81,7 @@ fi
 
 # One line in the box's deploy record per restart, since restarting the media
 # plane is the other thing done to the box by hand, and the thing most worth
-# finding afterwards — bin/deploy's header has why the record lives there. A
+# finding afterwards — ts deploy's header has why the record lives there. A
 # failure to write it is said and changes nothing else.
 record() {
   printf '%s\trestart\t%s\t%s live\t%s\t%s\n' \

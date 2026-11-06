@@ -84,7 +84,7 @@ What no test can settle is the third candidate above.
 - **Server.** The deployed commit must contain `cc225f7` ("A token was never a
   device, and the loser stops fighting"), which is what teaches
   `displaceOtherSessions` about `deviceKey`. It was live as of `40a2462`;
-  `bin/health` says what is on the box now.
+  `ts health` says what is on the box now.
 - **Client.** `build/130` and later contain the fix. Anything below 130 is the
   broken version, which is useful only if somebody wants to hear the symptom on
   purpose — see *Hearing the broken one* below.

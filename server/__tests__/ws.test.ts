@@ -161,7 +161,7 @@ class Client {
    * three seconds against a `testTimeout` of fifteen — twelve seconds of
    * headroom nothing was using. A real socket and a real server are on the
    * other end of this, so under load the reply genuinely takes longer, and
-   * two full suites running at once is load: `bin/deploy` runs the tests, and
+   * two full suites running at once is load: `ts deploy` runs the tests, and
    * it overlaps anybody else running them. That produced sporadic
    * `timed out waiting for pong` in this file and nowhere else, which reads
    * like a broken heartbeat and is a busy machine.

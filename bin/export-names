@@ -48,7 +48,7 @@ FROM accounts
 WHERE identifier LIKE '%@%' AND identifier NOT LIKE 'erased:%'
 ORDER BY created_at, id;"
 
-# Over stdin rather than interpolated into the remote shell, for bin/db's reason.
+# Over stdin rather than interpolated into the remote shell, for ts db's reason.
 if $local_mode; then
   [ -f "$LOCAL_DB" ] || { echo "No local database at $LOCAL_DB" >&2; exit 1; }
   sqlite3 -readonly -noheader -cmd '.timeout 2000' "$LOCAL_DB" <<<"$query"

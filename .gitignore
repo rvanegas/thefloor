@@ -5,7 +5,7 @@
 # checkout's modules — once the way to run tests in a git worktree — was
 # not ignored, was picked up by `git add -A`, and replaced the real directories
 # with links to themselves on the next checkout. That link is no longer the way
-# and is now refused: `bin/worktree-setup` installs into the worktree instead.
+# and is now refused: `ts worktree-setup` installs into the worktree instead.
 # The missing slash still matters, for any link that predates it.
 node_modules
 
@@ -19,7 +19,7 @@ expo-env.d.ts
 # box. Ignored for the same reason server/web/dist is: a compiled artefact in
 # the tree drifts from its source and nobody notices, because nobody reads
 # minified output and its diffs are unreviewable. The mechanical half matters
-# too — bin/deploy refuses a dirty tree, and a tracked bundle would dirty it on
+# too — ts deploy refuses a dirty tree, and a tracked bundle would dirty it on
 # every build, so the guard would be passed over habitually and stop being
 # worth having. See server/web/build.mjs and planning/WEB.md.
 server/web/stable/
@@ -107,7 +107,7 @@ app/modules/*/android/build/
 *.db-wal
 *.db-shm
 # Tracks loaded for playback, which live beside the database because they are
-# the same kind of thing: state one box holds. Excluded from bin/deploy's
+# the same kind of thing: state one box holds. Excluded from ts deploy's
 # --delete too, or a deploy would empty it.
 /server/tracks/
 
@@ -120,7 +120,7 @@ app/modules/*/android/build/
 # scratch dev diagnostics (mint tokens, inspect live rooms)
 dev-*.mjs
 
-# what bin/deploy stamped on the way out — a fact about one box, written fresh
+# what ts deploy stamped on the way out — a fact about one box, written fresh
 # every deploy. Tracking it would make every deploy dirty the tree it reports
 # the cleanliness of.
 server/deployed.json

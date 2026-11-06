@@ -8,7 +8,7 @@
 //   bin/testflight --json       the raw records, for when a field is missing here
 //
 // Read-only, always: it makes no PATCH, POST or DELETE, and there is no flag
-// that would. It is to bin/upload-ios what bin/health is to bin/deploy — the
+// that would. It is to bin/upload-ios what ts health is to ts deploy — the
 // measurement that says whether the thing you ran did what you think, taken
 // against Apple rather than against a local tag or a terminal that has since
 // scrolled away.

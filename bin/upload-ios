@@ -37,7 +37,7 @@ cd "$(dirname "$0")/.."
 # The key id is read from the filename, exactly as the APNs key's is, so there
 # is one fewer thing to record. The issuer id is a plain file beside it: it is
 # not a secret, but it is unmemorable and it belongs with the key it names.
-# Both live outside the tree, because `bin/deploy` rsyncs with --delete.
+# Both live outside the tree, because `ts deploy` rsyncs with --delete.
 #
 # Its own directory, and that is not tidiness. The APNs key is a `.p8` under
 # `~/.config/thefloor` too, and an `AuthKey_*.p8` glob there matched *it* first
@@ -74,7 +74,7 @@ fi
 
 # A tag is a permanent claim that a build was made from a particular commit,
 # and it is worth nothing if the tree held changes that commit does not carry.
-# Deliberately stricter than bin/deploy, which ships a dirty tree on purpose:
+# Deliberately stricter than ts deploy, which ships a dirty tree on purpose:
 # a deploy is reversible in a minute and a build in the App Store is not.
 if [ -n "$(git status --porcelain)" ]; then
   echo "✗ working tree is not clean; commit or stash before releasing" >&2

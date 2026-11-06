@@ -10,7 +10,7 @@
 # target differs. RELEASING.md § *The five verbs* carries the table.
 #
 # **Built from a tag rather than from the working tree**, which is the one way
-# it differs from `bin/deploy` and the reason it exists as its own script. That
+# it differs from `ts deploy` and the reason it exists as its own script. That
 # script rsyncs the checkout on purpose, so that what is deployed is what you
 # are looking at. Here the opposite is wanted: a train is *defined* as the
 # source a particular iOS build was cut from, and "coinciding with the App
@@ -141,7 +141,7 @@ node -e "
 # checkout's dependencies, which is precisely the drift building from a tag
 # exists to avoid.
 #
-# `npm ci` rather than `npm install`, for the reason `bin/worktree-setup`
+# `npm ci` rather than `npm install`, for the reason `ts worktree-setup`
 # gives: it installs exactly what the lockfile pins, which is what makes this
 # build a build of the tag rather than of whatever resolved today.
 echo "→ installing dependencies for $REF (a few minutes)"

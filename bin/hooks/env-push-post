@@ -1,0 +1,4 @@
+#!/bin/bash
+# What the startup log says it configured, which is the only report of whether
+# a setting took. Not the values: the server does not log those.
+ssh -o BatchMode=yes "$HOST" "journalctl -u thefloor -n 40 --no-pager | grep -i 'unset\|review' || true"

@@ -8,7 +8,7 @@
 #   bin/orphans --delete     actually remove them, after printing and asking
 #
 # Reports by default and deletes only when asked, which is the same trade
-# `bin/db --write` and `bin/deploy --dirty` make: looking is the common case
+# `ts db --write` and `ts deploy --dirty` make: looking is the common case
 # and is safe, and the irreversible half is the one you have to name.
 #
 # A row is the only record of which keys belong to a recording, so an object
@@ -47,7 +47,6 @@
 set -euo pipefail
 
 BUCKET=${THEFLOOR_BUCKET:-thefloor-recordings}
-HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Mirrors DELETED_RETENTION_MS in core/constants.ts, a week. The week is the
 # window in which a deletion is a mistake somebody can still undo by hand, and
@@ -86,7 +85,7 @@ list_bucket > "$work/objects.tsv"
 echo "→ reading recordings from the deployed database"
 # The column is added by the server at startup, so a box not yet deployed
 # with it fails here — before anything is deleted — rather than after.
-if ! "$HERE/db" "select channel_id || '/' || id || ' ' ||
+if ! ts db "select channel_id || '/' || id || ' ' ||
     case when $DUE then 'due' else 'kept' end from recordings" \
     > "$work/db.txt"; then
   echo "bin/orphans: could not read recordings. If the error names" >&2
@@ -104,7 +103,7 @@ awk '$2 == "due" { print $1 }' "$work/rows.tsv" | sort -u > "$work/due.txt"
 # is a real state, but it is not one to find out about here.
 if [ ! -s "$work/rows.txt" ]; then
   echo "bin/orphans: the database named no recordings at all." >&2
-  echo "Refusing to treat the whole bucket as orphaned. Check bin/db." >&2
+  echo "Refusing to treat the whole bucket as orphaned. Check ts db." >&2
   exit 1
 fi
 
@@ -201,7 +200,7 @@ if [ -s "$work/candidates.txt" ]; then
     ids=$(cut -d/ -f2 "$work/confirmed.txt" | sed "s/.*/'&'/" | paste -sd, -)
     # Guarded on the same week and on being deleted at all, so a row that is
     # somehow not what the first query said it was is left alone.
-    marked=$("$HERE/db" --write "UPDATE recordings
+    marked=$(ts db --write "UPDATE recordings
       SET objects_cleared_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
       WHERE id IN ($ids) AND $DUE;
       SELECT changes();" | tail -n 1 | tr -d ' ')

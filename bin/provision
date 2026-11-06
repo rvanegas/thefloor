@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Brings a bare Ubuntu 24.04 Lightsail instance to the point where bin/deploy
+# Brings a bare Ubuntu 24.04 Lightsail instance to the point where ts deploy
 # works against it. Run once per box:
 #
 #     bin/provision ubuntu@<new-ip>
@@ -76,7 +76,7 @@ $SSH "$HOST" 'set -euo pipefail
   fi
 '
 
-# Outside ~/thefloor on purpose: bin/deploy rsyncs that tree with --delete, so
+# Outside ~/thefloor on purpose: ts deploy rsyncs that tree with --delete, so
 # anything inside it is something a later deploy removes.
 echo "→ directories"
 $SSH "$HOST" 'mkdir -p ~/thefloor-data ~/thefloor ~/.config/thefloor && chmod 700 ~/.config/thefloor'
@@ -111,7 +111,7 @@ $SSH "$HOST" 'sudo systemctl enable --now unattended-upgrades >/dev/null 2>&1 ||
 
 # The upgrades stay; what goes is needrestart restarting this service at 06:15
 # UTC whenever a library it maps changes, which drops presence, the floor and
-# any recording in flight. bin/deploy restarts it anyway, often, so the stale
+# any recording in flight. ts deploy restarts it anyway, often, so the stale
 # library is picked up at a moment somebody chose. provision-livekit does the
 # same for the media plane.
 echo "→ needrestart leaves thefloor alone"
@@ -122,5 +122,5 @@ CONF'
 echo "✓ provisioned. Still to do by hand, in order:"
 echo "    1. copy server/.env and the APNs .p8   (planning/MIGRATION.md)"
 echo "    2. copy the database into ~/thefloor-data/"
-echo "    3. THEFLOOR_HOST=$HOST bin/deploy"
+echo "    3. HOST=$HOST ts deploy   # HOST is an ~/.ssh/config alias for the new box"
 echo "    4. at cutover, once the static IP has moved: sudo systemctl restart caddy"

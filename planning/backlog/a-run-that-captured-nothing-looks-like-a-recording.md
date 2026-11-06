@@ -19,7 +19,7 @@ the next submission and nothing else.
 
 **And the shape still occurs.** The app half of the 2026-09-06 fix — holding
 `START_RECORDING` for `RECORD_PUBLISH_WAIT_MS` until `micPublished` — first
-shipped in build 157, and `bin/health` reports `oldestBuild` 104 against a
+shipped in build 157, and `ts health` reports `oldestBuild` 104 against a
 floor of 80. Below 157 the ask can still beat the publish. Above it, the hold
 expires after two seconds and the action is sent anyway, deliberately, because
 a device with no microphone never publishes and a recording of the other party

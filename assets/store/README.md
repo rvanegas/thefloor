@@ -34,7 +34,7 @@ interface itself carries an argument in them rather than displaying a feature.
 planning/MARKETING.md § *What is already built* says why the other two are good
 store assets and not landing-page ones.
 
-**This directory is excluded from `bin/deploy`.** It is 900 KB of source
+**This directory is excluded from `ts deploy`.** It is 900 KB of source
 material the server has no use for, and the box should not carry it.
 
 ## Regenerating the derivatives

@@ -35,7 +35,7 @@ LIVEKIT_HOSTNAME=${LIVEKIT_HOSTNAME:-livekit.rvanegas.co}
 
 # Generated once with `livekit-server generate-keys` and kept beside the APNs
 # key, under ~/.config/thefloor — a credential rather than data, and outside the
-# tree because bin/deploy rsyncs that with --delete.
+# tree because ts deploy rsyncs that with --delete.
 ENV_FILE=${THEFLOOR_LIVEKIT_ENV:-$HOME/.config/thefloor/livekit.env}
 if [ ! -f "$ENV_FILE" ]; then
   cat >&2 <<MSG
@@ -112,7 +112,7 @@ $SSH "$HOST" 'set -euo pipefail
   sudo chmod 750 /etc/livekit'
 
 # /etc/livekit rather than ~/.config/thefloor, and the difference matters:
-# bin/deploy rsyncs ~/thefloor with --delete, and while ~/.config is outside that
+# ts deploy rsyncs ~/thefloor with --delete, and while ~/.config is outside that
 # tree too, /etc is outside it by construction. A config a deploy can reach is
 # one that works perfectly until the deploy after next removes it, and the
 # failure arrives as "audio stopped" some minutes after a green deploy.
@@ -212,7 +212,7 @@ $SSH "$HOST" 'sudo chown livekit-egress:livekit-egress /etc/livekit/egress.yaml 
 # below). Redis is on the list because livekit-server Requires= it, so
 # restarting Redis restarts the SFU; docker and containerd because egress runs
 # under them. They are then restarted by hand when nobody is talking, with
-# bin/restart-services, which bin/deploy reminds you of.
+# bin/restart-services, which ts deploy reminds you of.
 echo "→ needrestart leaves the media plane alone"
 $SSH "$HOST" 'sudo tee /etc/needrestart/conf.d/livekit.conf >/dev/null <<'"'"'CONF'"'"'
 $nrconf{override_rc}{qr(^livekit-server\.service$)} = 0;

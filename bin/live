@@ -67,7 +67,7 @@ for arg in "$@"; do
   case "$arg" in
     --local) local_mode=true ;;
     # The whole comment block, however long it grows — the same reasoning as
-    # bin/db, where a fixed line range truncated the help the moment the
+    # ts db, where a fixed line range truncated the help the moment the
     # header gained a line.
     -h|--help)
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
@@ -135,7 +135,7 @@ if $local_mode; then
   exec sqlite3 -readonly -header -column -cmd '.timeout 2000' "$LOCAL_DB" <<<"$SQL"
 fi
 
-# Over stdin rather than in the command line, for the reason bin/db records:
+# Over stdin rather than in the command line, for the reason ts db records:
 # interpolated into a remote shell the query is expanded before sqlite3 ever
 # sees it, and escaping cannot close that class off.
 exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \

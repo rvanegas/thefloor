@@ -50,7 +50,7 @@ here has to be read in order, and no entry depends on another.
 | Claude consulting somebody's own writing, the *Library* switch and *Floor Settings*' noesis card | noesis client |
 | Session tokens, and the journal | The credential this project issues |
 
-`bin/env-pull` / `bin/env-push` and `server/.env` are the closing paragraph of
+`ts env-pull` / `ts env-push` and `server/.env` are the closing paragraph of
 § *The eleven*; every key and setting is documented in `server/.env.example`.
 
 ---
@@ -127,7 +127,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   what separates it from the database in `thefloor-data`.
 
   What matters more than the convention is that it is **outside the synced
-  tree**: `bin/deploy` rsyncs with `--delete`, so a key inside the tree is one
+  tree**: `ts deploy` rsyncs with `--delete`, so a key inside the tree is one
   a later deploy removes. `*.p8` is in `.gitignore` and in the deploy excludes,
   both deliberately.
 
@@ -162,7 +162,7 @@ Deliberately separate, so no single leak is worse than it has to be:
 
   Generated in App Store Connect under Users and Access → Integrations, and
   offered for download **once**, like the APNs key. Same reasons for the
-  location: `*.p8` is gitignored and excluded from the deploy, and `bin/deploy`
+  location: `*.p8` is gitignored and excluded from the deploy, and `ts deploy`
   rsyncs with `--delete`, so a key inside the tree is one a later deploy
   removes.
 
@@ -183,7 +183,7 @@ Deliberately separate, so no single leak is worse than it has to be:
 
   It lives in `~/.config/thefloor/upload.keystore`, with its password in
   `upload-keystore.txt` beside it, both mode 600. Same location and same
-  reasoning as the two `.p8` keys: `bin/deploy` rsyncs with `--delete`, so a
+  reasoning as the two `.p8` keys: `ts deploy` rsyncs with `--delete`, so a
   credential inside the tree is one a later deploy removes. `*.keystore` is
   gitignored as a second line of defence.
 
@@ -304,7 +304,7 @@ Deliberately separate, so no single leak is worse than it has to be:
 
   It lives in `~/.config/thefloor/fcm-service-account.json`, mode 600, and on
   the box at the path `FCM_SERVICE_ACCOUNT_PATH` names — same location and same
-  reasoning as the two `.p8` keys and the upload keystore: `bin/deploy` rsyncs
+  reasoning as the two `.p8` keys and the upload keystore: `ts deploy` rsyncs
   with `--delete`, so a credential inside the tree is one a later deploy
   removes. `fcm-service-account.json` is gitignored as a second line of
   defence.
@@ -361,7 +361,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   and so is *Respond* on the Record bar. Set it, and push it, with the deploy that ships
   the card, not before. Marked `# env-push: optional` in `server/.env.example`.
 
-  Rotating it is free: mint another, replace the line, `bin/env-push`, revoke
+  Rotating it is free: mint another, replace the line, `ts env-push`, revoke
   the old. Nothing stored depends on it — the replies are pastes here, and
   `claude_usage` holds counts rather than anything keyed to the credential.
 
@@ -397,7 +397,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   so a copy of the database alone reaches nobody's library. **Rotating the
   secret therefore disconnects everybody**, who connect again on *Floor
   Settings*: re-run `add_client.py` (a new secret, the old one dead at once),
-  replace both lines, `bin/env-push`, restart. The access tokens a press sends
+  replace both lines, `ts env-push`, restart. The access tokens a press sends
   live an hour in memory, and **travel to Anthropic in every library request**,
   as the Record does — Anthropic's servers call noesis with them; this one only
   refreshes them. Each reaches one person's libraries, and noesis's server offers
@@ -409,7 +409,7 @@ Deliberately separate, so no single leak is worse than it has to be:
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it
-back. **`bin/env-pull` and `bin/env-push`** keep `~/.config/thefloor/server.env`
+back. **`ts env-pull` and `ts env-push`** keep `~/.config/thefloor/server.env`
 level with it, so the box stops being the only copy; edit in either place and
 run the matching direction afterwards. Neither script prints a value: what
 changed is reported by key name alone. `env-push` also names anything
@@ -477,6 +477,6 @@ prove anything. Vacuuming would only destroy the reconnect history those
 diagnoses rest on. **This holds only while a token's expiry never slides** — make
 it sliding and a leaked token in use lives for ever. Revoking early has no
 one-call form — `POST /auth/sign-out-others` is per-account and authenticates
-with the caller's own token — so it would mean `bin/db --write` over the
+with the caller's own token — so it would mean `ts db --write` over the
 `tokens` table. backlog/nothing-expires-the-journal-and-something-should.md is
 the separate fact that nothing expires the journal at all.

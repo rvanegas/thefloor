@@ -5,7 +5,7 @@
 #   bin/people                 against the deployed server
 #   bin/people --local         the development database on this machine
 #
-# Read-only, always. This is the roster, not an admin tool: bin/db --write is
+# Read-only, always. This is the roster, not an admin tool: ts db --write is
 # where editing lives, and it makes you ask for it.
 #
 # The order is deliberate and is the opposite of the interesting one. Sorted
@@ -70,7 +70,7 @@ for arg in "$@"; do
   case "$arg" in
     --local) local_mode=true ;;
     # The whole comment block, however long it grows — the same reasoning as
-    # bin/db, where a fixed line range truncated the help the moment the header
+    # ts db, where a fixed line range truncated the help the moment the header
     # gained a line.
     -h|--help)
       awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
@@ -143,7 +143,7 @@ fi
 
 echo "→ production${floor:+ · floor build $floor}"
 # Over stdin rather than interpolated into the remote shell, for the reason
-# bin/db spells out: $, backticks and backslashes are all live in that position.
+# ts db spells out: $, backticks and backslashes are all live in that position.
 exec ssh -i "$KEY" -o BatchMode=yes "$HOST" \
   "sqlite3 -readonly -header -column -cmd '.timeout 2000' '$REMOTE_DB'" \
   <<<"$sql"

@@ -465,7 +465,7 @@ export const MAX_PING_TEXT_LENGTH = 100;
  * socket on iOS is not a tunnel but the app being suspended — which returns
  * either within a second of somebody picking the phone up, or not for minutes.
  * `/healthz` has carried `dropsRecovered` against `dropsExpired` since
- * 2026-08-27 for exactly this question; `bin/health` prints them.
+ * 2026-08-27 for exactly this question; `ts health` prints them.
  *
  * **Shortening it to five seconds was tried and reverted on 2026-09-08**, and
  * the reason is worth keeping so the argument is not had a third time: this

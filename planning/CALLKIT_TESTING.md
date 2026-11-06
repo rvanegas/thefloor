@@ -18,7 +18,7 @@ two later changes sit on the same path and are tested by the same calls:
   WebRTC; never on a phone.
 
 **The server is done.** The deployed commit includes `ON_ANOTHER_CALL`
-(`bin/health`), so the roster can say *On another call* as soon as a build
+(`ts health`), so the roster can say *On another call* as soon as a build
 sends it.
 
 ## 1. On a phone

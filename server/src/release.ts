@@ -273,14 +273,14 @@ export interface Deployed {
   commit: string;
   /** Branch it was synced from, for when the sha alone is not recognisable. */
   branch: string;
-  /** When bin/deploy stamped it, ISO 8601. */
+  /** When ts deploy stamped it, ISO 8601. */
   at: string;
 }
 
 /**
- * What `bin/deploy` recorded about the sync that put this code here.
+ * What `ts deploy` recorded about the sync that put this code here.
  *
- * `bin/deploy` rsyncs the working tree rather than a git ref, deliberately, so
+ * `ts deploy` rsyncs the working tree rather than a git ref, deliberately, so
  * that it works from a dirty tree — which means nothing about what is running
  * is recoverable from the box itself. Every "verified against production
  * afterwards" note ever written names a behaviour and no revision. This is the

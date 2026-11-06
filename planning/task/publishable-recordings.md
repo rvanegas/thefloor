@@ -31,7 +31,7 @@ is this server's own list, and a podcast app's search does not read it.
 Somebody pressing a button on two websites, each with its own review, for one
 channel that wants to be found that way. Nothing in the repository does it. What it needs first is a channel that is actually
 published, with cover art and a category set, and a feed URL to paste — all of
-which now exist. `bin/health` is not the check; a feed validator is.
+which now exist. `ts health` is not the check; a feed validator is.
 
 **Where the bytes come from, when there is enough traffic to care.** Episodes
 are served off this box, ranged, which keeps the accounting honest and the
