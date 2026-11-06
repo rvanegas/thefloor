@@ -109,8 +109,8 @@ any box that is not the live one.
 This file is loaded in full into every session, so a paragraph here is paid for
 every time and a paragraph in `planning/` only when somebody goes looking.
 
-**Keep it under 550 lines, and nearer 500.** It is 307 now. **Correct that
-figure in the same commit as any change to this file** — it was once 54 lines
+**It is 16,232 bytes, under technosophia's cap of 20,000.** **Correct
+that figure in the same commit as any change to this file** — it was once 54 lines
 stale.
 
 What earns its place here is what stops somebody losing a day: `APNS_ENV`, and
