@@ -198,7 +198,7 @@ fi
 
 # The server stage is technosophia's shared deploy, run through `ts`.
 if in_plan server && ! command -v ts >/dev/null; then
-  problems+=("ts is not on PATH — export PATH=\"\$HOME/src/technosophia:\$PATH\"")
+  problems+=("ts is not on PATH — ln -s ~/src/technosophia/ts ~/.local/bin/ts")
 fi
 
 if in_plan ios; then
