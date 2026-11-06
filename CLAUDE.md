@@ -109,9 +109,8 @@ any box that is not the live one.
 This file is loaded in full into every session, so a paragraph here is paid for
 every time and a paragraph in `planning/` only when somebody goes looking.
 
-**It is 16,232 bytes, under technosophia's cap of 20,000.** **Correct
-that figure in the same commit as any change to this file** — it was once 54 lines
-stale.
+**It is capped at technosophia's 20,000 bytes**, which the test suite holds
+(`ts instructions check`).
 
 What earns its place here is what stops somebody losing a day: `APNS_ENV`, and
 the `.p8` keys living outside a tree that `ts deploy` rsyncs with `--delete`.
@@ -170,7 +169,7 @@ configured" screen. `server/.env` is deliberately not copied.
 `npm test` and `npm run typecheck` from the repo root run all three packages;
 both are `scripts` entries in the root `package.json`, which is where to look
 for the per-package variants rather than here. The suite runs technosophia's
-`note check` by path, so `~/src/technosophia` (or `$TECHNOSOPHIA`) has to be
+`note check` and `instructions check` by path, so `~/src/technosophia` (or `$TECHNOSOPHIA`) has to be
 there.
 
 ---
