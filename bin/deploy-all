@@ -42,7 +42,7 @@
 # them or to run one alone.
 #
 # The server going first is a weaker claim but a real one: a wire change has to
-# reach the box before a client that speaks it reaches a phone (AGENTS.md §
+# reach the box before a client that speaks it reaches a phone (CLAUDE.md §
 # *Never ship a wire change to a server before the client can speak it*), and
 # every one of the three client artifacts below is built after the box has it.
 #
@@ -299,7 +299,7 @@ if [ -n "$failed" ]; then
   exit 1
 fi
 
-# Pushing is a separate decision — AGENTS.md is explicit that landing is asked
+# Pushing is a separate decision — CLAUDE.md is explicit that landing is asked
 # for each time — so these are printed and not run. The tag is the one that
 # gets forgotten, being made by a script rather than typed.
 echo "✓ all of it"

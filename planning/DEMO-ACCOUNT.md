@@ -155,7 +155,7 @@ the other account, borrow the bypass and give it back:
 3. Point `REVIEW_IDENTIFIER` back; restart. Confirm the startup log names the
    demo account again.
 
-Each restart costs presence but not channels — see AGENTS.md. That is how both
+Each restart costs presence but not channels — see CLAUDE.md. That is how both
 accounts were created in the first place.
 
 Note also that `POST /auth/sign-out` revokes the token it is called with. Signing

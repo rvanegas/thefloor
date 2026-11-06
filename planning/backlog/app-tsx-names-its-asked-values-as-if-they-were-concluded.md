@@ -37,7 +37,7 @@ Also loose, in ascending order of how much they matter:
   `channelHasAudio` — named after one of its two exports, abbreviated
   differently from that export.
 - **`GLOSSARY.md` has no entry for any of them.** Not `micNeeded`, not
-  `microphoneNeeded`, not `channelHasAudio`, not `hasAudio`. Per AGENTS.md the
+  `microphoneNeeded`, not `channelHasAudio`, not `hasAudio`. Per CLAUDE.md the
   glossary is the source of truth for the vocabulary, and this is four names for
   three concepts with one collision — precisely what it exists for.
 

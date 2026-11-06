@@ -1,6 +1,6 @@
 # Planning
 
-Everything about The Floor that is not code and not AGENTS.md. Four
+Everything about The Floor that is not code and not CLAUDE.md. Four
 directories hold items, one file each; the files at this level are standing
 documents, and nothing else belongs beside them.
 
@@ -38,7 +38,7 @@ file at this level. A list that lags is a list that authorises the wrong file.
   was told, per version.
 
 `ts note` is the tool for the first three — `find`, `new`, `rename`, `list`,
-`check` — and `ts task "Some Title"` makes a task. AGENTS.md has the rule that
+`check` — and `ts task "Some Title"` makes a task. CLAUDE.md has the rule that
 makes a quoted title a reference to one of these files.
 
 ## The files
@@ -54,7 +54,7 @@ GLOSSARY.md's one-line list, which is worth reading routinely.
 | [DEMO-ACCOUNT.md](DEMO-ACCOUNT.md) | The two accounts App Review signs in as, why two, and the order they are torn down in | Before a submission, and before touching `REVIEW_IDENTIFIER` / `REVIEW_CODE` |
 | [EXPIRATIONS.md](EXPIRATIONS.md) | Every deadline measured in days, each with its own argument, and which are published promises | Before changing any retention or expiry constant, or "tidying" them into one |
 | [GLOSSARY.md](GLOSSARY.md) | The source of truth for vocabulary — user words, code words, Spanish — with a one-line-per-term list at the top | The list routinely; an entry when a word is in doubt. Edit it in the same commit as a rename |
-| [HARNESS.md](HARNESS.md) | What Claude Code is configured to do here — hooks, skills, agents, permissions — and what it should be, ranked | Before adding a hook, skill, agent or permission rule, or a prohibition to AGENTS.md |
+| [HARNESS.md](HARNESS.md) | What Claude Code is configured to do here — hooks, skills, agents, permissions — and what it should be, ranked | Before adding a hook, skill, agent or permission rule, or a prohibition to CLAUDE.md |
 | [INFRASTRUCTURE.md](INFRASTRUCTURE.md) | The live box: instance, IP, DNS, TLS, services, ports, logs, and the two media settings that fail silently | Before touching, sizing or restarting the box |
 | [MANUAL.md](MANUAL.md) | The introduction email for somebody who has just joined. Not yet sent, and its habit section predates stepping in nearby — `task/update-the-introduction-and-send-it-to-new-users.md` | Before writing anything that teaches a user how the app works |
 | [MARKETING.md](MARKETING.md) | The acquisition argument: the group as the unit, the funnel's fourteen levels, measurement, paid, and what marketing may not do | Before spending money, adding measurement, or writing copy for strangers |

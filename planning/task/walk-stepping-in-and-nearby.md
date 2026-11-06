@@ -107,7 +107,7 @@ three.
   dead button (step 12). And **the roster's retirement to nearby is the box's
   own poll**, so a box behind on `reconcilePresence` fails step 13 for a reason
   that has nothing to do with the phone. Deploy `master` with all of it on,
-  confirm with `ts health`, and only then put a build on a phone. AGENTS.md §
+  confirm with `ts health`, and only then put a build on a phone. CLAUDE.md §
   *Never ship a wire change to a server before the client can speak it*.
 - **A debug account**, which is the `debug` column on the box. It gates the
   `AudioDebugPanel` at the foot of the channel screen and the shipping of the
@@ -122,7 +122,7 @@ three.
   the trap for step 9: a token from `expo run:ios` is only valid against
   `api.sandbox.push.apple.com`, and the deployed server defaults to
   `production`. Cross them and the notification simply never arrives, which
-  looks exactly like the rule being wrong. See AGENTS.md.
+  looks exactly like the rule being wrong. See CLAUDE.md.
 
 ### The rig
 

@@ -23,7 +23,7 @@ import type { ChannelState, GuestId, InvitedGuest, UserId } from './types';
  * about guests will meet a server that does not — every time a build is tested
  * against a box that has not been deployed yet — and the failure mode without
  * this is a crash on the channel screen rather than a channel with no guests
- * in it. See AGENTS.md on shipping a wire change to one end first.
+ * in it. See CLAUDE.md on shipping a wire change to one end first.
  */
 export function isGuest(state: ChannelState, id: UserId): boolean {
   return !!state.guests && id in state.guests;

@@ -699,7 +699,7 @@ Named so nobody meets them for the first time under a deadline. All deferred.
   (131), i.e. **one build-number stream across both platforms**. That is the
   cheap answer to the platform-dimension problem rather than a workaround for
   it: while the two numbers stay equal, `MIN_SUPPORTED_BUILD` keeps meaning one
-  thing, and AGENTS.md's floor rule needs no second column.
+  thing, and CLAUDE.md's floor rule needs no second column.
 
   **`ts upload-ios` now moves both**, decided the same day. It takes the next
   number from the *larger* of the two rather than from iOS, so a pair that has

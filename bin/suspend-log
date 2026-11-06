@@ -74,7 +74,7 @@ const DEFAULT_LOG = path.join(
 );
 
 /**
- * From `app.json` rather than written here, on the same reasoning AGENTS.md
+ * From `app.json` rather than written here, on the same reasoning CLAUDE.md
  * gives for the Expo version: a file that states a fact separately from the
  * file that owns it is a file that can be wrong, and this one would be wrong
  * silently — every pattern below would simply stop matching and the report

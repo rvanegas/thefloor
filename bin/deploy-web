@@ -52,7 +52,7 @@ if [ -z "$train" ]; then
 fi
 
 # Which ref each train is. `released` is a lightweight ref pointing at a
-# build/<n> tag object rather than at a commit — see AGENTS.md — so it is
+# build/<n> tag object rather than at a commit — see CLAUDE.md — so it is
 # resolved with rev-parse like anything else and the peeling is git's problem.
 if [ "$train" = stable ]; then
   REF=released
@@ -133,7 +133,7 @@ node -e "
 # Installed rather than borrowed, which costs minutes and is not negotiable.
 #
 # Symlinking the checkout's `node_modules` is the obvious shortcut and is the
-# one AGENTS.md names outright: `npm install` resolves the link and writes
+# one CLAUDE.md names outright: `npm install` resolves the link and writes
 # through it, so a build here could change what master builds against, and one
 # such link reached a commit already. Metro and Expo also write caches under
 # the project, and this tree is a *different revision* — borrowing modules from

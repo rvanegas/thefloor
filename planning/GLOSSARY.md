@@ -252,7 +252,7 @@ writing.
 
 **Rename here in the same commit as the rename in the code.** This file is
 claimed as a source of truth, and a source of truth that lags is worse than no
-file — it authorises the wrong word. The same rule AGENTS.md applies to its own
+file — it authorises the wrong word. The same rule CLAUDE.md applies to its own
 line count.
 
 **And an entry is not written until it is in the list at the top.** Adding,
@@ -968,7 +968,7 @@ the *Edit* the sheet hid behind, a settings field needing none; and the tab's
 name, *Clipboard* from then until the tab went into *Record* on 2026-10-15.
 
 **It is `description` in the code and on the wire throughout**, and always was.
-Renaming it would have been a wire change for a word — see AGENTS.md on never
+Renaming it would have been a wire change for a word — see CLAUDE.md on never
 shipping one to a server before the client can speak it — and for the fortnight
 the user's word differed, this section was the record of the mismatch.
 
@@ -4221,7 +4221,7 @@ only a `can…` predicate in `core/`.)
 An installed app below `MIN_SUPPORTED_BUILD` replaces itself with an update
 screen and disconnects. The floor is enforced by the client, since 2026-08-17 —
 raising the number ends sessions on phones rather than merely licensing a
-deletion. See AGENTS.md, which carries the traps around builds 37 and 51.
+deletion. See CLAUDE.md, which carries the traps around builds 37 and 51.
 
 ## Follower
 
@@ -5123,7 +5123,7 @@ the server states to the media plane.
 - **decision/** and its closed volumes — why a thing is the way it
   is, including what was deliberately not built. Grep the whole set.
 - **EXPIRATIONS.md** — every deadline measured in days.
-- **AGENTS.md** — the traps that cost a day, and the five verbs (*land*,
+- **CLAUDE.md** — the traps that cost a day, and the five verbs (*land*,
   *deploy*, *upload*, *submit*, *release*), which are five different things and
   are not defined here because they are about shipping rather than about the
   product.

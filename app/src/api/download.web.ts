@@ -8,7 +8,7 @@ import type { Handoff } from '../share';
  * **It cannot be a link, and that is the whole reason this file exists.**
  * `GET /recordings/:id/export` needs the bearer token, and an `<a href>`
  * carries no headers — the token could only travel in the query string, which
- * is the one place `AGENTS.md` and the privacy policy both say credentials do
+ * is the one place `CLAUDE.md` and the privacy policy both say credentials do
  * not go. So the bytes are fetched, held as a blob, and handed to a synthetic
  * anchor with an object URL.
  *

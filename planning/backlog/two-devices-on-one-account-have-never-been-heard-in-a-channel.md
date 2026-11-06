@@ -110,7 +110,7 @@ Two ways to get A and B:
 
 1. C enters the channel and keeps talking continuously. A steady voice is the
    instrument; silence measures nothing, which is the same reason
-   § *A floor claim is enforced against a track* in AGENTS.md says the case
+   § *A floor claim is enforced against a track* in CLAUDE.md says the case
    worth hearing is a claimed floor rather than a quiet room.
 2. A enters. Confirm A hears C.
 3. **B enters the same channel.** This is the moment.

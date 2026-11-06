@@ -33,7 +33,7 @@ Added 2026-09-07. Read the section you need, not the file: this is ninety-five
 kilobytes and almost no question needs all of it. **The figure had said
 sixty-two since it was written and was twenty-four kilobytes stale by
 2026-09-26** — correct it in the same commit as anything added here, on
-AGENTS.md's own rule about the line count it keeps: a number nobody has checked
+CLAUDE.md's own rule about the line count it keeps: a number nobody has checked
 argues for reading a file that costs half again as much as it claims.
 
 - Self-Mute
@@ -159,7 +159,7 @@ and they can differ for a window:
   replaced under it. A phone whose connection flaps rejoins publishing a new
   track, which the old statement does not name and which is subscribed to by
   default. The transition is for latency and `reconcileSilence` is for truth;
-  do not collapse one into the other. See AGENTS.md and
+  do not collapse one into the other. See CLAUDE.md and
   decision/archive/DECISIONS-2026-08-13-to-2026-08-15.md.
 - The app's `mutedByServer` is an observation of an event, so it lags.
 - The word on screen is "silenced", which appears in neither layer.

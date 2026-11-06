@@ -18,7 +18,7 @@ what makes stage 2's bad case lossless, which is why it goes first.
 
 ## What a restart costs today
 
-`ts deploy` restarts the `thefloor` unit. AGENTS.md says a deploy costs
+`ts deploy` restarts the `thefloor` unit. CLAUDE.md says a deploy costs
 presence, not channels, and that is true — `restore()` revives every unended
 channel from its durable blob. What it leaves out is that the *conversation*
 does not survive, by design: `durableOf` (`server/src/channels.ts`) omits the
@@ -103,7 +103,7 @@ restart it. Roll deploys out the same way.
 **This removes the hardest part of the alternatives.** There is no handover
 protocol between the two, so no serialised live-state format, and therefore no
 internal version boundary between old code and new — which is the thing that
-makes live migration expensive, and is the same two-step problem AGENTS.md
+makes live migration expensive, and is the same two-step problem CLAUDE.md
 describes for wire changes, in a place nobody would think to look for it.
 Nothing is forcibly interrupted; a process is simply given no new work.
 

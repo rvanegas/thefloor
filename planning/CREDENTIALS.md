@@ -21,7 +21,7 @@ at the end is about one it mints** — the session token — and a place it is
 currently written down in clear.
 
 One of the traps here bites people who never open this file, so it stayed in
-AGENTS.md: `APNS_ENV`. The three artifacts that disagree about entitlements are
+CLAUDE.md: `APNS_ENV`. The three artifacts that disagree about entitlements are
 in RELEASING.md.
 The `rtc.use_external_ip` trap stayed with the infrastructure inventory, in
 INFRASTRUCTURE.md § *What is where*, which it should not be separated from.
@@ -40,7 +40,7 @@ here has to be read in order, and no entry depends on another.
 | `ts provision-livekit`, media that will not connect | LiveKit |
 | Recordings: writing them, or reading one back | `thefloor-egress`, `thefloor-server` |
 | A one-time code that never arrived | `thefloor-server` (SES, and the configuration-set trap) |
-| Push on iOS — and see `APNS_ENV` in AGENTS.md first | APNs auth key |
+| Push on iOS — and see `APNS_ENV` in CLAUDE.md first | APNs auth key |
 | `ts upload-ios`, `ts submit-ios`, `ts testflight`, `ts testflight-notes` | App Store Connect API key |
 | An Android release build, `ts android` | Android upload key |
 | Donations, `POST /donations/kofi` | Ko-fi webhook verification token |

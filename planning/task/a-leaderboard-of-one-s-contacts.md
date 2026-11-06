@@ -217,7 +217,7 @@ viewer. Two callers, two intents, and the global one is the operator's.
 
 ### Order of work, and the deploy
 
-The wire moves, so it is the ordinary two-step AGENTS.md insists on, and it
+The wire moves, so it is the ordinary two-step CLAUDE.md insists on, and it
 happens to be free here.
 
 **Server first, and it breaks nothing.** A shipped client only shows the button

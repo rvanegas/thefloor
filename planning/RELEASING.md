@@ -57,14 +57,14 @@ alike.** A deploy is one command, takes a minute, needs nobody's permission and
 cannot be recalled except by another deploy. A release is days of queue, one
 review that can say no, and a population that updates whenever it updates. The
 whole of `## Branches, tags, and what is actually in people's hands` in
-AGENTS.md exists because of that asymmetry, and `MIN_SUPPORTED_BUILD` exists
+CLAUDE.md exists because of that asymmetry, and `MIN_SUPPORTED_BUILD` exists
 because the slow one never fully completes.
 
 **`land` is the one most likely to be mistaken for shipping, and it ships
 nothing.** A landed change is on the origin and in no one's hands: not on the
 box until a deploy, not on a phone until an upload, a submission, an approval
 and a release. The reason to say it precisely is that the phrase *is* the
-instruction — AGENTS.md defines "land it" as merge, push, clean up, in one
+instruction — CLAUDE.md defines "land it" as merge, push, clean up, in one
 phrase — and a session told to land something and hearing "ship it" will reach
 for the wrong script.
 
@@ -83,7 +83,7 @@ Added 2026-08-24, from the prompt: *"if I ask for deploy, prompt me in case
 upload is necessary; similarly if I ask for upload, prompt me in case deploy is
 also necessary."*
 
-Each verb is asked for explicitly, every time — AGENTS.md § *Branches, tags*.
+Each verb is asked for explicitly, every time — CLAUDE.md § *Branches, tags*.
 This is the other half of that rule, and it is not the same half. Being told
 `deploy` is not permission to upload; **but noticing that the deploy alone
 leaves the work half-delivered, and saying nothing, is its own failure.**
@@ -99,7 +99,7 @@ leaves the work half-delivered, and saying nothing, is its own failure.**
 `core/` is the one that catches people. It is imported by the server and by the
 app, so a change there is a wire change in waiting: deployed alone it can meet a
 client that speaks the old shape, uploaded alone it can meet a server that does.
-See AGENTS.md § *Never ship a wire change to a server before the client can
+See CLAUDE.md § *Never ship a wire change to a server before the client can
 speak it*.
 
 **Ask; do not infer.** A half-delivered change is often deliberate — two tasks
@@ -116,7 +116,7 @@ which build the last upload was cut from.
 ---
 
 **Read this before running `ts upload-ios`.** The branch and tag conventions
-around getting a build out are in AGENTS.md under `## Branches, tags, and what
+around getting a build out are in CLAUDE.md under `## Branches, tags, and what
 is actually in people's hands`; the accounts App Review signs in as are in
 DEMO-ACCOUNT.md.
 
@@ -315,7 +315,7 @@ tag, `app.json` and TestFlight should all say the same thing. **Check that on
 the next upload rather than assuming it**, since this has only been reasoned
 about and not yet observed working.
 
-The same key would settle the entitlement check in AGENTS.md, whose note about
+The same key would settle the entitlement check in CLAUDE.md, whose note about
 build 19 producing an IPA reading 20 is this behaviour seen where it is
 harmless, the checked copy never being uploaded.
 

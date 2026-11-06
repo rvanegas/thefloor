@@ -271,7 +271,7 @@ more than expected: there was a **4.1 MB WAL unmerged against a 106 KB
 database**, so copying the `.db` alone would have silently lost every change
 since the last checkpoint. Verified after copying — `integrity_check` ok, and 23
 channels / 17 recordings (6 marked) / 5 accounts, matching both the live box and
-the deploy record in `AGENTS.md`.
+the deploy record in `CLAUDE.md`.
 
 That is worth generalising: **any file-level copy of this database must take
 the WAL with it, or use `.backup`.** The `-wal` file being forty times the size

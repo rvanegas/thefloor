@@ -239,5 +239,5 @@ counterpart is a self-managed `ConnectionService`, and that belongs in
 `bring-android-level-with-ios.md` rather than here.
 
 **It is the wire that sets the order.** Phases 0–2 are client-only and can ship
-in one build. Phase 3's new state is a wire change, so it follows AGENTS.md's
+in one build. Phase 3's new state is a wire change, so it follows CLAUDE.md's
 rule: the server learns it first, and a shim goes in SHIMS.md.

@@ -3,7 +3,7 @@
 Everything known and not done: work deliberately deferred, defects found and
 left, behaviour nobody has tested. Every entry here is outstanding — if it has
 shipped, it has moved to decision/, and if it is about how to operate the
-thing, it is in AGENTS.md.
+thing, it is in CLAUDE.md.
 
 The neighbours worth knowing about. **task/** is the roadmap: features, audits
 and open questions, at a paragraph each, which is a different question from work

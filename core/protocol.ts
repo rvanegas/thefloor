@@ -1743,7 +1743,7 @@ export type ClientAction =
    * on every snapshot and which every existing build renders with a ping — so
    * this is backwards compatible by construction, and it is also the one step
    * that has to reach the server before a client that sends it reaches a
-   * phone. See AGENTS.md § *Never ship a wire change to a server before the
+   * phone. See CLAUDE.md § *Never ship a wire change to a server before the
    * client can speak it*.
    *
    * Sent by both of the two buttons, which are the same statement from two
@@ -1794,7 +1794,7 @@ export type ClientAction =
    *
    * **A server that predates it refuses it as an unknown action**, which is the
    * ordinary two-step read the usual way round: the server learns this first
-   * and the build that sends it ships after. See AGENTS.md § *Never ship a wire
+   * and the build that sends it ships after. See CLAUDE.md § *Never ship a wire
    * change to a server before the client can speak it* — there is no shim to
    * write, because an app that sends this to an old server is told no rather
    * than being silently ignored.
@@ -1850,7 +1850,7 @@ export type ClientAction =
    * **Optional in the type, and not optional in the deploy order.** A server
    * that predates the field drops it and mutes the sender instead — the wrong
    * person, silently, which is worse than a refusal. So this is the ordinary
-   * two-step in AGENTS.md read the usual way round: the server learns the
+   * two-step in CLAUDE.md read the usual way round: the server learns the
    * field first and a build that sends it ships after, never before. Nothing
    * enforces that, because nothing can; the app cannot ask a server what it
    * understands.

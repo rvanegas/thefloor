@@ -5,7 +5,7 @@ configured to do. Written 2026-10-11 from a survey of the repository and the
 user-level settings on the main machine.
 
 **Read it before adding a hook, a skill, an agent definition or a permission
-rule, and before adding a rule to AGENTS.md that is really a prohibition** —
+rule, and before adding a rule to CLAUDE.md that is really a prohibition** —
 since a prohibition is what the harness can enforce and prose cannot.
 
 ## Where things stand
@@ -19,7 +19,7 @@ environment description.
 The rules the project most needs kept are therefore held in two places, both
 advisory:
 
-- **AGENTS.md**, which is loaded in full every session and which the model
+- **CLAUDE.md**, which is loaded in full every session and which the model
   follows *usually*. Compliance drops as the file grows, which is the whole
   argument of its § *Keeping this file small*.
 - **Memory**, under `~/.claude/projects/…/memory/`, which is **local to one
@@ -30,7 +30,7 @@ advisory:
 
 | Mechanism | What it is | Guarantee |
 | --- | --- | --- |
-| AGENTS.md, memory, skill text | Words the model reads | None — compliance, usually |
+| CLAUDE.md, memory, skill text | Words the model reads | None — compliance, usually |
 | Permission rules in `settings.json` | The harness gates a tool call | Hard: a denied call does not run |
 | Hooks | Our shell code, run by the harness on events | Hard, deterministic, and can explain itself to the model |
 
@@ -45,7 +45,7 @@ branch switch in the main checkout (2026-09-30), and prettier rewriting
 
 ### 1. Make the four manual verbs user-only, mechanically
 
-AGENTS.md § *Branches* says landing, deploying and uploading are "manually
+CLAUDE.md § *Branches* says landing, deploying and uploading are "manually
 triggered, every time". The harness has two ways to make that true rather than
 requested, and they combine.
 
@@ -84,7 +84,7 @@ sessions to ask in prose and then have the human paste the command.
 
 ### 2. Turn landing and the verbs into user-only slash commands
 
-The landing mechanics in AGENTS.md: re-read `master` at the moment of merging,
+The landing mechanics in CLAUDE.md: re-read `master` at the moment of merging,
 rebase, re-run tests, `--ff-only`, worktree before branch, `git branch -d`'s
 misleading refusal, `git log master..<branch>` checked for other sessions'
 commits, folding pending `planning/task/` edits in. That is about sixty lines
@@ -96,13 +96,13 @@ paid for every session and needed only by sessions told to land.
 - It can be run only by somebody typing `/land`. The model cannot invoke it,
   so *who decides the work is finished* is enforced by the harness rather than
   asked of the model.
-- Its body loads only when invoked. The procedure leaves AGENTS.md, which
+- Its body loads only when invoked. The procedure leaves CLAUDE.md, which
   keeps one paragraph: *landing is `/land`, typed by a person; here is why*.
 
 The same shape fits `/deploy`, `/upload` and `/submit`. Each is a user-only
 skill that carries its verb's preconditions and points at the right section of
-RELEASING.md, instead of AGENTS.md saying *read RELEASING.md before any of
-these*. Together with § 1, AGENTS.md's § *Branches* and § *Getting a build to
+RELEASING.md, instead of CLAUDE.md saying *read RELEASING.md before any of
+these*. Together with § 1, CLAUDE.md's § *Branches* and § *Getting a build to
 users* could shrink to roughly a third, with nothing summarised away. This is
 the thematic split the file already prescribes, using the harness's own
 mechanism for it.
@@ -137,7 +137,7 @@ where it is shared, and delete `worktrees-branch-from-local-master.md`.
 
 Memory is per machine. Of the nineteen memories today:
 
-- **Already in AGENTS.md, so redundant**: `landing-is-never-a-script` (most of
+- **Already in CLAUDE.md, so redundant**: `landing-is-never-a-script` (most of
   it), `decisions-rollover-is-mechanical` (`planning/decision/README.md` has
   it).
 - **Replaced by a setting or hook above**: `worktrees-branch-from-local-master`
@@ -150,7 +150,7 @@ Memory is per machine. Of the nineteen memories today:
 - **A project rule that cloud sessions need**: `pushing-is-publication`. The
   background-job system prompt tells a session to push when the repo has a
   remote, and only this memory overrides that. A cloud session has no memory.
-  One sentence in AGENTS.md, which outranks the system prompt's default, is the
+  One sentence in CLAUDE.md, which outranks the system prompt's default, is the
   durable place for it.
 
 What should stay in memory is what is genuinely about one person working with
@@ -159,9 +159,9 @@ about the repository.
 
 ### 6. Decide what "read routinely" costs in GLOSSARY.md
 
-AGENTS.md says GLOSSARY.md's § *Every term, in one line each* is "worth
+CLAUDE.md says GLOSSARY.md's § *Every term, in one line each* is "worth
 reading routinely, and cheap to". **That section is 48KB, about 12,000
-tokens**, more than AGENTS.md itself. It is the largest recurring read the
+tokens**, more than CLAUDE.md itself. It is the largest recurring read the
 project authorises, and it grows by a line per term. The 2026-09-07 fix made
 it cheaper than the whole file (311KB), not cheap.
 
@@ -178,7 +178,7 @@ This is a judgement call, not a mechanical fix. Three ways out:
 
 ### 7. Resolve quoted task titles deterministically
 
-AGENTS.md's rule that `Do task "Track Usage"` refers to
+CLAUDE.md's rule that `Do task "Track Usage"` refers to
 `planning/task/track-usage.md` is followed by the model and is already
 executable as `ts note find`. **A `UserPromptSubmit` hook** can run that on
 each quoted string in the prompt and add one line of context per hit:
@@ -189,7 +189,7 @@ exists for.
 
 ### 8. An agent for archaeology
 
-`planning/decision/` is 2.7MB, and AGENTS.md tells sessions how to search it
+`planning/decision/` is 2.7MB, and CLAUDE.md tells sessions how to search it
 sparingly: filenames first, then archive headings, never sweep the prose. **A
 project agent at `.claude/agents/archaeologist.md`** (read-only tools, a cheap
 model) carries those rules in its own prompt, does the search in its own
@@ -201,12 +201,12 @@ contents table).
 ### 9. Smaller items
 
 - **A `commit-msg` git hook** requiring `Claude-Session:` on any commit that
-  carries a `Co-Authored-By: Claude` trailer. AGENTS.md notes that nothing can
+  carries a `Co-Authored-By: Claude` trailer. CLAUDE.md notes that nothing can
   add it afterwards, so it is worth refusing the commit that lacks it. This
   belongs in git rather than Claude Code, so it also catches a commit made by
   hand from a session's suggestion.
 - **Indexes for the two large documents without one**: ASSEMBLY_PROMPT.md
-  (55KB) and SHIMS.md (51KB). This is the 20KB rule AGENTS.md already states.
+  (55KB) and SHIMS.md (51KB). This is the 20KB rule CLAUDE.md already states.
 - **Read-only allowlist entries** for `ts health`, `ts deploys`, `ts note`,
   `ts usage`, `npm test` and `npm run typecheck`. The `fewer-permission-prompts`
   skill will propose them from the transcripts. These are cosmetic under auto
@@ -222,7 +222,7 @@ contents table).
   matching call, and a `UserPromptSubmit` hook on every prompt. Each should be
   a few milliseconds of shell, print nothing when it has nothing to say, and
   never touch the network.
-- **Do not add rules here that AGENTS.md also states.** When a recommendation
-  ships, the mechanism (the hook, the skill) is the record and AGENTS.md keeps
+- **Do not add rules here that CLAUDE.md also states.** When a recommendation
+  ships, the mechanism (the hook, the skill) is the record and CLAUDE.md keeps
   the reason in a sentence. This file keeps only what has not shipped and why
   the shipped parts are shaped as they are.

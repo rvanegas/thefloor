@@ -34,7 +34,7 @@ this file's prose and the directory drifting apart.
 somebody wrote down a title and no more. It says the work is wanted and that
 nobody has yet said what it is.
 
-**AGENTS.md § the quoting convention is what makes these addressable.** A verb
+**CLAUDE.md § the quoting convention is what makes these addressable.** A verb
 followed by a quoted string that slugifies to a filename here is a reference to
 that file, and is not itself a description of the work. Keep titles distinct
 enough to slugify unambiguously.

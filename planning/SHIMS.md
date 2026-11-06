@@ -21,7 +21,7 @@ it — which is the whole of what it is for.
 2026-08-19, raising it takes installed apps off the air — an app below the
 floor replaces itself with an update screen and disconnects. The floor moves
 when `oldestBuild` on `/healthz` has already passed the number, for its own
-reasons; then you come here. Never the other way round. AGENTS.md § *Never ship
+reasons; then you come here. Never the other way round. CLAUDE.md § *Never ship
 a wire change to a server before the client can speak it* is the other half.
 
 ## The table

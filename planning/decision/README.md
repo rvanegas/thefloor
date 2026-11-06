@@ -10,7 +10,7 @@ survive anywhere else — a commit message is read once, by whoever is already
 looking at the diff, and never again by the person about to make the same
 mistake.
 
-**Nothing here is read as a matter of course.** AGENTS.md § *`DECISIONS` is
+**Nothing here is read as a matter of course.** CLAUDE.md § *`DECISIONS` is
 more than one file* is the rule: this is archaeology, for when a decision in
 the code is inexplicable and knowing why would change what you do. The
 exception was `deploy-history.md`, until 2026-10-01; deploys are recorded on
@@ -79,7 +79,7 @@ reasons kept gets an ordinary dated decision.
 
 `archive/` holds the eleven closed volumes, 2026-08-07 to 2026-09-06, in the
 shape they were written in. They are frozen: nothing is appended, and nothing
-is reformatted. Grep them the way AGENTS.md says to — headings first
+is reformatted. Grep them the way CLAUDE.md says to — headings first
 (`grep -n '^## ' planning/decision/archive/*.md`), then the one section.
 
 **Resolving an old-style reference.** Comments in the code cite entries as

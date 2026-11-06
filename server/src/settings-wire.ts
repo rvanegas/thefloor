@@ -13,7 +13,7 @@ import type { AccountSettings } from '../../core/settings';
  * screen with no cards, silently, from the moment it restarted. **This is the
  * ordinary two-step** — send both names, ship the client that reads the new
  * ones, delete this when the floor has passed the first build that does. See
- * AGENTS.md § *Never ship a wire change to a server before the client can
+ * CLAUDE.md § *Never ship a wire change to a server before the client can
  * speak it*.
  *
  * The old names are the negation, which is the whole of what the rename did.
