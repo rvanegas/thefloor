@@ -299,7 +299,7 @@ in the body.
 ## What's New
 
 **Written per version, and it is not here.** `planning/submissions/whats-new-<version>.txt` is
-the text, composed from `released..master`, and `bin/submit-ios` is what
+the text, composed from `released..master`, and `ts submit-ios` is what
 sends it, finding it by `expo.version` — this file argues the standing copy
 and that one carries a train. Composing it stays a release-time decision, like the version string.
 
@@ -312,7 +312,7 @@ that a channel misses you.
 The live listing has **primary Utilities, secondary Social Networking**;
 MEMORY.md says the secondary is unset and should be Utilities. **Check it
 against App Store Connect and settle it there rather than here**, and say so at
-the next `bin/submit-ios`.
+the next `ts submit-ios`.
 
 Utilities is the right primary on the thesis: this is a tool that does one
 thing to your day rather than a place to spend the day. Social Networking as
@@ -377,7 +377,7 @@ it can be live within the hour.
    live, on the thesis that this is a tool rather than a place to spend the
    day. **Both records are confident and they disagree**, so this is a
    question to ask rather than a change to make. Raise it at the next
-   `bin/submit-ios`; it is app-level rather than version-level, so it does not
+   `ts submit-ios`; it is app-level rather than version-level, so it does not
    wait on a submission, but a submission is when anybody is looking.
 
 **Items 2 through 4 ride on the next submission rather than justifying one.**

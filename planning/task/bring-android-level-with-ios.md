@@ -16,7 +16,7 @@ Android is level, what survives moves to `decision/` and this file goes.
 
 **Three of the sections below describe built work rather than gaps**, and
 each says so in its first line. Read the first line before the section.
-**§ *What is true now* is as of 2026-09-04** — check it against `bin/android`
+**§ *What is true now* is as of 2026-09-04** — check it against `ts android`
 and the tree before trusting it.
 
 It replaced BACKLOG.md § *Android has never been built or run*, whose factual
@@ -26,7 +26,7 @@ claims had gone stale — there is an `android/`, and a build has been attempted
 
 ## What is true now
 
-`bin/android` builds and installs the app on an emulator. `app/src/audio/`
+`ts android` builds and installs the app on an emulator. `app/src/audio/`
 configures the Android audio session, which it did not before. **`app/modules/
 call-service/` keeps a channel alive off screen**, added 2026-09-03 and the
 second piece of Android-aware code this app has. **Push exists end to end as of
@@ -34,7 +34,7 @@ second piece of Android-aware code this app has. **Push exists end to end as of
 sends nothing until somebody creates a Firebase project, by construction rather
 than by omission. There is an upload key and a signed bundle; there is no Play
 listing, no `eas.json`, no `bin/upload-android`, and **no Android build has ever
-been in anybody's hands** — `bin/upload-ios` remains the only release path this
+been in anybody's hands** — `ts upload-ios` remains the only release path this
 repository has.
 
 The premise BACKLOG.md wrote down still holds where it matters:
@@ -50,7 +50,7 @@ is what is left, and it is longer than the build was.
 
 ## The dev loop
 
-`bin/android --setup` once, `bin/android` thereafter. The script carries the
+`ts android --setup` once, `ts android` thereafter. The script carries the
 four environment facts that no error message names; read its header rather than
 this paragraph, since it is the thing that goes stale otherwise.
 
@@ -80,7 +80,7 @@ afternoon and none of them announces itself:
 
 - **Every JDK on this machine is too new.** Android Studio bundles JDK 25;
   Homebrew's `openjdk` is 26. Gradle 8.14.3 — what the wrapper pins — supports
-  neither, and says so as a class-file-version error naming a jar. `bin/android`
+  neither, and says so as a class-file-version error naming a jar. `ts android`
   pins the keg-only `openjdk@17`, and `brew install openjdk@17` is the fix if it
   is missing.
 - **The emulator sends digital silence unless you ask twice.** `-allow-host-audio`
@@ -92,12 +92,12 @@ afternoon and none of them announces itself:
 - **A changed `app.json` does not reach the build.** `expo run:android`
   regenerates `android/` only when it is *missing*; an existing one is left
   alone, silently, and the build succeeds carrying the old configuration.
-  `bin/android --prebuild` is the answer, and this is how `versionCode` was
+  `ts android --prebuild` is the answer, and this is how `versionCode` was
   set, built cleanly, and still shipped as 1.
 
 ### Getting a build onto somebody else's phone
 
-`bin/android --apk` produces a standalone APK to send, and leaves it on the
+`ts android --apk` produces a standalone APK to send, and leaves it on the
 Desktop as `thefloor-<versionCode>.apk`. Gradle's own name is `app-release.apk`,
 four directories deep in a gitignored tree, and is what every other Expo project
 on the machine writes too; the number that would tell two of them apart is the
@@ -111,7 +111,7 @@ is the version of it that looks sufficient and is not.** `versionCode` moves on
 nearly every build, so a field-wise check fires when it matters — but only if
 every `app.json` edit comes with a version bump, and the case where it does not
 is the Android one. An Android-only change (an icon, a permission, a plugin
-setting) has no reason to touch `ios.buildNumber`, `bin/upload-ios` is what
+setting) has no reason to touch `ios.buildNumber`, `ts upload-ios` is what
 bumps the pair, and there is no reason to run it for a change iOS does not
 have. So the versions match, the tree is stale, and the APK ships the old
 configuration.
@@ -168,7 +168,7 @@ What is already done:
   signing key** — Play App Signing means Google holds the latter and re-signs
   what we send, so a lost upload key is a support ticket rather than the end of
   the listing. That is the entire reason to let Google hold it.
-- **`bin/android --aab`** builds and signs the bundle. Verified as signed by
+- **`ts android --aab`** builds and signs the bundle. Verified as signed by
   `CN=The Floor` rather than Android's debug key, which is the thing Play
   rejects.
 
@@ -213,7 +213,7 @@ in this repository:
 | Category | Communication |
 | Website | `https://thefloor.rvanegas.co` |
 | Privacy policy | `https://thefloor.rvanegas.co/privacy` — already served, already accurate |
-| The artifact | `bin/android --aab` |
+| The artifact | `ts android --aab` |
 
 And the **App content** declarations, which must all be answered before a
 release reaches *any* track, internal included:
@@ -549,7 +549,7 @@ than build without push. `app/plugins/with-google-services.js` sets the key only
 when `app/google-services.json` exists, and returns the config untouched
 otherwise. Both branches are verified.
 
-`bin/android`'s freshness stamp had to move with it: it hashed `app.json`, and
+`ts android`'s freshness stamp had to move with it: it hashed `app.json`, and
 the file appearing changes the generated tree *without* changing `app.json`.
 `config_hash` now covers both, so a machine that has just been given the
 credential correctly sees a stale tree.
@@ -701,7 +701,7 @@ Named so nobody meets them for the first time under a deadline. All deferred.
   it: while the two numbers stay equal, `MIN_SUPPORTED_BUILD` keeps meaning one
   thing, and AGENTS.md's floor rule needs no second column.
 
-  **`bin/upload-ios` now moves both**, decided the same day. It takes the next
+  **`ts upload-ios` now moves both**, decided the same day. It takes the next
   number from the *larger* of the two rather than from iOS, so a pair that has
   already drifted is healed rather than carried forward, and it says so on
   stderr when it finds one — drift is repairable but is evidence that something
@@ -710,7 +710,7 @@ Named so nobody meets them for the first time under a deadline. All deferred.
   longer only that.
 
   Two things this does not do. It does not regenerate `android/`, so a bumped
-  `app.json` reaches an Android build only through `bin/android --prebuild` —
+  `app.json` reaches an Android build only through `ts android --prebuild` —
   the same trap as any other `app.json` edit. And it is still the *only*
   bumper: an Android-only release path, when there is one, has to move both
   numbers too or the drift comes back from the other side.

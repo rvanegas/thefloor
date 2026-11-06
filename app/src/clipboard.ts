@@ -16,7 +16,7 @@ import * as Clipboard from 'expo-clipboard';
  * and documented as going away — and the argument for tolerating that was
  * entirely "one button on a panel one account can see", which stopped being
  * true the moment a second use was planned. It is a native module, so it costs
- * a prebuild and takes the autolink count from 15 to 16; `bin/upload-ios`
+ * a prebuild and takes the autolink count from 15 to 16; `ts upload-ios`
  * prints that count and it is worth reading on the next build.
  *
  * It is also the better API for the job. `setStringAsync` resolves to a

@@ -57,7 +57,7 @@ human has to approve the call itself:
   "ask": [
     "Bash(ts deploy:*)", "Bash(bin/deploy-all:*)", "Bash(bin/deploy-web:*)",
     "Bash(bin/restart-services:*)",
-    "Bash(bin/upload-ios:*)", "Bash(bin/submit-ios:*)",
+    "Bash(ts upload-ios:*)", "Bash(ts submit-ios:*)",
     "Bash(git push:*)"
   ]
 }
@@ -74,7 +74,7 @@ on it alone.
 - any `git push` whose refspec reaches `master`, or a bare push from `master`;
 - `git merge`, `git rebase` or `git fetch . <x>:master` that moves `master`;
 - `git tag -f released` and any push of a `build/*` tag;
-- `ts deploy*`, `bin/upload-ios`, `bin/restart-services`, and `bin/submit-ios`
+- `ts deploy*`, `ts upload-ios`, `bin/restart-services`, and `ts submit-ios`
   without `--status`.
 
 `ask` rather than `deny`, because when the work has been asked for, the

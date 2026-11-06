@@ -442,7 +442,7 @@ export { MAX_TRACK_BYTES } from '../../core/constants';
  */
 /**
  * What `/.well-known/apple-app-site-association` answers. The app ID is the
- * team and the bundle identifier — the team `bin/upload-ios` signs with, and
+ * team and the bundle identifier — the team `ts upload-ios` signs with, and
  * `co.rvanegas.thefloor`, which is permanent. A wrong one here fails silently
  * on every phone, so it is asserted in `community.test.ts`.
  */

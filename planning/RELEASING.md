@@ -43,8 +43,8 @@ overlap, and **nothing here is a synonym for any other line**:
 | --- | --- | --- | --- |
 | **land** | merge to `master`, **push**, delete the branch and worktree | nobody | `master` moves on the origin |
 | **deploy** | `ts deploy` — server to the box | **everybody, within a minute** | `server/deployed.json`, `/healthz` |
-| **upload** | `bin/upload-ios` — archive, sign, send to App Store Connect, set What to Test from the commits and then distribute (`bin/testflight-notes`) | TestFlight testers, after processing | tag `build/<n>` |
-| **submit** | `bin/submit-ios` prepares it; a person presses Submit | nobody yet | nothing local |
+| **upload** | `ts upload-ios` — archive, sign, send to App Store Connect, set What to Test from the commits and then distribute (`ts testflight-notes`) | TestFlight testers, after processing | tag `build/<n>` |
+| **submit** | `ts submit-ios` prepares it; a person presses Submit | nobody yet | nothing local |
 | **release** | make an approved build downloadable | **everybody who updates**, over days | tag `released` moves |
 
 Apple **approves** between submit and release, which is their word and is not
@@ -115,7 +115,7 @@ which build the last upload was cut from.
 
 ---
 
-**Read this before running `bin/upload-ios`.** The branch and tag conventions
+**Read this before running `ts upload-ios`.** The branch and tag conventions
 around getting a build out are in AGENTS.md under `## Branches, tags, and what
 is actually in people's hands`; the accounts App Review signs in as are in
 DEMO-ACCOUNT.md.
@@ -236,7 +236,7 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   triangles filling the square — so the channel would carry nothing and still
   fail the check.
 
-  `bin/upload-ios` runs `prebuild --clean`, which regenerates the whole
+  `ts upload-ios` runs `prebuild --clean`, which regenerates the whole
   `ios/` asset catalogue from `app/assets/icon.png`, so nothing else has to be
   copied anywhere for a build to pick this up.
 
@@ -246,15 +246,15 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   monochrome silhouette gets its own master file — is in
   planning/decision/.
 
-  **There is an `android/` since 2026-09-01, and `bin/upload-ios` is still the
+  **There is an `android/` since 2026-09-01, and `ts upload-ios` is still the
   only release path.** Those were one clause until Android built; they are two
-  facts now, and only the second one is about releasing. `bin/android` builds
+  facts now, and only the second one is about releasing. `ts android` builds
   and installs to an emulator, or produces an APK to sideload, and reaches
   nobody through a store — there is no upload key, no Play listing and no
   `eas.json`. See planning/task/bring-android-level-with-ios.md.
 
 - **The build number is one stream across both platforms**, adopted
-  2026-09-01. `bin/upload-ios` bumps `ios.buildNumber` and
+  2026-09-01. `ts upload-ios` bumps `ios.buildNumber` and
   `android.versionCode` together, taking the next value from the larger of the
   two so a drifted pair heals. The reason is not tidiness: the client sends
   whichever of the two its platform has as `x-thefloor-build`, and the server
@@ -291,7 +291,7 @@ Configuration decided 2026-08-09 and worth knowing the reasons for.
   string.
 
 `buildNumber` must increase for each upload, even when the version does not —
-and **`bin/upload-ios` does that itself**, reading `app.json`, adding one, and
+and **`ts upload-ios` does that itself**, reading `app.json`, adding one, and
 writing it back before it prebuilds. Bumping it by hand first is not an error
 Apple will complain about, but it skips a number: doing both is what turned 23
 into 25 and left build 24 never existing.
@@ -305,7 +305,7 @@ TestFlight as **44**. Everything downstream then named a binary that did not
 exist — the bump commit, the `build/<n>` tag, and `app.json`, left a number
 behind what Apple held and so bumping into a taken number on the next release.
 
-`bin/upload-ios` now passes it as `false`, because this script owns the build
+`ts upload-ios` now passes it as `false`, because this script owns the build
 number and increments it itself; Apple's default exists to spare you a refused
 upload when the number is already used, which is worth less than the numbers
 agreeing. **Builds up to 44 predate that**, so their tags and commits are off by
@@ -342,16 +342,16 @@ Three things depend on it, and each breaks quietly rather than loudly:
   every claimed build ambiguous, including the ones already recorded.
 - **`build/<n>` tags are one flat namespace.** git has no notion of the version
   they belong to. A reset either collides with an existing tag, which git
-  refuses, or gets disambiguated by hand into something `bin/upload-ios` does
+  refuses, or gets disambiguated by hand into something `ts upload-ios` does
   not produce.
-- **`bin/upload-ios` reads `app.json`, adds one, and writes it back.** It
+- **`ts upload-ios` reads `app.json`, adds one, and writes it back.** It
   knows nothing about the version and is not asked to. Resetting means editing
   the number by hand, which is the operation that skipped a build above.
 
 `CFBundleShortVersionString` — `expo.version` in `app.json`, `1.0.0` — moves on
 its own schedule and must match the version record in App Store Connect or the
 build picker is silently empty. Bumping it is a separate act from an upload and
-`bin/upload-ios` does not touch it.
+`ts upload-ios` does not touch it.
 
 So: yes, indefinitely, and 51 is the fifty-first build across all versions. The
 question was TASKS.md's `## Relation of Version and Build`, answered
@@ -390,18 +390,18 @@ there and goes on being true survives them.
    still installed rather than the newest released. `oldestBuild` on `/healthz`
    reports it. This is the discipline that matters most and the only one no
    tooling enforces.
-3. **`bin/upload-ios`.** One command: refuses a dirty tree, bumps and commits
+3. **`ts upload-ios`.** One command: refuses a dirty tree, bumps and commits
    the build number, prebuilds, archives, uploads, tags.
 4. **`bin/deploy-web --beta`**, which cuts the beta train from the tag step 3
    just made. This is the step that puts the submitted build's web app where a
    reviewer following the listing will actually land — see *The web trains ship
    with the build* below, and do not reach for `/app` to do it.
-5. **`bin/set-review-notes`**, which fills the demo code into
+5. **`ts set-review-notes`**, which fills the demo code into
    `planning/submissions/review-notes-<version>.txt` and sends it. The notes
    come from a file in the tree so they are reviewed like anything else; the
    code is not in that file, and the script refuses one where the placeholder
    has been filled in by hand. **A submission's two texts live in `planning/submissions/`** —
-   the notes and the `whats-new-<version>.txt` that `bin/submit-ios` sends,
+   the notes and the `whats-new-<version>.txt` that `ts submit-ios` sends,
    which *Writing "What's New"* below is about — because
    they are the only files in `planning/` that are
    payload rather than prose: they carry no first line saying what they are,
@@ -411,9 +411,9 @@ there and goes on being true survives them.
    paste that landed was `planning/recent-changes.txt` — an internal changelog,
    naming build numbers and a debug-flag diagnostics panel, carrying neither
    the warning to test account deletion last nor the Guideline 1.2 account of
-   guest links. Every check in `bin/submit-ios` passed, the field being
+   guest links. Every check in `ts submit-ios` passed, the field being
    non-empty.
-6. **`bin/submit-ios`,** which prepares the submission and stops before the
+6. **`ts submit-ios`,** which prepares the submission and stops before the
    button: it creates the version record if there is none, refuses a build
    whose train does not match `expo.version` or that is still processing,
    insists on "What's New" and on review details a reviewer can sign in with,
@@ -428,7 +428,7 @@ there and goes on being true survives them.
    cut from `released`, so run before the ref moves it re-ships the *previous*
    release and says nothing is wrong.
 
-   **`bin/submit-ios --status` is the second opinion on step 8, and
+   **`ts submit-ios --status` is the second opinion on step 8, and
    `--sync-released` is the same report with permission to act.** Both have
    both halves on screen — the build Apple says is READY_FOR_SALE, and where
    `released` actually points — which nothing else does, so they are the only
@@ -501,7 +501,7 @@ repository, which is not the same as what changed for somebody holding a
 phone: two claims in the first 1.3.1 draft were already installed, the feature
 having shipped in an earlier build and only been *refined* here.
 
-**The cap is 4,000 characters and `bin/submit-ios` refuses to exceed it**,
+**The cap is 4,000 characters and `ts submit-ios` refuses to exceed it**,
 loudly, at the moment of submitting rather than by truncating. It counts the
 file trimmed. Drafts run long because the material above accumulates; cutting
 it is usually the whole of the fix.
@@ -549,7 +549,7 @@ Five differences, none of them obvious from having done the first one.
 - **A new version record, and `expo.version` has to move with it.** A build
   cannot be attached to a version already released. Create the next version in
   App Store Connect *and* bump `expo.version` in `app.json` to the same string.
-  `bin/upload-ios` bumps `buildNumber` and nothing else, deliberately — most
+  `ts upload-ios` bumps `buildNumber` and nothing else, deliberately — most
   releases do not change the version — so this one is by hand, and it is the one
   that bites: `CFBundleShortVersionString` and the App Store version record must
   agree **or the build picker is silently empty**, with nothing on screen
@@ -610,7 +610,7 @@ is the kind that goes stale between a decision and a submission.
 - **An iPad screenshot set exists in App Store Connect.** `supportsTablet` is
   true since 2026-09-01, and **App Store Connect requires a 13" iPad set the
   moment the binary declares iPad support.** Nothing local catches this:
-  `bin/upload-ios` will send the build happily and `bin/submit-ios` does not
+  `ts upload-ios` will send the build happily and `ts submit-ios` does not
   look at media at all, so the first sign of it is the submission being
   refused with the version record already created. The iPhone sets carry
   forward between submissions; this one has to exist once.
@@ -741,7 +741,7 @@ every upload so far. **Nothing about this is a submission blocker either way.**
 
 `appPrivacyDetails`, `appDataUsages` and `dataUsages` all 404, and `appInfos`
 carries only categories and age rating. So this cannot be read by a script or
-gated in `bin/upload-ios`: it is checked by opening the page, and changes need
+gated in `ts upload-ios`: it is checked by opening the page, and changes need
 **publishing**, not just saving.
 
 ## App Store Connect, and what it will not tell you
@@ -766,11 +766,11 @@ and does not need clearing.
 `appStoreReviewDetails` is accepted at `WAITING_FOR_REVIEW` and the submission
 is undisturbed — same state, same submitted date — verified against a live one
 on 2026-08-23. So a wrong paste is recoverable right up until a reviewer opens
-it, and the fix is `bin/set-review-notes` rather than withdrawing anything.
+it, and the fix is `ts set-review-notes` rather than withdrawing anything.
 Worth knowing before somebody withdraws a submission to correct a typo, which
 costs the place in the queue.
 
-**So can "What's New", and `bin/submit-ios` refuses it anyway.** A PATCH to
+**So can "What's New", and `ts submit-ios` refuses it anyway.** A PATCH to
 `appStoreVersionLocalizations` was accepted on 2026-08-26 against 1.3.0 at
 `READY_FOR_REVIEW`, with the reviewSubmission left at the same state and still
 unsubmitted. The script's guard is narrower than the sentence it prints: what
@@ -782,10 +782,10 @@ needs one call. Until the script grows a way to send the text alone, that call
 is the way; it is the same PATCH the script makes, at the same endpoint.
 
 **A version holding a build cannot take a different one, and the state that
-says so is easy to misread.** Once `bin/submit-ios` has run, the version sits
+says so is easy to misread.** Once `ts submit-ios` has run, the version sits
 at `READY_FOR_REVIEW` with a build attached and a reviewSubmission open — and
 that is *not* submitted. Apple has received nothing; `submittedDate` is null
-and `bin/submit-ios --status` prints `not submitted` against it. But the
+and `ts submit-ios --status` prints `not submitted` against it. But the
 version is no longer editable, so uploading a newer build and running the
 script again fails with "1.2.0 is READY_FOR_REVIEW, which is not editable".
 
@@ -810,16 +810,16 @@ authority, and answers in a second:
     GET /v1/appStoreVersions/<id>/build           → which build is attached
     GET /v1/builds?filter[app]=<appId>            → what Apple actually received
 
-Signed with the same App Store Connect key `bin/upload-ios` uploads with — an
+Signed with the same App Store Connect key `ts upload-ios` uploads with — an
 ES256 JWT, `aud: appstoreconnect-v1`. `WAITING_FOR_REVIEW` with a fresh
 `submittedDate` is what a successful resubmission looks like;
 `UNRESOLVED_ISSUES` with the old one is a rejection nobody has answered yet.
 
-**`bin/submit-ios --status` is those four queries in one command**, and is the
+**`ts submit-ios --status` is those four queries in one command**, and is the
 thing to run rather than reloading the page. The script it belongs to is why
 this section is no longer only a list of endpoints: 1.1.0 was submitted through
 the API by hand on 2026-08-20, which is what showed that the whole path is
-scriptable, and `bin/submit-ios` is that path with the guards attached and the
+scriptable, and `ts submit-ios` is that path with the guards attached and the
 last call left out. A submission made this way is attributed in App Store
 Connect to **`API user <key id>`** rather than to a name — `API user
 3X4KWJ3W7M` in the submissions list is the key in `~/.config/thefloor/asc`, not
@@ -935,7 +935,7 @@ missing them until build 36.** Without them the export fails with `No
 Accounts` and `No signing certificate "iOS Distribution" found` — the export
 re-signs for distribution, Apple holds that certificate, and fetching it is a
 signing-asset operation needing the App Store Connect key. It is the same
-failure `bin/upload-ios` exists to avoid, met by a command that had not been
+failure `ts upload-ios` exists to avoid, met by a command that had not been
 given the same treatment.
 
 Verified this way for builds 14 through 23, and for **36**: `production`.

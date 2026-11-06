@@ -143,7 +143,7 @@ cohorts cannot legitimately be switched on yet — the ordering in
 `server/.env.example` is not negotiable, an older build showing the room and no
 reason for it. What was missing was **a release rather than a
 build** — `build/206` through `build/212` are tagged already, so the blocker
-as first written waited on moving `released` and not on `bin/upload-ios`.
+as first written waited on moving `released` and not on `ts upload-ios`.
 **That stopped being true on 2026-09-15**, and the paragraph below is why: the
 release this now waits on is 213, which is not yet uploaded, so an upload is
 back on the path. (MARKETING.md § *The cohort* states this against a

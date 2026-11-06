@@ -33,7 +33,7 @@ filing or resolving one. Particular to here:
 - **Deploys are not in it.** `ts deploy` and `bin/restart-services` record
   themselves on the box and `ts deploys` reads them.
 - **A submission's own text** is the one transient kind, under
-  `planning/submissions/`, written by `bin/set-review-notes`.
+  `planning/submissions/`, written by `ts set-review-notes`.
 - **A shipped design's reasoning is not always what the task that asked for it
   appears to ask for** — the entry *The Floor carries no video* is the one that
   caught somebody out. The queries such a design carried usually leave as a
@@ -46,8 +46,8 @@ needs — `app.json`'s settings and their reasons, the icon rules that fail at
 upload, `prebuild --clean` dropping the signing team, the entitlements three
 artifacts disagree about, and **the five verbs** below. **Read it when you are
 executing one of the deploy-related verbs, and not otherwise** — `deploy`,
-`upload`, `submit`, `release`, before `ts deploy`, `bin/upload-ios` or
-`bin/submit-ios`. It is forty-four kilobytes of procedure for a day that most
+`upload`, `submit`, `release`, before `ts deploy`, `ts upload-ios` or
+`ts submit-ios`. It is forty-four kilobytes of procedure for a day that most
 sessions never have.
 
 **`planning/CREDENTIALS.md`**: the credentials, where each lives, what it can
@@ -187,8 +187,8 @@ Particular to here:
 - **`ts deploy` stamps `server/deployed.json`** with the sha, `-dirty` when the
   tree was; `GET /healthz` and the startup log report it, and `ts health`
   compares it with this checkout.
-- **Every upload is tagged `build/<n>`, by `bin/upload-ios`**, and **`released`
-  points at what is downloadable** (`CLIENTS.md` § *Tags*). `bin/submit-ios
+- **Every upload is tagged `build/<n>`, by `ts upload-ios`**, and **`released`
+  points at what is downloadable** (`CLIENTS.md` § *Tags*). `ts submit-ios
   --status` is the second opinion, since what is downloadable is a state Apple
   holds rather than a ref.
 - **`MIN_SUPPORTED_BUILD` in `server/src/release.ts` is the compatibility
@@ -283,7 +283,7 @@ All of it is in **planning/RELEASING.md** — the five verbs and what each costs
 what `app.json` is set to and why, the icon that is rejected at upload if it
 carries an alpha channel, and `prebuild --clean` dropping `DEVELOPMENT_TEAM`.
 
-**Read it before running `bin/upload-ios` or `bin/submit-ios`** — the second
+**Read it before running `ts upload-ios` or `ts submit-ios`** — the second
 prepares a submission and deliberately stops before the button, since that
 PATCH is the irreversible half. The trap that bites outside that stayed here:
 `APNS_ENV` above.

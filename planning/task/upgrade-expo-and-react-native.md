@@ -44,7 +44,7 @@ to accept it, and that floor is a property of the Xcode and native toolchain a
 given RN version supports. **Go and check the current deadline before planning
 around anything else in this file** — if a submission would be refused, the
 upgrade stops being optional and every cost below is one you are paying anyway.
-`bin/submit-ios` is the thing that would start failing, and it would fail at
+`ts submit-ios` is the thing that would start failing, and it would fail at
 upload, which is the worst moment to discover it.
 
 **The secondary reason is dependency gravity.** Reanimated 4.6 already declares

@@ -135,7 +135,7 @@ is why the invite page's button was held back until a build carrying
 1. **`app/app.json`** — `ios.associatedDomains: ["applinks:thefloor.rvanegas.co"]`,
    beside the `expo.scheme` the button needs anyway.
 2. **The App ID and the profile** — Associated Domains capability on, profile
-   regenerated. `bin/upload-ios` passes `DEVELOPMENT_TEAM` explicitly because
+   regenerated. `ts upload-ios` passes `DEVELOPMENT_TEAM` explicitly because
    `prebuild --clean` drops it; the same clean is what re-generates this.
 3. **A Fastify route** for the AASA, not a static file. The reason is the one
    the trains' not-found handler already gives: a route resolves per request

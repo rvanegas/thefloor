@@ -33,8 +33,8 @@ file at this level. A list that lags is a list that authorises the wrong file.
   first. `decision/archive/` holds the eleven frozen volumes from before the
   one-file split. [decision/README.md](decision/README.md) is the convention.
 - **`submissions/`** — the text of each App Store submission, as sent:
-  `review-notes-<version>.txt`, written by `bin/set-review-notes`, and
-  `whats-new-<version>.txt`, sent by `bin/submit-ios`. A record of what Apple
+  `review-notes-<version>.txt`, written by `ts set-review-notes`, and
+  `whats-new-<version>.txt`, sent by `ts submit-ios`. A record of what Apple
   was told, per version.
 
 `ts note` is the tool for the first three — `find`, `new`, `rename`, `list`,
@@ -61,7 +61,7 @@ GLOSSARY.md's one-line list, which is worth reading routinely.
 | [MIGRATION.md](MIGRATION.md) | The sizing argument in both directions, from the abandoned 2026-08-13 move to a smaller instance | Before sizing, rebuilding or re-hosting the server |
 | [POSTMORTEM-echo.md](POSTMORTEM-echo.md) | The build 17 echo, start to finish: three components configuring one iOS audio session | Before touching the iOS audio session |
 | [PROPOSITION.md](PROPOSITION.md) | What the app is for: the thesis that the ring is an alarm, its evidence, what it forbids, and the work it obliges, in order | Before any decision about what the app should be, and before writing copy |
-| [RELEASING.md](RELEASING.md) | Everything for producing an iOS build: the five verbs, `app.json`, icons, entitlements | Before `bin/upload-ios`, `bin/submit-ios` or `ts deploy` |
+| [RELEASING.md](RELEASING.md) | Everything for producing an iOS build: the five verbs, `app.json`, icons, entitlements | Before `ts upload-ios`, `ts submit-ios` or `ts deploy` |
 | [SHIMS.md](SHIMS.md) | Every shim kept for older installs, by the build that retires it | When `MIN_SUPPORTED_BUILD` moves, and in the commit that adds a shim |
 | [STATES.md](STATES.md) | What each state is called in each layer, when it holds, and where two layers can differ | Before touching the floor, the microphone, presence or the audio session |
 | [STYLE.md](STYLE.md) | What the app looks like and why: colour tokens, type roles, controls, cards, rows, icons | Before adding or changing a screen, a control or a colour; edit it in the same commit |

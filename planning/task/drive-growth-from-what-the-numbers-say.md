@@ -168,7 +168,7 @@ is the priority against it.
 - **C2. Subtitle, keywords and description ride the next submission.** None
   justifies a review cycle of its own and all three should go in the moment one
   is happening. The description is the one that closes the invite-link gap.
-- **C3. Raise the category dispute** at the next `bin/submit-ios`. Live is
+- **C3. Raise the category dispute** at the next `ts submit-ios`. Live is
   primary Utilities, secondary Social Networking; the 2026-08-27 decision was
   the reverse. **Both records are confident and they disagree**, so it is a
   question to ask rather than a change to make.
