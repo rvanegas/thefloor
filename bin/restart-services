@@ -3,19 +3,19 @@
 # Restarts the media plane's services that are running outdated libraries,
 # when nobody is in a call.
 #
-#   bin/restart-services              restart what is stale, if nobody is live
-#   bin/restart-services --anyway     restart it even with people in a call
-#   bin/restart-services --list       say what is stale, and restart nothing
+#   ts restart-services              restart what is stale, if nobody is live
+#   ts restart-services --anyway     restart it even with people in a call
+#   ts restart-services --list       say what is stale, and restart nothing
 #
 # **Unattended upgrades patch the box but no longer restart anything that
 # carries a call.** needrestart is told to leave livekit-server, egress, Redis,
-# docker and containerd alone (bin/provision-livekit), because its 06:15 UTC
+# docker and containerd alone (ts provision-livekit), because its 06:15 UTC
 # restarts dropped calls and on 2026-09-30 left the SFU down for three hours.
 # So their new libraries wait for a person, and this is that person's half.
 # `thefloor` is not on the list: every deploy restarts it.
 #
 # **Restarting any of these drops every call on the box**, which is why it
-# looks first. "Live" is an open `usage_spans` row, the same evidence bin/live
+# looks first. "Live" is an open `usage_spans` row, the same evidence ts live
 # reads, so it is good to within the fifteen-second poll — a call that started
 # moments ago may not show yet.
 #
@@ -58,7 +58,7 @@ fi
 
 if $list_only; then
   echo "! running outdated libraries, left alone: $STALE"
-  echo "  when nobody is talking: bin/restart-services"
+  echo "  when nobody is talking: ts restart-services"
   exit 0
 fi
 
@@ -73,7 +73,7 @@ if [ "$LIVE" != 0 ]; then
   if $anyway; then
     echo "! $LIVE in a call right now; restarting anyway"
   else
-    echo "✗ $LIVE in a call right now (bin/live says where); restarting would drop them." >&2
+    echo "✗ $LIVE in a call right now (ts live says where); restarting would drop them." >&2
     echo "  Try again later, or pass --anyway." >&2
     exit 1
   fi

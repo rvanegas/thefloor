@@ -7,7 +7,7 @@ the cutover was never performed and the migration was cancelled. `thefloor` on
 read from.
 
 This is kept because most of what it cost to learn is still true, and because
-the next person to size this box, rebuild it, or wonder why `bin/provision`
+the next person to size this box, rebuild it, or wonder why `ts provision`
 exists should not have to rediscover any of it. It is not a checklist to
 resume. Anyone restarting this work should re-derive the current numbers first:
 everything below was measured on one afternoon with audio down.
@@ -80,7 +80,7 @@ install spike.
 
 ## Sizing it now that it carries the media
 
-Measured 2026-08-13, immediately after `bin/provision-livekit` brought the three
+Measured 2026-08-13, immediately after `ts provision-livekit` brought the three
 new services up, with **audio still down** — so this is the idle floor and not a
 load figure. The caveat that applied to the 290 MB above applies here twice over.
 
@@ -137,11 +137,11 @@ Two failure modes are worth telling apart:
 
 - *Memory pressure, or exports and playback contending with live audio.* Then
   `medium_3_0` at $24 is the move, and it is an ordinary rebuild — the cutover
-  below, plus `bin/provision-livekit`.
+  below, plus `ts provision-livekit`.
 - *A deploy audibly interrupting a live call, or an OOM taking a conversation
   and a recording in flight with it.* Then the answer is a **second $7 box**
   for the media plane, not a larger single one. `decision/` argues
-  this at length and it is the reason `bin/provision-livekit` is a separate
+  this at length and it is the reason `ts provision-livekit` is a separate
   script: splitting is a new box, an A record for `livekit.rvanegas.co`, and
   `LIVEKIT_URL` in `server/.env`. No code, no migration, no wire change.
 
@@ -159,7 +159,7 @@ The second is the more likely signal, and it is cheaper than the first.
 | swap | 2 GB `/swapfile`, in `/etc/fstab` |
 | unattended-upgrades | enabled |
 | cron | none |
-| livekit-server | 1.13.5, a single Go binary in `/usr/local/bin`, pinned by `bin/provision-livekit` |
+| livekit-server | 1.13.5, a single Go binary in `/usr/local/bin`, pinned by `ts provision-livekit` |
 | redis | 7.0.15, Ubuntu's, loopback and protected-mode as shipped |
 | docker | 29.1.3, Ubuntu's `docker.io` |
 | egress | `livekit/egress:v1.14.0`, pinned; Docker-only upstream |
@@ -170,7 +170,7 @@ whole reason a rebuilt box would behave like this one. `curl get.livekit.io |
 bash` installs whatever is current and would silently give a second box a
 different SFU from the one the first was tested against.
 
-## What survives: `bin/provision`
+## What survives: `ts provision`
 
 Written for this and kept, because it is now the only written-down path from a
 bare Ubuntu 24.04 instance to one `ts deploy` can target — which is the thing
@@ -201,11 +201,11 @@ One known gap remains, left honest rather than patched blind:
   recovery, where the backup is what you have lost.
 
 **It does not know about the media plane, and deliberately never will.** That is
-`bin/provision-livekit`, below.
+`ts provision-livekit`, below.
 
-## What survives: `bin/provision-livekit`
+## What survives: `ts provision-livekit`
 
-Written 2026-08-13 for the self-hosting move, and a sibling of `bin/provision`
+Written 2026-08-13 for the self-hosting move, and a sibling of `ts provision`
 rather than part of it. It installs `livekit-server`, the Redis that exists only
 because egress needs one, Docker and the pinned egress image; writes
 `/etc/livekit/{livekit,egress}.yaml` and two systemd units; raises the UDP
@@ -251,14 +251,14 @@ was taken on 2026-08-13 and was days stale within the week, while the box went
 on being the only live copy of seven credentials. Since 2026-08-19 the live
 local copy is `~/.config/thefloor/server.env`, mode 600, kept level with the box
 by **`ts env-pull`** and **`ts env-push`** — the same arrangement
-`bin/provision-livekit` has always had with `livekit.env`, and for the same
+`ts provision-livekit` has always had with `livekit.env`, and for the same
 reason: a credential authored locally can be backed up and diffed, and one that
 exists only on an instance cannot.
 
 Beside it and **not** in it: `~/.config/thefloor/livekit.env`, mode 600, holding
 the self-hosted LiveKit API key pair. Not folded into the dated backup because
 it is not a snapshot of anything — it is the live credential
-`bin/provision-livekit` reads on every run. Losing it is not fatal in the way
+`ts provision-livekit` reads on every run. Losing it is not fatal in the way
 losing the APNs key is: a new pair can be generated and written to both
 `/etc/livekit/*.yaml` and `server/.env`, at the cost of every issued join token
 becoming invalid at once.
@@ -291,7 +291,7 @@ touched. The honest check pre-cutover is `curl 127.0.0.1:8787/healthz` over SSH.
 The new box came up against an empty `~/thefloor-data/`, wrote a fresh schema,
 and reported `{"ok":true,"audio":"livekit"}` while holding 0 channels, 0
 recordings and 0 accounts. `/healthz` does not distinguish a loaded server from
-an empty one. This is why `bin/provision` installs the unit but deliberately
+an empty one. This is why `ts provision` installs the unit but deliberately
 does not start it.
 
 ### Caddy is loaded at cutover, not at provision
@@ -363,7 +363,7 @@ missed, because it fails silently in both directions.
    firewall is opened afterwards, restart `livekit-server`; the discovery only
    happens at startup.
 
-2. **`bin/provision-livekit` runs after `bin/provision`, not instead of it.** It
+2. **`ts provision-livekit` runs after `ts provision`, not instead of it.** It
    assumes Caddy and the base packages are already there.
 
 3. **The Caddy block is appended by the script and loaded at cutover**, exactly

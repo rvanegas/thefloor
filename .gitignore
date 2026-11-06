@@ -15,7 +15,7 @@ dist/
 web-build/
 expo-env.d.ts
 
-# The two web app trains, built by bin/deploy-web from a tag and rsynced to the
+# The two web app trains, built by ts deploy-web from a tag and rsynced to the
 # box. Ignored for the same reason server/web/dist is: a compiled artefact in
 # the tree drifts from its source and nobody notices, because nobody reads
 # minified output and its diffs are unreviewable. The mechanical half matters

@@ -35,7 +35,7 @@ let clock = 1_700_000_000_000;
  * **It is here because this file used to read whatever was on disk, and pass or
  * fail on it.** § *hands the tab a username and no pin* asserts the page writes
  * the handover key, which `invitePage` emits only when `webAppReady` — and that
- * is `server/web/{stable,beta}/index.html` existing, which `bin/deploy-web`
+ * is `server/web/{stable,beta}/index.html` existing, which `ts deploy-web`
  * builds and `.gitignore` excludes. So the test passed in a checkout that had
  * built a train at some point and failed in a fresh worktree, on a condition it
  * was not testing and nobody had stated. `ts deploy` runs this suite, so the

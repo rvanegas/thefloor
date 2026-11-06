@@ -55,7 +55,7 @@ export interface Address {
  * Where the app is mounted — `/app` or `/beta`, and `''` when a dev server
  * serves it at the root.
  *
- * Inlined at export by `bin/deploy-web`, which already knows the answer
+ * Inlined at export by `ts deploy-web`, which already knows the answer
  * because it is the same value it puts in `experiments.baseUrl`. Read from the
  * environment rather than sniffed from `location`, because sniffing would have
  * to know the set of prefixes and would be wrong the first time a third train

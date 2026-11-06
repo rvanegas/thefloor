@@ -194,7 +194,7 @@ configuration rather than code.
 ### One thing to do before the spend rather than after — done
 
 **Split `channels.cohort` out of `channels`, `talking` and `groups` in
-`bin/growth`**, per MARKETING.md § *Cohorts contaminate three of those four*.
+`ts growth`**, per MARKETING.md § *Cohorts contaminate three of those four*.
 It is small now and much worse once a campaign's results are already mixed into
 the baseline it would have been measured against.
 
@@ -215,7 +215,7 @@ still not measured, which since 2026-09-15 is guests alone*.
 ## The kill rule, written before the money
 
 From MARKETING.md § *The shape of the spend*, which derives it from
-`bin/growth`'s own header: **judge the campaign by what grows underneath the
+`ts growth`'s own header: **judge the campaign by what grows underneath the
 roots it buys, not by the roots.**
 
 Every paid arrival lands in the **alone** class, indistinguishable from word of
@@ -281,7 +281,7 @@ the terms nobody here thought of.
 2. Settle the category question.
 3. The submission carrying subtitle, keywords and description — the invite-link
    sentence being the one that matters.
-4. ~~Split `channels.cohort` out of `bin/growth`.~~ Done 2026-09-15.
+4. ~~Split `channels.cohort` out of `ts growth`.~~ Done 2026-09-15.
 5. Cancel the 212 submission, upload 213 with the funnel instrumentation in
    it, submit, and release it — then name the host or hosts. **One release
    does both jobs**: 213 is past the 206 the explanatory card needs and is the
@@ -293,7 +293,7 @@ the terms nobody here thought of.
 7. **Set up the campaign.** The step this file exists for, and the only one
    done in a browser rather than a terminal. Elaborated below.
 8. Four weeks of spend, then three to four weeks of silence.
-9. Read `bin/growth` — `classes`, `weeks`, `roots`. Write the verdict into
+9. Read `ts growth` — `classes`, `weeks`, `roots`. Write the verdict into
    `decision/` and delete this file. `notify` and `pings` are worth reading
    alongside, and are not the verdict: the kill rule is the three above.
 
@@ -505,7 +505,7 @@ of a dozen installs, three cohorts a day, **eighty-odd cohorts over four
 weeks, every one of them a room where a human being is supposed to answer.**
 
 So: **start at $20, on one host, and raise it only after watching what a day
-of it actually produces in `bin/cohorts`.** For the full $25, name a second
+of it actually produces in `ts cohorts`.** For the full $25, name a second
 host in `COHORT_HOST_IDENTIFIERS` first — an ordered list precisely so that is
 configuration rather than code.
 
@@ -738,7 +738,7 @@ Tier 2 differ, which is the thing the two ad groups exist to separate.
 **Cannot:** anything in the kill rule, for three to four weeks after the spend
 stops. Every paid arrival lands in **alone**, indistinguishable from word of
 mouth and a passed-on link, so *alone* rising proves nothing. What counts is
-first circle and onward in `bin/growth`'s `classes`, `weeks` and `roots`.
+first circle and onward in `ts growth`'s `classes`, `weeks` and `roots`.
 Installs will look fine throughout and mean nothing.
 
 ---

@@ -2118,7 +2118,7 @@ export class Accounts {
    * people those contacts put them within reach of.
    *
    * **Pending rows are edges, and that is the whole reason this is not
-   * `bin/growth`'s island.** That report walks accepted edges alone, correctly
+   * `ts growth`'s island.** That report walks accepted edges alone, correctly
    * — an island is people who have *agreed* to be reachable to each other. But
    * this is asked at the moment of signup, and `resolveInvitesFor` has just
    * written the invitation that brought somebody here as a **pending** row;
@@ -2127,7 +2127,7 @@ export class Accounts {
    * as an island of one and hand a cohort to precisely the people who came in
    * on somebody's invitation — the population this gate exists to exclude.
    * What is wanted is the island they are *about* to be on, which is what
-   * `bin/growth` calls the bridges that would merge islands if the pending
+   * `ts growth` calls the bridges that would merge islands if the pending
    * rows were accepted.
    *
    * So the two measures disagree by design and both are right about their own
@@ -2135,7 +2135,7 @@ export class Accounts {
    *
    * **Bounded, and the bound is not an optimisation.** It stops as soon as
    * `limit` people have been seen, so the cost is the limit rather than the
-   * size of the component — the transitive closure `bin/growth` uses is
+   * size of the component — the transitive closure `ts growth` uses is
    * quadratic in an island, is fine in a report somebody runs by hand, and is
    * not fine on the signup path. Nothing here needs the true size; the only
    * question ever asked of it is whether it has reached a threshold.

@@ -21,7 +21,7 @@ silent=$(field silentBuilds)
 [ -z "$silent" ] || [ "$silent" = 0 ] \
   || echo "! silentBuilds is $silent: oldestBuild is a floor on the known population only"
 awaiting=$(field awaitingOrphans)
-[ -z "$awaiting" ] || [ "$awaiting" = 0 ] || echo "! $awaiting orphaned recordings: run bin/orphans --delete"
+[ -z "$awaiting" ] || [ "$awaiting" = 0 ] || echo "! $awaiting orphaned recordings: run ts orphans --delete"
 
 # The floor this checkout would deploy, against the one deployed.
 min=$(field minBuild)

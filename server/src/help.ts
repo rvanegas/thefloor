@@ -5,15 +5,15 @@ import { newId, type Db } from './db';
  * The questions people ask of The Floor, and the answers written back.
  *
  * **The whole mechanism is a table and two people.** Somebody types a question
- * in the app; it lands here; whoever is running this reads it with `bin/help`
+ * in the app; it lands here; whoever is running this reads it with `ts help`
  * and writes an answer into the same row; the answer appears under the
  * question the next time that screen opens. There is no queue, no routing, no
  * status, and nothing that pretends to be automated — this is the smallest
  * thing that answers a question at all, and it is deliberate.
  *
- * **Writing and sending are two moves**, since 2026-09-10. `bin/help <id>
+ * **Writing and sending are two moves**, since 2026-09-10. `ts help <id>
  * "..."` puts the answer in `answer_draft`, where nobody but its author can
- * see it, and `bin/help publish <id>` is what the asker ever reads. The one
+ * see it, and `ts help publish <id>` is what the asker ever reads. The one
  * move it replaced published on the same keystroke that composed, which is a
  * fine arrangement for "yes, tap the button twice" and a poor one for the
  * answers that are actually hard — a paragraph about somebody's own account,
@@ -258,12 +258,12 @@ export class Help {
    * **There is no route that calls this**, and there is not meant to be:
    * answering is something exactly one person does, and a route for it would
    * need an authorisation model, a screen, and a way to revoke it — all of that
-   * for a job that is a line of SQL. `bin/help` goes at the database directly,
+   * for a job that is a line of SQL. `ts help` goes at the database directly,
    * the way every other operational script here does. This method exists so
    * that the two columns which must move together do so in one place, beside
    * the read that insists they agree.
    *
-   * `bin/help` no longer has a form that reaches this — it drafts, and then it
+   * `ts help` no longer has a form that reaches this — it drafts, and then it
    * publishes. What is left here is the programmatic answer, which is what the
    * tests want when the subject is something other than the drafting.
    */

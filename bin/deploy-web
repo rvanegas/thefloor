@@ -2,8 +2,8 @@
 #
 # Ships a web app train to the box.
 #
-#   bin/deploy-web --stable    what the App Store has, cut from `released`
-#   bin/deploy-web --beta      what TestFlight has, cut from its build/<n> tag
+#   ts deploy-web --stable    what the App Store has, cut from `released`
+#   ts deploy-web --beta      what TestFlight has, cut from its build/<n> tag
 #
 # **This is a third variant of `deploy`, not a sixth verb.** Deploying is still
 # deploying — it reaches everybody in a minute and is reversible — and only the
@@ -43,7 +43,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$train" ]; then
-  echo "usage: bin/deploy-web --stable | --beta [--ref <ref>]" >&2
+  echo "usage: ts deploy-web --stable | --beta [--ref <ref>]" >&2
   echo >&2
   echo "  --stable      cut from 'released' — what the App Store has" >&2
   echo "  --beta        cut from the newest build/<n> tag — what TestFlight has" >&2

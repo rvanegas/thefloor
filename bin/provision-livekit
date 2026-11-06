@@ -1,26 +1,26 @@
 #!/bin/bash
 #
-# Brings the media plane up on a box that bin/provision has already prepared:
+# Brings the media plane up on a box that ts provision has already prepared:
 # livekit-server, the Redis it needs because egress does, and egress itself.
 #
-#     bin/provision-livekit ubuntu@<ip>
+#     ts provision-livekit ubuntu@<ip>
 #
 # Idempotent, so re-running after a failure part way through is safe and is the
 # expected way to recover.
 #
-# A sibling of bin/provision rather than part of it, for the reason
+# A sibling of ts provision rather than part of it, for the reason
 # planning/decision/DECISIONS.md gives: this is exactly the script a second box would
 # need if the split ever happens, and keeping it separate is what makes that a
 # matter of running it somewhere else rather than untangling it from the app's
 # setup.
 #
-# Like bin/provision it invents no secret. The LiveKit API key pair is read
+# Like ts provision it invents no secret. The LiveKit API key pair is read
 # from a file outside the tree; a script that generates credentials is one
 # whose every invocation is a chance to leave a different pair on a box and a
 # server pointed at the one before it.
 set -euo pipefail
 
-HOST=${1:?usage: bin/provision-livekit ubuntu@<ip>}
+HOST=${1:?usage: ts provision-livekit ubuntu@<ip>}
 KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
 SSH="ssh -i $KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
 
@@ -118,7 +118,7 @@ $SSH "$HOST" 'set -euo pipefail
 # failure arrives as "audio stopped" some minutes after a green deploy.
 echo "→ /etc/livekit/livekit.yaml"
 $SSH "$HOST" 'sudo tee /etc/livekit/livekit.yaml >/dev/null' <<YAML
-# The SFU. Written by bin/provision-livekit — edit that, not this.
+# The SFU. Written by ts provision-livekit — edit that, not this.
 
 # HTTP and WSS, behind Caddy on $LIVEKIT_HOSTNAME. Loopback only, on the same
 # reasoning that already keeps Node off the public interface. This does NOT
@@ -174,7 +174,7 @@ $SSH "$HOST" 'sudo chown livekit:livekit /etc/livekit/livekit.yaml && sudo chmod
 
 echo "→ /etc/livekit/egress.yaml"
 $SSH "$HOST" 'sudo tee /etc/livekit/egress.yaml >/dev/null' <<YAML
-# The recorder. Written by bin/provision-livekit — edit that, not this.
+# The recorder. Written by ts provision-livekit — edit that, not this.
 #
 # Owned by uid 1001 because that is the uid the livekit/egress image runs as,
 # and this file is bind-mounted into it.
@@ -212,7 +212,7 @@ $SSH "$HOST" 'sudo chown livekit-egress:livekit-egress /etc/livekit/egress.yaml 
 # below). Redis is on the list because livekit-server Requires= it, so
 # restarting Redis restarts the SFU; docker and containerd because egress runs
 # under them. They are then restarted by hand when nobody is talking, with
-# bin/restart-services, which ts deploy reminds you of.
+# ts restart-services, which ts deploy reminds you of.
 echo "→ needrestart leaves the media plane alone"
 $SSH "$HOST" 'sudo tee /etc/needrestart/conf.d/livekit.conf >/dev/null <<'"'"'CONF'"'"'
 $nrconf{override_rc}{qr(^livekit-server\.service$)} = 0;
@@ -315,7 +315,7 @@ $SSH "$HOST" 'set -euo pipefail
 # Caddy asks Let'"'"'s Encrypt for a certificate the moment it loads a site block,
 # and a hostname that does not resolve to this box fails validation — five times
 # per hostname per hour and the name is rate-limited, which arrives precisely
-# when cutover needs it. bin/provision refuses to restart Caddy for the same
+# when cutover needs it. ts provision refuses to restart Caddy for the same
 # reason; see planning/MIGRATION.md.
 echo "→ caddy"
 BOX_IP=${HOST#*@}

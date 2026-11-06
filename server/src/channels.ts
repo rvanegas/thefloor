@@ -4521,10 +4521,10 @@ export class ChannelRegistry {
    * `thefloor-server` holds no `s3:DeleteObject`, by a decision recorded in
    * planning/CREDENTIALS.md and kept deliberately, so every delete it issues
    * is refused and the objects are cleared from a person's credential by
-   * `bin/orphans` instead. See `objectsGone` for how the sweep asks, and why
+   * `ts orphans` instead. See `objectsGone` for how the sweep asks, and why
    * in production it cannot get an answer.
    *
-   * **So `bin/orphans` answers for it.** Having cleared a deleted recording's
+   * **So `ts orphans` answers for it.** Having cleared a deleted recording's
    * prefix, it lists the prefix again on the same credential and, finding
    * nothing, sets `objects_cleared_at`. A row carrying that mark is dropped
    * without asking the bucket anything: the confirmation was made by somebody
@@ -4682,7 +4682,7 @@ export class ChannelRegistry {
    * Deleted recordings past their week that nobody has confirmed emptied —
    * each one audio still in the bucket and a row the sweep is holding.
    *
-   * Only a person clears these, with `bin/orphans --delete`, and a person
+   * Only a person clears these, with `ts orphans --delete`, and a person
    * does it when reminded; so `/healthz` carries the count and `ts health`
    * prints it. A row that has been marked is dropped within the hour and is
    * not counted.
@@ -6108,7 +6108,7 @@ export class ChannelRegistry {
     // open microphone and bills the room for a stream nobody carries. The
     // playout hold of 2026-09-05 made this ordinary rather than rare — it
     // holds a muted track open for as long as anything is subscribed — and
-    // `bin/live` was reporting those holds as open microphones.
+    // `ts live` was reporting those holds as open microphones.
     const publishing = now.participants.filter(
       (id) =>
         id !== media && (roster.get(id) ?? []).some((track) => !track.muted)
@@ -6683,7 +6683,7 @@ export class ChannelRegistry {
     // milliseconds for as long as it is open, and a channel is a place rather
     // than a conversation, so nothing was ever going to come along and end it:
     // one channel nobody had been in for hours was still connected and still
-    // pumping. `bin/usage peak` is what found it, reading nine simultaneous
+    // pumping. `ts usage peak` is what found it, reading nine simultaneous
     // connections against three real ones.
     //
     // Nothing is owed to the stem here, which is the only thing the

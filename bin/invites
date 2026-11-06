@@ -2,8 +2,8 @@
 #
 # Contact requests sent to addresses with no account here yet.
 #
-#   bin/invites                against the deployed server
-#   bin/invites --local        the development database on this machine
+#   ts invites                against the deployed server
+#   ts invites --local        the development database on this machine
 #
 # Read-only, always. Deleting one by hand is ts db --write, and the sweep does
 # it anyway — see below.

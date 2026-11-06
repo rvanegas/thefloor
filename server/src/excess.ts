@@ -22,10 +22,10 @@ import { newId, type Db } from './db';
  * A restart forgets the hour in progress, which costs at most one hour's
  * notice of something that is, by construction, still going on.
  *
- * **Read by `bin/usage` and nothing else**, on usage.ts's rule for the meter:
+ * **Read by `ts usage` and nothing else**, on usage.ts's rule for the meter:
  * no endpoint, no field on the wire, no email — a figure the application can
- * see is one it will eventually decide something with. `bin/usage excess` is
- * the report, and runs with every other one when `bin/usage` is run bare. A
+ * see is one it will eventually decide something with. `ts usage excess` is
+ * the report, and runs with every other one when `ts usage` is run bare. A
  * warning in the journal is the only other trace, for somebody already there.
  */
 

@@ -2,9 +2,9 @@
 #
 # Renames accounts here to the names noesis decided.
 #
-#   bin/rename-users renames.tsv                 preview, against the deployed server
-#   bin/rename-users renames.tsv --write         do it
-#   bin/rename-users renames.tsv --local [...]   the development database instead
+#   ts rename-users renames.tsv                 preview, against the deployed server
+#   ts rename-users renames.tsv --write         do it
+#   ts rename-users renames.tsv --local [...]   the development database instead
 #
 # One `email<TAB>old<TAB>new` per line, as noesis's `scripts/reserve_names.py
 # --apply --renames` writes them: where noesis already had another name for an
@@ -13,7 +13,7 @@
 # the account here follows. The operator's rename_user.py at noesis is the
 # other source of such a line, written by hand.
 #
-# A preview by default, the trade bin/backfill-usernames makes: every line,
+# A preview by default, the trade ts backfill-usernames makes: every line,
 # the username the account has now, and whoever here already holds the new
 # one, which would stop the write. `--write` renames in one transaction, and
 # keeps each old name answering as an invite or member link (username_aliases)
@@ -47,7 +47,7 @@ for arg in "$@"; do
     *) file="$arg" ;;
   esac
 done
-[ -n "$file" ] && [ -f "$file" ] || { echo "Usage: bin/rename-users renames.tsv [--write] [--local]" >&2; exit 1; }
+[ -n "$file" ] && [ -f "$file" ] || { echo "Usage: ts rename-users renames.tsv [--write] [--local]" >&2; exit 1; }
 
 # Each line checked before it is written into SQL: names are the alphabet a
 # username is made of, and an address loses nothing by having its quotes

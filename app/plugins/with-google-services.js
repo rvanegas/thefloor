@@ -34,7 +34,7 @@ const path = require('node:path');
  * there has to be re-downloaded every time one is thrown away, which is the
  * papercut `~/.config/thefloor` exists to prevent: it is where `livekit.env`,
  * `server.env`, the `.p8` keys and the upload keystore all live, on
- * `bin/provision-livekit`'s founding principle that a credential is authored
+ * `ts provision-livekit`'s founding principle that a credential is authored
  * once, outside any tree, where it can be backed up and diffed. This one is not
  * a credential, but it is exactly as annoying to lose.
  *

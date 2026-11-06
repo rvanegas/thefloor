@@ -9,11 +9,11 @@
 # recording, and no screen ever shows it. The server's code is borrowed only so the
 # request cannot drift from the one recordings make.
 #
-#   bin/transcribe talk.m4a              one line per utterance, to talk.txt
-#   bin/transcribe talk.m4a --json       to talk.json, with times and confidence
-#   bin/transcribe talk.m4a --pro        Universal-3.5 Pro rather than Universal-2
-#   bin/transcribe talk.m4a --no-diarize one voice assumed, as for a stem
-#   bin/transcribe talk.m4a --keep       leave the job at AssemblyAI afterwards
+#   ts transcribe talk.m4a              one line per utterance, to talk.txt
+#   ts transcribe talk.m4a --json       to talk.json, with times and confidence
+#   ts transcribe talk.m4a --pro        Universal-3.5 Pro rather than Universal-2
+#   ts transcribe talk.m4a --no-diarize one voice assumed, as for a stem
+#   ts transcribe talk.m4a --keep       leave the job at AssemblyAI afterwards
 #
 # **Voices are separated by default, which is the opposite of the server's
 # default for a stem.** A stem is one microphone and so one voice by
@@ -64,7 +64,7 @@ for arg in "$@"; do
   esac
 done
 
-[ -n "$file" ] || { echo "Usage: bin/transcribe <audio-file> [--json] [--pro] [--no-diarize] [--keep]" >&2; exit 1; }
+[ -n "$file" ] || { echo "Usage: ts transcribe <audio-file> [--json] [--pro] [--no-diarize] [--keep]" >&2; exit 1; }
 [ -f "$file" ] || { echo "No such file: $file" >&2; exit 1; }
 [ -x "$TSX" ] || { echo "No tsx at $TSX — run ts worktree-setup" >&2; exit 1; }
 

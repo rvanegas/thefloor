@@ -585,7 +585,7 @@ describe('the sweep', () => {
   /**
    * The arrangement chosen on 2026-09-23: `thefloor-server` keeps
    * `s3:GetObject` and nothing else, the objects are cleared from a person's
-   * credential by `bin/orphans`, and the sweep drops the row once it can see
+   * credential by `ts orphans`, and the sweep drops the row once it can see
    * they have gone. Without this the option does not close — every refused
    * delete would hold its row for ever, and a recording somebody asked to
    * delete would be merely unreachable rather than deleted.
@@ -594,7 +594,7 @@ describe('the sweep', () => {
     const { channelId, keys } = await deleted();
     expect(keys.length).toBeGreaterThan(0);
     // Refused, exactly as production refuses — but cleared out of band first,
-    // which is what bin/orphans does.
+    // which is what ts orphans does.
     store.refuseDeleting(...keys);
     await store.forget(...keys);
 
@@ -640,11 +640,11 @@ describe('the sweep', () => {
   });
 
   /**
-   * What closes it. `bin/orphans` clears the prefix on a person's credential,
+   * What closes it. `ts orphans` clears the prefix on a person's credential,
    * lists it again, and marks the row once nothing is left; the sweep takes
    * the mark as the confirmation it cannot make itself.
    */
-  it('drops the row on bin/orphans’ word, without asking the bucket', async () => {
+  it('drops the row on ts orphans’ word, without asking the bucket', async () => {
     const { channelId, keys } = await deleted();
     store.refuseDeleting(...keys);
     store.refuseListing();
@@ -662,7 +662,7 @@ describe('the sweep', () => {
   });
 
   it('does not act on the mark before the week is up', async () => {
-    // bin/orphans guards on the same week, but the sweep's own cutoff is the
+    // ts orphans guards on the same week, but the sweep's own cutoff is the
     // one that counts here, and a mark must not shorten it.
     const { channelId } = await deleted();
     app.db
@@ -678,7 +678,7 @@ describe('the sweep', () => {
    * Nothing clears these but a person, so the count has to be somewhere a
    * person looks: `/healthz`, which `ts health` prints.
    */
-  it('counts on /healthz what is waiting for bin/orphans', async () => {
+  it('counts on /healthz what is waiting for ts orphans', async () => {
     const { channelId } = await deleted();
     const awaiting = async () =>
       (

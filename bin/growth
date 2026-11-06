@@ -4,11 +4,11 @@
 # brought, and who arrived further down the chain — and what they did once
 # they were here.
 #
-#   bin/growth                 every report, against the deployed server
-#   bin/growth classes         one report
-#   bin/growth classes weeks   several, in the order given
-#   bin/growth --local         the development database on this machine
-#   bin/growth --list          the report names and what each answers
+#   ts growth                 every report, against the deployed server
+#   ts growth classes         one report
+#   ts growth classes weeks   several, in the order given
+#   ts growth --local         the development database on this machine
+#   ts growth --list          the report names and what each answers
 #
 # Read-only, always. Nothing here is a thing you would edit by hand; ts db
 # --write is where editing lives and it makes you ask for it.
@@ -70,7 +70,7 @@
 # three, and this is the only other population the box knows about — so it is
 # here, and it is labelled, and it is not mixed into the shares. **It is not
 # comparable with the three**: `pending_invites` is swept at INVITE_TTL_MS
-# (thirty days), so it is a backlog and not a history. bin/invites is the
+# (thirty days), so it is a backlog and not a history. ts invites is the
 # report that is actually about it.
 #
 # ── The islands, which are a different graph ────────────────────────────────
@@ -483,7 +483,7 @@ SELECT g.class,
 .print '   the fourth: invited, not here (a 30-day backlog, not a history)'
 .print ''
 -- Folded on case, because that is how the lookup matches: two rows differing
--- only in case are one person waiting, not two. See bin/invites, which is the
+-- only in case are one person waiting, not two. See ts invites, which is the
 -- report that is really about this table.
 SELECT COUNT(*) AS asked_not_arrived,
        COUNT(DISTINCT lower(identifier)) AS people_asked,
@@ -924,7 +924,7 @@ SELECT strftime('%Y-%m', created_at / 1000, 'unixepoch') AS month,
 --
 -- `seats_spent` is `cohort_seats`, which counts places sold and not people
 -- present: a cohort closes when its seats are gone and stays closed if
--- somebody leaves. `bin/cohorts` is the report that is really about these,
+-- somebody leaves. `ts cohorts` is the report that is really about these,
 -- and it carries `entered`, which is level 4 itself.
 SELECT COUNT(*) AS cohorts,
        SUM(members) AS people_in_them,

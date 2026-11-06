@@ -83,7 +83,7 @@ and nothing else ever removes one: without it, somebody joining years from now
 is handed a request from a stranger, dated before they had heard of the app —
 the feature working exactly as designed and not what anyone would expect.
 Thirty rather than ninety also clears a mistyped address out of the sender's
-list while they might still remember sending it. `bin/invites` prints the
+list while they might still remember sending it. `ts invites` prints the
 countdown.
 
 **`PARTICIPATION_LIFETIME_MS`**, `server/src/push.ts`. The `apns-expiration` on
@@ -139,7 +139,7 @@ the failure mode is specifically the app and the policy disagreeing.
 ## What has no expiry at all, which is the surprise
 
 **Nothing in S3 expires by age.** There is no bucket lifecycle rule, and
-nothing in `bin/provision` ever creates one. The only deletion path is a person
+nothing in `ts provision` ever creates one. The only deletion path is a person
 deleting a channel or recording, which starts the seven-day clock above; a
 recording nobody deletes lives for ever, by design.
 

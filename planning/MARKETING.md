@@ -32,7 +32,7 @@ rather than invented here.
 - **The funnel, level by level** — the fourteen levels, what each one loses
   people to, and which of them are even visible today. **Level 4 is the
   cohort's, and only placed accounts are eligible for it.**
-- **Measurement, which is now a choice** — what `bin/growth` already answers,
+- **Measurement, which is now a choice** — what `ts growth` already answers,
   what is still unmeasured, what first-party analytics can buy, what
   third-party would cost, and the three reports a cohort contaminates.
   **Two of the three gaps were closed on 2026-09-15** and the cohort split is
@@ -137,7 +137,7 @@ construction and the rest are not.** Nothing in the plan below may be built on
 its continuing to exist.
 
 **It is off as this is written.** `COHORT_HOST_IDENTIFIERS` is empty,
-`bin/cohorts` reports none, and it may not be switched on until a build drawing
+`ts cohorts` reports none, and it may not be switched on until a build drawing
 the explanatory card is downloadable — that is builds 206 and later, against a
 `released` of 127. **So it is not yet true of anybody, and § *The sequence*
 orders the switch rather than assuming it.**
@@ -380,7 +380,7 @@ and is what a cold arrival looks like while this feature is on, with 4 the only
 thing standing between that arrival and an empty app.
 
 **Which fixes the denominator, and it is not *all arrivals*.** The share
-reaching 4 is over *placed* accounts — `bin/cohorts` counts exactly those — and
+reaching 4 is over *placed* accounts — `ts cohorts` counts exactly those — and
 anybody who compares it against every signup will read the invited half as a
 failure at a level they were never eligible for and were better off skipping.
 **A falling level 4 share is only bad news if placements are flat**; if it is
@@ -506,7 +506,7 @@ follows is the cost of each option rather than a refusal.
 reduced, none. No third-party SDK, no event pipeline, no attribution.
 `server/src/usage.ts` is instrumentation rather than a feature: it counts the
 minutes and bytes the box carried, nothing in the code reads its tables, and
-`bin/usage` runs the queries from outside. `/privacy` states publicly that
+`ts usage` runs the queries from outside. `/privacy` states publicly that
 there is no advertising and no third-party analytics, and the listing's closing
 paragraph rests on that sentence.
 
@@ -562,9 +562,9 @@ the listing links to it.
 4. **Invite pin redemptions**, which are level 13 exactly, recorded because the
    feature needs them to be.
 
-### What `bin/growth` actually does, which is the referral half
+### What `ts growth` actually does, which is the referral half
 
-`bin/growth` is 33 KB of carefully argued shell. It answers *where the people
+`ts growth` is 33 KB of carefully argued shell. It answers *where the people
 here came from*, on two graphs that deliberately do not have to agree:
 
 - **The invitation forest.** Every account has at most one inviter, written
@@ -592,7 +592,7 @@ and erased accounts and the two App Review accounts are excluded throughout.
 
 ### The group half
 
-`bin/growth` carries four further reports, on the same pattern: the vocabulary
+`ts growth` carries four further reports, on the same pattern: the vocabulary
 declared once as temp views, each report being the question it asks.
 
 - **`pairs`** — mutual contacts per person as a distribution rather than a
@@ -646,10 +646,10 @@ is small now and much worse once a campaign's results are already mixed into
 the baseline they would have been measured against.
 
 **Level 4 was already measured when none of the other gaps were.**
-`bin/cohorts` reports `entered` per cohort, from `everPresent` — a cohort at
+`ts cohorts` reports `entered` per cohort, from `everPresent` — a cohort at
 five seats and zero entered is a room nobody opened — so the newest level in
 the funnel is the one needing no instrumentation at all. What that script does
-not report is what happened next, and next is level 5, which `bin/growth`'s
+not report is what happened next, and next is level 5, which `ts growth`'s
 `pairs` already holds.
 
 **The kill rule survives untouched, and that is not luck.** § *The shape of the
@@ -660,7 +660,7 @@ is judged on is the one number cohorts cannot inflate.
 **The ending has no number, and it should have one.** The decision ends this
 feature at *growth that no longer needs seeding* and leaves it there, which is
 the right condition and not yet a threshold anybody could act on. The natural
-gauge is already built: the **onward** share of arrivals in `bin/growth`'s
+gauge is already built: the **onward** share of arrivals in `ts growth`'s
 `classes` and `weeks`, onward being growth that seeded itself by definition.
 **What that share has to reach is Rodrigo's call and is deliberately not
 invented here**; what this file asserts is only that the switch deserves a
@@ -798,7 +798,7 @@ recorder`, `remote podcast recording`, `record interview app`,
 `transcribe conversation`, `voice transcript app`. **Cap these hard**, for two
 independent reasons: they are contested by subscription apps with real revenue
 per user, so they are the most expensive terms on the list, and they buy an
-individual with nobody to talk to, which is the failure `bin/growth` will show
+individual with nobody to talk to, which is the failure `ts growth` will show
 as roots with nothing underneath. They are on the list because the recording
 half is genuinely why some people search at all, not because they are expected
 to pay.
@@ -906,7 +906,7 @@ configuration rather than code.
 **Which sizes the test.** Tier 1 volume is small enough that the spend may be
 hard to place at all, which § *Paid* already counts as a feature. Something
 like **$20–30 a day for four weeks**, six to eight hundred dollars, then **three
-to four weeks of silence** before reading `bin/growth` — the lag in § *The shape
+to four weeks of silence** before reading `ts growth` — the lag in § *The shape
 of the spend* is not optional, and a read taken the week the money stops is
 taken before the only number that matters has moved.
 
@@ -917,7 +917,7 @@ in**, because the measurement is thin enough that a large parallel test cannot
 be read afterwards. One channel at a time, and a fixed budget per test decided
 in advance.
 
-**And `bin/growth` already says what the kill rule has to be.** Its own header
+**And `ts growth` already says what the kill rule has to be.** Its own header
 makes the point this file would otherwise have had to discover: *depth 0 is not
 a claim about how somebody got here* — word of mouth, a passed-on link, a store
 listing found by accident and a paid campaign all land in **alone**,
@@ -1202,7 +1202,7 @@ What to do, in order, and what each is waiting on.
    outstanding is the subtitle, promotional text and keywords, none of which
    can be read back from the public lookup API. Needs App Store Connect, not a
    deploy.
-3. **Instrument the ping, and the notification permission.** `bin/growth`
+3. **Instrument the ping, and the notification permission.** `ts growth`
    covers arrivals, the contact graph, channels and the conversion at level 11.
    What is left are the two things no table holds: a ping and its answer, which
    is the leakiest point in the funnel, and whether the permission was ever
@@ -1214,7 +1214,7 @@ What to do, in order, and what each is waiting on.
    not exist is anything *composed* rather than captured: a Product Hunt
    gallery, a social card, an Instagram frame. Blocks 7 and 8 and nothing
    above them.
-5. **Switch the cohorts on, and split them out of `bin/growth`.** It sits here
+5. **Switch the cohorts on, and split them out of `ts growth`.** It sits here
    because **it is what paid spending lands into.** Three things in order:
    release a build of 206 or later, so the card that explains the channel is on
    the phone the placement happens to — the ordering is in `server/.env.example`
@@ -1230,7 +1230,7 @@ What to do, in order, and what each is waiting on.
 
    **It is not blocked on 3.** The kill rule in § *The shape of the spend*
    judges a campaign by what grows *underneath* the roots it buys — first
-   circle and onward — and `bin/growth`'s `classes`, `weeks` and `roots`
+   circle and onward — and `ts growth`'s `classes`, `weeks` and `roots`
    already report exactly that. Item 3 tells you *why* a funnel leaks at level
    10; it is not needed to tell whether a campaign worked.
 

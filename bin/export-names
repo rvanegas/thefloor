@@ -2,19 +2,19 @@
 #
 # Prints every account's address and username, for noesis's register.
 #
-#   bin/export-names            the deployed server's, to stdout
-#   bin/export-names --local    the development database instead
+#   ts export-names            the deployed server's, to stdout
+#   ts export-names --local    the development database instead
 #
 # One `email<TAB>username` per line, the username blank where an account has
 # none — the input noesis's `scripts/reserve_names.py` reads, which is how the
 # names given out here before noesis decided them (names.ts) become noesis's:
 # kept where it agrees, reserved where they are free, and otherwise renamed
-# here by bin/rename-users, noesis winning. The order is in
+# here by ts rename-users, noesis winning. The order is in
 # planning/decision/2026-11-02-noesis-decides-every-username.md:
 #
-#   bin/export-names > floor-names.tsv
+#   ts export-names > floor-names.tsv
 #   on noesis's box, reserve_names.py < floor-names.tsv, then --apply --renames
-#   bin/rename-users floor-renames.tsv, then --write
+#   ts rename-users floor-renames.tsv, then --write
 #
 # Read-only. Addresses only, since noesis keeps a name per address; tombstones
 # (`erased:…`) have nobody behind them.

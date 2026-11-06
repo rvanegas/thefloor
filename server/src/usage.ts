@@ -49,7 +49,7 @@ const ERROR_LIMIT = 300;
  * that would settle either.
  *
  * **It is instrumentation, not a feature.** Nothing reads these tables in code.
- * There is no endpoint, no field on the wire, no screen — `bin/usage` runs the
+ * There is no endpoint, no field on the wire, no screen — `ts usage` runs the
  * queries against the box from outside. That is a decision rather than an
  * omission: a figure the application can see is a figure the application will
  * eventually decide something with.
@@ -59,7 +59,7 @@ const ERROR_LIMIT = 300;
  * is two tables and a script*, which is now four. `pings` was added here rather
  * than to ChannelRegistry because it is the same kind of thing — a row nothing
  * in the application reads, swept on the same horizon, cleared by the same
- * `forget`, and queried from outside by `bin/growth`. It is the one table here
+ * `forget`, and queried from outside by `ts growth`. It is the one table here
  * that measures an intention rather than a cost; see `recordPing`.
  *
  * **`nav_counts` is the fourth and obeys none of those three rules**, which is

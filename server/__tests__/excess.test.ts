@@ -15,7 +15,7 @@ import {
  * The monitor flags and never refuses, so every question here is about when it
  * writes something down — and, in the last block, about the walk that asked
  * for it: an account learning which usernames are held, one `unknown` at a
- * time. What it writes is read by `bin/usage excess` and by nothing in the
+ * time. What it writes is read by `ts usage excess` and by nothing in the
  * server, so a row in the table is the whole of the outcome.
  */
 

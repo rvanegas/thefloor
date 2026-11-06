@@ -4,7 +4,7 @@ import { MAX_OUTSTANDING, MAX_QUESTION_LENGTH } from '../src/help';
 /**
  * Questions asked of The Floor from inside the app.
  *
- * The mechanism is deliberately tiny — a table, two routes, and `bin/help`
+ * The mechanism is deliberately tiny — a table, two routes, and `ts help`
  * writing the answer by hand — so what is worth testing is not the machinery
  * but the three things this can get wrong in a way somebody would feel:
  * showing one person another person's questions, taking a question and losing
@@ -190,7 +190,7 @@ describe('deleting an account', () => {
 
 /**
  * Writing an answer and sending it are two moves, and all of this is about the
- * gap between them. `bin/help` is the only thing that drives it, so what is
+ * gap between them. `ts help` is the only thing that drives it, so what is
  * worth testing here is the pair of columns rather than the script: that a
  * draft reaches nobody, that it goes on counting as unanswered, and that
  * publishing moves it rather than copying it.
@@ -321,10 +321,10 @@ describe('drafting an answer', () => {
  * it last read. It cannot name the question, which is the property that keeps
  * the tab honest. See `app/src/state/helpSeen.ts`.
  *
- * **It changes under a client rather than being pushed to one.** `bin/help
+ * **It changes under a client rather than being pushed to one.** `ts help
  * publish` writes the row through `ts db --write` and this process is never
  * told, so the mark appears on the next home snapshot — the same contract
- * `bin/help` already states, one screen earlier.
+ * `ts help` already states, one screen earlier.
  */
 describe('what Home is told about the answers', () => {
   const home = (token: string) =>

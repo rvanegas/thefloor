@@ -2,13 +2,13 @@
 #
 # Everything that puts this revision somewhere, in the one order that works.
 #
-#   bin/deploy-all              the four stages below, stopping at the first
+#   ts deploy-all              the four stages below, stopping at the first
 #                               failure
-#   bin/deploy-all --dry-run    say what would run and check the machine can
-#   bin/deploy-all --from web   resume at a stage, after fixing what stopped it
-#   bin/deploy-all --keep-going run the rest even after one fails
+#   ts deploy-all --dry-run    say what would run and check the machine can
+#   ts deploy-all --from web   resume at a stage, after fixing what stopped it
+#   ts deploy-all --keep-going run the rest even after one fails
 #
-# The four, and they are `ts deploy`, `ts upload-ios`, `bin/deploy-web --beta`
+# The four, and they are `ts deploy`, `ts upload-ios`, `ts deploy-web --beta`
 # and `ts android --apk` — each run exactly as it would be by hand, with no
 # flags this script invents and nothing it does itself. Every guard those
 # scripts carry still applies; this one adds only the guards that are about
@@ -33,7 +33,7 @@
 #
 # ── The order is a dependency, not a preference ──────────────────────────────
 #
-# `bin/deploy-web --beta` cuts the beta train from **the newest `build/<n>`
+# `ts deploy-web --beta` cuts the beta train from **the newest `build/<n>`
 # tag**, and `ts upload-ios` is what creates that tag. Run the web deploy
 # first and it silently ships the *previous* build's web app — correctly, by
 # its own lights, and with nothing anywhere saying the train is a build behind
@@ -89,7 +89,7 @@ stage_command() {
   case "$1" in
     server)  echo "ts deploy" ;;
     ios)     echo "ts upload-ios" ;;
-    web)     echo "bin/deploy-web --beta" ;;
+    web)     echo "ts deploy-web --beta" ;;
     android) echo "ts android --apk" ;;
   esac
 }
@@ -98,7 +98,7 @@ stage_run() {
   case "$1" in
     server)  ts deploy ;;
     ios)     ts upload-ios ;;
-    web)     bin/deploy-web --beta ;;
+    web)     ts deploy-web --beta ;;
     android) ts android --apk ;;
   esac
 }
@@ -192,7 +192,7 @@ fi
 KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
 if in_plan server || in_plan web; then
   if [ ! -r "${KEY/#\~/$HOME}" ]; then
-    problems+=("no ssh key at $KEY — ts deploy and bin/deploy-web cannot reach the box")
+    problems+=("no ssh key at $KEY — ts deploy and ts deploy-web cannot reach the box")
   fi
 fi
 
@@ -292,7 +292,7 @@ echo
 if [ -n "$failed" ]; then
   echo "✗ $failed failed — fix it, then pick up where this stopped:" >&2
   echo >&2
-  echo "      bin/deploy-all --from $failed" >&2
+  echo "      ts deploy-all --from $failed" >&2
   echo >&2
   echo "  Not from the top, if the ios stage already succeeded: that would" >&2
   echo "  spend a second build number and leave a second tag." >&2

@@ -3,10 +3,10 @@
 // How long iOS lets this app go on running once it is backgrounded, measured
 // rather than reasoned about.
 //
-//   bin/suspend-log collect          record; leave it running for hours or days
-//   bin/suspend-log read             the timeline, and the answer
-//   bin/suspend-log archive          add the back-history the device already kept
-//   bin/suspend-log --file PATH ...  somewhere other than the default
+//   ts suspend-log collect          record; leave it running for hours or days
+//   ts suspend-log read             the timeline, and the answer
+//   ts suspend-log archive          add the back-history the device already kept
+//   ts suspend-log --file PATH ...  somewhere other than the default
 //
 // The default log is ~/.local/state/thefloor/suspend.log, outside the tree on
 // purpose: `ts deploy` rsyncs the working tree with --delete, so a capture
@@ -160,7 +160,7 @@ function collect(file, udid) {
     `Recording to ${file}\n` +
       'Leave this running. Use the app normally — step into a channel alone, ' +
       'step into one with somebody else,\nand background the phone each time. ' +
-      'Ctrl-C when done, then: bin/suspend-log read\n'
+      'Ctrl-C when done, then: ts suspend-log read\n'
   );
 
   // Not `-x`: without it the relay waits for the device to come back rather
@@ -309,7 +309,7 @@ function patterns(bundle) {
 }
 
 function parse(file, bundle) {
-  if (!fs.existsSync(file)) die(`No capture at ${file}. Run: bin/suspend-log collect`);
+  if (!fs.existsSync(file)) die(`No capture at ${file}. Run: ts suspend-log collect`);
   const p = patterns(bundle);
   const events = [];
   /** The year the relay's timestamps do not carry, from the last banner. */

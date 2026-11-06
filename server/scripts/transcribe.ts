@@ -1,7 +1,7 @@
 /**
  * Transcribes one audio file through the server's own batch provider.
  *
- * Read by bin/transcribe, which is where the reasoning lives. This is only the
+ * Read by ts transcribe, which is where the reasoning lives. This is only the
  * half that has to be TypeScript: it calls `AssemblyAiTranscription` rather
  * than the API, so a file transcribed here is asked exactly what a recording
  * is asked — the same pinned models, the same request, and the same lines made

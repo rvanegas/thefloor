@@ -179,10 +179,10 @@ caused; the list carries the meaning.
 - **Displaced** — The message telling a session it is no longer the one standing, another device having entered
 - **Dismiss (a rung)** — Putting one rung of the *introduction* away for good, with the cross beside it; it hides that rung and never ticks it, lives on this install rather than on the account, retires the whole card when the last one goes, and is undone only by *Show the checklist again*
 - **Egress** — LiveKit's recording jobs
-- **Excess flag** — A row the excess monitor writes when one caller — an account, or an address when signed out — asked far more of one route in an hour than everybody else did: past a floor, and ten times the median — or, as `unbudgeted`, made one lookup the accept route's spent budget let through free. A question for a person, surfaced only by `bin/usage excess`; it never refuses anything
+- **Excess flag** — A row the excess monitor writes when one caller — an account, or an address when signed out — asked far more of one route in an hour than everybody else did: past a floor, and ten times the median — or, as `unbudgeted`, made one lookup the accept route's spent budget let through free. A question for a person, surfaced only by `ts usage excess`; it never refuses anything
 - **Expired (build)** — An install below `MIN_SUPPORTED_BUILD`; it replaces itself with an update screen
 - **Follower** — The code on each device showing the film that keeps its YouTube player doing what the room is doing: `useFollow` in `watch/drive.ts` over `stepFollow` in `core/watch.ts`; it follows presses and the room's state, never the room's clock, since 2026-10-03
-- **Growth classes — alone, first circle, onward** — The three cohorts `bin/growth` sorts every account into, by its depth in the invitation forest
+- **Growth classes — alone, first circle, onward** — The three cohorts `ts growth` sorts every account into, by its depth in the invitation forest
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Guess (a credit)** — `invited_via = 'inferred'`: credit worked out from somebody's first contact rather than from a record of an invitation, and the one kind that may be wrong
 - **Present or empty** — `presentOrEmpty` — you are in the channel, or nobody is; *has the room* (`hasTheRoom`) until 2026-10-09
@@ -205,7 +205,7 @@ caused; the list carries the meaning.
 - **Notification answer** — `accounts.notifications` — whether the app may reach somebody when it is not running, as their client last said: granted, undetermined or denied, and **null for nobody has said**. Not the same fact as holding a *device token*, which proves only the first
 - **Paused (of arrivals)** — That the server has stopped announcing arrivals to somebody who was sent them for a week and never opened the app, until they do; `NOTIFICATION_PAUSE_MS` and `accounts.unanswered_since`. **Arrivals alone**, both in what is withheld and in what counts towards the week — the other three kinds are one person aiming something at another and go on being sent. A state the server infers, and the only one that makes the app quieter without anybody choosing it: not a *notification level*, which is a choice, and not a *notification answer*, which is the phone's
 - **Unanswered (of an arrival)** — Announced to somebody who has not been seen since; the oldest one outstanding is `accounts.unanswered_since`, and a week of it is what *paused* measures
-- **Funnel level** — One of the fourteen steps in MARKETING.md between an impression and a recommendation; the code knows four of them by number — 3 in `accounts.notifications`, 4 in `bin/cohorts`, 9 and 10 in `pings`
+- **Funnel level** — One of the fourteen steps in MARKETING.md between an impression and a recommendation; the code knows four of them by number — 3 in `accounts.notifications`, 4 in `ts cohorts`, 9 and 10 in `pings`
 - **Participant** — `ChannelState.participants` — everybody who belongs to a channel, initiator first
 - **People card** — Any one card on a channel's *People* tab, whichever of the four groups draws it — a member, a knock *at the door*, a *guest*, a *guest invitation* or *member link* — and not the *Invite card* after them, which is a control rather than anybody; *roster card* until 2026-10-15, after the tab's old name. `ParticipantCard` and `GuestCard` draw the first and third, the other two are drawn inline, and the phrase is the only name all four share
 - **Playback blocked** — A browser refusing this page permission to make sound; lifted by a real gesture and by nothing else, and always false on a phone
@@ -220,12 +220,12 @@ caused; the list carries the meaning.
 - **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, and what its share hands over. The user's word, not drawn on screen, where a segment is named by its hours. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
 - **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in, holding one *segment* or more. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
-- **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — being reachable, by push or by email, being the other — and deliberately **not** the *island* of `bin/growth`, which walks accepted edges alone
+- **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — being reachable, by push or by email, being the other — and deliberately **not** the *island* of `ts growth`, which walks accepted edges alone
 - **Run** — One recording from start to stop, identified by a `runId` the server mints
 - **Seat (developer sense)** — The durable half of a guest: a `guest_sessions` row with a secret and an expiry
 - **Session (auth)** — One sign-in, and so in practice one device: a row in `tokens`. Several per account since 2026-08-24, and anonymous by construction
 - **Session want — `call`, `listen`** — What this app is asking iOS for, decided in one place (`wantFor`): `call` captures, `listen` only hears — a guest without speech, a device *watching here*, a deferred *promotion*; being in no room asks for nothing
-- **Silence notice** — `SilenceNotice` — the server's record when a restoration missed, when a room is still not restored ten seconds after a release, or when an *unheard report* arrives; kept a week in `silence_notices`, read by `bin/diagnostics`
+- **Silence notice** — `SilenceNotice` — the server's record when a restoration missed, when a room is still not restored ten seconds after a release, or when an *unheard report* arrives; kept a week in `silence_notices`, read by `ts diagnostics`
 - **Silenced** — Derived from `floor.holder` rather than stored: you are silenced iff somebody else holds the floor
 - **Snapshot** — One `ChannelView` or `HomeView` pushed over the socket
 - **Speaking report** — A *withheld* speaker's own device saying it is talking, because no other device can see it
@@ -2247,7 +2247,7 @@ the person the rule is for.
 
 The only trace it leaves is a `paused` count on the `push sent` and
 `push skipped` log lines, a `push paused` line for a *debug* account, and the
-`paused` column in `bin/people`.
+`paused` column in `ts people`.
 
 ## Offline
 
@@ -4206,8 +4206,8 @@ No floor and no median, because a slow walk reaches neither.
 
 **A flag is a question, not a verdict.** Nothing is refused because of one,
 and *excess* is not a word for abuse: an address is shared by strangers, and a
-busy hour is busy for a reason. It is read by `bin/usage excess`, the last
-report of a bare `bin/usage`, and by nothing in the server — no email, nothing
+busy hour is busy for a reason. It is read by `ts usage excess`, the last
+report of a bare `ts usage`, and by nothing in the server — no email, nothing
 on `/healthz`. The counts behind it live in memory and die with their hour;
 only the flag is kept.
 
@@ -4238,7 +4238,7 @@ what it follows, and not the *screen*, which is which device it runs on.
 
 ## Growth classes — alone, first circle, onward
 
-The three cohorts `bin/growth` sorts every account into, by its depth in the
+The three cohorts `ts growth` sorts every account into, by its depth in the
 invitation forest that `accounts.invited_by` describes. **Alone** arrived with
 no inviter and is the top of a tree; **first circle** was invited by somebody
 who came alone; **onward** was invited by somebody who was themselves invited,
@@ -4473,7 +4473,7 @@ activation-ladder half of it and deliberately not the guided-tour half.
 
 A connected component of the accepted-contacts graph: a set of accounts every
 one of whom can be reached from every other by walking mutual contacts.
-Somebody with no accepted contact is an island of one. `bin/growth islands`
+Somebody with no accepted contact is an island of one. `ts growth islands`
 is the only thing that computes them; nothing in the server has the concept
 and no screen says the word.
 
@@ -4530,7 +4530,7 @@ adjective is wrong here rather than there: *live* describes a channel,
 LiveKit — `livekit-server`, `livekit-egress` and Redis — plus the S3 bucket
 recordings land in. Behind the `MediaServer` interface, so the channel rules
 stay testable without any of it running. Deliberately provisioned by its own
-script, `bin/provision-livekit`, which is what a second box would need if the
+script, `ts provision-livekit`, which is what a second box would need if the
 media ever splits off.
 
 ## Mix
@@ -4825,7 +4825,7 @@ egress restarts.
 **One LiveKit room, from creation to deletion — and, since 2026-10-09,
 nothing else.** LiveKit creates a channel's room when the first person
 connects and deletes it `ROOM_DEPARTURE_MS` after the last leaves (its
-`departure_timeout`, 20 seconds, which `bin/provision-livekit` sets). Being
+`departure_timeout`, 20 seconds, which `ts provision-livekit` sets). Being
 here — present, or a guest — is holding a connection to it, so its lifetime
 is a channel's **sitting**: first person here to last one gone,
 which is what the user means by a room and the meaning Rodrigo gave the word
@@ -4876,12 +4876,12 @@ whose invitation `resolveInvitesFor` has written as a *pending* row, with
 nothing accepted yet and possibly nothing ever accepted. Walking
 accepted edges there would measure every invited arrival as an island of one
 and hand a cohort to precisely the people the gate exists to exclude. What it
-is asking for is the island somebody is *about* to be on — what `bin/growth`
+is asking for is the island somebody is *about* to be on — what `ts growth`
 calls the bridges that would merge islands if the pending rows were accepted.
 
 **Bounded, and the bound is not an optimisation.** It stops as soon as `limit`
 people have been seen, so it costs the limit rather than the size of the
-component. The transitive closure `bin/growth` uses is quadratic in an island,
+component. The transitive closure `ts growth` uses is quadratic in an island,
 which is fine in a report somebody runs by hand and is not fine on the signup
 path. Nothing ever needs the true number; the only question asked of it is
 whether it has reached a threshold.
@@ -4889,8 +4889,8 @@ whether it has reached a threshold.
 ## Root
 
 An account at depth 0 in the invitation forest — nobody's invitation brought it,
-so it is the top of a tree. `root` is the column `bin/growth` labels each person
-with, and `bin/growth roots` is one row per tree that has anything in it.
+so it is the top of a tree. `root` is the column `ts growth` labels each person
+with, and `ts growth roots` is one row per tree that has anything in it.
 
 **It is a position and not an achievement.** A root is where somebody sits in
 the forest, whatever grew under them, and most roots grow nothing: the report
@@ -4998,7 +4998,7 @@ in the path — and the two must agree or the last write wins. See STATES.md §
 
 `SilenceNotice` in `server/src/channels.ts`, kept for a week in the
 `silence_notices` table (server/src/diagnostics.ts) and laid on the phones'
-timeline by `bin/diagnostics`; the journal gets only its kind and channel.
+timeline by `ts diagnostics`; the journal gets only its kind and channel.
 Three kinds:
 `restoring` — after a release, a pair that was withheld found not yet heard and
 asked for again, meaning the first attempt missed; `unrestored` — a room still
@@ -5077,7 +5077,7 @@ so no frozen name.
 A deployed build of the web app: `/app` (`stable/`, what the App Store release
 is) and `/beta` (`beta/`, what TestFlight has). `server/src/open.ts` is the one
 door that decides which a browser is sent to, from what that browser last used.
-Deployed by `bin/deploy-web`, not `ts deploy`, and both directories are
+Deployed by `ts deploy-web`, not `ts deploy`, and both directories are
 excluded from the latter's rsync — `--delete` would otherwise take them off the
 box. See decision/ § *Three variants of deploy*.
 

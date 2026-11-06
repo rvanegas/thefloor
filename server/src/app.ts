@@ -175,7 +175,7 @@ export interface BuildOptions {
    * `beta`.
    *
    * **This exists so that two test runs can happen at once**, added
-   * 2026-09-17. The trains are built by `bin/deploy-web` and rsynced straight
+   * 2026-09-17. The trains are built by `ts deploy-web` and rsynced straight
    * to the box, so nothing writes them in a checkout except the tests that
    * need one to exist — and those were creating and then `rm -rf`ing
    * `server/web/stable` itself, a fixed real path. Two suites doing that at
@@ -393,7 +393,7 @@ export interface App {
   pro: ProSubscriptions;
   transcripts: Transcripts;
   help: Help;
-  /** What `bin/diagnostics` reads. Here so a test can see what was kept. */
+  /** What `ts diagnostics` reads. Here so a test can see what was kept. */
   diagnostics: Diagnostics;
   /**
    * Where a `RecordingView` is composed, and since the floor passed 21 the
@@ -562,7 +562,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * Every answer this server gives, counted against whoever asked, and a flag
    * when somebody asks far more than anybody does. See excess.ts.
    *
-   * **Where a flag goes:** the `excess_flags` table, which `bin/usage excess`
+   * **Where a flag goes:** the `excess_flags` table, which `ts usage excess`
    * reads, and a warning in the journal. Nothing else — no email, nothing on
    * `/healthz` — for the meter's reason in usage.ts. Nothing is refused.
    */
@@ -1156,7 +1156,7 @@ export function buildApp(options: BuildOptions = {}): App {
   channels.onGuestConsentChanged = (channelId, guestId, consented) =>
     publication.guestConsentChanged(channelId, guestId, consented);
 
-  // Kept where `bin/diagnostics` lays them on the phones' timeline, and where
+  // Kept where `ts diagnostics` lays them on the phones' timeline, and where
   // they expire — see diagnostics.ts. The journal still gets the kind and the
   // channel, so somebody following it live sees one happen, and no account id:
   // that is the part the journal would keep for ever.
@@ -1400,7 +1400,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // Absent means native, which is every client built before this existed.
     const client = claimedClient(request.headers[CLIENT_HEADER]);
     // **The account's build is only ever a native one.** `accounts.last_build`
-    // is whichever device spoke last, and `bin/people` prints it as *that
+    // is whichever device spoke last, and `ts people` prints it as *that
     // person's build* with an expired flag against the floor. A web client
     // writing there would put a number that is not an install over one that
     // is — so somebody whose phone is on 56 and below the floor would show as
@@ -2069,7 +2069,7 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!owner) {
       // **Past the day's budget, this answer is the leak**: a held username
       // would get `too_many`, so each `unknown` is a lookup nothing counted.
-      // Flagged on the first, for `bin/usage excess`; the answer is unchanged.
+      // Flagged on the first, for `ts usage excess`; the answer is unchanged.
       // Not with a pin, whose wrong answer already reads the same as this.
       if (!body.pin && accounts.linkAcceptsSpent(account.id, now())) {
         excess.flagUnbudgeted(
@@ -2486,7 +2486,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * The two web trains, and the informational page at the root.
    *
    * `/app` is what the App Store release is, `/beta` what TestFlight has, and
-   * they are deployed by `bin/deploy-web` rather than by `ts deploy` — see
+   * they are deployed by `ts deploy-web` rather than by `ts deploy` — see
    * planning/decision/DECISIONS.md § *Three variants of deploy*. The server
    * serves whatever is on disk and knows nothing about which build that is.
    *
@@ -2500,7 +2500,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * and the braces are what a future pattern might undo again.
    *
    * **Both directories are also excluded from that rsync**, and that one is
-   * load-bearing rather than defensive: they are built by `bin/deploy-web`
+   * load-bearing rather than defensive: they are built by `ts deploy-web`
    * from a tag and never exist in a working checkout, so `--delete` would take
    * them off the box on the next server deploy. See the comment there.
    */
@@ -2521,7 +2521,7 @@ export function buildApp(options: BuildOptions = {}): App {
      * bundle written after boot would not be routed at all. **Every web deploy
      * would then need a server restart**, and a restart costs presence, which
      * is far too much to pay for copying static files. This way the plugin
-     * resolves from disk per request and `bin/deploy-web` never touches the
+     * resolves from disk per request and `ts deploy-web` never touches the
      * running process.
      */
     const shell = async (request: FastifyRequest, reply: FastifyReply) => {
@@ -2538,7 +2538,7 @@ export function buildApp(options: BuildOptions = {}): App {
         return withInstallTags(html, train.prefix, origin(request));
       } catch {
         // Built rather than committed, so a checkout that has not run
-        // `bin/deploy-web` has no app. Said plainly, for the same reason the
+        // `ts deploy-web` has no app. Said plainly, for the same reason the
         // guest page says it: the alternative is a blank screen and a console
         // nobody is looking at.
         return reply
@@ -2685,7 +2685,7 @@ export function buildApp(options: BuildOptions = {}): App {
    */
   fastify.get('/', async (request, reply) => {
     // Whether there is a web app on this box at all, asked per request because
-    // `bin/deploy-web` adds a bundle without restarting anything — so a value
+    // `ts deploy-web` adds a bundle without restarting anything — so a value
     // read at boot would be wrong for exactly as long as it mattered. One
     // `access` per train on a route nobody hits in a loop.
     //
@@ -2886,7 +2886,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * refusal looks like to somebody who has just tapped Accept.
    *
    * Asked per request, like the landing page's check and for the same reason:
-   * `bin/deploy-web` adds a bundle without restarting anything, so an answer
+   * `ts deploy-web` adds a bundle without restarting anything, so an answer
    * cached at boot is wrong for exactly as long as it matters.
    *
    * Deliberately not shared with `/`, which asks only about stable: that page
@@ -2931,7 +2931,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * Where the web app is, stamped into the guest page so its one link out can
    * be right — or absent, so the page can leave the link off entirely rather
    * than offering a 503. Same question the acceptance asks; asked again here
-   * because a page can sit open across a `bin/deploy-web`.
+   * because a page can sit open across a `ts deploy-web`.
    */
   async function withAppBase(shell: string): Promise<string> {
     const base = await appBase();
@@ -6344,7 +6344,7 @@ export function buildApp(options: BuildOptions = {}): App {
       dropsRecovered: connectivity.recovered,
       dropsExpired: connectivity.expired,
       // Deleted recordings past their week whose audio nobody has cleared:
-      // the number that says `bin/orphans --delete` is due, since nothing
+      // the number that says `ts orphans --delete` is due, since nothing
       // runs it but a person. See Channels.awaitingOrphans.
       awaitingOrphans: channels.awaitingOrphans(now()),
       // Only ever read by a client that has just discovered it is below the

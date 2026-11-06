@@ -3,8 +3,8 @@
 // Sets each file in planning/task/ and planning/backlog/ back to the time its
 // content last really changed, as git records it.
 //
-//   bin/restore-mtimes            touch every file whose mtime disagrees
-//   bin/restore-mtimes --dry-run  print what it would set, newest first
+//   ts restore-mtimes            touch every file whose mtime disagrees
+//   ts restore-mtimes --dry-run  print what it would set, newest first
 //
 // Written 2026-10-03, after a checkout in the main tree stamped seventy-one of
 // these files with the same minute on 2026-10-02. Their mtimes are how anybody

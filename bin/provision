@@ -3,7 +3,7 @@
 # Brings a bare Ubuntu 24.04 Lightsail instance to the point where ts deploy
 # works against it. Run once per box:
 #
-#     bin/provision ubuntu@<new-ip>
+#     ts provision ubuntu@<new-ip>
 #
 # Idempotent, so re-running after a failure part way through is safe and is the
 # expected way to recover.
@@ -18,7 +18,7 @@
 # empty one would write a fresh schema and look healthy while holding nothing.
 set -euo pipefail
 
-HOST=${1:?usage: bin/provision ubuntu@<ip>}
+HOST=${1:?usage: ts provision ubuntu@<ip>}
 KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
 SSH="ssh -i $KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
 

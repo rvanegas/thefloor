@@ -129,7 +129,7 @@ export interface AccountRow {
    * the network — and it is right often enough to be worth making and wrong
    * often enough to be worth labelling. Without this column the guess and the record
    * become the same value, and no later query can ask how many people were
-   * actually *asked* here, which is the question `bin/growth` exists to
+   * actually *asked* here, which is the question `ts growth` exists to
    * answer. See planning/decision/2026-09-23-credit-follows-the-first-contact.md.
    */
   invited_via: 'email' | 'link' | 'guest_ask' | 'inferred' | null;
@@ -485,7 +485,7 @@ export interface RecordingRow {
   /** How long the published M4A is, in bytes. Null until it exists. */
   published_bytes: number | null;
   /**
-   * When bin/orphans confirmed this deleted recording's objects gone, which
+   * When ts orphans confirmed this deleted recording's objects gone, which
    * the sweep accepts in place of asking the bucket. See the schema.
    */
   objects_cleared_at: number | null;
@@ -680,7 +680,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- distinguishes it from attended_at below: a client left running heartbeats
   -- from an empty room all night and this column follows it. Nothing renders
   -- it any more. What still reads it is the notification pause — being
-  -- connected at all is enough to end that — and bin/people.
+  -- connected at all is enough to end that — and ts people.
   last_seen_at INTEGER,
   -- When somebody was last demonstrably *attending* this account: frontmost on
   -- a phone, a hand on it in a browser. Null until an install that reports it
@@ -1442,7 +1442,7 @@ CREATE TABLE IF NOT EXISTS recordings (
   published_bytes INTEGER,
   -- When somebody confirmed this deleted recording's prefix empty, or null.
   --
-  -- Written by bin/orphans and by nothing in this server, which may not
+  -- Written by ts orphans and by nothing in this server, which may not
   -- delete objects and cannot list the bucket: a person clears the audio on
   -- their own credential, lists the prefix again, and marks the row only if
   -- nothing is left. The sweep takes the mark as the evidence it cannot
@@ -1573,7 +1573,7 @@ CREATE INDEX IF NOT EXISTS removal_notices_account
 -- argument in planning/MIGRATION.md.
 --
 -- Nothing reads these tables in code, deliberately. There is no endpoint, no
--- field on the wire and no screen — bin/usage runs the queries against the box
+-- field on the wire and no screen — ts usage runs the queries against the box
 -- from outside. A number nobody can see cannot quietly start deciding things.
 -- (No backticks anywhere in this schema: it is a template literal, so one ends
 -- it, and the failure is 30 lines of parse errors pointing at the code after.)
@@ -1637,7 +1637,7 @@ CREATE INDEX IF NOT EXISTS usage_bytes_at ON usage_bytes(at);
 -- cores. So a refusal at ten or more is the stem count; one below it is egress
 -- measuring its jobs above 0.15, or not capacity at all, which the error text
 -- says. Until this table a refusal reached the server log and nowhere else.
--- Read by bin/usage egress.
+-- Read by ts usage egress.
 --
 -- **Nobody in it**: no account, no identity, no channel — the recording id is
 -- the only link, and the error text has the room and identity cut out before
@@ -1670,7 +1670,7 @@ CREATE INDEX IF NOT EXISTS egress_starts_at ON egress_starts(at);
 --
 -- Instrumentation on usage_spans' terms and not a feature, which is why
 -- UsageMeter owns it rather than ChannelRegistry: nothing in code reads it,
--- there is no endpoint and no field on the wire, and bin/growth runs the
+-- there is no endpoint and no field on the wire, and ts growth runs the
 -- queries from outside. The rate-limiting Map is untouched and stays the
 -- authority on whether a ping may be sent — this table is written after that
 -- decision and never consulted before it.
@@ -1725,7 +1725,7 @@ CREATE INDEX IF NOT EXISTS pings_open
 -- with identities the count could be per person instead — and it is left out
 -- anyway, because /privacy says there is no record of what any individual
 -- tapped and that sentence is worth more than the bias is worth removing.
--- The bias is stated in bin/usage nav instead, where somebody reading the
+-- The bias is stated in ts usage nav instead, where somebody reading the
 -- figure will meet it.
 --
 -- **So it is counts and not rows.** One row per kind per build per day,
@@ -1832,7 +1832,7 @@ CREATE TABLE IF NOT EXISTS episode_listens (
 -- Somebody who did far more of something than anybody did, one row per time
 -- it was noticed. See excess.ts.
 --
--- **The only thing the monitor writes, and read only by bin/usage excess.** Its counts live in memory and die
+-- **The only thing the monitor writes, and read only by ts usage excess.** Its counts live in memory and die
 -- with their hour, so an account that trips nothing has no row here and never
 -- had one; this holds the exceptions and nothing about the rule.
 --
@@ -1931,7 +1931,7 @@ CREATE TABLE IF NOT EXISTS transcripts (
   -- from the start of the recording and so is never longer than it — and
   -- replaced by the sum of the jobs' own measurements as they land. A job that
   -- could not be measured keeps its share of the estimate, so this is never
-  -- null and never quietly under-reports: bin/usage would rather over-report a
+  -- null and never quietly under-reports: ts usage would rather over-report a
   -- bill than under-report one.
   billed_ms    INTEGER,
   -- When somebody deleted this transcript on its own, leaving the recording.
@@ -2169,7 +2169,7 @@ CREATE INDEX IF NOT EXISTS transcript_usage_recording
 
 -- What each press of *Ask Claude* cost, since 2026-10-22: one row per press,
 -- failed or not, written when the answer or the failure comes back, and read
--- by bin/usage's provider spend beside transcription's. A ledger like the
+-- by ts usage's provider spend beside transcription's. A ledger like the
 -- one above: never swept, and outliving what it priced.
 --
 -- **No text.** The reply is in pastes and the prompt is the Record, so a
@@ -2234,14 +2234,14 @@ CREATE TABLE IF NOT EXISTS channel_notification_levels (
 -- back into the same row.
 --
 -- **The answer columns are written by hand and by nothing else.** There is no
--- route that sets them; bin/help does, through ts db --write. That makes this
+-- route that sets them; ts help does, through ts db --write. That makes this
 -- the one table here whose most important column is edited by a person, which
 -- is why answer and answered_at are both nullable and why help.ts refuses
 -- to believe a timestamp that has no answer beside it — the pair can be left
 -- half-written in a way nothing else in this database can.
 --
--- Since 2026-09-10 that hand happens in two moves rather than one: bin/help
--- writes a draft into answer_draft, and bin/help publish is what the asker
+-- Since 2026-09-10 that hand happens in two moves rather than one: ts help
+-- writes a draft into answer_draft, and ts help publish is what the asker
 -- ever sees. An answer to a stranger question about their own account is worth
 -- reading back before it is sent, and the one-move form gave nowhere to do
 -- that.
@@ -2265,7 +2265,7 @@ CREATE TABLE IF NOT EXISTS help_questions (
   -- meaning exactly one thing: what the asker is being shown. Every read of
   -- this table tests answer IS NULL — the screen list, the backlog count that
   -- decides whether another question may be asked, the state column in
-  -- bin/help — and not one of them had to learn what a draft is. Had the draft
+  -- ts help — and not one of them had to learn what a draft is. Had the draft
   -- been kept in answer under an unpublished flag, every one of those reads
   -- would need a second condition, and the one that was missed would show
   -- somebody a half-written sentence about their own account. The failure mode
@@ -2282,7 +2282,7 @@ CREATE TABLE IF NOT EXISTS help_questions (
   drafted_at   INTEGER
 );
 -- Both reads are one account's questions, and the backlog check is the same
--- query narrowed. Nothing ever reads the table whole except bin/help, which is
+-- query narrowed. Nothing ever reads the table whole except ts help, which is
 -- run by a person and can afford a scan.
 CREATE INDEX IF NOT EXISTS help_questions_account
   ON help_questions(account_id, asked_at DESC);
@@ -2622,7 +2622,7 @@ function migrate(db: Db): void {
   // in there too and nothing distinguishes them after the fact. A null here
   // means "written before this column existed", which is honest; guessing
   // would put invented provenance on the very rows the column exists to keep
-  // honest. bin/growth reports it as `unrecorded`.
+  // honest. ts growth reports it as `unrecorded`.
   if (!accountColumns.some((c) => c.name === 'invited_via')) {
     db.exec('ALTER TABLE accounts ADD COLUMN invited_via TEXT');
   }
@@ -2770,7 +2770,7 @@ function migrate(db: Db): void {
   // derived from. Deriving one from a display name would be handing out a
   // permanent public name nobody asked for, to everybody at once — which is
   // what was later done anyway, deliberately and outside the migration, by
-  // bin/backfill-usernames; see decision/2026-10-28-usernames-are-backfilled.md.
+  // ts backfill-usernames; see decision/2026-10-28-usernames-are-backfilled.md.
   if (!accountColumns.some((c) => c.name === 'username')) {
     db.exec('ALTER TABLE accounts ADD COLUMN username TEXT');
   }
@@ -2988,7 +2988,7 @@ function migrate(db: Db): void {
            WHERE mix_state IS NULL AND ended_at IS NOT NULL`);
 
   // Where an answer is written before anybody decides it is ready, added
-  // 2026-09-10 when `bin/help` stopped publishing on the same keystroke that
+  // 2026-09-10 when `ts help` stopped publishing on the same keystroke that
   // composed. Null for every existing row and nothing is backfilled: a question
   // already answered has been seen by the person who asked it, and inventing a
   // draft for it would offer to publish a sentence that is already out.
@@ -3087,7 +3087,7 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE recordings ADD COLUMN published_bytes INTEGER');
   }
   // Null on every row that exists, which is true: nobody had confirmed any
-  // prefix empty before bin/orphans could say so.
+  // prefix empty before ts orphans could say so.
   if (!hasColumn(db, 'recordings', 'objects_cleared_at')) {
     db.exec('ALTER TABLE recordings ADD COLUMN objects_cleared_at INTEGER');
   }

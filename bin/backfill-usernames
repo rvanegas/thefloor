@@ -2,9 +2,9 @@
 #
 # Gives every account without a username the one signup would have given it.
 #
-#   bin/backfill-usernames                 preview, against the deployed server
-#   bin/backfill-usernames --write         do it
-#   bin/backfill-usernames --local [...]   the development database instead
+#   ts backfill-usernames                 preview, against the deployed server
+#   ts backfill-usernames --write         do it
+#   ts backfill-usernames --local [...]   the development database instead
 #
 # A preview by default, the same trade ts db makes: it prints every account
 # without a username and what it would get, and writes nothing. `--write` runs

@@ -9,7 +9,7 @@ the order of the work, and the plan that follows.**
 
 **The figures below are perishable and the plan is not.** At thirty-one people
 every number here moves on one person's week, so a session reading this in a
-month should re-take the measurement with `bin/growth` before trusting a single
+month should re-take the measurement with `ts growth` before trusting a single
 row — § *How it is read back* says which reports. What should survive
 re-measurement is the ordering, and where it does not, that is the finding.
 
@@ -27,7 +27,7 @@ running, by choice, as of 2026-10-03.
 | *The measurement* | What was true on 2026-09-23, by level |
 | *What the measurement changes* | The four places it contradicts the standing plan |
 | *The plan* | Five tracks, ordered, with what each is waiting on |
-| *How it is read back* | Which `bin/growth` report judges which track |
+| *How it is read back* | Which `ts growth` report judges which track |
 
 ## The measurement
 
@@ -154,7 +154,7 @@ Where 48% of the population is stuck.
   pitch never fires, and that account cannot be told their friend has just
   signed up. § *Three things the campaign exposes* below calls this "the serious one" and the measurement
   does not contradict it.
-- **B2. Re-read `bin/growth notify` no earlier than 2026-10-07**, once builds
+- **B2. Re-read `ts growth notify` no earlier than 2026-10-07**, once builds
   have rolled, and before concluding anything from it. See the reachability
   paragraph above.
 
@@ -207,11 +207,11 @@ left to judgement.**
 
 | Track | Report | The number |
 | --- | --- | --- |
-| A | `bin/growth pairs` | **Fifteen people holding exactly one contact.** That is the figure the whole track exists to reduce |
-| A | `bin/growth channels` | Whether the three-to-five band grows against the pair band — the § *a shape* question |
-| A | `bin/growth islands` | Whether `onward` leaves one, and whether pending asks appear at all |
-| B | `bin/growth notify` | *nobody has said* falling as builds roll, then the granted share among people who have somebody |
-| C, D | `bin/growth classes` | `alone` swelling with nothing under it is the scattered-install failure, made visible |
+| A | `ts growth pairs` | **Fifteen people holding exactly one contact.** That is the figure the whole track exists to reduce |
+| A | `ts growth channels` | Whether the three-to-five band grows against the pair band — the § *a shape* question |
+| A | `ts growth islands` | Whether `onward` leaves one, and whether pending asks appear at all |
+| B | `ts growth notify` | *nobody has said* falling as builds roll, then the granted share among people who have somebody |
+| C, D | `ts growth classes` | `alone` swelling with nothing under it is the scattered-install failure, made visible |
 | — | `pings`, `groups` | **Watched for regression, not for improvement** |
 
 **Expect the first two reads to be ambiguous**, on `task/run-the-first-apple-search-ads-campaign.md` § *The kill

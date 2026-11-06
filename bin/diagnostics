@@ -3,11 +3,11 @@
 // The diagnostic lines phones have shipped to the deployed server, read back
 // out of its database as one timeline.
 //
-//   bin/diagnostics                               the last hour
-//   bin/diagnostics --since "2026-09-30 10:20"    from then (local time) to now
-//   bin/diagnostics --since … --until …           a window
-//   bin/diagnostics --account acct_…              one account's lines only
-//   bin/diagnostics --grep 'socket|lock|app '     lines whose text matches
+//   ts diagnostics                               the last hour
+//   ts diagnostics --since "2026-09-30 10:20"    from then (local time) to now
+//   ts diagnostics --since … --until …           a window
+//   ts diagnostics --account acct_…              one account's lines only
+//   ts diagnostics --grep 'socket|lock|app '     lines whose text matches
 //
 // Read-only. **Only a debug account's phone ships anything**: `POST
 // /diagnostics` refuses everybody else, so an empty answer for an ordinary

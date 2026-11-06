@@ -195,7 +195,7 @@ export const COHORT_CHANNEL_NAME = 'Getting Started';
  * exclude it.
  *
  * See `Accounts.reachableFrom`, which is bounded by this and counts *pending*
- * contact rows as edges. It is deliberately not `bin/growth`'s *island*.
+ * contact rows as edges. It is deliberately not `ts growth`'s *island*.
  */
 export const COHORT_REACH_FLOOR = 4;
 

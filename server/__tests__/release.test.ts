@@ -256,7 +256,7 @@ describe('what build is calling', () => {
   });
 
   /**
-   * The account-level column, which `bin/people` prints as a person's build
+   * The account-level column, which `ts people` prints as a person's build
    * with an expired flag against the floor.
    *
    * A browser must not write it. It is whichever device spoke last, so a web

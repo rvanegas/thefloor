@@ -5,7 +5,7 @@ import { newId, type Db } from './db';
 /**
  * What phones and the server say about a fault while it is happening: the
  * lines a debug account's phone ships from its audio panel, and the server's
- * silence notices that those lines are evidence against. `bin/diagnostics`
+ * silence notices that those lines are evidence against. `ts diagnostics`
  * reads both back as one timeline.
  *
  * **In tables rather than the journal, since 2026-10-03.** Both went to the
@@ -22,7 +22,7 @@ import { newId, type Db } from './db';
  * journal never discharged them; the sweep runs on its own timer so that a box
  * where no phone ships anything still expires what is there.
  *
- * **Read by `bin/diagnostics` and nothing else** — no endpoint reads it back,
+ * **Read by `ts diagnostics` and nothing else** — no endpoint reads it back,
  * on usage.ts's rule for the meter.
  */
 export class Diagnostics {

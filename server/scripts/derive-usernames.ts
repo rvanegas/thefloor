@@ -1,7 +1,7 @@
 /**
  * The SQL that gives each account the username signup would have given it.
  *
- * Read by bin/backfill-usernames, which is where the reasoning lives. This is
+ * Read by ts backfill-usernames, which is where the reasoning lives. This is
  * only the half that has to be TypeScript: the candidates come from the same
  * `core/derivedNames.ts` functions `Accounts.deriveUsername` calls, in the
  * same order and with the same fallback to the address, so the rule cannot

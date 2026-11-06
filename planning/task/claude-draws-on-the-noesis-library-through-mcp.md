@@ -18,7 +18,7 @@ in builds 392 and up, so this replaces a live setup.
    its two lines straight into `~/.config/thefloor/server.env` without being
    printed; remove `NOESIS_TOKEN` and `NOESIS_IDENTIFIERS` there; `ts env-push`.
 3. **Land and deploy** this branch (`noesis-connect`), then
-   `bin/restart-services` if the deploy did not restart with the new env. The
+   `ts restart-services` if the deploy did not restart with the new env. The
    startup log's `library` line names the URL, client and callback.
 4. **Revoke the old token**: its `users.toml` line on `commons`, note "The
    Floor".
@@ -49,7 +49,7 @@ builds before it fail on *Channel Settings* while any library is on.
   switch on, and read the server log for the warning naming noesis.
 - **Whether lookups happen where they should.** On Pro, three presses in a
   channel whose Record touches something in the library and three in one that
-  does not, both switched on; then `bin/usage transcripts`, the *library*
+  does not, both switched on; then `ts usage transcripts`, the *library*
   section — `looked`, `avg_calls`, `avg_in`, `timed_out`. Lookups in the
   second channel mean the prompt's "only when relevant" is not holding, and
   the switch is the remedy rather than something to tune.

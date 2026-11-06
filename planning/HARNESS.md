@@ -55,8 +55,8 @@ human has to approve the call itself:
 ```json
 "permissions": {
   "ask": [
-    "Bash(ts deploy:*)", "Bash(bin/deploy-all:*)", "Bash(bin/deploy-web:*)",
-    "Bash(bin/restart-services:*)",
+    "Bash(ts deploy:*)", "Bash(ts deploy-all:*)", "Bash(ts deploy-web:*)",
+    "Bash(ts restart-services:*)",
     "Bash(ts upload-ios:*)", "Bash(ts submit-ios:*)",
     "Bash(git push:*)"
   ]
@@ -74,7 +74,7 @@ on it alone.
 - any `git push` whose refspec reaches `master`, or a bare push from `master`;
 - `git merge`, `git rebase` or `git fetch . <x>:master` that moves `master`;
 - `git tag -f released` and any push of a `build/*` tag;
-- `ts deploy*`, `ts upload-ios`, `bin/restart-services`, and `ts submit-ios`
+- `ts deploy*`, `ts upload-ios`, `ts restart-services`, and `ts submit-ios`
   without `--status`.
 
 `ask` rather than `deny`, because when the work has been asked for, the
@@ -208,7 +208,7 @@ contents table).
 - **Indexes for the two large documents without one**: ASSEMBLY_PROMPT.md
   (55KB) and SHIMS.md (51KB). This is the 20KB rule AGENTS.md already states.
 - **Read-only allowlist entries** for `ts health`, `ts deploys`, `ts note`,
-  `bin/usage`, `npm test` and `npm run typecheck`. The `fewer-permission-prompts`
+  `ts usage`, `npm test` and `npm run typecheck`. The `fewer-permission-prompts`
   skill will propose them from the transcripts. These are cosmetic under auto
   mode, but useful for any session not in it.
 

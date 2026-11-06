@@ -3,11 +3,11 @@
 # What this box carried, read out of the two usage tables — and what it spent,
 # read out of the transcripts and, since 2026-10-22, Claude's ledger.
 #
-#   bin/usage                  every report, against the deployed server
-#   bin/usage minutes          one report
-#   bin/usage peak bytes       several, in the order given
-#   bin/usage --local          the development database on this machine
-#   bin/usage --list           the report names and what each answers
+#   ts usage                  every report, against the deployed server
+#   ts usage minutes          one report
+#   ts usage peak bytes       several, in the order given
+#   ts usage --local          the development database on this machine
+#   ts usage --list           the report names and what each answers
 #
 # Read-only, always: there is no --write, because nothing here is a thing you
 # would ever want to edit by hand and the sweep owns the deleting.
@@ -16,9 +16,9 @@
 # `nav_counts` and `episode_listens`. **The meter's other table, `pings`, is not
 # read here** — it
 # measures whether asking somebody to come worked, which is a funnel question
-# and not a cost one, and `bin/growth pings` is the report for it.
+# and not a cost one, and `ts growth pings` is the report for it.
 #
-# **`nav` is not a cost report either, and is here rather than in bin/growth
+# **`nav` is not a cost report either, and is here rather than in ts growth
 # because it is not a funnel one.** It asks which of two controls people reach
 # for — a design question, and the first this project has measured rather than
 # argued. It lives with the meter because its table does, and its table lives
@@ -39,7 +39,7 @@
 #
 # The `transcripts` report reads `transcripts`, `live_sessions`,
 # `transcript_usage` and `accounts` instead, which the server very much does
-# read. It is here rather than in bin/people or a
+# read. It is here rather than in ts people or a
 # script of its own because the question it answers is this one — what did the
 # month cost — and because a second script nobody remembers is how a bill goes
 # unwatched.
@@ -101,7 +101,7 @@ usage_minutes() {
 --
 -- **And this total is short.** A span open when the server restarted was
 -- closed at its own start and contributes zero minutes here, silently. How
--- many minutes that is, as a lower bound and per kind, is `bin/usage defects`
+-- many minutes that is, as a lower bound and per kind, is `ts usage defects`
 -- — which as of 2026-09-15 says the `participant` series is missing at least
 -- two fifths of itself. Read that before quoting any figure below at anybody.
 SELECT COALESCE(a.display_name, '(gone)') AS who,
@@ -131,7 +131,7 @@ usage_pairs() {
 --
 -- Short for the reason `minutes` is, and more quietly: a pair open when the
 -- server restarted is a *closed* span of zero length, so it passes the filter
--- below and then adds nothing. See `bin/usage defects`.
+-- below and then adds nothing. See `ts usage defects`.
 SELECT COALESCE(a.display_name, '(gone)') AS who,
        s.account_id,
        COALESCE(p.display_name, '(gone)') AS peer,
@@ -173,14 +173,14 @@ usage_peak() {
 -- evaluating at every start is sufficient — plus each midnight, which is what
 -- catches a day whose peak was set by connections that opened the day before
 -- and never closed. A span still open counts as open at every later instant,
--- so a leaked span inflates every day after it; `bin/usage defects` is what
+-- so a leaked span inflates every day after it; `ts usage defects` is what
 -- says whether there is one.
 --
 -- The error runs the other way too, and harder. A span zeroed by a restart is
 -- open at no instant at all — `ended_at > i.t` is false from its own start —
 -- so a restart does not merely stop counting a connection, it removes it from
 -- every peak it had already set. A day with restarts in it under-reports, and
--- the days that have them are listed by `bin/usage defects`.
+-- the days that have them are listed by `ts usage defects`.
 WITH RECURSIVE days(d) AS (
   SELECT date(unixepoch() - 2592000, 'unixepoch')
   UNION ALL
@@ -745,7 +745,7 @@ usage_excess() {
 .print '── Excess: who asked far more of one route than anybody ────────'
 .print ''
 -- **The one report here that is a notice rather than a measurement**, and last
--- so that a bare `bin/usage` ends on it. Nothing else says a flag exists — no
+-- so that a bare `ts usage` ends on it. Nothing else says a flag exists — no
 -- email, nothing on /healthz — so this is where one is found. See
 -- server/src/excess.ts and
 -- planning/decision/2026-10-03-excess-is-watched-across-every-route-rather-than-budgeted-per-route.md.

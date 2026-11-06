@@ -326,7 +326,7 @@ function Root() {
     // Widened from `app.debug` on 2026-09-05, the night both were confirmed —
     // the first by five re-entries that had always frozen and did not, the
     // second by two phones and a step-out that had frozen minutes earlier under
-    // the previous build. `bin/live` said one person was online, so there was
+    // the previous build. `ts live` said one person was online, so there was
     // nobody to stage it for.
     //
     // The cost is chosen: HFP rather than A2DP for media playback under all

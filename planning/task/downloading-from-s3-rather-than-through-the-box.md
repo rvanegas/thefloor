@@ -4,7 +4,7 @@ DESIGNED, not built — the trigger is measurable load, and it has not arrived
 
 `GET /recordings/:id/export` mixes the stems with ffmpeg, reads the whole
 result into a Buffer and sends it, so every byte crosses this process — and
-the mix is recomputed for every download. `bin/usage bytes` shows 28
+the mix is recomputed for every download. `ts usage bytes` shows 28
 `mix-read` against 11 `mix-write`, which is the same recording being remade
 for people who have already been given it once.
 
@@ -58,6 +58,6 @@ rather than a hazard to live audio. That was the urgent half and it is done;
 what is left pushes on storage and repetition, not on calls being interrupted.
 
 Pairs with § *Review S3*, which is what would say what the stems actually cost.
-`bin/usage` cannot see them at all — the egress jobs write to the bucket on
+`ts usage` cannot see them at all — the egress jobs write to the bucket on
 their own credential and never through this process, so the largest category of
 bytes is missing from every number it reports.

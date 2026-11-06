@@ -7,15 +7,15 @@ cannot even ask whether Lightsail auto-snapshots are turned on
 one copy of the database that exists is the one taken for the migration, in
 `~/.config/thefloor/backup-2026-08-13`, which is by now six weeks stale.
 
-The configuration half has the same weak spot. `bin/provision` reads the
+The configuration half has the same weak spot. `ts provision` reads the
 `thefloor` unit and the Caddyfile from that same directory on Rodrigo's Mac,
 so a rebuild works only while the Mac survives, and the rebuild is meant for
 the day something is lost. Checked on 2026-09-30: the live unit is identical
 to the backup, and the live Caddyfile differs only by the
-`livekit.rvanegas.co` block that `bin/provision-livekit` appends, so today the
+`livekit.rvanegas.co` block that `ts provision-livekit` appends, so today the
 two scripts in order would reproduce the box. The fix is to write both files
-out inside `bin/provision`, as `bin/provision-livekit` already does its units
-(MIGRATION.md § *What survives: `bin/provision`* names this gap).
+out inside `ts provision`, as `ts provision-livekit` already does its units
+(MIGRATION.md § *What survives: `ts provision`* names this gap).
 
 What a backup has to cover: the database (online, with `sqlite3 .backup`
 rather than a file copy, since it is in WAL mode), `server/.env` and the

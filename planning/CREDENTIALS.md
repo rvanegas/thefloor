@@ -13,8 +13,8 @@ for the same reason: it is loaded into every session before anybody types
 anything, and none of this is needed by somebody working on the server, the
 reducer or the app's behaviour, which is most work.
 
-**Read this before touching any credential, `bin/provision`,
-`bin/provision-livekit`, or `server/.env`.**
+**Read this before touching any credential, `ts provision`,
+`ts provision-livekit`, or `server/.env`.**
 
 **The eleven are what this project holds. § *The credential this project issues*
 at the end is about one it mints** — the session token — and a place it is
@@ -37,7 +37,7 @@ here has to be read in order, and no entry depends on another.
 
 | Touching | Read |
 |---|---|
-| `bin/provision-livekit`, media that will not connect | LiveKit |
+| `ts provision-livekit`, media that will not connect | LiveKit |
 | Recordings: writing them, or reading one back | `thefloor-egress`, `thefloor-server` |
 | A one-time code that never arrived | `thefloor-server` (SES, and the configuration-set trap) |
 | Push on iOS — and see `APNS_ENV` in AGENTS.md first | APNs auth key |
@@ -67,8 +67,8 @@ Deliberately separate, so no single leak is worse than it has to be:
   It lives in exactly three places, all mode 600 and all outside the synced
   tree — `server/.env` and `/etc/livekit/{livekit,egress}.yaml` on the box, and
   `~/.config/thefloor/livekit.env` on the development machine, which is what
-  `bin/provision-livekit` reads. That script refuses to run without it rather
-  than generating a pair of its own, on `bin/provision`'s principle that a
+  `ts provision-livekit` reads. That script refuses to run without it rather
+  than generating a pair of its own, on `ts provision`'s principle that a
   script which invents credentials is one whose every invocation can leave a
   different pair behind and a server pointed at the one before it.
 
@@ -97,7 +97,7 @@ Deliberately separate, so no single leak is worse than it has to be:
   with. Anything that seems to need this credential widened is worth checking
   against that one first. The sweep's `DeleteObject` and `ListBucket` were
   both questions of the same kind, and both were declined: a person deletes,
-  and confirms, from `bin/orphans` — see
+  and confirms, from `ts orphans` — see
   decision/2026-10-03-bin-orphans-clears-deleted-recordings-and-says-so.md.
 
   It also needs the **configuration set** in its resource list, not only the

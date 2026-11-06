@@ -2,15 +2,15 @@
 #
 # The questions people have asked from inside the app, and how to answer them.
 #
-#   bin/help                        the unanswered ones, oldest first
-#   bin/help list --all             every question, answered or not
-#   bin/help show <id>              one question, whole, with the asker
-#   bin/help compose                how many are waiting, and nothing else
-#   bin/help compose <id>           Claude Code drafts an answer to one
-#   bin/help compose --all          a draft for every question without one
-#   bin/help note <id> "..."        add your own words to the draft
-#   bin/help discard <id>           throw the draft away
-#   bin/help publish <id>           send the draft to whoever asked
+#   ts help                        the unanswered ones, oldest first
+#   ts help list --all             every question, answered or not
+#   ts help show <id>              one question, whole, with the asker
+#   ts help compose                how many are waiting, and nothing else
+#   ts help compose <id>           Claude Code drafts an answer to one
+#   ts help compose --all          a draft for every question without one
+#   ts help note <id> "..."        add your own words to the draft
+#   ts help discard <id>           throw the draft away
+#   ts help publish <id>           send the draft to whoever asked
 #   --local                         the development database on this machine
 #
 # **This is the whole of the other end of the Help screen.** Somebody types a
@@ -34,9 +34,9 @@
 # worth remembering the shape of, so the shape is now the ordinary one.
 #
 # Casualties of that, named because a session that learnt the old spelling will
-# reach for them: `bin/help <id>` is now `bin/help show <id>`, `bin/help <id>
-# "text"` is now `bin/help note <id> "text"`, `bin/help --all` is now
-# `bin/help list --all`, and `--compose` is `compose`.
+# reach for them: `ts help <id>` is now `ts help show <id>`, `ts help <id>
+# "text"` is now `ts help note <id> "text"`, `ts help --all` is now
+# `ts help list --all`, and `--compose` is `compose`.
 #
 # ── An id is any prefix that means one question ──────────────────────────────
 #
@@ -44,12 +44,12 @@
 # transcription job with a silent failure at the end of it: a wrong character
 # updates no rows, and the only thing that catches it is reading the line that
 # comes back. Four characters are enough to be unique among the handful of
-# questions that are ever outstanding, so `bin/help show q_kJ8` is the same as
+# questions that are ever outstanding, so `ts help show q_kJ8` is the same as
 # writing it in full.
 #
 # **The `q_` is optional, since it is on every one of them.** It carries no
-# information and is two of the four characters worth typing, so `bin/help show
-# kJ8` and `bin/help show q_kJ8` are the same prefix. A leading `q_` is
+# information and is two of the four characters worth typing, so `ts help show
+# kJ8` and `ts help show q_kJ8` are the same prefix. A leading `q_` is
 # stripped before anything is matched; what is left is matched against the id
 # from its third character on.
 #
@@ -200,7 +200,7 @@ for arg in "$@"; do
       exit 0
       ;;
     -*)
-      echo "bin/help: unknown option $arg — see bin/help --help" >&2
+      echo "ts help: unknown option $arg — see ts help --help" >&2
       exit 1
       ;;
     *)
@@ -265,7 +265,7 @@ scalar() {
 resolve() {
   local typed="$1"
   if [ -z "$typed" ]; then
-    echo "bin/help: no id given" >&2
+    echo "ts help: no id given" >&2
     return 1
   fi
 
@@ -274,7 +274,7 @@ resolve() {
   # stops being a constant.
   local prefix="${typed#q_}"
   if [ -z "$prefix" ]; then
-    echo "bin/help: $typed is the prefix every id has — say more of it" >&2
+    echo "ts help: $typed is the prefix every id has — say more of it" >&2
     return 1
   fi
 
@@ -287,12 +287,12 @@ resolve() {
   count=$(printf '%s' "$matches" | grep -c . || true)
 
   if [ "$count" -eq 0 ]; then
-    echo "bin/help: no question with an id starting $typed" >&2
+    echo "ts help: no question with an id starting $typed" >&2
     return 1
   fi
   if [ "$count" -gt 1 ]; then
     {
-      echo "bin/help: $typed matches $count questions — say more of it:"
+      echo "ts help: $typed matches $count questions — say more of it:"
       ts db $local_flag "
         SELECT id,
                datetime(asked_at / 1000, 'unixepoch') AS asked,
@@ -356,7 +356,7 @@ show() {
   " | tr -d ' \r' | { grep -E '^[0-9A-F]+$' || true; } | xxd -r -p)
 
   if [ -z "$blob" ]; then
-    echo "bin/help: $1 is not a question in this database" >&2
+    echo "ts help: $1 is not a question in this database" >&2
     return 1
   fi
 
@@ -420,7 +420,7 @@ drafted_report() {
   show "$1"
   echo
   echo "Drafted, and not sent. When it reads right:"
-  echo "  bin/help publish $1"
+  echo "  ts help publish $1"
 }
 
 # Whether a draft carries a signed note, which is what makes it not the
@@ -433,8 +433,8 @@ has_note() {
 }
 
 usage_error() {
-  echo "bin/help: $1" >&2
-  echo "          see bin/help --help" >&2
+  echo "ts help: $1" >&2
+  echo "          see ts help --help" >&2
   exit 1
 }
 
@@ -459,7 +459,7 @@ cleanup_released_tree() {
 # system's problem rather than something `git worktree list` has to explain.
 open_released_tree() {
   if ! git rev-parse --verify --quiet 'released^{commit}' >/dev/null; then
-    echo "bin/help: no released ref in this checkout, so there is no telling" >&2
+    echo "ts help: no released ref in this checkout, so there is no telling" >&2
     echo "          what is in people's hands — refusing to compose." >&2
     return 1
   fi
@@ -475,7 +475,7 @@ open_released_tree() {
   released_tree="$released_parent/released"
   trap cleanup_released_tree EXIT
   git worktree add --detach "$released_tree" "$commit" >/dev/null 2>&1 || {
-    echo "bin/help: could not check out released — nothing composed" >&2
+    echo "ts help: could not check out released — nothing composed" >&2
     return 1
   }
 }
@@ -494,7 +494,7 @@ compose_one() {
   build=$(scalar 'a.last_build' "$qid")
 
   if [[ ! "$text" =~ [^[:space:]] ]]; then
-    echo "bin/help: $qid has no question in it to answer" >&2
+    echo "ts help: $qid has no question in it to answer" >&2
     return 1
   fi
 
@@ -564,12 +564,12 @@ INSTRUCTIONS
   # talked into using. In the released worktree, so that is the whole of what
   # those three can see.
   composed=$(cd "$released_tree" && claude -p "$prompt" --allowedTools "Read,Grep,Glob") || {
-    echo "bin/help: claude exited non-zero on $qid — nothing drafted" >&2
+    echo "ts help: claude exited non-zero on $qid — nothing drafted" >&2
     return 1
   }
 
   if [[ ! "$composed" =~ [^[:space:]] ]]; then
-    echo "bin/help: claude returned nothing for $qid — nothing drafted" >&2
+    echo "ts help: claude returned nothing for $qid — nothing drafted" >&2
     return 1
   fi
 
@@ -630,7 +630,7 @@ case "$verb" in
     # hands you when a heredoc or a quoted variable came out empty, which is
     # the way it happens.
     if [[ ! "$arg_text" =~ [^[:space:]] ]]; then
-      echo "bin/help: refusing to draft an empty note" >&2
+      echo "ts help: refusing to draft an empty note" >&2
       exit 1
     fi
 
@@ -673,7 +673,7 @@ case "$verb" in
 
     if [ -n "$arg_id" ] || $all; then
       if ! command -v claude >/dev/null 2>&1; then
-        echo "bin/help: claude is not on PATH, and compose is a session of it." >&2
+        echo "ts help: claude is not on PATH, and compose is a session of it." >&2
         exit 1
       fi
     fi
@@ -685,8 +685,8 @@ case "$verb" in
       # and one somebody has signed is not, that being a thing a rerun would
       # quietly destroy.
       if has_note "$resolved"; then
-        echo "bin/help: $resolved has a note of yours in its draft." >&2
-        echo "          bin/help discard $resolved first, if you mean to lose it." >&2
+        echo "ts help: $resolved has a note of yours in its draft." >&2
+        echo "          ts help discard $resolved first, if you mean to lose it." >&2
         exit 1
       fi
 
@@ -724,15 +724,15 @@ case "$verb" in
         echo "$outstanding questions outstanding, $started_count of them already drafted."
       fi
       echo
-      echo "  bin/help                     read them"
-      echo "  bin/help compose <id>        draft an answer to one"
-      echo "  bin/help compose --all       draft the $waiting_count without one"
+      echo "  ts help                     read them"
+      echo "  ts help compose <id>        draft an answer to one"
+      echo "  ts help compose --all       draft the $waiting_count without one"
       exit 0
     fi
 
     if [ "$waiting_count" -eq 0 ]; then
       echo "Nothing to compose: $outstanding outstanding, every one of them drafted."
-      echo "Read them with bin/help list --all, send one with bin/help publish <id>."
+      echo "Read them with ts help list --all, send one with ts help publish <id>."
       exit 0
     fi
 
@@ -752,7 +752,7 @@ case "$verb" in
     cleanup_released_tree
 
     echo
-    echo "Read them back with bin/help list --all, and send with bin/help publish <id>."
+    echo "Read them back with ts help list --all, and send with ts help publish <id>."
     [ "$failed" -eq 0 ] || exit 1
     ;;
 
@@ -773,8 +773,8 @@ case "$verb" in
     " | tr -d ' \r' | grep -E '^(none|some)$' || true)
 
     if [ "$drafted" != "some" ]; then
-      echo "bin/help: nothing drafted for $resolved — write one with" >&2
-      echo "          bin/help compose $resolved, or bin/help note $resolved \"...\"" >&2
+      echo "ts help: nothing drafted for $resolved — write one with" >&2
+      echo "          ts help compose $resolved, or ts help note $resolved \"...\"" >&2
       exit 1
     fi
 
@@ -818,10 +818,10 @@ case "$verb" in
     # answered as one, and the cost of being wrong is one query on a path that
     # was going to fail anyway.
     case "$verb" in
-      q_*) usage_error "$verb is an id, not a command — try bin/help show $verb" ;;
+      q_*) usage_error "$verb is an id, not a command — try ts help show $verb" ;;
     esac
     if resolve "$verb" >/dev/null 2>&1; then
-      usage_error "$verb is an id, not a command — try bin/help show $verb"
+      usage_error "$verb is an id, not a command — try ts help show $verb"
     fi
     usage_error "no such command: $verb"
     ;;

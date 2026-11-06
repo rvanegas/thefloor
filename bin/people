@@ -2,8 +2,8 @@
 #
 # Everybody with an account here, least recently seen first.
 #
-#   bin/people                 against the deployed server
-#   bin/people --local         the development database on this machine
+#   ts people                 against the deployed server
+#   ts people --local         the development database on this machine
 #
 # Read-only, always. This is the roster, not an admin tool: ts db --write is
 # where editing lives, and it makes you ask for it.

@@ -38,7 +38,7 @@ are served off this box, ranged, which keeps the accounting honest and the
 enclosure URL ours. It is a change of URL rather than a change of design: a
 separate published-audio bucket is the version to reach for, not a public path
 on the existing one. INFRASTRUCTURE.md § *What the box can carry* says what to
-watch — the `episode-fetch` kind in `bin/usage` — and the decision entry says
+watch — the `episode-fetch` kind in `ts usage` — and the decision entry says
 why that direction.
 
 **Subcategories**, if anybody wants one. Apple's list is nineteen top-level

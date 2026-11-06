@@ -84,7 +84,7 @@ const pageChannelId = ((): string => {
  * there is none, which is honest and is not a link worth drawing.
  *
  * Stamped by the route, and asked per request there because a page can sit
- * open across a `bin/deploy-web`.
+ * open across a `ts deploy-web`.
  */
 const hasWebApp = !!document.body.dataset.app;
 

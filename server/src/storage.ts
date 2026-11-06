@@ -87,7 +87,7 @@ export interface RecordingStore {
    *
    * The grant was weighed and not made: `ListBucket` beside `GetObject` turns
    * a leaked key from one that can fetch what it can name into one that can
-   * take the whole bucket. Absence is instead confirmed by `bin/orphans`, on
+   * take the whole bucket. Absence is instead confirmed by `ts orphans`, on
    * a person's credential, as `recordings.objects_cleared_at` — which the
    * sweep reads before it gets here.
    */
@@ -220,7 +220,7 @@ export class S3RecordingStore implements RecordingStore {
       // than answering 404, so a missing object is indistinguishable from one
       // it will not discuss. Falling through to the throw is right — unknown
       // is not absent — and it means this never confirms anything has gone;
-      // `bin/orphans` does that instead. See the interface note.
+      // `ts orphans` does that instead. See the interface note.
       const status = (error as { $metadata?: { httpStatusCode?: number } })
         .$metadata?.httpStatusCode;
       if (status === 404) return false;
@@ -260,7 +260,7 @@ export class MemoryRecordingStore implements RecordingStore {
 
   /**
    * Removes objects without going through `delete`, which is what happens to
-   * this bucket in production: `bin/orphans` clears it on somebody's own
+   * this bucket in production: `ts orphans` clears it on somebody's own
    * credential, out of band, and the server finds them already gone. Distinct
    * from `delete` precisely because it ignores `refuseDeleting`.
    */

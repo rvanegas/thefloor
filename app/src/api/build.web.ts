@@ -4,7 +4,7 @@
  * **The number is the App Store build of the train this bundle was cut from**,
  * not a version of its own. `/app` is exported from `released` and `/beta`
  * from its `build/<n>` tag, so the number is correct by construction and there
- * is nothing to keep in step by hand — `bin/deploy-web` reads it out of
+ * is nothing to keep in step by hand — `ts deploy-web` reads it out of
  * `app.json` at the tag and inlines it here as `EXPO_PUBLIC_BUILD`.
  *
  * **The native file reads the installed binary rather than `app.json`,
@@ -36,7 +36,7 @@ function readBuild(): number | null {
  * the page lives.
  *
  * Null only in development, where nobody sets `EXPO_PUBLIC_BUILD` — a served
- * bundle always has one because `bin/deploy-web` is the only thing that builds
+ * bundle always has one because `ts deploy-web` is the only thing that builds
  * it. That is worth knowing when reading `silentBuilds` off a local server.
  */
 const build = readBuild();
@@ -46,7 +46,7 @@ export function appBuild(): number | null {
 }
 
 /**
- * The version of the same train, inlined beside the build by `bin/deploy-web`
+ * The version of the same train, inlined beside the build by `ts deploy-web`
  * from the same `app.json`. Shown under the Support tab and sent nowhere.
  */
 const version = process.env.EXPO_PUBLIC_VERSION?.trim() || null;

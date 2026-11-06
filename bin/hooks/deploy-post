@@ -25,4 +25,4 @@ fi
 # needrestart is told not to restart the media plane on its own, so stale
 # libraries there wait for a person — and a deploy is when one is at the
 # keyboard. Reported, never acted on.
-bin/restart-services --list || true
+ts restart-services --list || true

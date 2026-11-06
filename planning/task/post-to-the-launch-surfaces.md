@@ -44,7 +44,7 @@ Two blockers, both from MARKETING.md § *The sequence*:
    page's — captures sized for a web column, not assets composed for a feed.
    **Product Hunt without imagery is a post that was not made**, and Reddit is
    nearly as bad. Show HN is the exception and is why it is first here.
-2. **`bin/growth`.** Post without it and the day produces a number nobody can
+2. **`ts growth`.** Post without it and the day produces a number nobody can
    interpret and no way to tell a good community from a bad one. Not a hard
    blocker; a strong preference.
 

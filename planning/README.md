@@ -50,7 +50,7 @@ GLOSSARY.md's one-line list, which is worth reading routinely.
 | --- | --- | --- |
 | [APPREVIEWSCRIPT.md](APPREVIEWSCRIPT.md) | The walk through the app in the order a stranger meets it, which found eight defects before 1.0.0; filming it is optional | Before every submission, and as the smoke test after a dependency upgrade |
 | [ASSEMBLY_PROMPT.md](ASSEMBLY_PROMPT.md) | AssemblyAI's own guidance for coding agents, verbatim, with our header; a snapshot, and `llms.txt` is the live copy | Before touching `server/src/transcription.ts` |
-| [CREDENTIALS.md](CREDENTIALS.md) | Every credential the project holds: where it lives, what it can do, what losing it costs | Before touching any credential, `bin/provision*`, `bin/env-*` or `server/.env` |
+| [CREDENTIALS.md](CREDENTIALS.md) | Every credential the project holds: where it lives, what it can do, what losing it costs | Before touching any credential, `ts provision*`, `bin/env-*` or `server/.env` |
 | [DEMO-ACCOUNT.md](DEMO-ACCOUNT.md) | The two accounts App Review signs in as, why two, and the order they are torn down in | Before a submission, and before touching `REVIEW_IDENTIFIER` / `REVIEW_CODE` |
 | [EXPIRATIONS.md](EXPIRATIONS.md) | Every deadline measured in days, each with its own argument, and which are published promises | Before changing any retention or expiry constant, or "tidying" them into one |
 | [GLOSSARY.md](GLOSSARY.md) | The source of truth for vocabulary — user words, code words, Spanish — with a one-line-per-term list at the top | The list routinely; an entry when a word is in doubt. Edit it in the same commit as a rename |

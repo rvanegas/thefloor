@@ -100,7 +100,7 @@ Two ways to get A and B:
 1. **Two browser tabs on `/beta`** — cheapest, and the exact pair the server
    half was written for: same origin, same `localStorage`, therefore the same
    token, distinguished only by the per-context `DEVICE_ID`. Check the train is
-   actually up first; `bin/deploy-web --beta` is what puts it there, and it is
+   actually up first; `ts deploy-web --beta` is what puts it there, and it is
    cut from the newest `build/<n>` tag rather than from `master`.
 2. **Two handsets** — the fidelity that matches the sighting. An iPhone on
    TestFlight plus the Android build is the easiest second device to come by;

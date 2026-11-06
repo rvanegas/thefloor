@@ -16,7 +16,7 @@ import { colors, spacing, type } from './theme';
  * appears under the question the next time this screen is opened. There is no
  * reply to the reply and no unread count, because the thing behind this is one
  * person with a script — see `server/src/help.ts`, which says so plainly, and
- * `bin/help`, which is the whole of the other end.
+ * `ts help`, which is the whole of the other end.
  *
  * **Nothing here promises when.** Every version of this screen that said "we
  * usually reply within a day" would be a promise made by a screen on behalf of

@@ -220,7 +220,7 @@ Two further things would change the arithmetic, and neither has happened:
   is worth its cost when the destination is a room rather than a redirect.
 - **Guest links become a measurable arrival path.** The bounce through a
   browser costs something only if people are taking it. Nothing counts that
-  today; `bin/growth` and the leaderboard walk the invitation forest, and a
+  today; `ts growth` and the leaderboard walk the invitation forest, and a
   guest who never signs up is in none of it.
 
 Until then the button covers the case that matters — somebody already on the

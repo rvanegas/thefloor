@@ -9,7 +9,7 @@
 # directory of that name at any depth, which is what made `server/web/app` an
 # unshippable name.
 - /app/
-# The web trains: bin/deploy-web builds them from a tag and rsyncs them; they
+# The web trains: ts deploy-web builds them from a tag and rsyncs them; they
 # are gitignored and never exist in a working checkout, so without these
 # --delete would take the web app off the air. server/web/dist is built by the
 # deploy-pre hook and must ship.

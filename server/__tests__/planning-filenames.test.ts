@@ -54,7 +54,7 @@ describe('planning/ filenames', () => {
   // A pointer to a file that no longer exists is a dead end rather than a
   // citation. The 2026-09-14 split left the titled ones (`TASKS.md § *Title*`)
   // alone deliberately, since `ts note find` resolves them, so only a bare path
-  // is a fault. bin/restore-mtimes is exempt: it names the old files as paths
+  // is a fault. ts restore-mtimes is exempt: it names the old files as paths
   // *in history*, reading them at the commit before the split.
   it('has no bare pointer to the pre-split TASKS.md or BACKLOG.md in the code', () => {
     const bare = /planning\/(TASKS|BACKLOG)\.md/;

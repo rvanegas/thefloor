@@ -392,7 +392,7 @@ there and goes on being true survives them.
    tooling enforces.
 3. **`ts upload-ios`.** One command: refuses a dirty tree, bumps and commits
    the build number, prebuilds, archives, uploads, tags.
-4. **`bin/deploy-web --beta`**, which cuts the beta train from the tag step 3
+4. **`ts deploy-web --beta`**, which cuts the beta train from the tag step 3
    just made. This is the step that puts the submitted build's web app where a
    reviewer following the listing will actually land — see *The web trains ship
    with the build* below, and do not reach for `/app` to do it.
@@ -423,7 +423,7 @@ there and goes on being true survives them.
    `--status` reports what App Store Connect holds and writes nothing at all,
    here or to Apple; `--sync-released` is that report plus step 8's offer.
 7. **Press Submit**, having read the page and the list below.
-8. **Days later, on approval: move `released`, then `bin/deploy-web --stable`
+8. **Days later, on approval: move `released`, then `ts deploy-web --stable`
    in the same sitting.** In that order and not the other one — `--stable` is
    cut from `released`, so run before the ref moves it re-ships the *previous*
    release and says nothing is wrong.
@@ -512,7 +512,7 @@ Written down 2026-08-31, the first time a submission's What's New sent people
 to a browser and the question "when does `/app` go up" had to have an answer.
 
 **`/app` cannot drift, and the reason is that nobody keeps it in step.**
-`bin/deploy-web --stable` is cut from `released` and reads the build number out
+`ts deploy-web --stable` is cut from `released` and reads the build number out
 of *that tag's* `app.json` — the ref is the definition, not a thing compared
 against one. So the only discipline is the ordering in step 8: move the ref,
 then deploy. Everything else follows.

@@ -16,7 +16,7 @@ departs.
 `deploys`, `health`, `db`, `env-pull`, `env-push`, `worktree-setup`,
 `transcript`). `ts` alone lists both. The shared ones read `bin/ts.env`, never
 ship what `bin/ts.rsync` excludes, and run this project's own steps from
-`bin/hooks/`. `bin/restore-mtimes` is ours rather than the shared one, because
+`bin/hooks/`. `ts restore-mtimes` is ours rather than the shared one, because
 it knows the 2026-09-14 split.
 
 ## `planning/`
@@ -30,7 +30,7 @@ filing or resolving one. Particular to here:
   `planning/decision/archive/`.** Match filenames first and the archive's
   headings (`grep -n '^## ' planning/decision/archive/*.md`) second, rather
   than sweeping the prose. The collection is approaching a megabyte.
-- **Deploys are not in it.** `ts deploy` and `bin/restart-services` record
+- **Deploys are not in it.** `ts deploy` and `ts restart-services` record
   themselves on the box and `ts deploys` reads them.
 - **A submission's own text** is the one transient kind, under
   `planning/submissions/`, written by `ts set-review-notes`.
@@ -52,7 +52,7 @@ sessions never have.
 
 **`planning/CREDENTIALS.md`**: the credentials, where each lives, what it can
 do and what losing it costs. Read it before touching any of them,
-`bin/provision`, `bin/provision-livekit`, or `server/.env`.
+`ts provision`, `ts provision-livekit`, or `server/.env`.
 
 **`planning/APPREVIEWSCRIPT.md` and `planning/DEMO-ACCOUNT.md`**, both read at
 submission time. The first is the *walk* — what found eight defects before
@@ -99,7 +99,7 @@ guessable from the code. **`planning/MIGRATION.md`** carries the sizing argument
 in both directions, from the 2026-08-13 migration to a *smaller* instance that
 was abandoned before cutover when self-hosting the media inverted its premise.
 Read it before sizing, rebuilding or re-hosting the server, and before trusting
-`bin/provision`, `bin/provision-livekit` or `ts deploy`'s health check about
+`ts provision`, `ts provision-livekit` or `ts deploy`'s health check about
 any box that is not the live one.
 
 ## Keeping this file small, which is a standing job
@@ -216,7 +216,7 @@ a dirty tree before it does either. After the sync, `deploy-remote` installs
 and restarts on the box: **live channels live in memory, so a restart drops
 every call in progress.** Once the box answers with the sha just sent,
 `deploy-post` says whether the floor is due to rise and which media-plane
-services are stale (`bin/restart-services --list`). Never acted on.
+services are stale (`ts restart-services --list`). Never acted on.
 
 **Wire changes go in two steps** (`CLIENTS.md`): the 2026-08-10 Session →
 Channel rename killed build 5 the instant the server restarted. **Whatever is
@@ -237,8 +237,8 @@ and before believing a restart is free.**
 
 **Which ones there are, where each lives, what it can do and what losing it
 costs is planning/CREDENTIALS.md, entire.** This file keeps no names and no
-numeral. **Read it before touching any credential, `bin/provision`,
-`bin/provision-livekit`, `ts env-pull`/`ts env-push`, or `server/.env`** — and
+numeral. **Read it before touching any credential, `ts provision`,
+`ts provision-livekit`, `ts env-pull`/`ts env-push`, or `server/.env`** — and
 before assuming a credential this project *issues* rather than holds is out of
 scope, since the session token is in there too. Its § *What to read, and when*
 is a row per credential.

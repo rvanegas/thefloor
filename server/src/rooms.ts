@@ -5,7 +5,7 @@ import type { Segments } from './segments';
 
 /**
  * How long LiveKit keeps a room standing after its last participant leaves —
- * its `room.departure_timeout`, which `bin/provision-livekit` sets to this
+ * its `room.departure_timeout`, which `ts provision-livekit` sets to this
  * (LiveKit's own default, written down so that it is not an assumption). **A room here is meant to be that room**: one
  * LiveKit room from creation to deletion, of which `mediaRoom` is the name.
  * Somebody stepping back in inside this window finds the same LiveKit room

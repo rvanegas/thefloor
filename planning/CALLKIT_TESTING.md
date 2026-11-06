@@ -3,7 +3,7 @@
 What remains of Phase 3 of `task/integrate-with-callkit.md` — another call
 arriving while a channel is a *reported call* — as of 2026-10-20. Phase 3 is
 built and on master since `c02b7872` (2026-10-12), and **none of it has run on
-a phone**: no `reported call held` line has reached `bin/diagnostics` since
+a phone**: no `reported call held` line has reached `ts diagnostics` since
 the device test that prompted it.
 
 **Test on build 381 or later.** Phase 3 has been in every build since 356, but
@@ -25,7 +25,7 @@ sends it.
 
 Two phones in a channel, and a third line to call one of them. Keep Bluetooth
 off unless the check is about Bluetooth: a headset that connects mid-run takes
-the audio. `bin/diagnostics --grep 'reported call|playout|engine'` reads each
+the audio. `ts diagnostics --grep 'reported call|playout|engine'` reads each
 run back.
 
 - [ ] **Hold & Accept**: the other phone's People card says *On another call*

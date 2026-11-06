@@ -34,7 +34,7 @@ rebuilding or re-hosting, RELEASING.md for getting a build to a phone.
 | Media config | `/etc/livekit/livekit.yaml` and `egress.yaml`, mode 600 |
 | Node | 22, required for the built-in `node:sqlite` |
 | Database | `/home/ubuntu/thefloor-data/thefloor.db`, outside the synced tree |
-| Deploy record | `/home/ubuntu/thefloor-data/deploys.log`, appended by `ts deploy` and `bin/restart-services`, read by `ts deploys`; a re-host carries it with the database |
+| Deploy record | `/home/ubuntu/thefloor-data/deploys.log`, appended by `ts deploy` and `ts restart-services`, read by `ts deploys`; a re-host carries it with the database |
 | Logs | `journalctl -u thefloor`, `-u caddy`, `-u livekit-server`, `-u livekit-egress` |
 
 Node binds to loopback only; nothing reaches it except through Caddy. So does
@@ -56,8 +56,8 @@ external IPs"` — the yaml is no evidence. And **`udp_port` is mutually exclusi
 with `port_range_start`/`end`**; setting both is not an error, the range just
 wins. Both are covered at length in the first `DECISIONS` volume.
 
-The media plane is deliberately *not* in `bin/provision`. It is
-**`bin/provision-livekit`**, a sibling, run after it — which is exactly what a
+The media plane is deliberately *not* in `ts provision`. It is
+**`ts provision-livekit`**, a sibling, run after it — which is exactly what a
 second box would need if the media ever splits off this one.
 
 ## What the box can carry
@@ -66,7 +66,7 @@ The one number to know before it surprises somebody: **`track_cpu_cost: 0.15` in
 `/etc/livekit/egress.yaml` caps the box at ~10 simultaneous recorded
 participants**, every stem being its own egress job. That is a chosen figure and
 raising it is the first move if it ever bites, not a hardware limit —
-`bin/usage peak` says how close it has ever come, and **`bin/usage egress`
+`ts usage peak` says how close it has ever come, and **`ts usage egress`
 says what to blame for a refusal**: the stem count, or egress measuring its
 own jobs above 0.15, or something that is not capacity at all.
 
@@ -79,7 +79,7 @@ how many people can be *in* conversations, and this is about how many strangers
 are listening to one that already happened.
 
 It is expected to be small for a long time and is deliberately not optimised
-for. What to watch is `bin/usage` — the `episode-fetch` kind, which is the
+for. What to watch is `ts usage` — the `episode-fetch` kind, which is the
 first traffic class in that table not attributable to an account at all. **When
 it stops being small, the move is a separate published-audio bucket with the
 enclosure URL pointing at it**, which is a change of URL rather than a change
@@ -100,7 +100,7 @@ planning/decision/ for 2026-09-21.
   conf.d/`, written by the two provisioners), because its 06:15 UTC restarts
   dropped calls and on 2026-09-30 left the SFU down for three hours. So stale
   libraries in the media plane wait for a hand: `ts deploy` ends by naming
-  them, and `bin/restart-services` restarts them, refusing while anybody is
+  them, and `ts restart-services` restarts them, refusing while anybody is
   in a call unless told `--anyway`.
   `thefloor` needs no such step, since every deploy restarts it.
 - **The 380-day-uptime box is not this one.** dianoia runs on a separate
@@ -116,7 +116,7 @@ planning/decision/ for 2026-09-21.
   deploy could not touch a conversation, *because* the media was elsewhere. That
   is no longer true. **A deploy that audibly interrupts a call is the signal to
   move the media plane to its own $7 box**, which the first `DECISIONS` volume
-  argues and `bin/provision-livekit` exists to make cheap. It is worth listening
+  argues and `ts provision-livekit` exists to make cheap. It is worth listening
   for rather than waiting to be told about.
 
   **Half-observed on 2026-08-19.** Somebody present through a restart saw

@@ -331,7 +331,7 @@ install that predates this. SHIMS.md, gate 294.
 **Where the sources disagree.** With `accounts.last_seen_at`, and the
 disagreement is now settled by not rendering it: that column is proof of a
 *connection*, moves on every heartbeat, and is read by the notification pause
-and by `bin/people`. What a screen is told — `ContactView.lastSeenAt`, the
+and by `ts people`. What a screen is told — `ContactView.lastSeenAt`, the
 sentence under the boolean — is `attended_at`, so the two halves of
 availability cannot contradict each other. They could and did: `agoOrNull`'s
 sixty-second floor renders any gap under a minute as *In the app now*, and a

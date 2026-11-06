@@ -3,10 +3,10 @@
 # What is happening right now: every channel with somebody in it, who has a
 # microphone open, and for how long.
 #
-#   bin/live                   against the deployed server
-#   bin/live --local           the development database on this machine
+#   ts live                   against the deployed server
+#   ts live --local           the development database on this machine
 #
-# Read-only, always, for the same reason bin/usage is: nothing here is a thing
+# Read-only, always, for the same reason ts usage is: nothing here is a thing
 # you would edit by hand, and everything it reads is written by a poll.
 #
 # **The live conversation is not in the database, and this is the seam to

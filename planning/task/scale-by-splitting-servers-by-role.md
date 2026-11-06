@@ -16,9 +16,9 @@ commons applications beside it).
 Three steps, each with its own trigger. Do not take one before its trigger.
 
 **1. The media plane to its own box.** No code: a box run through
-`bin/provision-livekit`, the `livekit.rvanegas.co` A record moved to it, and
+`ts provision-livekit`, the `livekit.rvanegas.co` A record moved to it, and
 `LIVEKIT_URL` in `server/.env`. Egress and Redis go with LiveKit. *Trigger:*
-egress refusing a recording for capacity (`bin/usage egress` says which kind
+egress refusing a recording for capacity (`ts usage egress` says which kind
 of refusal it was), or a deploy audibly interrupting a call
 (INFRASTRUCTURE.md § *Known rough edges*). This is the first ceiling
 volume reaches: `track_cpu_cost: 0.15` caps the box at about ten

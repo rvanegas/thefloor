@@ -158,7 +158,7 @@ export function landingPage(options: {
    * to go there. It asked about stable alone until 2026-08-30, which withheld
    * the browser from a box that was serving beta perfectly well.
    *
-   * Checked per request rather than at boot, because `bin/deploy-web` adds the
+   * Checked per request rather than at boot, because `ts deploy-web` adds the
    * bundle without restarting anything — which is deliberate, a restart
    * costing presence — so a value cached at startup would be wrong for exactly
    * as long as it mattered.

@@ -2,8 +2,8 @@
 #
 # The getting-started channels, and who is in each.
 #
-#   bin/cohorts                against the deployed server
-#   bin/cohorts --local        the development database on this machine
+#   ts cohorts                against the deployed server
+#   ts cohorts --local        the development database on this machine
 #
 # Read-only, always. This is a report on a growth hack, not a lever for it:
 # placement happens when an account turns notifications on, the off switch is
@@ -13,7 +13,7 @@
 #
 # **A signup is no longer a placement, so the two counts differ on purpose.**
 # An account that never turns notifications on is never placed and appears in
-# no cohort here; `bin/growth` is where every account is. A gap between them is
+# no cohort here; `ts growth` is where every account is. A gap between them is
 # the gate working rather than a report missing rows.
 #
 # A *getting-started channel* is the one channel a new account with nobody here
@@ -54,7 +54,7 @@
 #
 # `joined` is when the account was created and `days_ago` is since it was last
 # seen, blank for somebody who has never connected — the same columns
-# bin/people carries, for the same reason: a cohort of accounts that have not
+# ts people carries, for the same reason: a cohort of accounts that have not
 # come back is the finding.
 #
 # Two kinds of row are not ordinary people and **can no longer be placed**,

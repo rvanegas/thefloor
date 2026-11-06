@@ -65,12 +65,12 @@ timestamp; **that was wrong** (corrected 2026-09-30). `AppState` changes are
 logged permanently, not by the removed temporary lines — `app <state>` in
 `audio/diagnostics.ts`, the source of the `app active` line in the excerpt —
 and ship to the journal with everything else. The excerpt was trimmed. **The excerpt's times are UTC**: the run was 03:27 Pacific, on
-`acct_sudUOdevBXfN`, and `bin/diagnostics`, which prints the phone's stamps
+`acct_sudUOdevBXfN`, and `ts diagnostics`, which prints the phone's stamps
 in local time, finds it there and not at 10:27. The same morning holds more
 than the excerpt — two `room reconnecting` at 03:12 with no tap, a Mute and
 Unmute at 03:28:17, and three taps at 03:47 with no reconnect near them,
 which are the comparison: taps on a healthy connection. So
-`bin/diagnostics --since "2026-09-30 03:26" --until "2026-09-30 03:30"
+`ts diagnostics --since "2026-09-30 03:26" --until "2026-09-30 03:30"
 --account acct_sudUOdevBXfN` may answer it from the existing run: an `app
 background` or `app inactive` line just before 03:27:44.364 says locking
 started the reconnect.
@@ -89,7 +89,7 @@ the app in the background — a transition JavaScript was not running to
 record. And the tap's native half runs first, so `room reconnecting` 47ms
 before the JavaScript line is that wake, not evidence against it. Likely, not
 proven: it was not alone in the room, having resubscribed to one track at
-03:12:09, so the quiet-room suspension `bin/suspend-log` measured does not
+03:12:09, so the quiet-room suspension `ts suspend-log` measured does not
 explain it.
 
 **If so, the tap was queued, and it was close.** A socket asleep for a quarter
@@ -106,7 +106,7 @@ that answers it; `useLockScreen.ts` records the tap and each card change again.
 
 **Next:** on a debug account, in a channel, lock the phone and leave it long
 enough to be suspended — a quarter of an hour did it — then tap Mute, and read
-it back with `bin/diagnostics`. `socket connecting` straight after the `lock
+it back with `ts diagnostics`. `socket connecting` straight after the `lock
 tap`, then `socket queued SET_SELF_MUTE`, confirms the wake and the queue;
 `socket sent` with a long `snapshot … after the send` would mean the server's
 answer was what waited instead.

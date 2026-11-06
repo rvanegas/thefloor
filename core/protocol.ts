@@ -1024,11 +1024,11 @@ export interface HomeView {
    * for anything else: it cannot say which question, so nothing inside that
    * screen gains an unread mark. See `ui/HomeView` and `state/helpSeen.ts`.
    *
-   * **It is a fact about the database, not an event.** `bin/help publish`
+   * **It is a fact about the database, not an event.** `ts help publish`
    * writes the row through `ts db --write` and the server process is never
    * told, so this changes under a client rather than being pushed to it: the
    * mark appears on the next home snapshot. That is the same contract
-   * `bin/help` already states — "they see it when they next look" — one screen
+   * `ts help` already states — "they see it when they next look" — one screen
    * earlier.
    *
    * Optional for `tried`'s reason exactly: a server that predates the field

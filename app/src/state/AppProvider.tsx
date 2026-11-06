@@ -1055,7 +1055,7 @@ interface AppValue extends AppState {
    * **A debug-only override, off unless somebody with the `debug` grant has
    * just turned it on from settings.** The two marks are drawn from states that
    * are a nuisance to arrange — a second account has to ask to be a contact,
-   * and a help answer has to be published by hand through `bin/help` — so the
+   * and a help answer has to be published by hand through `ts help` — so the
    * one thing nobody could do easily was look at the mark itself, which is the
    * half that is a design decision. See `HomeSettingsView` and `ui/HomeView`.
    *

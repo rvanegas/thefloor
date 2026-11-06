@@ -579,7 +579,7 @@ describe('reach', () => {
   /**
    * **This was about a pending invitation until 2026-09-25**, when an
    * invitation sent to an address began accepting on signup. The reach rule it
-   * exists for is unchanged and is still not `bin/growth`'s island: pending
+   * exists for is unchanged and is still not `ts growth`'s island: pending
    * rows are edges here. What changed is that this particular arrival is no
    * longer one of them, so the pending case is made directly below.
    */
