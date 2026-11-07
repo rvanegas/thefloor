@@ -38,17 +38,19 @@ table, whichever the schema takes better. Each step:
 
 - **the tool and the library**: `lookup_term` on `thefloor/artificial-intelligence-e9y8`;
 - **what was asked**: the arguments as sent;
-- **what came back, in short**: a search's hits as name, title and library; a
-  read's name, title and length; **an error's text in full**, since it is
-  short and it is the diagnosis.
+- **what came back**: **for each hit, everything noesis's manifest returns
+  for it** — Rodrigo's call, 2026-11-07 — which for `lookup_term` is its path,
+  title, word count and summary (`noesis/library.py` `lookup_term`, from
+  `DocEntry`), and for `list_documents` its name and title, each with the
+  library it came from; a read's name, title and length; **an error's text in
+  full**, since it is short and it is the diagnosis.
 
-**Never a document's body, and never a search's summaries** — Rodrigo's
-correction, 2026-11-07: of what a lookup returns, only the documents' titles
-enter the *Record*, with the name and library that let a later press read
-one. Either can be fetched again, both would swell the *Record* that every
-lookup round re-reads, and they are a library's, not the channel's. The test:
-keep what lets the next press act and what explains a failure; drop what can
-be fetched again.
+**Never a document's body.** It can be read again, it would swell the
+*Record* that every lookup round re-reads, and it is a library's, not the
+channel's. A hit's manifest entry is the opposite case: a few lines, and what
+lets the next press decide whether a document is worth reading at all.
+(Earlier the same evening Rodrigo had asked for titles only; this replaced
+it.)
 
 ## What the next press reads
 
@@ -58,7 +60,9 @@ does because its prompt is a conversation. Ours is one *Record* in one user
 message, and replaying blocks would mean inventing turns and carrying bodies:
 
     Claude, having consulted the library:
-      looked up "artificial cognition" in thefloor/artificial-intelligence-e9y8 → 2026-11-07-mem-architecture-summary.document.md, "Mem Architecture Summary"
+      looked up "artificial cognition" in thefloor/artificial-intelligence-e9y8:
+        2026/2026-11-07-mem-architecture-summary.document.md — Mem Architecture Summary — 4200w
+          <its summary, as the manifest has it>
       read 2026/2026-11-07-mem-architecture-summary.document.md (thefloor/artificial-intelligence-e9y8): 4,200 words
     Claude: Rodrigo, I've now read…
 
