@@ -492,6 +492,7 @@ export function ChannelSettingsView({
         not in to be kept.
       */}
       <SectionLabel>{t.recording()}</SectionLabel>
+      <View style={styles.cards}>
       <Card style={styles.stack}>
         <Text style={type.heading}>{t.recordAutomatically()}</Text>
         {/*
@@ -678,6 +679,7 @@ export function ChannelSettingsView({
           ) : null}
         </Card>
       ) : null}
+      </View>
 
       {/*
         **No live transcript here since 2026-10-09**: it is the *Text* switch
@@ -906,6 +908,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   stack: { gap: spacing(1) },
+  /* The cards under *Recording*, which would otherwise touch edge to edge. */
+  cards: { gap: spacing(1.5) },
   autoSwitches: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },
   /*
    * A toggle per library, which may be more than fit a row: they wrap, at a

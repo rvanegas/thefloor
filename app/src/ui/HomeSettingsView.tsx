@@ -543,6 +543,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         browser, which has no permission to grant.
       */}
       <SectionLabel>{t.notificationsSection()}</SectionLabel>
+      <View style={styles.cards}>
       <Card style={styles.stack}>
         <Text style={type.heading}>{t.pushNotifications()}</Text>
         <View style={styles.choices}>
@@ -604,6 +605,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         </View>
         <Text style={type.muted}>{t.emailNotificationsNote()}</Text>
       </Card>
+      </View>
 
       <SectionLabel>{t.email()}</SectionLabel>
       <Card style={styles.stack}>
@@ -1063,7 +1065,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   stack: { gap: spacing(1) },
-  /* Two cards under one label, which would otherwise touch edge to edge. */
+  /* Cards under one label, which would otherwise touch edge to edge. */
   cards: { gap: spacing(1.5) },
   choices: { flexDirection: 'row', gap: spacing(1) },
   choice: { flex: 1 },
