@@ -850,6 +850,15 @@ export class ChannelRegistry {
    * alone holds a Claude client. Told of each room's opening, followed on
    * every commit and swept on every tick. See server/src/digest.ts.
    */
+  /**
+   * What deletes channel libraries at noesis (channelLibraries.ts), attached
+   * where they are on. Absent, the sweep holds what names a library until
+   * `ts library-orphans` has cleared it.
+   */
+  private libraryCleaner: {
+    deleteLibrary(handle: string): Promise<boolean>;
+    deleteDocument(handle: string, file: string): Promise<boolean>;
+  } | null = null;
   private digests: {
     opened(channelId: string, roomId: string, openedAt: number): void;
     follow(state: ChannelState, now: number): void;
@@ -1278,6 +1287,11 @@ export class ChannelRegistry {
   attachLive(live: NonNullable<ChannelRegistry['live']>): void {
     this.live = live;
     for (const state of this.channels.values()) live.sync(state);
+  }
+
+  /** Gives the registry what deletes channel libraries, for the sweep. */
+  attachLibraryCleaner(cleaner: NonNullable<ChannelRegistry['libraryCleaner']>): void {
+    this.libraryCleaner = cleaner;
   }
 
   /** Gives the registry its digests. Rooms already standing are not digested. */
@@ -1994,11 +2008,6 @@ export class ChannelRegistry {
     }
     this.db.prepare('UPDATE channels SET consult_library = ? WHERE id = ?').run(consult ? 1 : 0, channelId);
     return { ok: true };
-  }
-
-  /** Whether any channel has ever had a library made: the privacy page says so while any has. */
-  hasChannelLibraries(): boolean {
-    return !!this.db.prepare('SELECT 1 FROM channels WHERE handle IS NOT NULL LIMIT 1').get();
   }
 
   /** A channel's name and members, from the database; null for none, or one deleted. */
@@ -4673,6 +4682,11 @@ export class ChannelRegistry {
       if (row.objects_cleared_at === null) {
         if (!(await this.objectsGone(row.id, keys))) continue;
       }
+      // And the document its transcript was filed as in the channel's library,
+      // on the same terms: the row is the only record of which document it
+      // was, so it waits until that is gone. Not where the channel is going
+      // too, whose library goes whole below.
+      if (!(await this.documentsGone(row.id))) continue;
       // Before the row, because `recording_consents` has a real foreign key
       // to it — the same constraint that makes this whole sweep an ordering
       // problem rather than three deletes. A consent is a fact about a
@@ -4692,10 +4706,27 @@ export class ChannelRegistry {
     // timer, an hour after anybody did anything. Restricted to the channels
     // actually about to go, so one held back by an object that would not
     // delete keeps the names its recordings still need.
+    // A channel's library at noesis, before the row that names it, as audio
+    // before its recording: the handle is the only record of which library
+    // was the channel's. Deleted by the cleaner where one is attached; the mark
+    // is the confirmation, the cleaner's or `ts library-orphans`'.
+    for (const row of this.db
+      .prepare(
+        `SELECT id, handle FROM channels
+         WHERE deleted_at IS NOT NULL AND deleted_at <= ?
+           AND handle IS NOT NULL AND library_cleared_at IS NULL`
+      )
+      .all(cutoff) as unknown as Array<{ id: string; handle: string }>) {
+      if (this.libraryCleaner && (await this.libraryCleaner.deleteLibrary(row.handle))) {
+        this.db.prepare('UPDATE channels SET library_cleared_at = ? WHERE id = ?').run(now, row.id);
+      }
+    }
+
     for (const row of this.db
       .prepare(
         `SELECT id FROM channels
          WHERE deleted_at IS NOT NULL AND deleted_at <= ?
+           AND (handle IS NULL OR library_cleared_at IS NOT NULL)
            AND NOT EXISTS (SELECT 1 FROM recordings WHERE recordings.channel_id = channels.id)`
       )
       .all(cutoff) as unknown as Array<{ id: string }>) {
@@ -4709,10 +4740,37 @@ export class ChannelRegistry {
       .prepare(
         `DELETE FROM channels
          WHERE deleted_at IS NOT NULL AND deleted_at <= ?
+           AND (handle IS NULL OR library_cleared_at IS NOT NULL)
            AND NOT EXISTS (SELECT 1 FROM recordings WHERE recordings.channel_id = channels.id)`
       )
       .run(cutoff);
     return { recordings, channels: Number(gone.changes ?? 0) };
+  }
+
+  /**
+   * Whether every document a deleted recording's transcript was filed as is
+   * gone from its channel's library, deleting each where a cleaner is
+   * attached and nulling `filed_file` once it is. A recording with none,
+   * or whose channel is deleted too — its library going whole — has nothing
+   * to wait for.
+   */
+  private async documentsGone(recordingId: string): Promise<boolean> {
+    const filed = this.db
+      .prepare(
+        `SELECT s.id, s.filed_file, c.handle FROM segments s JOIN channels c ON c.id = s.channel_id
+          WHERE s.recording_id = ? AND s.text = 0 AND s.filed_file IS NOT NULL
+            AND c.deleted_at IS NULL AND c.handle IS NOT NULL`
+      )
+      .all(recordingId) as unknown as Array<{ id: string; filed_file: string; handle: string }>;
+    let gone = true;
+    for (const row of filed) {
+      if (this.libraryCleaner && (await this.libraryCleaner.deleteDocument(row.handle, row.filed_file))) {
+        this.db.prepare('UPDATE segments SET filed_file = NULL WHERE id = ?').run(row.id);
+      } else {
+        gone = false;
+      }
+    }
+    return gone;
   }
 
   /**

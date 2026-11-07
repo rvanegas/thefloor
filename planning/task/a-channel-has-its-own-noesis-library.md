@@ -79,8 +79,7 @@ reaches one only by somebody's *Send to noesis* into their own.
 - **What a member sees**: the *Channel library* card on *Channel Settings*
   (`GET`/`PUT /channels/:id/noesis-library`), with *Open in noesis* and the
   *Claude consults it* switch (`channels.consult_library`); *Open noesis* on
-  *Floor Settings*' card. The privacy policy's *Channel libraries* section,
-  shown while filing is on or any channel has a library.
+  *Floor Settings*' card.
 
 ## noesis's side
 
@@ -108,19 +107,27 @@ reaches one only by somebody's *Send to noesis* into their own.
   library. A segment imported before is not recognised again, its text having
   changed.
 
-## Open
+## Deleting
 
-- **What happens to a library when its channel is deleted.** Nobody can open
-  it — The Floor no longer knows the handle — but its contents stay at noesis,
-  and the privacy policy says so and offers deletion on request. Deleting it
-  with the channel, or keeping it, is undecided.
-- **Dividing the cost.** noesis meters each library and answers
-  `GET /applications/spending`; nothing here reads it yet, so nobody's share is
-  shown or charged.
+Agreed at the prompt: **what a channel library holds goes as recordings do, a
+week after it was deleted**, and the privacy policy's *Deleting things* already
+says so of everything. The card tells the members it can be recovered for those
+seven days.
+
+- **A deleted channel's library** is closed at once — noesis is told nobody
+  belongs — and deleted whole at noesis by the hourly sweep a week later,
+  before the row that names it (`channels.library_cleared_at`), as audio goes
+  before its recording.
+- **A deleted recording's document**, where its segment was filed from the
+  recording's transcript (`segments.filed_file`), the same way, before the
+  recording's row. A segment kept as text too was filed from its live lines,
+  which deleting the recording leaves.
+- **`ts library-orphans`** clears what the sweep could not, and any library at
+  noesis that no channel names, and marks the rows.
 
 ## To ship it, in this order
 
 Each verb Rodrigo's to say: land and deploy noesis; mark the client on
 `commons` (`scripts/client_libraries.py thefloor https://thefloor.rvanegas.co`);
 land and deploy The Floor; then set `CHANNEL_LIBRARIES` and `ts env-push`,
-which turns filing on and the privacy section with it.
+which turns filing on.

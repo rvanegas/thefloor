@@ -1274,6 +1274,7 @@ export function buildApp(options: BuildOptions = {}): App {
       )
     : null;
   fastify.addHook('onClose', async () => channelLibraries?.stop());
+  if (channelLibraries) channels.attachLibraryCleaner(channelLibraries);
 
   // *Ask Claude*, since 2026-10-22 — present only with a client, which is only
   // with a key. See claude.ts.
@@ -3079,8 +3080,6 @@ export function buildApp(options: BuildOptions = {}): App {
       claude: claude ? 'Anthropic' : undefined,
       // Only beside Claude, on its rule. See PolicyOptions.library.
       library: channels.libraryAvailable(),
-      // Filing now, or filed before: what is at noesis outlives the setting.
-      channelLibraries: !!options.channelLibraries || channels.hasChannelLibraries(),
     });
   });
 

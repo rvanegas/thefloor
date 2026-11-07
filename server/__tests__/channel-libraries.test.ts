@@ -37,6 +37,8 @@ const fakeNoesis = (async (input: unknown, init?: { method?: string; headers?: u
     body: String(init?.body),
   });
   if (url.pathname === '/libraries') return Response.json({ library: 'x' }, { status: sent.length > 1 ? 409 : 201 });
+  if (init?.method === 'DELETE') return new Response(null, { status: 204 });
+  if (url.pathname.endsWith('/files')) return Response.json({ '2026/x.chat.md': 'abc' });
   return new Response(
     'event: output\ndata: {"text": "imported"}\n\nevent: done\ndata: {"exit_code": 0, "changed": {"2026/x.chat.md": "abc"}}\n\n'
   );
@@ -226,6 +228,70 @@ describe('a channel library, filed into by itself', () => {
     expect(sent.at(-1)!.body).toBe(
       'The Floor — Book Club\n2026-11-07 · 14:05–14:15 UTC\n\nErta Example · 14:05\nRecorded.'
     );
+  });
+});
+
+describe('deleting what a channel library holds, a week on', () => {
+  const WEEK = 7 * 24 * 60 * 60 * 1000;
+
+  async function filed() {
+    const { channelId, ertaId } = await bookClub();
+    makePro(ertaId);
+    textSegment(channelId);
+    clock = START + 2 * 3_600_000;
+    await app.channelLibraries!.sweep();
+    sent = [];
+    return { channelId, ertaId, handle: app.channels.handleOf(channelId)! };
+  }
+
+  const channelRow = (id: string) => app.db.prepare('SELECT library_cleared_at FROM channels WHERE id = ?').get(id);
+
+  it("deletes a deleted channel's library a week after, and only then the row", async () => {
+    const { channelId, handle } = await filed();
+    app.db.prepare('UPDATE channels SET deleted_at = ? WHERE id = ?').run(clock, channelId);
+    await app.channels.sweepDeleted(clock + WEEK - 1);
+    expect(sent).toEqual([]);
+
+    noesisDown = true;
+    await app.channels.sweepDeleted(clock + WEEK);
+    expect(channelRow(channelId)).toEqual({ library_cleared_at: null });
+
+    noesisDown = false;
+    await app.channels.sweepDeleted(clock + WEEK);
+    expect(sent.map((s) => [s.method, s.path])).toEqual([['DELETE', `/libraries/thefloor/${handle}`]]);
+    expect(sent[0].auth).toBe(BASIC);
+    expect(channelRow(channelId)).toBeUndefined();
+  });
+
+  it("deletes a deleted recording's document a week after, and only then the recording", async () => {
+    const { channelId, ertaId, handle } = await filed();
+    app.db
+      .prepare(
+        `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id, participants, started_at,
+           duration_ms, s3_key, stems, ended_at, deleted_at, objects_cleared_at)
+         VALUES ('rec_1', ?, ?, ?, '[]', ?, 0, '', '{}', ?, ?, ?)`
+      )
+      .run(channelId, ertaId, ertaId, START, START + 1, clock, clock);
+    app.db
+      .prepare(
+        `INSERT INTO segments (id, channel_id, started_at, ended_at, recording_id, text, filed_at, filed_file)
+         VALUES ('seg_r', ?, ?, ?, 'rec_1', 0, ?, '2026/x.chat.md')`
+      )
+      .run(channelId, START, START + 1, clock);
+    await app.channels.sweepDeleted(clock + WEEK);
+    expect(sent.map((s) => [s.method, s.path])).toEqual([
+      ['GET', `/libraries/thefloor/${handle}/files`],
+      ['DELETE', `/libraries/thefloor/${handle}/files/2026/x.chat.md`],
+    ]);
+    expect(app.db.prepare("SELECT 1 FROM recordings WHERE id = 'rec_1'").get()).toBeUndefined();
+    expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_r'").get()).toEqual({ filed_file: null });
+  });
+
+  it('keeps the file each segment was filed as', async () => {
+    await filed();
+    expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_1'").get()).toEqual({
+      filed_file: '2026/x.chat.md',
+    });
   });
 });
 

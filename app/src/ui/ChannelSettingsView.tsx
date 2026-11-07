@@ -654,6 +654,7 @@ export function ChannelSettingsView({
           ) : (
             <Text style={type.muted}>{t.channelLibraryNotYet()}</Text>
           )}
+          <Text style={type.muted}>{t.channelLibraryDeleting(RETENTION_DAYS)}</Text>
           {typeof channelLibrary.consult === 'boolean' ? (
             <>
               <View style={styles.autoSwitches}>

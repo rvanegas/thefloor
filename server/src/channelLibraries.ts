@@ -123,7 +123,10 @@ export class ChannelLibraries {
         continue;
       }
       const sent = await this.file(row.channel_id, segmentFilename(name, row.started_at), text);
-      if (sent.ok) this.mark(row.id, now);
+      if (sent.ok) {
+        this.mark(row.id, now);
+        this.db.prepare('UPDATE segments SET filed_file = ? WHERE id = ?').run(sent.file, row.id);
+      }
       else this.deps.log?.warn({ segment: row.id, ...sent }, 'channel library: a segment was not filed');
     }
   }
@@ -203,6 +206,52 @@ export class ChannelLibraries {
     } catch (error) {
       this.deps.log?.warn({ err: error, channelId }, 'channel library: no token to consult it');
       return null;
+    }
+  }
+
+  /**
+   * Deletes a channel's library whole, a week after the channel was deleted
+   * (`ChannelRegistry.sweepDeleted`). True once it is gone, which a library
+   * noesis no longer has already is; false leaves the channel's row held for
+   * the next sweep, or for `ts library-orphans`.
+   */
+  async deleteLibrary(handle: string): Promise<boolean> {
+    const doFetch = this.options.fetch ?? fetch;
+    try {
+      const response = await doFetch(new URL(`/libraries/thefloor/${handle}`, this.options.origin), {
+        method: 'DELETE',
+        headers: { Authorization: this.basic },
+      });
+      return response.ok || response.status === 404;
+    } catch (error) {
+      this.deps.log?.warn({ err: error, handle }, 'channel library: could not delete it');
+      return false;
+    }
+  }
+
+  /**
+   * Deletes one document a segment was filed as, a week after its recording
+   * was deleted: noesis asks for the file's hash to delete it, so it is read
+   * from the library's listing first. True once it is gone.
+   */
+  async deleteDocument(handle: string, file: string): Promise<boolean> {
+    const doFetch = this.options.fetch ?? fetch;
+    const base = `/libraries/thefloor/${handle}/files`;
+    try {
+      const listing = await doFetch(new URL(base, this.options.origin), { headers: { Authorization: this.basic } });
+      if (listing.status === 404) return true;
+      if (!listing.ok) return false;
+      const sha = ((await listing.json()) as Record<string, string>)[file];
+      if (!sha) return true;
+      const path = file.split('/').map(encodeURIComponent).join('/');
+      const response = await doFetch(new URL(`${base}/${path}`, this.options.origin), {
+        method: 'DELETE',
+        headers: { Authorization: this.basic, 'If-Match': `"${sha}"` },
+      });
+      return response.ok || response.status === 404;
+    } catch (error) {
+      this.deps.log?.warn({ err: error, handle, file }, 'channel library: could not delete a document');
+      return false;
     }
   }
 

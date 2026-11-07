@@ -3100,6 +3100,20 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE segments ADD COLUMN filed_at INTEGER');
     db.exec('UPDATE segments SET filed_at = 0');
   }
+  /*
+    The document a segment was filed as, by its path in the channel's library,
+    so a deleted recording's goes with it a week later (`sweepDeleted`);
+    nulled once it has. And on a channel, when its library was confirmed
+    deleted at noesis, which the sweep waits for before dropping a row that
+    names it — `objects_cleared_at`'s part for recordings, set by the sweep
+    itself or by `ts library-orphans`.
+  */
+  if (!hasColumn(db, 'segments', 'filed_file')) {
+    db.exec('ALTER TABLE segments ADD COLUMN filed_file TEXT');
+  }
+  if (!hasColumn(db, 'channels', 'library_cleared_at')) {
+    db.exec('ALTER TABLE channels ADD COLUMN library_cleared_at INTEGER');
+  }
   for (const column of ['language', 'image_type', 'category']) {
     if (!hasColumn(db, 'channels', column)) {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);

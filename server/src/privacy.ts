@@ -146,14 +146,6 @@ export interface PolicyOptions {
    * own, connected on *Floor Settings*, since 2026-11-01.
    */
   library?: boolean;
-  /**
-   * Whether this server files every channel's transcripts into the channel's
-   * own noesis library (channelLibraries.ts) — `CHANNEL_LIBRARIES` — **or
-   * did**: the libraries stay at noesis when the setting goes, so the page
-   * keeps saying what is there, as `cohorts` does. Not under Claude: filing
-   * happens whether or not anybody asks Claude anything. Since 2026-11-07.
-   */
-  channelLibraries?: boolean;
 }
 
 /**
@@ -177,12 +169,6 @@ export const CLAUDE_PRIVACY_UPDATED = '22 October 2026';
  * the dates, on the same terms.
  */
 export const DIGEST_PRIVACY_UPDATED = '5 November 2026';
-
-/**
- * When the page last changed for a reader whose server files channels'
- * transcripts into their own libraries: the latest of all, on the same terms.
- */
-export const CHANNEL_LIBRARY_PRIVACY_UPDATED = '7 November 2026';
 
 export function privacyPage(options: PolicyOptions = {}): string {
   const { contactEmail, transcription, cohorts, pro } = options;
@@ -346,31 +332,6 @@ look things up in it while writing a reply — the words it searches with, drawn
 from the Record, go to that server — and the reply may quote what it finds.
 Disconnecting switches it off in every channel.</p>
 `;
-  const channelLibraries = !!options.channelLibraries;
-  // Claude's half of it, inside Claude's section, only where both are.
-  const channelLibraryClaude = `<p>Where a channel has its own library (below), Claude may look things up
-in it too while writing a reply, unless the channel has switched that off on
-its settings screen; the words it searches with, drawn from the Record, go to
-noesis, and the reply may quote what it finds.</p>
-`;
-  const channelLibrarySection = channelLibraries
-    ? `<h2>Channel libraries</h2>
-<p>While anybody in a channel has Pro, <strong>every transcript made in it is
-also kept in the channel's own library in noesis</strong>, a service the people
-who run The Floor keep: what was said, as transcribed, and what was pasted
-meanwhile, with the name each was kept under and the times it covers. That is
-the live transcript a minute after it stops, and a recording's once somebody
-has asked for it to be transcribed. While nobody in the channel has Pro, nothing
-new goes in. The channel's settings screen says so.</p>
-<p>Only the channel's members can open that library, in noesis, and not its
-guests. To know who they are, noesis asks The Floor each time, and is told each
-member's username, display name and whether they have Pro, which is also how
-its cost is divided among them. Somebody who leaves the channel cannot open it
-from then on. <strong>Deleting the channel stops anybody opening the library,
-but does not delete what is in it from noesis</strong>; to have that deleted,
-write to the address at the end of this page.</p>
-`
-    : '';
   const claudeSection = claude
     ? `
 <h2>Claude</h2>
@@ -386,7 +347,7 @@ what the Record already says.</p>
 under the name <em>Claude</em>, for everybody in the channel to read, and is
 deleted with the channel, on the same schedule as everything else in it. Every screen in the channel says <em>Responding…</em>
 in place of <em>Ask Claude</em> while the reply is being written.</p>
-${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}${channelLibraries ? channelLibraryClaude : ''}
+${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}
 `
     : '';
 
@@ -401,9 +362,7 @@ ${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}${channelLibra
       path: '/privacy',
     }),
     standfirst: `The Floor · last updated ${
-      channelLibraries
-        ? CHANNEL_LIBRARY_PRIVACY_UPDATED
-        : digest
+      digest
         ? DIGEST_PRIVACY_UPDATED
         : library
           ? LIBRARY_PRIVACY_UPDATED
@@ -631,7 +590,7 @@ because it is money that changed hands.</p>
 `
     : ''
 }
-${cohortSection}${channelLibrarySection}<h2>Communities</h2>
+${cohortSection}<h2>Communities</h2>
 <p>A community is a channel its owner opens to anybody holding its link. The
 page that link opens shows the community's name, its description and how many
 members it has, to whoever has the address. It names nobody, its owner

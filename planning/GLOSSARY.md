@@ -36,7 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
-- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro*, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro nothing new goes in. Told on *Channel Settings*' card, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
+- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro*, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro nothing new goes in. Told on *Channel Settings*' card, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off. Deleted a week after the channel is. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
@@ -321,7 +321,9 @@ it**, on *Pro* and *Max* as a library, by a token noesis confines to it —
 needing nobody's connection — unless *Claude consults it* on the card is
 switched off, by anybody who may edit the channel; Claude is told it holds the
 channel's earlier conversations and its sources, the *Record* being the recent
-part. See
+part. **Deleting the channel deletes it**, and deleting a recording deletes
+the document its transcript was filed as, a week later as everything deleted
+goes, the card saying it can be recovered until then. See
 task/a-channel-has-its-own-noesis-library.md and
 `server/src/channelLibraries.ts`.
 

@@ -1150,6 +1150,9 @@ export const en = {
     channelLibraryNote: () =>
       'Every transcript made here goes into this channel’s own library at noesis, which every member can open and nobody else can. The channel’s Pro members pay for it; while none is Pro, nothing new goes in.',
     channelLibraryNotYet: () => 'It is made with the first transcript while somebody here is Pro.',
+    /** What deleting does to it: `sweepDeleted`'s week, as *Delete for good* says it. */
+    channelLibraryDeleting: (days: number) =>
+      `Deleting the channel deletes its library, and deleting a recording deletes its transcript there. Either can be recovered for ${days} days.`,
     channelLibraryOpen: () => 'Open in noesis',
     /** Whether *Ask Claude* consults it: on by default, any member who may edit the channel switches it. */
     channelLibraryConsult: () => 'Claude consults it',

@@ -875,6 +875,8 @@ export const es: Strings = {
     channelLibraryNote: () =>
       'Cada transcripción hecha aquí va a la biblioteca propia de este canal en noesis, que puede abrir cualquier miembro y nadie más. La pagan los miembros Pro del canal; mientras no haya ninguno, no entra nada nuevo.',
     channelLibraryNotYet: () => 'Se crea con la primera transcripción mientras alguien aquí sea Pro.',
+    channelLibraryDeleting: (days: number) =>
+      `Al eliminar el canal se elimina su biblioteca, y al eliminar una grabación, su transcripción allí. Se pueden recuperar durante ${days} días.`,
     channelLibraryOpen: () => 'Abrir en noesis',
     channelLibraryConsult: () => 'Claude la consulta',
     channelLibraryConsultNote: () =>
