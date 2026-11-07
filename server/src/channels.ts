@@ -108,6 +108,7 @@ import { Pastes } from './pastes';
 import { Segments } from './segments';
 import {
   insertWithUniqueKey,
+  isUniqueViolation,
   newId,
   type Db,
   type GuestLinkRow,
@@ -1921,6 +1922,39 @@ export class ChannelRegistry {
       .prepare('SELECT join_code FROM channels WHERE id = ?')
       .get(channelId) as { join_code: string | null } | undefined;
     return row?.join_code ?? null;
+  }
+
+  /** A channel's handle, or null for one that has never needed one. */
+  handleOf(channelId: string): string | null {
+    const row = this.db
+      .prepare('SELECT handle FROM channels WHERE id = ?')
+      .get(channelId) as { handle: string | null } | undefined;
+    return row?.handle ?? null;
+  }
+
+  /**
+   * A channel's handle, minted from its name the first time anything asks:
+   * only a channel that needs one — for its noesis library — has one. Null
+   * for no such channel. Renaming leaves it alone, so whatever was filed
+   * under it stays reachable; whether a handle should hold the name back from
+   * changing is for later.
+   */
+  handleFor(channelId: string): string | null {
+    const row = this.db
+      .prepare('SELECT name, handle FROM channels WHERE id = ?')
+      .get(channelId) as { name: string | null; handle: string | null } | undefined;
+    if (!row) return null;
+    if (row.handle !== null) return row.handle;
+    const mint = this.db.prepare('UPDATE channels SET handle = ? WHERE id = ? AND handle IS NULL');
+    for (let attempt = 0; ; attempt++) {
+      try {
+        mint.run(mintHandle(row.name ?? ''), channelId);
+        return this.handleOf(channelId);
+      } catch (error) {
+        // Another channel holds it: a fresh suffix, a few times before giving up.
+        if (attempt >= 4 || !isUniqueViolation(error)) throw error;
+      }
+    }
   }
 
   /**
@@ -9212,7 +9246,22 @@ function parseJson<T>(raw: string | null): T | null {
  * having to.
  */
 export function mintJoinCode(name: string): string {
-  const slug = name
+  return `${slugOf(name) || 'community'}-${randomSuffix(8)}`;
+}
+
+/**
+ * A channel's handle: the name as a slug, for whoever reads it, and a short
+ * random suffix, which only makes it unique — the handle is no secret, so
+ * four characters are plenty, and a collision is retried by `handleFor`.
+ * Lowercase letters, digits and `-`, which is a noesis library name.
+ */
+export function mintHandle(name: string): string {
+  return `${slugOf(name) || 'channel'}-${randomSuffix(4)}`;
+}
+
+/** A name as lowercase ASCII words joined by `-`, at most forty characters; empty when nothing survives. */
+function slugOf(name: string): string {
+  return name
     .toLowerCase()
     .normalize('NFKD')
     .replace(/[\u0300-\u036f]/g, '')
@@ -9220,10 +9269,13 @@ export function mintJoinCode(name: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 40)
     .replace(/-+$/, '');
+}
+
+function randomSuffix(length: number): string {
   const alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
   let suffix = '';
-  for (const byte of randomBytes(8)) suffix += alphabet[byte % alphabet.length];
-  return `${slug || 'community'}-${suffix}`;
+  for (const byte of randomBytes(length)) suffix += alphabet[byte % alphabet.length];
+  return suffix;
 }
 
 /**

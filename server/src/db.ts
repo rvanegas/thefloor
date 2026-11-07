@@ -3069,6 +3069,21 @@ function migrate(db: Db): void {
   db.exec(
     'CREATE UNIQUE INDEX IF NOT EXISTS channels_join_code ON channels(join_code) WHERE join_code IS NOT NULL'
   );
+  /*
+    A channel's *handle*, 2026-11-07: `book-club-k3x9`, a slug of the name and
+    a random suffix, unique across channels and not a secret — it names the
+    channel to noesis, where its library is `thefloor/<handle>`. Null on every
+    channel that has never needed one; minted by `ChannelRegistry.handleFor`,
+    and kept through renames, as a username is through a change of display
+    name.
+
+    A column rather than a field of `state` for the join code's reasons: it is
+    looked up by value, and core never sees it.
+  */
+  if (!hasColumn(db, 'channels', 'handle')) {
+    db.exec('ALTER TABLE channels ADD COLUMN handle TEXT');
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS channels_handle ON channels(handle) WHERE handle IS NOT NULL');
   for (const column of ['language', 'image_type', 'category']) {
     if (!hasColumn(db, 'channels', column)) {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);

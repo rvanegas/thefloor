@@ -186,6 +186,7 @@ caused; the list carries the meaning.
 - **Guard** — An exported `can…` predicate in `core/channel.ts` — `canClaimFloor`, `canPasteClip`, `canManageGuest`
 - **Guess (a credit)** — `invited_via = 'inferred'`: credit worked out from somebody's first contact rather than from a record of an invitation, and the one kind that may be wrong
 - **Present or empty** — `presentOrEmpty` — you are in the channel, or nobody is; *has the room* (`hasTheRoom`) until 2026-10-09
+- **Handle (a channel's)** — `channels.handle`, `book-club-k3x9`: a slug of the channel's name and a random suffix, unique across channels and no secret, minted only for a channel that needs one — what names it to noesis, whose library for it is `thefloor/<handle>`. Not the *join code*, which is a community's lock, and not a *username*, which is a person's
 - **Hearing (a device's)** — `Hearing` — who in the media room is publishing audio and which of them this device is subscribed to; read off the room, the only account of what LiveKit actually did with a subscription, and nothing to do with *reach*
 - **Heartbeat** — `STILL_HERE`, sent per channel while somebody is in one
 - **Identity** — The string a participant publishes under, and the key a *stem* and transcript line file under
@@ -4288,6 +4289,30 @@ out to let a member play a track into a channel from outside it, seen on build
 name and who gets in; pasting left on 2026-10-15, a *paste* being kept in a
 room and an empty channel having none. See *Watch party* and
 decision/2026-09-20-playing-is-not-tidying.md.
+
+## Handle (a channel's)
+
+`channels.handle`, since 2026-11-07, read by `ChannelRegistry.handleOf` and
+minted by `handleFor`: the channel's name as a slug and four random
+characters, `book-club-k3x9`, or `channel-…` for an unnamed one. It is the
+channel's name at noesis, where a channel's own library is to be
+`thefloor/<handle>` — The Floor the owner, as a person is the owner of
+`<username>/<library>` — and it is lowercase letters, digits and `-` because
+that is what noesis allows in a library's name. See
+task/a-channel-has-its-own-noesis-library.md.
+
+**Only a channel that needs one has one.** Nothing mints it but asking, so
+nothing may assume a channel has a handle, as nothing may assume a person has
+a username.
+
+**Against its neighbours.** The *join code* looks the same and is the
+opposite: a community's door, whose suffix is the secret, and which every
+rename and every reset replaces. A handle is not secret, is never replaced,
+and **survives a rename** — the name it was read from may go on to say
+something else, as a username outlives a change of display name. Whether a
+handle should hold the name fixed, as a connected library holds a username, is
+open. Not the *channel title*, which is the viewer's own; not the channel's
+`id`, which is the one that is never shown.
 
 ## Hearing (a device's)
 
