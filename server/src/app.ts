@@ -43,7 +43,7 @@ import {
   UsernameTakenError,
   weekStartOf,
 } from './accounts';
-import { openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
+import { hashesEqual, openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
 import { deletionPage } from './deletion';
 import { logSafeRequest } from './log-url';
 import { Devices, type DevicePlatform } from './devices';
@@ -4018,6 +4018,62 @@ export function buildApp(options: BuildOptions = {}): App {
       channels.libraryConnectionChanged(account.id);
     }
     return reply.code(204).send();
+  });
+
+  // --- A channel's own noesis library, as noesis asks about it ---------------
+
+  /**
+   * Whether this request is noesis's: the client pair noesis issued The Floor,
+   * presented back as HTTP Basic — the pair The Floor presents to noesis's
+   * register (names.ts), so one secret answers both ways. Compared as hashes,
+   * so neither half leaks where it first differs.
+   */
+  function isNoesis(request: FastifyRequest): boolean {
+    const client = options.names;
+    const header = request.headers.authorization;
+    if (!client || !header?.startsWith('Basic ')) return false;
+    const presented = Buffer.from(header.slice('Basic '.length), 'base64').toString('utf8');
+    return hashesEqual(sha256(presented), sha256(`${client.clientId}:${client.clientSecret}`));
+  }
+
+  /** An account's username as noesis keeps it, lowercase; null for none. */
+  const noesisUser = (accountId: string): string | null => {
+    const username = accounts.byId(accountId)?.username;
+    return username ? username.toLowerCase() : null;
+  };
+
+  /**
+   * Who may read `thefloor/<handle>`: the channel's members by username, each
+   * with whether they are Pro here, which is whose the library's cost is and
+   * whether the channel files transcripts at all — and its current name, which
+   * is what noesis shows, the handle being only its id. noesis asks this
+   * rather than being told, so The Floor stays the one authority on who
+   * belongs. Guests are never in it, and a member with no username, whom
+   * noesis could not name, is left out.
+   */
+  fastify.get('/noesis/channels/:handle', async (request, reply) => {
+    if (!isNoesis(request)) return reply.code(401).send({ error: 'Not noesis.' });
+    const { handle } = request.params as { handle: string };
+    const channel = channels.byHandle(handle);
+    if (!channel) return reply.code(404).send({ error: 'No such channel.' });
+    const at = now();
+    const members = channel.participants.flatMap((id) => {
+      const user = noesisUser(id);
+      return user ? [{ user, pro: pro.isPro(id, at) }] : [];
+    });
+    return { handle, name: channel.name, members };
+  });
+
+  /**
+   * The channel libraries somebody may read, for their list at noesis: every
+   * channel with a handle they are a member of. By the name they hold now
+   * only — never an old one, which noesis may have given somebody else.
+   */
+  fastify.get('/noesis/users/:user/channels', async (request, reply) => {
+    if (!isNoesis(request)) return reply.code(401).send({ error: 'Not noesis.' });
+    const { user } = request.params as { user: string };
+    const account = accounts.byCurrentUsername(user);
+    return { channels: account ? channels.handlesOf(account.id) : [] };
   });
 
   /**

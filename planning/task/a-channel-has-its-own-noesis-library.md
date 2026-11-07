@@ -56,15 +56,27 @@ reaches one only by somebody's *Send to noesis* into their own.
 
 ## How the two ends talk
 
+**The Floor's half is built, 2026-11-07**, and nothing calls it until noesis
+does; nothing mints a handle yet either.
+
 - **noesis asks The Floor two questions**, for channels with a handle only:
   the members of a handle — by username, each marked Pro or not, with the
   channel's current name — and the handles a username is a member of, for
-  the list of libraries.
+  the list of libraries. `GET /noesis/channels/:handle` answers
+  `{ handle, name, members: [{ user, pro }] }`, users lowercase as noesis
+  keeps them, a member with no username left out, 404 for a handle naming
+  nothing; `GET /noesis/users/:user/channels` answers `{ channels: [{ handle,
+  name }] }`, by the name somebody holds now — never an old one through
+  `username_aliases`, which noesis may since have given somebody else.
 - **noesis proves it is noesis with the pair The Floor already holds**,
   `NOESIS_CLIENT_ID` / `NOESIS_CLIENT_SECRET`, as HTTP Basic: the one The
   Floor presents to noesis's register, kept in the clear at noesis
   (`oauth.py`, `keeps_names`), so one shared secret answers both ways and no
-  new credential is made. CREDENTIALS.md says so when it is built.
+  new credential is made. CREDENTIALS.md says so.
+- **Still to do here**: minting the handle when a channel's library is made,
+  filing each segment, the settings card, Ask Claude's use of it, and the
+  privacy policy, which has to name what noesis is told before any channel
+  has a library.
 
 ## noesis's side
 

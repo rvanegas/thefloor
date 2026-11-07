@@ -391,6 +391,16 @@ Deliberately separate, so no single leak is worse than it has to be:
   (and `client_imports.py`) again, or the register refuses this server and
   every signup fails.
 
+  **Since 2026-11-07 it is also how noesis proves itself here**, the same
+  pair presented the other way as HTTP Basic, for the two questions noesis
+  asks about a channel's own library (`/noesis/channels/:handle` and
+  `/noesis/users/:user/channels`, `server/src/app.ts`): a channel's members by
+  username, who of them is Pro, and its name; and which channels somebody
+  belongs to. noesis keeps the secret in the clear (`oauth.py`), so no second
+  credential was made. A leak lets somebody read those answers — who is in
+  which channel that has a library — and nothing else. A rotation reaches
+  noesis by itself, since noesis minted the secret.
+
   **What it holds up: every person's grant**, in `noesis_connections`, one
   refresh token per account that connected a library, sealed with a key
   derived from `NOESIS_CLIENT_SECRET` (HKDF, AES-256-GCM; `server/src/noesis.ts`),

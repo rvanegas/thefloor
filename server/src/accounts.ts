@@ -486,6 +486,17 @@ export class Accounts {
   }
 
   /**
+   * Whoever holds this name now, and never whoever was renamed from it: for
+   * a question about who may read something, where `byUsername`'s fallback
+   * would answer for a name noesis may since have given somebody else.
+   */
+  byCurrentUsername(username: string): AccountRow | undefined {
+    return this.db
+      .prepare('SELECT * FROM accounts WHERE username = ? COLLATE NOCASE')
+      .get(foldUsername(username.trim())) as AccountRow | undefined;
+  }
+
+  /**
    * Remembers that `accountId` was called `old`, for `byUsername`, and forgets
    * any older claim on the name it is called now.
    */

@@ -3,20 +3,43 @@ import { mintHandle } from '../src/channels';
 import { MemoryMailer } from '../src/mail';
 
 /**
- * A channel's *handle*: what names it to noesis, minted only when asked for.
+ * A channel's *handle*: what names it to noesis, minted only when asked for,
+ * and the two questions noesis asks The Floor about the library it names.
  *
  * - None until something asks, and the same one every time after.
  * - A slug of the name and a suffix, which is a noesis library name; an
  *   unnamed channel is `channel-…`.
  * - Two channels of one name have two handles.
  * - A rename leaves it alone.
+ * - noesis, and only noesis, is told who the members are, who of them is
+ *   Pro, and the channel's current name; and which channels' libraries
+ *   somebody may read, by the name they hold now.
  */
 
 let app: App;
 const clock = 1_700_000_000_000;
+const SECRET = 'client-secret';
+const NOESIS = { authorization: 'Basic ' + Buffer.from(`thefloor:${SECRET}`).toString('base64') };
+
+/** noesis's register, as far as a signup sees it: the suggested stem, numbered when taken. */
+let names: Set<string>;
+const fakeNoesis = (async (_input: unknown, init?: { body?: unknown }) => {
+  const body = JSON.parse(String(init?.body)) as { suggest: string[] };
+  const stem = body.suggest[0];
+  let name = stem;
+  for (let n = 2; names.has(name); n++) name = `${stem}${n}`;
+  names.add(name);
+  return Response.json({ user: name, account: false });
+}) as typeof fetch;
 
 beforeEach(() => {
-  app = buildApp({ dbPath: ':memory:', mailer: new MemoryMailer(), now: () => clock });
+  names = new Set();
+  app = buildApp({
+    dbPath: ':memory:',
+    mailer: new MemoryMailer(),
+    now: () => clock,
+    names: { origin: 'https://noesis.example', clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis },
+  });
 });
 
 afterEach(async () => {
@@ -34,12 +57,14 @@ async function signIn(identifier: string, displayName: string) {
   return verified.json() as { token: string; account: { id: string } };
 }
 
+const auth = (token: string) => ({ authorization: `Bearer ${token}` });
+
 async function channel(name: string | null) {
   const erta = await signIn('erta@example.com', 'Erta Example');
   const created = await app.fastify.inject({
     method: 'POST',
     url: '/channels',
-    headers: { authorization: `Bearer ${erta.token}` },
+    headers: auth(erta.token),
     payload: { contactIds: [] },
   });
   const channelId = (created.json() as { channelId: string }).channelId;
@@ -97,5 +122,107 @@ describe('a channel handle', () => {
     const handle = app.channels.handleFor(channelId);
     rename(channelId, ertaId, 'Reading Group');
     expect(app.channels.handleFor(channelId)).toBe(handle);
+  });
+});
+
+describe('what noesis asks about a channel library', () => {
+  /** A community of three — Erta its owner, Zed and Anna joined — with a handle. */
+  async function bookClub() {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const created = await app.fastify.inject({
+      method: 'POST',
+      url: '/channels',
+      headers: auth(erta.token),
+      payload: { contactIds: [] },
+    });
+    const channelId = (created.json() as { channelId: string }).channelId;
+    const made = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/community`,
+      headers: auth(erta.token),
+      payload: { name: 'Book Club' },
+    });
+    const { joinCode } = made.json() as { joinCode: string };
+    const zed = await signIn('zed@example.com', 'Zed Zebedee');
+    const anna = await signIn('anna@example.com', 'Anna Kowalski');
+    for (const user of [zed, anna]) {
+      const joined = await app.fastify.inject({
+        method: 'POST',
+        url: '/channels/join',
+        headers: auth(user.token),
+        payload: { code: joinCode },
+      });
+      expect(joined.statusCode).toBe(200);
+    }
+    return { channelId, erta, zed, anna, handle: app.channels.handleFor(channelId)! };
+  }
+
+  function makePro(accountId: string) {
+    app.db
+      .prepare(
+        `INSERT INTO pro_subscriptions (original_transaction_id, account_id, product_id, environment,
+           expires_at, latest_transaction_id, updated_at, raw) VALUES (?, ?, 'pro', 'Sandbox', ?, ?, ?, '{}')`
+      )
+      .run(`t-${accountId}`, accountId, clock + 86_400_000, `t-${accountId}`, clock);
+  }
+
+  const members = (handle: string, headers: Record<string, string> = NOESIS) =>
+    app.fastify.inject({ method: 'GET', url: `/noesis/channels/${handle}`, headers });
+  const libraries = (user: string, headers: Record<string, string> = NOESIS) =>
+    app.fastify.inject({ method: 'GET', url: `/noesis/users/${user}/channels`, headers });
+
+  it('names the members by username, who of them is Pro, and the channel', async () => {
+    const { anna, handle } = await bookClub();
+    makePro(anna.account.id);
+    const answer = await members(handle);
+    expect(answer.statusCode).toBe(200);
+    expect(answer.json()).toEqual({
+      handle,
+      name: 'Book Club',
+      members: [
+        { user: 'erta_example', pro: false },
+        { user: 'zed_zebedee', pro: false },
+        { user: 'anna_kowalski', pro: true },
+      ],
+    });
+  });
+
+  it('carries the name a rename gave it, under the same handle', async () => {
+    const { channelId, erta, handle } = await bookClub();
+    rename(channelId, erta.account.id, 'Reading Group');
+    expect((await members(handle)).json().name).toBe('Reading Group');
+  });
+
+  it('drops somebody who leaves', async () => {
+    const { channelId, zed, handle } = await bookClub();
+    app.channels.dispatch(channelId, zed.account.id, { type: 'LEAVE_CHANNEL' } as never);
+    const users = (await members(handle)).json().members.map((m: { user: string }) => m.user);
+    expect(users).toEqual(['erta_example', 'anna_kowalski']);
+    expect((await libraries('zed_zebedee')).json()).toEqual({ channels: [] });
+  });
+
+  it('lists the channel libraries somebody may read, whatever the case asked in', async () => {
+    const { handle } = await bookClub();
+    expect((await libraries('ZED_zebedee')).json()).toEqual({ channels: [{ handle, name: 'Book Club' }] });
+    expect((await libraries('nobody_here')).json()).toEqual({ channels: [] });
+  });
+
+  it('lists no channel that has never needed a handle', async () => {
+    await signIn('erta@example.com', 'Erta Example');
+    await channel('Book Club');
+    expect((await libraries('erta_example')).json()).toEqual({ channels: [] });
+  });
+
+  it('answers nobody but noesis', async () => {
+    const { handle, erta } = await bookClub();
+    const wrong = { authorization: 'Basic ' + Buffer.from('thefloor:guess').toString('base64') };
+    expect((await members(handle, wrong)).statusCode).toBe(401);
+    expect((await members(handle, auth(erta.token))).statusCode).toBe(401);
+    expect((await members(handle, {})).statusCode).toBe(401);
+    expect((await libraries('erta_example', wrong)).statusCode).toBe(401);
+  });
+
+  it('knows no handle that names nothing', async () => {
+    expect((await members('book-club-zzzz')).statusCode).toBe(404);
   });
 });

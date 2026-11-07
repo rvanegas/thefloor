@@ -1958,6 +1958,32 @@ export class ChannelRegistry {
   }
 
   /**
+   * The channel a handle names — its id, current name and members — or null
+   * for none, or for one deleted. From the database, as `isMemberOf` asks,
+   * since membership does not depend on anybody being in the room. Members
+   * only: a guest's seat is held beside `participants`, never in it.
+   */
+  byHandle(handle: string): { id: string; name: string | null; participants: string[] } | null {
+    const row = this.db
+      .prepare('SELECT id, name, participants FROM channels WHERE handle = ? AND deleted_at IS NULL')
+      .get(handle) as { id: string; name: string | null; participants: string | null } | undefined;
+    if (!row) return null;
+    return { id: row.id, name: row.name, participants: JSON.parse(row.participants ?? '[]') as string[] };
+  }
+
+  /** The channels this account is a member of that have a handle, by handle. */
+  handlesOf(userId: string): { handle: string; name: string | null }[] {
+    return this.db
+      .prepare(
+        `SELECT c.handle AS handle, c.name AS name FROM channels c
+         WHERE c.handle IS NOT NULL AND c.deleted_at IS NULL
+           AND EXISTS (SELECT 1 FROM json_each(c.participants) WHERE json_each.value = ?)
+         ORDER BY c.handle`
+      )
+      .all(userId) as { handle: string; name: string | null }[];
+  }
+
+  /**
    * Mints a fresh code for a community — which revokes the old one, both links
    * being one code — or, with `open` false, turns the door off. The owner's
    * alone, the door being the one control the call agreed it needs.
