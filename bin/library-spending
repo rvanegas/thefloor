@@ -1,0 +1,88 @@
+#!/bin/bash
+#
+# What each channel's own noesis library cost in a month, and each Pro
+# member's share of it — the cost is divided among a channel's Pro members,
+# and this is the one place it is reported. Nothing in the app or the server
+# shows it.
+#
+#   ts library-spending            this month (UTC), as noesis counts months
+#   ts library-spending 2026-11    another
+#
+# noesis meters every channel library as itself, `thefloor/<handle>`, and
+# answers `GET /applications/spending` to The Floor alone; the channels'
+# names and who in each is Pro now are read from the deployed database. **Pro
+# is as of now**, not as of the month asked about: a member who lapsed since
+# is not counted, one who subscribed since is.
+#
+# Read-only. noesis is asked as The Floor, with `NOESIS_CLIENT_ID` and
+# `NOESIS_CLIENT_SECRET` from the environment, else server/.env, else the copy
+# ts env-pull keeps in ~/.config/thefloor/server.env; `NOESIS_URL` names it,
+# noesis's own unless set. The secret is handed to curl and never printed.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PULLED=${THEFLOOR_ENV:-$HOME/.config/thefloor/server.env}
+
+month=""
+for arg in "$@"; do
+  case "$arg" in
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    [0-9][0-9][0-9][0-9]-[0-9][0-9]) month=$arg ;;
+    *) echo "ts library-spending: a month is YYYY-MM: $arg (try --help)" >&2; exit 2 ;;
+  esac
+done
+
+# The last assignment wins, as it would for a shell sourcing the file.
+setting() {
+  local name=$1 value=${!1:-}
+  for file in "$ROOT/server/.env" "$PULLED"; do
+    [ -n "$value" ] && break
+    [ -f "$file" ] && value=$(sed -n "s/^$name=//p" "$file" | tail -n 1 | sed "s/^[\"']//; s/[\"']$//")
+  done
+  printf '%s' "$value"
+}
+client=$(setting NOESIS_CLIENT_ID)
+secret=$(setting NOESIS_CLIENT_SECRET)
+url=$(setting NOESIS_URL)
+origin=$(printf '%s' "${url:-https://noesis.rvanegas.co/mcp}" | sed -E 's#^(https?://[^/]+).*#\1#')
+[ -n "$client" ] && [ -n "$secret" ] || {
+  echo "ts library-spending: no NOESIS_CLIENT_ID and NOESIS_CLIENT_SECRET (ts env-pull?)" >&2
+  exit 1
+}
+
+work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+printf 'user = "%s:%s"\n' "$client" "$secret" > "$work/auth"
+
+curl -sS --fail-with-body -K "$work/auth" "$origin/applications/spending${month:+?month=$month}" > "$work/spent.json"
+
+# Every channel with a library, its name, and its members who are Pro now:
+# a subscription unrevoked and unexpired, as ProSubscriptions.activeUntil
+# reads it less its leeway.
+ts db --json "select c.handle as handle, coalesce(c.name, '') as name,
+    (select group_concat(display_name, ', ') from (
+       select distinct a.display_name from json_each(c.participants) p
+         join accounts a on a.id = p.value
+         join pro_subscriptions s on s.account_id = p.value
+        where s.revoked_at is null and s.expires_at > cast(strftime('%s', 'now') as integer) * 1000
+     )) as pro
+  from channels c where c.handle is not null" > "$work/channels.json"
+
+jq -r --slurpfile channels "$work/channels.json" '
+  .month as $month
+  | ($channels[0] // [] | map({ key: ("thefloor/" + .handle), value: . }) | from_entries) as $by
+  | .libraries | to_entries | sort_by(-.value)
+  | (["month " + $month, ""] | join("\n")),
+    (if length == 0 then "No channel library spent anything." else
+      (map(.value) | add) as $total
+      | (.[] | . as $row | ($by[$row.key] // {}) as $c
+          | (($c.pro // "") | if . == "" then [] else split(", ") end) as $pro
+          | "\($row.key)  \(($c.name // "") | if . == "" then "(unnamed, or deleted)" else . end)"
+            + "\n  $\($row.value * 10000 | round / 10000)"
+            + (if ($pro | length) == 0 then "  — nobody Pro now"
+               else "  — \($pro | length) Pro, $\($row.value / ($pro | length) * 10000 | round / 10000) each: \($pro | join(", "))" end)),
+        "", "total  $\($total * 10000 | round / 10000)"
+    end)
+' "$work/spent.json"

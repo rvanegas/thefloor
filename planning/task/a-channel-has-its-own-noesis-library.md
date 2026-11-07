@@ -24,6 +24,9 @@ reaches one only by somebody's *Send to noesis* into their own.
 - **Members only. Guests have no access whatever**, seat or no seat.
 - **In noesis, a member's list of libraries shows their own and those of
   every channel they belong to.**
+- **The cost is reported, not shown**: `ts library-spending` gives each
+  library's month from noesis and each Pro member's share, and nothing in the
+  app or the server shows it.
 - **The cost is split among the channel's Pro members** — The Floor's *Pro*,
   not a plan at noesis, which has no payment at all: an account there is
   *free*, with a small monthly allowance of model use, or *unlimited*

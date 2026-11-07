@@ -31,6 +31,9 @@
 # instrumentation rather than a feature. The reasoning is in
 # planning/decision/DECISIONS.md § "The meter is two tables and a script".
 #
+# What channel libraries spent at noesis is `ts library-spending`'s, since
+# noesis rather than this database counts it.
+#
 # The `excess` report reads `excess_flags`, written by the excess monitor on
 # the same terms — nothing in the server reads it, and this report is the only
 # place a flag is ever surfaced. It is a notice rather than a cost, and lives
