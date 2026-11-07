@@ -389,10 +389,14 @@ export class NoesisConnections {
       names?: unknown;
     };
     if (!body.user) return null;
+    // The person's own only: since 2026-11-07 noesis lists a channel's library
+    // too, `thefloor/<handle>`, to each member, and that is the channel's, not
+    // theirs to consult or file into as their own.
+    const own = `${body.user.toLowerCase()}/`;
     return {
       user: body.user,
       email: body.email ?? null,
-      libraries: parseLibraries(body.libraries),
+      libraries: parseLibraries(body.libraries).filter((id) => id.toLowerCase().startsWith(own)),
       names: parseLibraries(body.names),
     };
   }

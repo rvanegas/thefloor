@@ -62,10 +62,10 @@ does; nothing mints a handle yet either.
 - **noesis asks The Floor two questions**, for channels with a handle only:
   the members of a handle — by username, each marked Pro or not, with the
   channel's current name — and the handles a username is a member of, for
-  the list of libraries. `GET /noesis/channels/:handle` answers
-  `{ handle, name, members: [{ user, pro }] }`, users lowercase as noesis
+  the list of libraries. `GET /noesis/libraries/:handle` answers
+  `{ handle, name, members: [{ user, pro, name }] }`, users lowercase as noesis
   keeps them, a member with no username left out, 404 for a handle naming
-  nothing; `GET /noesis/users/:user/channels` answers `{ channels: [{ handle,
+  nothing; `GET /noesis/users/:user/libraries` answers `{ libraries: [{ handle,
   name }] }`, by the name somebody holds now — never an old one through
   `username_aliases`, which noesis may since have given somebody else.
 - **noesis proves it is noesis with the pair The Floor already holds**,
@@ -80,23 +80,33 @@ does; nothing mints a handle yet either.
 
 ## noesis's side
 
-- **An owner that is not a person**: `libraries/thefloor/<handle>`, the name
-  `thefloor` reserved in the register so no person signs up as it, and a
-  call for a client to make a library under it — `POST /libraries` makes one
-  under the caller's own name and refuses a service.
-- **Access by asking The Floor** rather than `who == user`
-  (`noesis/service.py`, `library_root`), on every way in: files, runs,
-  imports and MCP.
-- **The list of libraries** carrying a member's channels', by their current
-  names.
-- **Spending metered per channel library** for The Floor to read and divide,
-  and refused, where it would spend, for a channel with no Pro member.
-- **Whose voice.** noesis reads its owner's lines as their own and the rest as
-  context (`speaker_names`); a channel's library has every member's lines as
-  its own voice, and Claude's or a guest's as context.
-- **The hours of a segment kept.** Two segments of one day are told apart
-  only by their hours, and noesis drops them: The Floor sends them twice — the
-  filename's `HHMM` and the text's hours line — and `from_the_floor`
-  (`noesis/cmd_import.py`) keeps the date alone, files the document under a
-  title a model gives it, and discards each turn's time too. The hours belong
-  in the document: on its date line, and on each turn.
+**Built 2026-11-07 on noesis's branch `channel-libraries`**, and argued in its
+`decision/2026-11-07-an-application-keeps-libraries-for-its-groups.md`
+(`noesis/members.py`):
+
+- **An owner that is not a person.** The operator marks the client with the
+  URL The Floor answers at (`scripts/client_libraries.py thefloor
+  https://thefloor.rvanegas.co`), which makes `libraries/thefloor/` and so
+  takes the name in the register. The Floor signs in with its client pair as
+  HTTP Basic and is then the owner: `POST /libraries` makes a channel's.
+- **Access by asking The Floor**, on every way in, an answer kept a minute;
+  The Floor not answering admits nobody and lists nothing.
+- **Listed beside the person's own**, by the channel's current name
+  (`names` on `/libraries` and `library_names` on `/me`). The Floor keeps
+  only a person's own in their toggles: `whoIs` drops every id that is not
+  under their name.
+- **Metered as the library**, `thefloor/<handle>`, uncapped, and read by The
+  Floor from `GET /applications/spending` to divide; what would spend is
+  refused (402) for a channel with no Pro member.
+- **Every member's lines its own voice**: the display name The Floor gives,
+  and their own names at noesis.
+- **A segment's hours** imported on the line under the date, for every
+  library. A segment imported before is not recognised again, its text having
+  changed.
+
+## To ship it, in this order
+
+Each verb Rodrigo's to say: land and deploy noesis; register the mark on
+`commons`; land and deploy The Floor; and, before any channel has a library,
+the privacy policy saying what noesis is told — members' usernames and display
+names, and who is Pro.

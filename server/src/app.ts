@@ -4045,13 +4045,14 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * Who may read `thefloor/<handle>`: the channel's members by username, each
    * with whether they are Pro here, which is whose the library's cost is and
-   * whether the channel files transcripts at all — and its current name, which
+   * whether the channel files transcripts at all, and the display name their
+   * lines carry, which noesis reads as the library's own voice — and its current name, which
    * is what noesis shows, the handle being only its id. noesis asks this
    * rather than being told, so The Floor stays the one authority on who
    * belongs. Guests are never in it, and a member with no username, whom
    * noesis could not name, is left out.
    */
-  fastify.get('/noesis/channels/:handle', async (request, reply) => {
+  fastify.get('/noesis/libraries/:handle', async (request, reply) => {
     if (!isNoesis(request)) return reply.code(401).send({ error: 'Not noesis.' });
     const { handle } = request.params as { handle: string };
     const channel = channels.byHandle(handle);
@@ -4059,7 +4060,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const at = now();
     const members = channel.participants.flatMap((id) => {
       const user = noesisUser(id);
-      return user ? [{ user, pro: pro.isPro(id, at) }] : [];
+      return user ? [{ user, pro: pro.isPro(id, at), name: accounts.byId(id)?.display_name ?? null }] : [];
     });
     return { handle, name: channel.name, members };
   });
@@ -4069,11 +4070,11 @@ export function buildApp(options: BuildOptions = {}): App {
    * channel with a handle they are a member of. By the name they hold now
    * only — never an old one, which noesis may have given somebody else.
    */
-  fastify.get('/noesis/users/:user/channels', async (request, reply) => {
+  fastify.get('/noesis/users/:user/libraries', async (request, reply) => {
     if (!isNoesis(request)) return reply.code(401).send({ error: 'Not noesis.' });
     const { user } = request.params as { user: string };
     const account = accounts.byCurrentUsername(user);
-    return { channels: account ? channels.handlesOf(account.id) : [] };
+    return { libraries: account ? channels.handlesOf(account.id) : [] };
   });
 
   /**

@@ -167,11 +167,11 @@ describe('what noesis asks about a channel library', () => {
   }
 
   const members = (handle: string, headers: Record<string, string> = NOESIS) =>
-    app.fastify.inject({ method: 'GET', url: `/noesis/channels/${handle}`, headers });
+    app.fastify.inject({ method: 'GET', url: `/noesis/libraries/${handle}`, headers });
   const libraries = (user: string, headers: Record<string, string> = NOESIS) =>
-    app.fastify.inject({ method: 'GET', url: `/noesis/users/${user}/channels`, headers });
+    app.fastify.inject({ method: 'GET', url: `/noesis/users/${user}/libraries`, headers });
 
-  it('names the members by username, who of them is Pro, and the channel', async () => {
+  it('names the members by username and display name, who of them is Pro, and the channel', async () => {
     const { anna, handle } = await bookClub();
     makePro(anna.account.id);
     const answer = await members(handle);
@@ -180,9 +180,9 @@ describe('what noesis asks about a channel library', () => {
       handle,
       name: 'Book Club',
       members: [
-        { user: 'erta_example', pro: false },
-        { user: 'zed_zebedee', pro: false },
-        { user: 'anna_kowalski', pro: true },
+        { user: 'erta_example', pro: false, name: 'Erta Example' },
+        { user: 'zed_zebedee', pro: false, name: 'Zed Zebedee' },
+        { user: 'anna_kowalski', pro: true, name: 'Anna Kowalski' },
       ],
     });
   });
@@ -198,19 +198,19 @@ describe('what noesis asks about a channel library', () => {
     app.channels.dispatch(channelId, zed.account.id, { type: 'LEAVE_CHANNEL' } as never);
     const users = (await members(handle)).json().members.map((m: { user: string }) => m.user);
     expect(users).toEqual(['erta_example', 'anna_kowalski']);
-    expect((await libraries('zed_zebedee')).json()).toEqual({ channels: [] });
+    expect((await libraries('zed_zebedee')).json()).toEqual({ libraries: [] });
   });
 
   it('lists the channel libraries somebody may read, whatever the case asked in', async () => {
     const { handle } = await bookClub();
-    expect((await libraries('ZED_zebedee')).json()).toEqual({ channels: [{ handle, name: 'Book Club' }] });
-    expect((await libraries('nobody_here')).json()).toEqual({ channels: [] });
+    expect((await libraries('ZED_zebedee')).json()).toEqual({ libraries: [{ handle, name: 'Book Club' }] });
+    expect((await libraries('nobody_here')).json()).toEqual({ libraries: [] });
   });
 
   it('lists no channel that has never needed a handle', async () => {
     await signIn('erta@example.com', 'Erta Example');
     await channel('Book Club');
-    expect((await libraries('erta_example')).json()).toEqual({ channels: [] });
+    expect((await libraries('erta_example')).json()).toEqual({ libraries: [] });
   });
 
   it('answers nobody but noesis', async () => {

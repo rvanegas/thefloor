@@ -1257,7 +1257,8 @@ describe('the library switch', () => {
     } as never);
     const look = () => app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
 
-    noesisLibraries = ['alice/philosophy', 'alice/new'];
+    // A channel's library, which noesis lists to its members, is not one of hers.
+    noesisLibraries = ['alice/philosophy', 'alice/new', 'thefloor/book-club-k3x9'];
     expect((await look()).json()).toMatchObject({ libraries: ['alice/philosophy', 'alice/new'] });
     expect(app.channels.get(channelId)!.libraries).toEqual({ [alice.account.id]: ['alice/philosophy'] });
 

@@ -393,9 +393,9 @@ Deliberately separate, so no single leak is worse than it has to be:
 
   **Since 2026-11-07 it is also how noesis proves itself here**, the same
   pair presented the other way as HTTP Basic, for the two questions noesis
-  asks about a channel's own library (`/noesis/channels/:handle` and
-  `/noesis/users/:user/channels`, `server/src/app.ts`): a channel's members by
-  username, who of them is Pro, and its name; and which channels somebody
+  asks about a channel's own library (`/noesis/libraries/:handle` and
+  `/noesis/users/:user/libraries`, `server/src/app.ts`): a channel's members by
+  username and display name, who of them is Pro, and its name; and which channels somebody
   belongs to. noesis keeps the secret in the clear (`oauth.py`), so no second
   credential was made. A leak lets somebody read those answers — who is in
   which channel that has a library — and nothing else. A rotation reaches
