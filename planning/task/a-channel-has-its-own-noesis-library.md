@@ -24,7 +24,14 @@ reaches one only by somebody's *Send to noesis* into their own.
 - **Members only. Guests have no access whatever**, seat or no seat.
 - **In noesis, a member's list of libraries shows their own and those of
   every channel they belong to.**
-- **The cost is split among the channel's Pro members.**
+- **The cost is split among the channel's Pro members** — The Floor's *Pro*,
+  not a plan at noesis, which has no payment at all: an account there is
+  *free*, with a small monthly allowance of model use, or *unlimited*
+  (`noesis/accounts.py`). So **The Floor pays and splits**: `thefloor` is an
+  unlimited owner at noesis, noesis meters what each channel's library spends
+  and reports it, and The Floor divides it among whoever is Pro there. A Pro
+  member needs no noesis account to pay their share, only to read the library
+  in noesis itself.
 - **Every transcript goes in by itself**, with no switch to stop it, each
   *segment* as one document, as if somebody had sent it with *Send to noesis*.
 - **With no Pro member the channel stops taking transcripts** and otherwise
@@ -50,7 +57,8 @@ reaches one only by somebody's *Send to noesis* into their own.
 - **noesis's side.** An owner that is not a person (`thefloor`, reserved in
   the register so no person can take it), access decided by asking The Floor
   rather than `who == user` (`noesis/service.py`, `library_root`), the list
-  of libraries that includes a member's channels', and billing split among
-  people rather than charged to the owner.
+  of libraries that includes a member's channels', spending metered per
+  channel library for The Floor to read, and a channel with no Pro member
+  refused whatever would spend — the members answer saying so.
 - **Ask Claude** consulting it, which is the obvious next use: the channel's
   own library offered alongside its members'.
