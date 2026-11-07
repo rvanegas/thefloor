@@ -1,0 +1,182 @@
+#!/bin/bash
+#
+# Channel libraries at noesis that nothing is keeping: a library no channel
+# names, a deleted channel's library a week on, and a deleted recording's
+# document a week on — `ts orphans`' job, for what server/src/channelLibraries.ts
+# files rather than for audio.
+#
+#   ts library-orphans            what would be cleared
+#   ts library-orphans --delete   actually remove it, after printing and asking
+#
+# Reports by default and deletes only when asked, as `ts orphans` does.
+#
+# **The hourly sweep deletes these itself** wherever channel libraries are on
+# (`ChannelRegistry.sweepDeleted`): a deleted channel's library before the row
+# that names it, a deleted recording's document before the recording, each row
+# held until noesis has confirmed. This is for what it could not — noesis down
+# all week, `CHANNEL_LIBRARIES` switched off since — and for a library whose
+# row has gone some other way, which nothing else can ever find again. Having
+# deleted, it asks noesis again and marks what is confirmed gone
+# (`channels.library_cleared_at`, `segments.filed_file` nulled), which the
+# next sweep takes as the confirmation and drops the rows on.
+#
+# **The set is recomputed on every run and never cached**, `ts orphans`' rule.
+#
+# noesis is asked as The Floor, with `NOESIS_CLIENT_ID` and
+# `NOESIS_CLIENT_SECRET` from the environment, else server/.env, else the copy
+# ts env-pull keeps in ~/.config/thefloor/server.env; `NOESIS_URL` names it,
+# noesis's own unless set. The secret is handed to curl and never printed.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+PULLED=${THEFLOOR_ENV:-$HOME/.config/thefloor/server.env}
+
+# Mirrors DELETED_RETENTION_MS in core/constants.ts, a week, as ts orphans does.
+RETENTION_MS=$((7 * 24 * 60 * 60 * 1000))
+CUTOFF="CAST(strftime('%s', 'now') AS INTEGER) * 1000 - $RETENTION_MS"
+
+do_delete=false
+for arg in "$@"; do
+  case "$arg" in
+    --delete) do_delete=true ;;
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    *) echo "ts library-orphans: unknown argument: $arg (try --help)" >&2; exit 2 ;;
+  esac
+done
+
+# The last assignment wins, as it would for a shell sourcing the file.
+setting() {
+  local name=$1 value=${!1:-}
+  for file in "$ROOT/server/.env" "$PULLED"; do
+    [ -n "$value" ] && break
+    [ -f "$file" ] && value=$(sed -n "s/^$name=//p" "$file" | tail -n 1 | sed "s/^[\"']//; s/[\"']$//")
+  done
+  printf '%s' "$value"
+}
+client=$(setting NOESIS_CLIENT_ID)
+secret=$(setting NOESIS_CLIENT_SECRET)
+url=$(setting NOESIS_URL)
+origin=$(printf '%s' "${url:-https://noesis.rvanegas.co/mcp}" | sed -E 's#^(https?://[^/]+).*#\1#')
+[ -n "$client" ] && [ -n "$secret" ] || {
+  echo "ts library-orphans: no NOESIS_CLIENT_ID and NOESIS_CLIENT_SECRET (ts env-pull?)" >&2
+  exit 1
+}
+
+work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
+# The pair in a file curl reads, so it is in no process's arguments.
+printf 'user = "%s:%s"\n' "$client" "$secret" > "$work/auth"
+noesis() { curl -sS --fail-with-body -K "$work/auth" "$@"; }
+
+list_libraries() {
+  noesis "$origin/libraries" | jq -r '.libraries[]' | sed -n 's#^thefloor/##p' | sort -u
+}
+
+echo "→ listing The Floor's libraries at $origin"
+list_libraries > "$work/libraries.txt"
+
+echo "→ reading channels and filed documents from the deployed database"
+ts db "select handle || ' ' || case when deleted_at is not null and deleted_at <= $CUTOFF
+    and library_cleared_at is null then 'due' else 'kept' end
+  from channels where handle is not null" > "$work/db.txt"
+tail -n +3 "$work/db.txt" | sed 's/ *$//' | grep -E '^[a-z0-9-]+ (due|kept)$' | sort -u > "$work/rows.tsv" || true
+cut -d' ' -f1 "$work/rows.tsv" | sort -u > "$work/handles.txt"
+awk '$2 == "due" { print $1 }' "$work/rows.tsv" | sort -u > "$work/due.txt"
+
+ts db "select c.handle || ' ' || s.id || ' ' || s.filed_file
+  from segments s join recordings r on r.id = s.recording_id join channels c on c.id = s.channel_id
+  where s.text = 0 and s.filed_file is not null and c.handle is not null and c.deleted_at is null
+    and r.deleted_at is not null and r.deleted_at <= $CUTOFF" > "$work/docs.raw"
+tail -n +3 "$work/docs.raw" | sed 's/ *$//' | grep -E '^[a-z0-9-]+ seg_[A-Za-z0-9_-]+ [^ ]+$' > "$work/documents.tsv" || true
+
+# `ts orphans`' guard: a failed or empty query would make every library at
+# noesis look orphaned.
+if [ -s "$work/libraries.txt" ] && [ ! -s "$work/handles.txt" ]; then
+  echo "ts library-orphans: noesis has libraries and the database named no channel with one." >&2
+  echo "Refusing to treat them all as orphaned. Check ts db." >&2
+  exit 1
+fi
+
+comm -23 "$work/libraries.txt" "$work/handles.txt" > "$work/orphans.txt"
+comm -12 "$work/due.txt" "$work/libraries.txt" > "$work/expired.txt"
+comm -23 "$work/due.txt" "$work/libraries.txt" > "$work/empty.txt"
+count() { wc -l < "$1" | tr -d ' '; }
+
+echo
+echo "libraries     $(count "$work/libraries.txt") at noesis, $(count "$work/handles.txt") channels with one"
+echo "orphaned      $(count "$work/orphans.txt") libraries no channel names"
+echo "deleted       $(count "$work/expired.txt") channels deleted over a week ago, library still there"
+echo "              $(count "$work/empty.txt") more with none left, waiting only to be marked"
+echo "documents     $(count "$work/documents.tsv") of recordings deleted over a week ago"
+
+cat "$work/orphans.txt" "$work/expired.txt" > "$work/clear.txt"
+if [ ! -s "$work/clear.txt" ] && [ ! -s "$work/empty.txt" ] && [ ! -s "$work/documents.tsv" ]; then
+  echo
+  echo "Nothing to clear."
+  exit 0
+fi
+[ -s "$work/clear.txt" ] && { echo; sed 's#^#thefloor/#' "$work/clear.txt"; }
+[ -s "$work/documents.tsv" ] && { echo; awk '{ print "thefloor/" $1 "/" $3 }' "$work/documents.tsv"; }
+
+if ! $do_delete; then
+  echo
+  echo "Nothing was deleted or marked. Pass --delete to do both."
+  exit 0
+fi
+
+total=$(( $(count "$work/clear.txt") + $(count "$work/documents.tsv") ))
+if [ "$total" -gt 0 ]; then
+  echo
+  echo "This deletes $(count "$work/clear.txt") libraries and $(count "$work/documents.tsv") documents, and cannot be undone."
+  read -r -p "Type the number of both to confirm: " answer
+  [ "$answer" = "$total" ] || { echo "Not confirmed. Nothing was deleted."; exit 1; }
+fi
+
+echo "→ deleting"
+while read -r handle; do
+  noesis -X DELETE "$origin/libraries/thefloor/$handle" -o /dev/null \
+    && echo "  thefloor/$handle" || echo "  thefloor/$handle refused" >&2
+done < "$work/clear.txt"
+
+# A document is deleted by its hash, which the library's listing gives.
+: > "$work/documents-gone.txt"
+while read -r handle segment file; do
+  files=$(noesis "$origin/libraries/thefloor/$handle/files" || echo '{}')
+  sha=$(printf '%s' "$files" | jq -r --arg f "$file" '.files[$f] // empty')
+  if [ -n "$sha" ]; then
+    path=$(printf '%s' "$file" | jq -sRr 'split("/") | map(@uri) | join("/")')
+    noesis -X DELETE -H "If-Match: \"$sha\"" "$origin/libraries/thefloor/$handle/files/$path" -o /dev/null \
+      || { echo "  thefloor/$handle/$file refused" >&2; continue; }
+    files=$(noesis "$origin/libraries/thefloor/$handle/files" || echo '{}')
+    [ -z "$(printf '%s' "$files" | jq -r --arg f "$file" '.files[$f] // empty')" ] || continue
+  fi
+  echo "  thefloor/$handle/$file"
+  echo "$segment" >> "$work/documents-gone.txt"
+done < "$work/documents.tsv"
+
+# The confirmation the sweep takes: listed again rather than inferred from
+# what was just asked for, so a delete that did not happen is not marked.
+cat "$work/expired.txt" "$work/empty.txt" | sort -u > "$work/candidates.txt"
+if [ -s "$work/candidates.txt" ]; then
+  echo "→ listing again"
+  list_libraries > "$work/remaining.txt"
+  comm -23 "$work/candidates.txt" "$work/remaining.txt" > "$work/confirmed.txt"
+  if [ -s "$work/confirmed.txt" ]; then
+    handles=$(sed "s/.*/'&'/" "$work/confirmed.txt" | paste -sd, -)
+    marked=$(ts db --write "UPDATE channels
+      SET library_cleared_at = CAST(strftime('%s', 'now') AS INTEGER) * 1000
+      WHERE handle IN ($handles) AND deleted_at IS NOT NULL AND deleted_at <= $CUTOFF
+        AND library_cleared_at IS NULL;
+      SELECT changes();" | tail -n 1 | tr -d ' ')
+    echo "→ marked $marked deleted channels' libraries cleared; the next sweep drops their rows"
+  fi
+fi
+if [ -s "$work/documents-gone.txt" ]; then
+  ids=$(sed "s/.*/'&'/" "$work/documents-gone.txt" | paste -sd, -)
+  ts db --write "UPDATE segments SET filed_file = NULL WHERE id IN ($ids)" > /dev/null
+  echo "→ marked $(count "$work/documents-gone.txt") documents cleared; the next sweep drops their recordings"
+fi
+
+echo "done. Re-run ts library-orphans to confirm noesis and the database agree."
