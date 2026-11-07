@@ -84,6 +84,7 @@ import {
 } from './claude';
 import { RoomDigests } from './digest';
 import { NoesisConnections, noesisFilename, type NoesisOptions } from './noesis';
+import { ChannelLibraries, type ChannelLibrariesOptions } from './channelLibraries';
 import { NoesisNames, type NamesOptions } from './names';
 import {
   formatTranscript,
@@ -349,6 +350,12 @@ export interface BuildOptions {
    */
   names?: NamesOptions;
   /**
+   * Each channel's own noesis library, every transcript filed into it by
+   * itself (channelLibraries.ts) — the same client's credentials. Absent, no
+   * channel has one and nothing is filed; `CHANNEL_LIBRARIES` switches it on.
+   */
+  channelLibraries?: ChannelLibrariesOptions;
+  /**
    * Turns speech into text as it is spoken — the live transcript. Optional
    * for `transcription`'s reason, and needs `media` too: without a room to
    * listen to there is nothing to stream. Absent, the switch is never offered
@@ -422,6 +429,8 @@ export interface App {
   meterLive: () => void;
   /** Each account's own noesis library; null where this server has no noesis. See noesis.ts. */
   noesis: NoesisConnections | null;
+  /** Each channel's own noesis library; null where it is off. Exposed so a test can sweep. */
+  channelLibraries: ChannelLibraries | null;
 }
 
 /**
@@ -1247,6 +1256,24 @@ export function buildApp(options: BuildOptions = {}): App {
     // eventually removes the transcript.
     onFailed: (recordingId) => accounts.refundTranscript(recordingId),
   });
+
+  // Each channel's own noesis library, filed into by itself (channelLibraries.ts).
+  const channelLibraries = options.channelLibraries
+    ? new ChannelLibraries(
+        db,
+        {
+          handleFor: (id) => channels.handleFor(id),
+          channel: (id) => channels.nameAndMembers(id),
+          isPro: (id) => pro.isPro(id, now()),
+          displayName: (id) => accounts.byId(id)?.display_name ?? null,
+          transcriptLines: (id) => transcripts.linesFor(id),
+          now,
+          log: { warn: (details, message) => fastify.log.warn(details, message) },
+        },
+        options.channelLibraries
+      )
+    : null;
+  fastify.addHook('onClose', async () => channelLibraries?.stop());
 
   // *Ask Claude*, since 2026-10-22 — present only with a client, which is only
   // with a key. See claude.ts.
@@ -6807,6 +6834,7 @@ export function buildApp(options: BuildOptions = {}): App {
     publication,
     meterLive,
     noesis,
+    channelLibraries,
   };
 }
 

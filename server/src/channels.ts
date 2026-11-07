@@ -1971,6 +1971,14 @@ export class ChannelRegistry {
     return { id: row.id, name: row.name, participants: JSON.parse(row.participants ?? '[]') as string[] };
   }
 
+  /** A channel's name and members, from the database; null for none, or one deleted. */
+  nameAndMembers(channelId: string): { name: string | null; participants: string[] } | null {
+    const row = this.db
+      .prepare('SELECT name, participants FROM channels WHERE id = ? AND deleted_at IS NULL')
+      .get(channelId) as { name: string | null; participants: string | null } | undefined;
+    return row ? { name: row.name, participants: JSON.parse(row.participants ?? '[]') as string[] } : null;
+  }
+
   /** The channels this account is a member of that have a handle, by handle. */
   handlesOf(userId: string): { handle: string; name: string | null }[] {
     return this.db

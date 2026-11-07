@@ -3084,6 +3084,17 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE channels ADD COLUMN handle TEXT');
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS channels_handle ON channels(handle) WHERE handle IS NOT NULL');
+  /*
+    Whether a segment went into its channel's noesis library
+    (channelLibraries.ts), 2026-11-07: null owed, a time filed, -1 passed over
+    (nobody Pro, or no words). Every segment there was when the column came
+    is 0, from before, and never owed: a channel takes its transcripts from
+    the day it could, not its history.
+  */
+  if (!hasColumn(db, 'segments', 'filed_at')) {
+    db.exec('ALTER TABLE segments ADD COLUMN filed_at INTEGER');
+    db.exec('UPDATE segments SET filed_at = 0');
+  }
   for (const column of ['language', 'image_type', 'category']) {
     if (!hasColumn(db, 'channels', column)) {
       db.exec(`ALTER TABLE channels ADD COLUMN ${column} TEXT`);

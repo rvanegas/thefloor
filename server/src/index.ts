@@ -347,6 +347,15 @@ const names =
 const retiredNoesisNames = process.env.NOESIS_NAMES !== undefined;
 
 /**
+ * Each channel's own noesis library (channelLibraries.ts), filed into by
+ * itself: on only where `CHANNEL_LIBRARIES` is set and the client above is,
+ * since switching it on is a public act — the privacy policy names what noesis
+ * is told about a channel's members only while it is — and noesis has to have
+ * marked this client (`scripts/client_libraries.py`) first.
+ */
+const channelLibraries = names && process.env.CHANNEL_LIBRARIES ? names : undefined;
+
+/**
  * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
  * was retired on 2026-10-10: the mark is the `transcripts_unlimited` column
  * alone, set with
@@ -404,6 +413,7 @@ const app = buildApp({
   claude,
   library,
   names,
+  channelLibraries,
   freeTranscriptMinutes,
   logger: true,
 });
@@ -413,6 +423,7 @@ app.publication.resume();
 // Resumes any job the last process left open and polls whatever is running.
 // A no-op without a key — see planning/decision/2026-08-25-transcripts.md.
 app.transcripts.start();
+app.channelLibraries?.start();
 
 app.fastify
   .listen({ port, host })
@@ -464,6 +475,7 @@ app.fastify
             : { url: library.url, client: library.clientId, callback: library.callbackUrl },
         // Whether noesis decides usernames yet, which changes what signing up needs.
         names: names ? 'noesis decides' : 'not configured',
+        channelLibraries: channelLibraries ? 'on' : 'off',
         ...(retiredNoesisNames ? { noesisNames: 'set, and ignored since 2026-11-03' } : {}),
         // Worth a line for the same reason `review` is: these decide what
         // anybody may spend, and reading .env is not how anybody should find
