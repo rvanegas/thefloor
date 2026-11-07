@@ -12,6 +12,7 @@ import {
   channelLibraryRule,
   CLAUDE_LIBRARY_TIMEOUT_MS,
   CLAUDE_TIMEOUT_MS,
+  composeLibraryRecord,
   composeRecord,
   FALLBACK_BETA,
   LIBRARY_CONTINUATIONS,
@@ -121,6 +122,59 @@ describe('the Record as Claude reads it', () => {
     expect(record.text).not.toContain('oldest');
     expect(record.text).toContain('newest');
     expect(userMessage(record, 'medium')).toContain('It begins partway through');
+  });
+});
+
+describe('the Record beside the channel’s own library', () => {
+  const HOUR = 3_600_000;
+  const filed = (from: number, until: number, title: string | null = 'On Names') => ({
+    ...spoken(from, until),
+    filed: { file: `2023/2023-11-14-${from}.chat.md`, title },
+  });
+  // Three rooms an hour apart, each one filed segment of one line.
+  const rooms = [0, 1, 2].map((n) => room(T0 + n * 2 * HOUR, [filed(T0 + n * 2 * HOUR, T0 + n * 2 * HOUR + 60_000)]));
+  const lines = [0, 1, 2].map((n) => ({ displayName: `Speaker${n}`, startAt: T0 + n * 2 * HOUR + 1_000, text: `said ${'x'.repeat(200)} ${n}` }));
+  const now = T0 + 6 * HOUR;
+
+  it('carries the recent part in full, naming each document, and the older a line each', () => {
+    // Room for the newest room's heading and its segment, not the next.
+    const record = composeLibraryRecord(sources(rooms, lines), 'c', now, 300)!;
+    expect(record.summarized).toBe(true);
+    expect(record.trimmed).toBe(false);
+    expect(record.text).toContain(`(Filed in this channel's library as 2023-11-14-${T0 + 4 * HOUR}.chat.md, titled "On Names".)`);
+    expect(record.text).toContain('said');
+    expect(record.text).not.toContain('Speaker0: said');
+    expect(record.text).toMatch(/\[\d\d:\d\d–\d\d:\d\d\] Speaker0\. In this channel's library as 2023-11-14-\d+\.chat\.md, titled "On Names"\./);
+    expect(record.text.match(/said/g)).toHaveLength(1);
+    expect(userMessage(record, 'medium')).toContain('one line naming its document');
+  });
+
+  it('is the whole Record, documents named, while it all fits', () => {
+    const record = composeLibraryRecord(sources(rooms, lines), 'c', now)!;
+    expect(record.summarized).toBe(false);
+    expect(record.text.match(/said/g)).toHaveLength(3);
+    expect(record.text.match(/Filed in this channel's library/g)).toHaveLength(3);
+  });
+
+  it('keeps in full whatever the library does not hold, however old', () => {
+    const older = [room(T0, [spoken(T0, T0 + 60_000)]), ...rooms.slice(1)];
+    const record = composeLibraryRecord(sources(older, lines), 'c', now, 300)!;
+    expect(record.text).toContain('Speaker0: said');
+    expect(record.text).toContain('Speaker1. In this channel');
+  });
+
+  it('leaves out a title noesis never gave', () => {
+    const untitled = [room(T0, [filed(T0, T0 + 60_000, null)])];
+    const record = composeLibraryRecord(sources(untitled, lines), 'c', now)!;
+    expect(record.text).toContain(`as 2023-11-14-${T0}.chat.md.)`);
+  });
+
+  it('drops the oldest past the usual budget, and says so', () => {
+    const unfiled = [0, 1, 2].map((n) => room(T0 + n * 2 * HOUR, [spoken(T0 + n * 2 * HOUR, T0 + n * 2 * HOUR + 60_000)]));
+    const record = composeLibraryRecord(sources(unfiled, lines), 'c', now, 100, 300)!;
+    expect(record.trimmed).toBe(true);
+    expect(record.text).toContain('said');
+    expect(record.text).not.toContain('Speaker0');
   });
 });
 
@@ -1589,8 +1643,12 @@ describe('the response model', () => {
 
 describe("a press with the channel's own library", () => {
   /** A channel on `grade` with a library at noesis, and nobody's own switched on. */
-  async function setUp(grade: 'standard' | 'pro', withLibrary = true) {
-    const fake = fakeClient(() => reply('From the channel.'));
+  async function setUp(
+    grade: 'standard' | 'pro',
+    withLibrary = true,
+    answer: (call: Call) => unknown = () => reply('From the channel.')
+  ) {
+    const fake = fakeClient(answer);
     boot(fake.client, undefined, NOESIS, undefined, true);
     const people = await room2();
     const { alice, channelId } = people;
@@ -1641,6 +1699,33 @@ describe("a press with the channel's own library", () => {
     expect(card.json()).toMatchObject({ on: true, consult: false, mayChange: true });
     await press(channelId, bob.token);
     expect(calls[0].body).not.toHaveProperty('mcp_servers');
+  });
+
+  it('names each filed segment’s document in the Record, and sends it whole without noesis', async () => {
+    const { calls, bob, channelId } = await setUp('pro', true, (call) => {
+      if (call.body.mcp_servers) throw new Error('noesis unreachable');
+      return reply('Without the library.');
+    });
+    app.db
+      .prepare(
+        `INSERT INTO segments (id, channel_id, started_at, ended_at, text, filed_at, filed_file, filed_title)
+         VALUES ('seg_f', ?, ?, ?, 1, ?, '2026/2026-11-07-on-names.chat.md', 'On Names')`
+      )
+      .run(channelId, clock - 1_500, clock - 1_200, clock);
+    app.db
+      .prepare(
+        `INSERT INTO live_lines (id, channel_id, identity, display_name, start_at, end_at, text)
+         VALUES ('l_f', ?, 'bob', 'Bob', ?, ?, 'What is a name?')`
+      )
+      .run(channelId, clock - 1_400, clock - 1_300);
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    const record = (call: Call) => JSON.stringify(call.body.messages);
+    expect(record(calls[0])).toContain(
+      `(Filed in this channel's library as 2026-11-07-on-names.chat.md, titled \\"On Names\\".)`
+    );
+    expect(record(calls[0])).toContain('What is a name?');
+    expect(record(calls[1])).not.toContain('Filed in this channel');
+    expect(record(calls[1])).toContain('What is a name?');
   });
 
   it('consults nothing for a channel with no library yet', async () => {

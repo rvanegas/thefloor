@@ -36,7 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
-- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro*, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro nothing new goes in. Told on *Channel Settings*' card, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off. Deleted a week after the channel is. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
+- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro*, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro nothing new goes in. Told on *Channel Settings*' card, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, with *Open in noesis*. Deleted a week after the channel is. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
@@ -219,7 +219,7 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
-- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, and what its share hands over. The user's word, not drawn on screen, where a segment is named by its hours. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
+- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, and what its share hands over. The user's word, not drawn on screen, where a segment is named by its hours — and once filed in the *channel library*, since 2026-11-07, by the title noesis gave it there too, under them, with *Open in noesis*. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
 - **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in, holding one *segment* or more. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — being reachable, by push or by email, being the other — and deliberately **not** the *island* of `ts growth`, which walks accepted edges alone
@@ -321,7 +321,16 @@ it**, on *Pro* and *Max* as a library, by a token noesis confines to it —
 needing nobody's connection — unless *Claude consults it* on the card is
 switched off, by anybody who may edit the channel; Claude is told it holds the
 channel's earlier conversations and its sources, the *Record* being the recent
-part. **Deleting the channel deletes it**, and deleting a recording deletes
+part. **And the *Record* such a press carries is shorter**, since 2026-11-07:
+the newest room and about three hours (`LIBRARY_RECORD_BUDGET_TOKENS`, 40,000)
+in full, every filed segment there marked with its document's name, and each
+older segment that is filed as one line — its hours, who spoke, the document —
+for Claude to read with `read_file` when the conversation turns to it; what the
+library does not hold stays in full as before (`composeLibraryRecord`).
+**Each filed segment is named by its document's title** on its line in
+*Record* — the one noesis's model gave it, which `segments.filed_title` keeps —
+with *Open in noesis* opening that document, so a member matches the two
+without opening either. **Deleting the channel deletes it**, and deleting a recording deletes
 the document its transcript was filed as, a week later as everything deleted
 goes, the card saying it can be recovered until then. See
 task/a-channel-has-its-own-noesis-library.md and
@@ -710,7 +719,9 @@ channel, so it is nowhere in `ChannelState`; it travels in the request as
 holds the numbers. A request with none is *Medium*.
 
 **A press** reads the channel's whole *Record* — what was said, as
-transcribed, and what was pasted, Claude's own earlier replies among it — and
+transcribed, and what was pasted, Claude's own earlier replies among it; up to
+about seven hours, or three where it consults the *channel library*, which
+holds the rest — and
 posts one turn from Claude into it as a *paste* authored by `CLAUDE_ID`,
 named *Claude*, which lands in the log under the bar. It is open to anybody
 *present*, the paste rule, and the model it asks is the channel's *Response
@@ -4856,7 +4867,11 @@ recording one, and the live transcript between recordings one each.
 `SegmentView` on the wire, inside `RoomView`.
 
 **Not a word on screen.** A segment's line names it by its hours, and its
-share's title does too, so nothing asks a person to learn it. A recording
+share's title does too, so nothing asks a person to learn it. Once filed in
+the *channel library*, since 2026-11-07, the title noesis gave its document
+is drawn under the hours, with *Open in noesis* (`SegmentView.filed`,
+`FiledLine`): noesis names a document by what was said, the *Record* by when,
+and showing the one beside the other is how they are matched. A recording
 made as audio alone may be given a *transcript* afterwards, which makes it
 a segment kept both ways; one kept as text live is not offered one.
 

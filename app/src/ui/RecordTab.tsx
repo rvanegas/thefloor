@@ -25,6 +25,7 @@ import {
   recordingRefusal,
 } from '../../../core/channel';
 import type {
+  FiledView,
   LiveLine,
   RecordingView,
   RoomView,
@@ -649,10 +650,13 @@ export function SegmentLine({
       </View>
     ) : null;
 
+  const filed = segment.filed ? <FiledLine filed={segment.filed} /> : null;
+
   if (recording && renderRecording) {
     return (
       <>
         {renderRecording(recording, { label, trailing, open, onToggle })}
+        {filed}
         {choice}
       </>
     );
@@ -678,8 +682,43 @@ export function SegmentLine({
         </Pressable>
         {trailing}
       </View>
+      {filed}
       {choice}
     </>
+  );
+}
+
+/**
+ * Under a segment's line once it is filed in the channel's own library,
+ * since 2026-11-07: **the title noesis gave its document** — a model's, from
+ * what was said — so the two can be matched without opening either, and
+ * *Open in noesis*, which opens that document there. Drawn shut or open, as
+ * the line is: it names the segment rather than being any of what it kept.
+ * A segment filed before noesis said has the word alone; one never filed,
+ * nothing.
+ */
+function FiledLine({ filed }: { filed: FiledView }) {
+  const t = useText().channel;
+  const linkWords = useText().links;
+  const url = filed.url && isSafeUrl(filed.url) ? filed.url : null;
+  if (!filed.title && !url) return null;
+  return (
+    <View style={styles.filedLine}>
+      <Text style={[type.muted, styles.filedTitle]} numberOfLines={2}>
+        {filed.title ?? ''}
+      </Text>
+      {url ? (
+        <Pressable
+          accessibilityRole="link"
+          accessibilityLabel={t.openFiledInNoesis()}
+          hitSlop={spacing(1)}
+          onPress={() => void openUrl(url, linkWords)}
+          style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+        >
+          <Text style={styles.pasteAction}>{t.openFiledInNoesis()}</Text>
+        </Pressable>
+      ) : null}
+    </View>
   );
 }
 
@@ -1348,6 +1387,15 @@ const styles = StyleSheet.create({
     paddingVertical: spacing(0.5),
   },
   segmentLabel: { flexShrink: 1 },
+  // Under the label, past the mark: the title is the line's second line.
+  filedLine: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: spacing(1),
+    paddingLeft: SEGMENT_MARK + spacing(0.75),
+    paddingBottom: spacing(0.5),
+  },
+  filedTitle: { flex: 1 },
   // Wraps: a library's name is as long as its owner made it, and there may be several.
   shareChoice: {
     flexDirection: 'row',

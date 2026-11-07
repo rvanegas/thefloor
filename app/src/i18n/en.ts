@@ -1527,6 +1527,11 @@ export const en = {
      * names itself.
      */
     sendToNoesis: () => 'Send to noesis',
+    /**
+     * Beside a segment's title in the channel's library, since 2026-11-07:
+     * opens that document in noesis's web client.
+     */
+    openFiledInNoesis: () => 'Open in noesis',
     /** Which library, asked only of somebody with more than one. */
     sendToWhichLibrary: () => 'Send to which library?',
     sentToNoesis: (library: string) => `Sent to ${library} in noesis.`,

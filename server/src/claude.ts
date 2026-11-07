@@ -1,7 +1,7 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
 import { CLAUDE_ID } from '../../core/constants';
-import type { RoomView, SegmentView } from '../../core/protocol';
+import type { FiledView, RoomView, SegmentView } from '../../core/protocol';
 import type { ChannelState, ReplyLength, ResponseModel } from '../../core/types';
 import { newId, type Db } from './db';
 import { readableLines, type TranscriptLine } from './transcripts';
@@ -143,6 +143,18 @@ export const CHARS_PER_TOKEN = 3.5;
 export const RECORD_BUDGET_CHARS = Math.floor(RECORD_BUDGET_TOKENS * CHARS_PER_TOKEN);
 
 /**
+ * How much of the *Record* a press that consults the channel's own library
+ * carries in full: 40,000 tokens, about three hours of talk — Rodrigo's call,
+ * 2026-11-07. What is older and already filed there goes as one line naming
+ * its document (`composeLibraryRecord`), since Claude can read it whole when
+ * the conversation turns to it, and every model turn of a lookup re-reads the
+ * whole prompt.
+ */
+export const LIBRARY_RECORD_BUDGET_TOKENS = 40_000;
+
+export const LIBRARY_RECORD_BUDGET_CHARS = Math.floor(LIBRARY_RECORD_BUDGET_TOKENS * CHARS_PER_TOKEN);
+
+/**
  * How long a room may wait on *Responding…* before the request is abandoned
  * and the card goes back to *Ask Claude*. One request per press and no retry
  * of the press — the SDK's own retries of a failed connection fall inside
@@ -282,9 +294,12 @@ export function channelLibraryRule(): string {
   return [
     'You can also consult this channel’s own library through the noesis tools: its earlier ' +
       'conversations, each transcribed, and sources its members brought in, dated and indexed ' +
-      'by term. The record you were given is only the recent part of what was said here. ' +
-      'Consult it when the conversation turns to something said here before, or to one of its ' +
-      'sources; most turns need nothing from it. Read a guide tool before the others.',
+      'by term. Each part of the record already filed there names its document, by the file ' +
+      'name read_file takes and the title it was given. The recent parts are in the record in ' +
+      'full, so never read their documents; the older ones are a line each, so read one with ' +
+      'read_file when the conversation turns to it, and search the library for anything else ' +
+      'said here before, or for its sources. Most turns need nothing from it. Read a guide tool ' +
+      'before the others.',
     'When your reply draws on one of its documents, name it by its title in plain words, ' +
       'inline. Do not write Related or References sections. Only your final answer is shown, ' +
       'and the word limit is for it alone.',
@@ -362,6 +377,8 @@ export interface ComposedRecord {
   text: string;
   /** Whether older conversation was left out to fit the budget. */
   trimmed: boolean;
+  /** Whether older parts are a line each naming their document in the channel's library. */
+  summarized?: boolean;
 }
 
 /** One room of the *Record*, rendered: its heading and its lines. */
@@ -372,6 +389,16 @@ interface RenderedRoom {
 
 const hhmm = (at: number) => new Date(at).toISOString().slice(11, 16);
 const day = (at: number) => new Date(at).toISOString().slice(0, 10);
+
+const roomHeading = (room: RoomView) =>
+  `— ${day(room.openedAt)}, ${hhmm(room.openedAt)} to ${
+    room.closedAt === null ? 'now' : hhmm(room.closedAt)
+  } UTC —`;
+
+/** A filed document as read_file takes it: its name, without the year's folder. */
+const documentName = (filed: FiledView) => filed.file.split('/').pop()!;
+
+const titled = (filed: FiledView) => (filed.title ? `, titled "${filed.title}"` : '');
 
 /** Where the *Record*'s text comes from, so tests can supply it directly. */
 export interface RecordSources {
@@ -476,9 +503,7 @@ export function composeRecord(
   const rooms: RenderedRoom[] = sources
     .rooms(channelId, now)
     .map((room) => ({
-      heading: `— ${day(room.openedAt)}, ${hhmm(room.openedAt)} to ${
-        room.closedAt === null ? 'now' : hhmm(room.closedAt)
-      } UTC —`,
+      heading: roomHeading(room),
       lines: room.segments.flatMap((segment) => renderSegment(sources, channelId, segment, now)),
     }))
     .filter((room) => room.lines.length > 0);
@@ -503,12 +528,120 @@ export function composeRecord(
   };
 }
 
+/** Who spoke in a segment, in the order they first did. */
+function speakersOf(
+  sources: RecordSources,
+  channelId: string,
+  segment: SegmentView,
+  now: number
+): string[] {
+  const names = segment.text
+    ? sources.liveLines(channelId, segment.startedAt, segment.endedAt ?? now).map((line) => line.displayName)
+    : segment.recordingId
+      ? (() => {
+          const recording = sources.recording(segment.recordingId!);
+          return recording
+            ? readableLines(recording.lines, recording.names).map((line) => line.displayName ?? 'Someone')
+            : [];
+        })()
+      : [];
+  return [...new Set(names)];
+}
+
+/**
+ * The *Record* for a press that consults the channel's own library: newest
+ * first, **in full up to `full`** — the recent part, about three hours, and
+ * the newest room whatever its length — and
+ * past that, every segment already filed there as **one line naming its
+ * document**, its hours and who spoke, for Claude to read with read_file when
+ * it is wanted. A filed segment given in full names its document too, so
+ * Claude knows it already holds it. Whatever the library does not hold — the
+ * segment still being kept, one closed in the last minute, one closed while
+ * nobody was Pro, everything from before 2026-11-07, a paste — stays in full,
+ * within the usual `budget`, past which the oldest goes as `composeRecord`
+ * lets it.
+ */
+export function composeLibraryRecord(
+  sources: RecordSources,
+  channelId: string,
+  now: number,
+  full = LIBRARY_RECORD_BUDGET_CHARS,
+  budget = RECORD_BUDGET_CHARS
+): ComposedRecord | null {
+  const rooms = sources
+    .rooms(channelId, now)
+    .map((room) => ({
+      heading: roomHeading(room),
+      segments: room.segments
+        .map((segment) => ({ segment, lines: renderSegment(sources, channelId, segment, now) }))
+        .filter((each) => each.lines.length > 0),
+    }))
+    .filter((room) => room.segments.length > 0);
+  if (rooms.length === 0) return null;
+
+  const size = (lines: string[]) => lines.reduce((sum, line) => sum + line.length + 1, 0);
+  const kept: RenderedRoom[] = [];
+  let total = 0;
+  let spent = false;
+  let summarized = false;
+  let trimmed = false;
+  newest: for (let r = rooms.length - 1; r >= 0; r--) {
+    const room = rooms[r];
+    const lines: string[][] = [];
+    total += room.heading.length + 2;
+    for (let i = room.segments.length - 1; i >= 0; i--) {
+      const { segment, lines: text } = room.segments[i];
+      const filed = segment.filed;
+      let chosen = filed
+        ? [`(Filed in this channel's library as ${documentName(filed)}${titled(filed)}.)`, ...text]
+        : text;
+      // Once one filed segment is past the full part, every older one is: the
+      // record is whole from one point on rather than in patches. Never the
+      // newest room, which is the conversation being answered.
+      const newestRoom = r === rooms.length - 1;
+      if (filed && !newestRoom && (spent || total + size(chosen) > full)) {
+        spent = summarized = true;
+        const who = speakersOf(sources, channelId, segment, now);
+        chosen = [
+          `[${hhmm(segment.startedAt)}–${hhmm(segment.endedAt ?? now)}] ` +
+            `${who.length ? `${who.join(', ')}. ` : ''}` +
+            `In this channel's library as ${documentName(filed)}${titled(filed)}.`,
+        ];
+      }
+      if (total + size(chosen) > budget) {
+        // The newest part that does not fit is cut from its front, as
+        // `composeRecord` cuts the oldest room it keeps.
+        while (chosen.length > 1 && total + size(chosen) > budget) chosen = chosen.slice(1);
+        if (total + size(chosen) <= budget) {
+          total += size(chosen);
+          lines.unshift(chosen);
+        }
+        trimmed = true;
+        if (lines.length) kept.unshift({ heading: room.heading, lines: lines.flat() });
+        break newest;
+      }
+      total += size(chosen);
+      lines.unshift(chosen);
+    }
+    kept.unshift({ heading: room.heading, lines: lines.flat() });
+  }
+  return {
+    text: kept.map((room) => [room.heading, ...room.lines].join('\n')).join('\n\n'),
+    trimmed,
+    summarized,
+  };
+}
+
 /** The user message: the *Record*, then the length rule again, last. */
 export function userMessage(record: ComposedRecord, length: ReplyLength): string {
-  const opening = record.trimmed
-    ? 'The record of this conversation follows. It begins partway through: ' +
-      'earlier conversation was left out for length.'
-    : 'The record of this conversation so far follows.';
+  const opening = record.summarized
+    ? 'The record of this conversation follows. Its recent part is in full; each older part ' +
+      'already filed in this channel’s library is one line naming its document there.' +
+      (record.trimmed ? ' Earlier conversation was left out for length.' : '')
+    : record.trimmed
+      ? 'The record of this conversation follows. It begins partway through: ' +
+        'earlier conversation was left out for length.'
+      : 'The record of this conversation so far follows.';
   return `${opening}\n\n<record>\n${record.text}\n</record>\n\n${lengthRule(length)}`;
 }
 
@@ -729,6 +862,9 @@ export class ClaudeResponder {
       consulted.push({ url: url.toString(), token: own.token, owner: '', libraries: [own.id], channel: true });
     }
     const library = consulted.length ? consulted : undefined;
+    // With the channel's own library, what it already holds goes as a line
+    // each past the recent part; asked again without noesis, in full.
+    const sent = (own && composeLibraryRecord(this.options.sources, channelId, now())) || record;
     const controller = new AbortController();
     const timeoutMs = library
       ? (this.options.libraryTimeoutMs ?? CLAUDE_LIBRARY_TIMEOUT_MS)
@@ -737,7 +873,7 @@ export class ClaudeResponder {
     let outcome: ClaudeOutcome = 'error';
     let response: Anthropic.Message | Anthropic.Beta.Messages.BetaMessage | undefined;
     try {
-      response = await this.consult(ask, record, length, controller.signal, library, channelId);
+      response = await this.consult(ask, sent, record, length, controller.signal, library, channelId);
       if (response.stop_reason === 'refusal') {
         outcome = 'refused';
       } else {
@@ -764,7 +900,8 @@ export class ClaudeResponder {
    *
    * **noesis unreachable is not a failed press.** A request that consulted the
    * library and failed — without the timer having fired — is asked once more
-   * without it, and nothing in the reply says so; the warning names noesis, so
+   * without it — and with the whole *Record*, its older parts no longer a line
+   * each — and nothing in the reply says so; the warning names noesis, so
    * the log does. A timeout is not retried: the time is already spent. A
    * lookup that merely errored comes back as an `mcp_tool_result` with
    * `is_error`, which Claude answers around and needs nothing here.
@@ -772,6 +909,8 @@ export class ClaudeResponder {
   private async consult(
     ask: ResponseGrade,
     record: ComposedRecord,
+    /** The whole *Record*, for the request asked again without noesis. */
+    whole: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
     library: ConsultedLibrary[] | undefined,
@@ -785,7 +924,7 @@ export class ClaudeResponder {
         { err: error, channel: channelId, noesis: library.map((each) => each.url) },
         'claude request with the noesis library failed; asking without it'
       );
-      return this.resumed(ask, record, length, signal, undefined);
+      return this.resumed(ask, whole, length, signal, undefined);
     }
   }
 

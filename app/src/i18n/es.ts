@@ -1197,6 +1197,7 @@ export const es: Strings = {
     keptBoth: () => 'Audio + Texto',
     roomTextCopied: () => 'El texto est\u00e1 copiado.',
     sendToNoesis: () => 'Enviar a noesis',
+    openFiledInNoesis: () => 'Abrir en noesis',
     sendToWhichLibrary: () => '\u00bfA qu\u00e9 biblioteca?',
     sentToNoesis: (library: string) => `Enviado a ${library} en noesis.`,
     couldNotSendToNoesis: () => 'No se pudo enviar a noesis',

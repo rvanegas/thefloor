@@ -1,6 +1,8 @@
 import { buildApp, type App } from '../src/app';
 import { ChannelLibraries, SETTLE_MS, segmentFilename, segmentText } from '../src/channelLibraries';
+import type { RoomView } from '../../core/protocol';
 import { MemoryMailer } from '../src/mail';
+import { finished } from '../src/noesis';
 
 /**
  * Every transcript filed into its channel's own noesis library by itself
@@ -40,7 +42,7 @@ const fakeNoesis = (async (input: unknown, init?: { method?: string; headers?: u
   if (init?.method === 'DELETE') return new Response(null, { status: 204 });
   if (url.pathname.endsWith('/files')) return Response.json({ '2026/x.chat.md': 'abc' });
   return new Response(
-    'event: output\ndata: {"text": "imported"}\n\nevent: done\ndata: {"exit_code": 0, "changed": {"2026/x.chat.md": "abc"}}\n\n'
+    'event: output\ndata: {"text": "imported"}\n\nevent: done\ndata: {"exit_code": 0, "changed": {"2026/x.chat.md": "abc"}, "titles": {"2026/x.chat.md": "Bach Reads Kant"}}\n\n'
   );
 }) as typeof fetch;
 
@@ -287,10 +289,31 @@ describe('deleting what a channel library holds, a week on', () => {
     expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_r'").get()).toEqual({ filed_file: null });
   });
 
-  it('keeps the file each segment was filed as', async () => {
+  it('keeps the file each segment was filed as, and the title noesis gave it', async () => {
     await filed();
-    expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_1'").get()).toEqual({
+    expect(app.db.prepare("SELECT filed_file, filed_title FROM segments WHERE id = 'seg_1'").get()).toEqual({
       filed_file: '2026/x.chat.md',
+      filed_title: 'Bach Reads Kant',
+    });
+  });
+
+  it('names it on the Record, with where noesis opens it', async () => {
+    const { channelId, handle } = await filed();
+    // Signed in again: the clock has moved past the first session.
+    const { token } = await signIn('erta@example.com', 'Erta Example');
+    app.db
+      .prepare('INSERT INTO rooms (id, channel_id, opened_at, closed_at) VALUES (?, ?, ?, ?)')
+      .run('room_1', channelId, START, START + 3_600_000);
+    const response = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/rooms`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    const segment = (response.json() as { rooms: RoomView[] }).rooms[0].segments.find((s) => s.id === 'seg_1')!;
+    expect(segment.filed).toEqual({
+      file: '2026/x.chat.md',
+      title: 'Bach Reads Kant',
+      url: `https://noesis.example/web/?library=thefloor%2F${handle}&file=2026%2Fx.chat.md`,
     });
   });
 });
@@ -333,5 +356,22 @@ describe("a segment's text", () => {
     for (const entry of entries) expect(entry.split('\n')[0]).toMatch(/^.+ · \d{1,2}[:.]\d{2}$/);
     expect(entries).toHaveLength(3);
     expect(segmentFilename('Café/Olé', START)).toBe('The Floor — Café-Olé — 2026-11-07 1405.md');
+  });
+});
+
+describe("what noesis's import came to", () => {
+  const done = (payload: object) => `event: done\ndata: ${JSON.stringify(payload)}\n\n`;
+
+  it('is the file written and its title', () => {
+    expect(finished(done({ exit_code: 0, changed: { '2026/a.chat.md': 'x' }, titles: { '2026/a.chat.md': 'On Names' } })))
+      .toEqual({ ok: true, file: '2026/a.chat.md', title: 'On Names' });
+  });
+
+  it('has no title from a noesis that does not say', () => {
+    expect(finished(done({ exit_code: 0, changed: { '2026/a.chat.md': 'x' } }))).toEqual({
+      ok: true,
+      file: '2026/a.chat.md',
+      title: null,
+    });
   });
 });

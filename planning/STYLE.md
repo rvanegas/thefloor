@@ -1360,7 +1360,12 @@ whole of it up to the share a press that opens and closes the segment.
 Closed, a segment is its header alone, so a closed log is a list of them;
 open, it is its lines, and for one with audio its recording's actions above
 them — one press, as opening the recording always was. Segments start closed
-except the one still being kept, so talk arriving is seen arriving. Each room starts with its line — date and hours, no share — over
+except the one still being kept, so talk arriving is seen arriving. **A
+segment filed in the channel's library has a second line**, since 2026-11-07:
+the title noesis gave its document in `type.muted`, two lines at most, and
+*Open in noesis* at its end as a 13-point word in `text`, a paste's *Open*'s
+shape — indented past the dot, so it reads as the header's own, and drawn shut
+or open, since it names the segment. Each room starts with its line — date and hours, no share — over
 a hairline; see § *The pinned header*.
 **A paste is an entry like a speaker's**, since 2026-10-15: the clipboard
 glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*

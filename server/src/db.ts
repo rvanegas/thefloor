@@ -3111,6 +3111,15 @@ function migrate(db: Db): void {
   if (!hasColumn(db, 'segments', 'filed_file')) {
     db.exec('ALTER TABLE segments ADD COLUMN filed_file TEXT');
   }
+  /*
+    The title noesis gave that document — a model's, from what was said — so
+    the *Record* can name a segment as its library does (task/
+    a-channel-has-its-own-noesis-library.md). Null for one filed before noesis
+    said, which keeps its hours alone.
+  */
+  if (!hasColumn(db, 'segments', 'filed_title')) {
+    db.exec('ALTER TABLE segments ADD COLUMN filed_title TEXT');
+  }
   if (!hasColumn(db, 'channels', 'library_cleared_at')) {
     db.exec('ALTER TABLE channels ADD COLUMN library_cleared_at INTEGER');
   }

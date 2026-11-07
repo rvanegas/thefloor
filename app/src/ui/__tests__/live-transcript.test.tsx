@@ -1,7 +1,7 @@
 import React from 'react';
 import { act } from 'react-test-renderer';
 import { reduce } from '../../../../core/channel';
-import type { LiveLine } from '../../../../core/protocol';
+import type { LiveLine, SegmentView } from '../../../../core/protocol';
 import { ChannelView } from '../ChannelView';
 import { RoomLine, merge } from '../RecordTab';
 import { receiveLiveLine } from '../../live/lines';
@@ -76,7 +76,7 @@ const room = (
   openedAt: number,
   closedAt: number | null,
   recordingIds: string[],
-  segments = [seg(`${id}_text`, openedAt, closedAt, null, true)]
+  segments: SegmentView[] = [seg(`${id}_text`, openedAt, closedAt, null, true)]
 ) => ({ id, openedAt, closedAt, recordingIds, transcribed: true, segments });
 
 /** Lets the history fetch settle. */
@@ -416,6 +416,40 @@ describe('rooms on the Record tab', () => {
     expect(textOnly).toBeLessThan(text.indexOf('said off the record'));
     // One share each, and none on the room.
     expect(sharesOf(tree)).toHaveLength(2);
+    act(() => tree.unmount());
+  });
+
+  it("names a segment filed in the channel's library by its title there, and opens it", async () => {
+    const { Linking } = require('react-native');
+    const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 5_000, 'said and filed')],
+      more: false,
+    } as never);
+    showChannel(transcribed());
+    const url = 'https://noesis.example/web/?library=thefloor%2Fbook-club-k3x9&file=2026%2Fx.chat.md';
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, [], [
+          { ...seg('s1', NOW, NOW + 30_000, null, true), filed: { file: '2026/x.chat.md', title: 'Bach Reads Kant', url } },
+          seg('s2', NOW + 30_000, NOW + 60_000, null, true),
+        ]),
+      ],
+    } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    // Shut, as every closed segment is: the title names it all the same.
+    expect(textOf(tree).match(/Bach Reads Kant/g)).toHaveLength(1);
+    const links = tree.root.findAll(
+      (node: { props: Record<string, unknown> }) =>
+        node.props.accessibilityLabel === 'Open in noesis' && !!node.props.onPress
+    );
+    expect(links).toHaveLength(1);
+    await act(async () => links[0].props.onPress());
+    expect(opened).toHaveBeenCalledWith(url);
+    opened.mockRestore();
     act(() => tree.unmount());
   });
 

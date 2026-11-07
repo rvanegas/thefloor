@@ -209,6 +209,9 @@ export class Rooms {
         endedAt: row.ended_at,
         recordingId: row.recording_id,
         text: row.text === 1,
+        ...(row.filed_file && (row.filed_at ?? 0) > 0
+          ? { filed: { file: row.filed_file, title: row.filed_title } }
+          : {}),
       }));
     }
     const runs = recordingIds

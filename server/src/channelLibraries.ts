@@ -125,7 +125,9 @@ export class ChannelLibraries {
       const sent = await this.file(row.channel_id, segmentFilename(name, row.started_at), text);
       if (sent.ok) {
         this.mark(row.id, now);
-        this.db.prepare('UPDATE segments SET filed_file = ? WHERE id = ?').run(sent.file, row.id);
+        this.db
+          .prepare('UPDATE segments SET filed_file = ?, filed_title = ? WHERE id = ?')
+          .run(sent.file, sent.title ?? null, row.id);
       }
       else this.deps.log?.warn({ segment: row.id, ...sent }, 'channel library: a segment was not filed');
     }

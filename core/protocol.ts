@@ -1174,6 +1174,22 @@ export interface SegmentView {
   text: boolean;
   /** What was pasted, when this segment is a paste. */
   paste?: PasteView;
+  /**
+   * The document its text was filed as in the channel's own library, since
+   * 2026-11-07: noesis's title for it — a model's, from what was said — and
+   * where noesis's web client opens it, which `GET /channels/:id/rooms` adds.
+   * Absent for a segment never filed, or not yet.
+   */
+  filed?: FiledView;
+}
+
+/** A segment's document in the channel's library: see `SegmentView.filed`. */
+export interface FiledView {
+  /** Its path in the library, as noesis's tools name it. */
+  file: string;
+  /** Null for one filed before noesis said; the hours stand alone then. */
+  title: string | null;
+  url?: string;
 }
 
 /** One paste as the *Record* keeps it: who, and what. Since 2026-10-15. */

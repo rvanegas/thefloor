@@ -110,6 +110,35 @@ reaches one only by somebody's *Send to noesis* into their own.
   library. A segment imported before is not recognised again, its text having
   changed.
 
+## A segment matched to its document, and a shorter Record
+
+Asked and built 2026-11-07, at both ends. Once the library holds a channel's
+transcripts, a press that consults it was carrying the same text twice — in
+the *Record* in full and in the library — and paying for it on every model
+turn of a lookup, while nothing let a member or Claude tell which document was
+which segment: noesis titles a Floor chat by what was said (a model's, since a
+channel's sittings share its name), the *Record* names a segment by its hours.
+
+- **noesis says the title.** An import's `done` event carries `titles`, each
+  chat or document it wrote by its title (noesis `server.py`, `_titles`), and
+  The Floor keeps it on the segment, `segments.filed_title`, beside
+  `filed_file`. A noesis that does not say leaves it null, and the line keeps
+  its hours alone.
+- **The *Record* tab shows it**, under the segment's hours, with *Open in
+  noesis* — noesis's web client takes `&file=` beside `?library=` and opens
+  that document (`app.js`). `GET /channels/:id/rooms` adds the URL.
+  Matching by name was rejected: The Floor would have to copy noesis's slug
+  rules, and the title is the only part of the name that says anything.
+- **Claude is given the document's name**, as `read_file` takes it, on each
+  filed segment of the *Record* it reads, so it can read one directly and knows
+  which it already holds.
+- **And less of the *Record***, only where the press consults the channel's
+  library: the newest room and 40,000 tokens — about three hours, Rodrigo's
+  number — in full, and past that each filed segment one line: hours, who
+  spoke, document. Unfiled segments stay in full under the old 90,000. A
+  press asked again without noesis gets the whole *Record*
+  (`composeLibraryRecord`, `ClaudeResponder.consult`).
+
 ## Deleting
 
 Agreed at the prompt: **what a channel library holds goes as recordings do, a
@@ -130,7 +159,8 @@ seven days.
 
 ## To ship it, in this order
 
-Each verb Rodrigo's to say: land and deploy noesis; mark the client on
+Each verb Rodrigo's to say: land and deploy noesis — its `titles` and
+`&file=` since 2026-11-07, which The Floor does without where noesis is older; mark the client on
 `commons` (`scripts/client_libraries.py thefloor https://thefloor.rvanegas.co`);
 land and deploy The Floor; then set `CHANNEL_LIBRARIES` and `ts env-push`,
 which turns filing on.

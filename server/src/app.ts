@@ -5540,7 +5540,8 @@ export function buildApp(options: BuildOptions = {}): App {
   /**
    * A channel's rooms — its sittings, first step in to last step out — that
    * kept something, oldest first. Members only, with the same 404 as the live
-   * transcript beside it. See rooms.ts.
+   * transcript beside it. See rooms.ts. A segment filed in the channel's
+   * library carries where noesis opens its document.
    */
   fastify.get('/channels/:id/rooms', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -5549,7 +5550,22 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!channels.isMemberOf(id, account.id)) {
       return reply.code(404).send({ error: 'No such channel.' });
     }
-    return { rooms: channels.rooms.forChannel(id, Date.now()) };
+    const rooms = channels.rooms.forChannel(id, Date.now());
+    const handle = options.channelLibraries ? channels.handleOf(id) : null;
+    if (!handle) return { rooms };
+    // Where noesis's web client opens each filed segment's document, as the
+    // *Channel library* card opens the library.
+    const library = `${noesisWeb(options.channelLibraries!.origin)}?library=${encodeURIComponent(`thefloor/${handle}`)}`;
+    return {
+      rooms: rooms.map((room) => ({
+        ...room,
+        segments: room.segments.map((segment) =>
+          segment.filed
+            ? { ...segment, filed: { ...segment.filed, url: `${library}&file=${encodeURIComponent(segment.filed.file)}` } }
+            : segment
+        ),
+      })),
+    };
   });
 
   /**

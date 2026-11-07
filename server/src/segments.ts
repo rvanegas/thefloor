@@ -9,6 +9,11 @@ export interface SegmentRow {
   ended_at: number | null;
   recording_id: string | null;
   text: number;
+  /** When it was filed in the channel's library; null owed, 0 and -1 never. */
+  filed_at: number | null;
+  /** The document it was filed as, by its path in the library. */
+  filed_file: string | null;
+  filed_title: string | null;
 }
 
 /**

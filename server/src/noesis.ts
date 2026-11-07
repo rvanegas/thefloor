@@ -68,7 +68,7 @@ export interface NoesisStatus {
 
 /** What `send` came to: the file noesis wrote, or why nothing was. */
 export type NoesisSent =
-  | { ok: true; file: string | null }
+  | { ok: true; file: string | null; title?: string | null }
   | { ok: false; reason: 'not_connected' | 'no_grant' | 'not_yours' | 'busy' | 'allowance' | 'failed'; message?: string };
 
 /** The scope that lets this client file conversations at noesis, which its operator grants. */
@@ -457,7 +457,7 @@ function grants(row: Row, scope: string): boolean {
 
 /**
  * What noesis's import came to, from its server-sent events: the run's `done`,
- * with the files it changed, or its `error`. A run that exits non-zero says
+ * with the file it wrote and that file's title, or its `error`. A run that exits non-zero says
  * why in its last line of output.
  */
 export function finished(stream: string): NoesisSent {
@@ -466,7 +466,13 @@ export function finished(stream: string): NoesisSent {
     const event = /^event: (\w+)$/m.exec(block)?.[1];
     const data = /^data: (.*)$/m.exec(block)?.[1];
     if (!event || data === undefined) continue;
-    let payload: { text?: string; exit_code?: number; changed?: Record<string, string>; message?: string };
+    let payload: {
+      text?: string;
+      exit_code?: number;
+      changed?: Record<string, string>;
+      titles?: Record<string, string>;
+      message?: string;
+    };
     try {
       payload = JSON.parse(data);
     } catch {
@@ -475,7 +481,11 @@ export function finished(stream: string): NoesisSent {
     if (event === 'output') output += payload.text ?? '';
     if (event === 'error') return { ok: false, reason: 'failed', message: payload.message };
     if (event === 'done') {
-      if (payload.exit_code === 0) return { ok: true, file: Object.keys(payload.changed ?? {})[0] ?? null };
+      if (payload.exit_code === 0) {
+        const file = Object.keys(payload.changed ?? {})[0] ?? null;
+        // The title noesis gave what it wrote, a model's for a chat from here.
+        return { ok: true, file, title: (file && payload.titles?.[file]) || null };
+      }
       const last = output.trim().split('\n').at(-1);
       return { ok: false, reason: 'failed', message: last || undefined };
     }
