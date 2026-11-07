@@ -13,13 +13,19 @@ reaches one only by somebody's *Send to noesis* into their own.
   a slug of the channel's name plus a random suffix (GLOSSARY *Handle*),
   minted only for a channel that has a library. **Built 2026-11-07**:
   `channels.handle`, `ChannelRegistry.handleFor`.
-- **The Floor tells noesis the channel's members by username**, and noesis
-  lets in whoever is on that list. Usernames are noesis's already
-  (`decision/2026-11-02-noesis-decides-every-username.md`), so the list names
-  people noesis knows.
+- **The Floor is the only authority on who may read it, and noesis asks.**
+  noesis asks The Floor for the channel's members, by username, when a
+  library is reached (or on a short cache), rather than The Floor pushing
+  each change: pushing is the shape 2026-11-03 rejected for names, where a
+  lost or replayed call leaves the two disagreeing. Usernames are noesis's
+  already (`decision/2026-11-02-noesis-decides-every-username.md`), so the
+  answer names people noesis knows, and leaving or *removal* takes access
+  away at the next asking with nothing to send.
+- **Members only. Guests have no access whatever**, seat or no seat.
 - **In noesis, a member's list of libraries shows their own and those of
   every channel they belong to.**
-- **The cost is charged to the channel's Pro members.**
+- **The cost is split among the channel's Pro members.**
+- **Every transcript goes in by itself**, with no switch to stop it.
 
 ## Open
 
@@ -27,20 +33,20 @@ reaches one only by somebody's *Send to noesis* into their own.
   up naming a channel now called something else. Whether a library holds the
   name fixed, as a connected library holds a username, is to be decided once
   it is in use.
-- **How the list reaches noesis.** Pushing each membership change is the
-  shape 2026-11-03 rejected for names: a lost or replayed call leaves the two
-  disagreeing about who may read. noesis asking The Floor, at access time or
-  on a short cache, has The Floor stay the only authority on membership.
-- **Who is "in the channel".** Members, surely; *guests* hold a seat and no
-  membership, and a *community* has up to twenty. Leaving and *removal* have
-  to take access away as surely as joining gives it.
-- **Charging.** Several Pro members, or none; what happens to the library
-  when the last one lapses.
-- **What goes in automatically.** Each *segment*'s text, as *Send to noesis*
-  files it, presumably, and whether anybody may switch that off.
+- **No Pro member.** What a library does when the channel has none, or the
+  last one lapses: stop taking transcripts, stop answering, or neither.
+- **Which transcripts, and when.** Every *segment*'s text, as *Send to noesis*
+  files it, is the obvious unit: live transcripts at the room's end, a
+  recording's when it is transcribed. Since a channel's text goes in with no
+  switch, whether the members need telling — a notice like the *public
+  notice* — is a question too.
+- **The question's credential.** noesis asking The Floor means The Floor
+  authenticating noesis, a credential this project holds rather than issues
+  (CREDENTIALS.md).
 - **noesis's side.** An owner that is not a person (`thefloor`, reserved in
-  the register so no person can take it), access by a client-supplied list
-  rather than `who == user` (`noesis/service.py`, `library_root`), and the
-  free/Pro limits of an owner that has no account.
+  the register so no person can take it), access decided by asking The Floor
+  rather than `who == user` (`noesis/service.py`, `library_root`), the list
+  of libraries that includes a member's channels', and billing split among
+  people rather than charged to the owner.
 - **Ask Claude** consulting it, which is the obvious next use: the channel's
   own library offered alongside its members'.
