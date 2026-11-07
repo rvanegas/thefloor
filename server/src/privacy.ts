@@ -153,7 +153,11 @@ export interface PolicyOptions {
  * library, on `CLAUDE_PRIVACY_UPDATED`'s terms: shown only where that
  * paragraph is.
  */
-export const LIBRARY_PRIVACY_UPDATED = '1 November 2026';
+export const LIBRARY_PRIVACY_UPDATED = '7 November 2026';
+
+/** The latest of several of these dates, as written. */
+const latestOf = (dates: readonly string[]) =>
+  dates.reduce((latest, date) => (Date.parse(date) > Date.parse(latest) ? date : latest));
 
 /**
  * When the page last changed for a reader whose server can ask Claude. Later
@@ -330,7 +334,12 @@ the noesis name and address it belongs to, until they disconnect it or delete
 their account. In a channel where that person has switched it on, Claude may
 look things up in it while writing a reply — the words it searches with, drawn
 from the Record, go to that server — and the reply may quote what it finds.
-Disconnecting switches it off in every channel.</p>
+Beside each such reply The Floor also keeps a record of the lookups made for
+it: the words searched with and, for each piece of writing found, its title,
+its length and noesis's summary of it, but never the writing itself. That
+record goes to ${claude} with the Record whenever Claude is asked again, and
+is deleted with the reply. Disconnecting switches the library off in every
+channel.</p>
 `;
   const claudeSection = claude
     ? `
@@ -361,15 +370,14 @@ ${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}
         'the application collects little.',
       path: '/privacy',
     }),
-    standfirst: `The Floor · last updated ${
-      digest
-        ? DIGEST_PRIVACY_UPDATED
-        : library
-          ? LIBRARY_PRIVACY_UPDATED
-          : claude
-            ? CLAUDE_PRIVACY_UPDATED
-            : PRIVACY_UPDATED
-    }`,
+    // The latest change among the paragraphs this reader is shown, not the
+    // first one listed: the library's moved past the digest's on 2026-11-07.
+    standfirst: `The Floor · last updated ${latestOf([
+      PRIVACY_UPDATED,
+      ...(claude ? [CLAUDE_PRIVACY_UPDATED] : []),
+      ...(library ? [LIBRARY_PRIVACY_UPDATED] : []),
+      ...(digest ? [DIGEST_PRIVACY_UPDATED] : []),
+    ])}`,
     body: `
 <p>The Floor is for talking with people you already know. This
 page says what it stores, why, and for how long. It is short because the

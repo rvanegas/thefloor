@@ -307,6 +307,9 @@ describe('The privacy policy', () => {
       expect(page).not.toMatch(/(keeps|retains|deletes|stores) (the|your|a) search/);
       expect(page).toContain(`last updated ${LIBRARY_PRIVACY_UPDATED}`);
       expect(page).not.toContain(`last updated ${CLAUDE_PRIVACY_UPDATED}`);
+      // What is kept of the lookups beside the reply, and what never is.
+      expect(page).toContain('its title, its length and noesis\'s summary of it, but never the writing itself');
+      expect(page).toContain('goes to Anthropic with the Record whenever Claude is asked again');
       // The Record paragraph above it still stands as written.
       expect(page).toContain('Nothing else is sent');
     });
@@ -336,6 +339,19 @@ describe('The privacy policy', () => {
       expect(page).toContain('what has been said so far is sent to Anthropic');
       expect(page).toContain('members who are not in the conversation');
       expect(page).toContain(`last updated ${DIGEST_PRIVACY_UPDATED}`);
+    });
+
+    it('dates the page by the latest paragraph shown, the library’s past the digest’s', async () => {
+      app = buildApp({
+        dbPath: ':memory:',
+        transcription: new MemoryTranscription(),
+        streaming: new MemoryStreaming(),
+        media: new MemoryMediaServer(),
+        claude: noClient,
+        library,
+      });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).toContain(`last updated ${LIBRARY_PRIVACY_UPDATED}`);
     });
 
     it('names both processors where both are configured', async () => {

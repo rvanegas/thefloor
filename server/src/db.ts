@@ -2121,7 +2121,11 @@ CREATE TABLE IF NOT EXISTS pastes (
   author_id     TEXT NOT NULL,
   display_name  TEXT NOT NULL,
   pasted_at     INTEGER NOT NULL,
-  text          TEXT NOT NULL
+  text          TEXT NOT NULL,
+  -- A reply of Claude's only: the library calls it made before it, as JSON,
+  -- written by the server from the response's own blocks (claude.ts
+  -- workingSteps). Null on every other paste, and on a reply that made none.
+  working       TEXT
 );
 CREATE INDEX IF NOT EXISTS pastes_channel
   ON pastes(channel_id, pasted_at);
@@ -3170,6 +3174,11 @@ function migrate(db: Db): void {
   // library before 2026-10-27. See claude_usage in SCHEMA.
   if (!hasColumn(db, 'claude_usage', 'library_calls')) {
     db.exec('ALTER TABLE claude_usage ADD COLUMN library_calls INTEGER');
+  }
+  // Null on every paste that exists, which is true enough: no reply kept its
+  // library calls before 2026-11-07. See pastes in SCHEMA.
+  if (!hasColumn(db, 'pastes', 'working')) {
+    db.exec('ALTER TABLE pastes ADD COLUMN working TEXT');
   }
   // The feed reads published recordings of one channel, in `started_at`
   // order, on every poll by every subscriber and every aggregator. Partial

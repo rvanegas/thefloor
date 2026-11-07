@@ -226,6 +226,24 @@ export function lengthRule(length: ReplyLength): string {
 }
 
 /**
+ * **What every library rule says about earlier calls and acting now**, since
+ * 2026-11-07: that the record of a reply's calls is all a press has of them,
+ * since one with no record described calls it never made; that the reply is
+ * the whole turn, since presses twice said they would look something up and
+ * made no call; and the record's `library`, which noesis's reads refuse to go
+ * without where a server opens more than one. Only in the library rules, so
+ * a plain press's prompt is what it was.
+ */
+export const LOOK_NOW =
+  'Above an earlier reply that consulted a library is the server’s record of the calls you ' +
+  'made for it and what each returned: it is exact, and it is all you have of them — you ' +
+  'remember nothing else of an earlier turn. ' +
+  'Your reply is the whole of your turn: nothing follows it, so make every lookup it needs ' +
+  'before you write it, and never say you will look something up. When somebody asks you ' +
+  'to consult the library, consult it. To read a document a recorded call found, pass the ' +
+  'library that call names.';
+
+/**
  * What a press that consults the library is told about it, beside the rest of
  * the system prompt. `owner` is the library's owner by display name, or null
  * where none has signed in yet; named because whoever presses may be anybody
@@ -242,8 +260,9 @@ export function libraryRule(owner: string | null): string {
     `You can consult a library through the noesis tools: ${whose} own writing — essays, notes and ` +
       `conversations, dated and indexed by term. It is ${whose} whoever asked you, and ${who} may ` +
       'or may not be in this conversation. Consult it only when the conversation turns to ' +
-      `something ${who} has written about; most turns need nothing from it. Read the guide tool ` +
-      'before the others.',
+      `something ${who} has written about, or when somebody asks; most turns need nothing from ` +
+      'it. Read the guide tool before the others.',
+    LOOK_NOW,
     `Treat the titles in a document’s Related section as ${whose} own recommendations of what ` +
       'bears on it, and follow them when the question needs more than the document gives.',
     'When your reply draws on a document, name it by its title in plain words. The guide asks ' +
@@ -273,8 +292,9 @@ export function librariesRule(
       `essays, notes and conversations, dated and indexed by term: ${whose}. Every result names ` +
       'the library it came from. They are those people’s whoever asked you, and each of them may ' +
       'or may not be in this conversation. Consult them only when the conversation turns to ' +
-      'something one of them has written about; most turns need nothing from them. Read a guide ' +
-      'tool before the others.',
+      'something one of them has written about, or when somebody asks; most turns need nothing ' +
+      'from them. Read a guide tool before the others.',
+    LOOK_NOW,
     'Treat the titles in a document’s Related section as its author’s own recommendations of ' +
       'what bears on it, and follow them when the question needs more than the document gives.',
     'When your reply draws on a document, name it by its title and whose it is, in plain words. ' +
@@ -298,8 +318,9 @@ export function channelLibraryRule(): string {
       'name read_file takes and the title it was given. The recent parts are in the record in ' +
       'full, so never read their documents; the older ones are a line each, so read one with ' +
       'read_file when the conversation turns to it, and search the library for anything else ' +
-      'said here before, or for its sources. Most turns need nothing from it. Read a guide tool ' +
-      'before the others.',
+      'said here before, or for its sources. Most turns need nothing from it unless somebody ' +
+      'asks. Read a guide tool before the others.',
+    LOOK_NOW,
     'When your reply draws on one of its documents, name it by its title in plain words, ' +
       'inline. Do not write Related or References sections. Only your final answer is shown, ' +
       'and the word limit is for it alone.',
@@ -336,6 +357,114 @@ export function replyText(
     .trim();
   const heading = CITATION_HEADING.exec(text);
   return heading ? text.slice(0, heading.index).trim() : text;
+}
+
+/**
+ * **One library call a press made, as the server keeps it beside the reply**
+ * — Rodrigo's principle, 2026-11-07: the calls and something of what each
+ * returned enter the *Record*, so the next press knows what this one found.
+ * Until then each press began with nothing of the last one's lookups but its
+ * prose, and guessed at a path it had been given a minute before. See
+ * planning/task/claude-s-working-is-kept-with-its-reply.md.
+ *
+ * **Written from the response's own blocks, never by Claude**: asked what it
+ * had done, a press with no record described calls it never made.
+ */
+export interface WorkingStep {
+  tool: string;
+  /**
+   * The library it reached: the call's own `library`, else the only one its
+   * server was opened on, else null — a search across several, whose result
+   * names each.
+   */
+  library: string | null;
+  input: Record<string, unknown>;
+  /** What is kept of what came back; null where nothing is (the guide). */
+  kept: string | null;
+  /** The error's text in full, short as it is and being the diagnosis. */
+  error?: string;
+}
+
+/** The text of a tool result, however the connector shaped it. */
+const resultText = (content: unknown): string =>
+  typeof content === 'string'
+    ? content
+    : Array.isArray(content)
+      ? content.map((block: { type?: string; text?: string }) => (block.type === 'text' ? (block.text ?? '') : '')).join('')
+      : '';
+
+/**
+ * What a successful call keeps of its result. **A search keeps everything
+ * the manifest returns for each hit** — path, title, word count and summary,
+ * and a lookup's *Related* terms — Rodrigo's call, 2026-11-07: a few lines,
+ * and what lets the next press judge whether a document is worth reading.
+ * **A read keeps none of the document**, which can be read again: its length
+ * and its heading. The guide keeps nothing, being the same every time.
+ */
+function keptOf(tool: string, text: string): string | null {
+  if (tool === 'lookup_term' || tool === 'list_documents') return text.trim();
+  if (tool === 'read_document' || tool === 'read_file') {
+    const words = text.split(/\s+/).filter(Boolean).length;
+    const heading = /^#[ \t]+(.+)$/m.exec(text)?.[1]?.trim();
+    return `read in full: ${words} words${heading ? `, headed "${heading}"` : ''}`;
+  }
+  return null;
+}
+
+/**
+ * The library calls in a response's content, in the order made, each paired
+ * with its result. `libraries` is what the press consulted, in the order its
+ * servers were named (`libraryServerName`).
+ */
+export function workingSteps(
+  content: readonly unknown[],
+  libraries: readonly ConsultedLibrary[]
+): WorkingStep[] {
+  const opened = new Map(libraries.map((each, index) => [libraryServerName(index), each.libraries]));
+  const steps = new Map<string, WorkingStep>();
+  for (const block of content as ReadonlyArray<Record<string, unknown>>) {
+    if (block.type === 'mcp_tool_use') {
+      const input = (block.input ?? {}) as Record<string, unknown>;
+      const own = opened.get(block.server_name as string) ?? [];
+      steps.set(block.id as string, {
+        tool: block.name as string,
+        library: typeof input.library === 'string' ? input.library : own.length === 1 ? own[0] : null,
+        input,
+        kept: null,
+      });
+    } else if (block.type === 'mcp_tool_result') {
+      const step = steps.get(block.tool_use_id as string);
+      if (!step) continue;
+      const text = resultText(block.content);
+      if (block.is_error) step.error = text.trim() || 'failed, saying nothing';
+      else step.kept = keptOf(step.tool, text);
+    }
+  }
+  return [...steps.values()];
+}
+
+/** A call as the *Record* writes it: the tool and its arguments, as sent. */
+const callLine = (step: WorkingStep) => {
+  const args = Object.entries(step.input)
+    .filter(([key]) => key !== 'library')
+    .map(([key, value]) => `${key}=${JSON.stringify(value)}`);
+  return `${step.tool}(${args.join(', ')})${step.library ? ` in ${step.library}` : ''}`;
+};
+
+/**
+ * A reply's library calls as the *Record* carries them, above the reply:
+ * each call, then what came back, indented beneath it.
+ */
+export function renderWorking(steps: readonly WorkingStep[]): string[] {
+  if (steps.length === 0) return [];
+  const indent = (text: string) => text.split('\n').map((line) => `    ${line}`);
+  return [
+    'Before replying, Claude made these library calls (the server’s record):',
+    ...steps.flatMap((step) => [
+      `  ${callLine(step)}`,
+      ...(step.error ? indent(`failed: ${step.error}`) : step.kept ? indent(step.kept) : []),
+    ]),
+  ];
 }
 
 /**
@@ -413,6 +542,8 @@ export interface RecordSources {
   recording: (
     recordingId: string
   ) => { startedAt: number; lines: TranscriptLine[]; names: Record<string, string> } | null;
+  /** The library calls a reply of Claude's was made with, by its paste's id. */
+  working?: (pasteId: string) => WorkingStep[] | null;
 }
 
 /** The real sources, read from this server's database. */
@@ -450,6 +581,12 @@ export function databaseSources(
         names: row.participant_names ? JSON.parse(row.participant_names) : {},
       };
     },
+    working: (pasteId) => {
+      const row = db.prepare('SELECT working FROM pastes WHERE id = ?').get(pasteId) as unknown as
+        | { working: string | null }
+        | undefined;
+      return row?.working ? (JSON.parse(row.working) as WorkingStep[]) : null;
+    },
   };
 }
 
@@ -462,7 +599,8 @@ function renderSegment(
   if (segment.paste) {
     const { authorId, displayName, text } = segment.paste;
     const who = authorId === CLAUDE_ID ? 'Claude' : `${displayName} (pasted)`;
-    return [`[${hhmm(segment.startedAt)}] ${who}: ${text}`];
+    const working = authorId === CLAUDE_ID ? (sources.working?.(segment.id) ?? []) : [];
+    return [...renderWorking(working), `[${hhmm(segment.startedAt)}] ${who}: ${text}`];
   }
   if (segment.text) {
     return sources
@@ -688,7 +826,8 @@ export interface ClaudeChannels {
     channelId: string,
     askerId: string,
     text: string,
-    voices?: Record<string, string>
+    voices?: Record<string, string>,
+    working?: readonly WorkingStep[]
   ): 'posted' | 'too_long' | 'empty' | 'gone';
 }
 
@@ -881,7 +1020,8 @@ export class ClaudeResponder {
           channelId,
           userId,
           replyText(response.content),
-          voices
+          voices,
+          library ? workingSteps(response.content, library) : undefined
         );
       }
     } catch (error) {
@@ -889,6 +1029,12 @@ export class ClaudeResponder {
       this.options.log?.warn({ err: error, channel: channelId, grade }, 'claude request failed');
     } finally {
       clearTimeout(timer);
+      // A press that posted nothing keeps its calls nowhere else, so the
+      // log has them: a failure leaves a trace too.
+      const steps = library && response ? workingSteps(response.content, library) : [];
+      if (outcome !== 'posted' && steps.length) {
+        this.options.log?.warn({ channel: channelId, outcome, steps }, 'claude press posted nothing after library calls');
+      }
       channels.claudeAnswered(channelId);
       this.recordUsage(channelId, userId, grade, ask, response, outcome, library !== undefined);
     }

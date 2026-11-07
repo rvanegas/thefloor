@@ -20,6 +20,9 @@ import {
   librariesFor,
   MCP_BETA,
   replyText,
+  renderWorking,
+  workingSteps,
+  LOOK_NOW,
   lengthRule,
   REPLY_WORD_LIMITS,
   RESPONSE_MODELS,
@@ -175,6 +178,121 @@ describe('the Record beside the channel’s own library', () => {
     expect(record.trimmed).toBe(true);
     expect(record.text).toContain('said');
     expect(record.text).not.toContain('Speaker0');
+  });
+});
+
+describe('Claude’s working, kept with its reply', () => {
+  const LOOKUP = [
+    'artificial cognition',
+    '  Documents:',
+    '    2026/2026-11-07-mem-architecture-summary.document.md — Mem Architecture Summary — 4200w',
+    '      Three domains, and functional similarity is not phenomenal similarity.',
+    '  Related: consciousness; functionalism',
+  ].join('\n');
+  const use = (id: string, name: string, input: Record<string, unknown> = {}, server = 'noesis') => ({
+    type: 'mcp_tool_use',
+    id,
+    name,
+    server_name: server,
+    input,
+  });
+  const result = (id: string, text: string, isError = false) => ({
+    type: 'mcp_tool_result',
+    tool_use_id: id,
+    is_error: isError,
+    content: [{ type: 'text', text }],
+  });
+  const consulted = [
+    { url: 'u', token: 't', owner: 'acct_a', libraries: ['alice/philosophy', 'alice/tech'] },
+    { url: 'u', token: 't', owner: '', libraries: ['thefloor/ai'], channel: true },
+  ];
+
+  it('keeps every hit as the manifest returns it, the summary and Related terms included', () => {
+    const [step] = workingSteps(
+      [use('a', 'lookup_term', { term: 'artificial cognition' }, 'noesis-2'), result('a', LOOKUP)],
+      consulted
+    );
+    expect(step).toEqual({
+      tool: 'lookup_term',
+      library: 'thefloor/ai',
+      input: { term: 'artificial cognition' },
+      kept: LOOKUP,
+    });
+  });
+
+  it('keeps of a read only its length and heading, never the document', () => {
+    const body = '# Mem Architecture Summary\n\nThe authors separate three domains.';
+    const [step] = workingSteps(
+      [use('a', 'read_document', { path: '2026/x.document.md', library: 'alice/tech' }), result('a', body)],
+      consulted
+    );
+    expect(step.library).toBe('alice/tech');
+    expect(step.kept).toBe('read in full: 9 words, headed "Mem Architecture Summary"');
+    expect(JSON.stringify(step)).not.toContain('three domains');
+  });
+
+  it('keeps nothing of the guide, an error in full, and no library where the server had several', () => {
+    const steps = workingSteps(
+      [
+        { type: 'text', text: 'Let me look.' },
+        use('a', 'guide'),
+        result('a', 'How the library is organized…'),
+        use('b', 'read_file', { name: 'x.document.md' }),
+        result('b', 'name the library: one of alice/philosophy, alice/tech — the one a search gave', true),
+      ],
+      consulted
+    );
+    expect(steps).toEqual([
+      { tool: 'guide', library: null, input: {}, kept: null },
+      {
+        tool: 'read_file',
+        library: null,
+        input: { name: 'x.document.md' },
+        kept: null,
+        error: 'name the library: one of alice/philosophy, alice/tech — the one a search gave',
+      },
+    ]);
+  });
+
+  it('stands above Claude’s reply in the Record, each call with what came back', () => {
+    const steps = workingSteps(
+      [use('a', 'lookup_term', { term: 'artificial cognition' }, 'noesis-2'), result('a', LOOKUP)],
+      consulted
+    );
+    const record = composeRecord(
+      {
+        ...sources([room(T0, [pasted(T0, CLAUDE_ID, 'Claude', 'I found it.')])]),
+        working: (id) => (id === `seg_${T0}` ? steps : null),
+      },
+      'c',
+      T0
+    )!;
+    expect(record.text).toContain(
+      [
+        'Before replying, Claude made these library calls (the server’s record):',
+        '  lookup_term(term="artificial cognition") in thefloor/ai',
+        '    artificial cognition',
+        '      Documents:',
+      ].join('\n')
+    );
+    expect(record.text).toContain('Related: consciousness; functionalism');
+    expect(record.text.indexOf('Before replying')).toBeLessThan(record.text.indexOf('Claude: I found it.'));
+    expect(renderWorking([])).toEqual([]);
+  });
+
+  it('tells every library press to look now, and every press what the record of its calls is', () => {
+    for (const libraries of [
+      [{ owner: 'Alice', libraries: ['alice/philosophy'] }],
+      [
+        { owner: 'Alice', libraries: ['alice/philosophy'] },
+        { owner: 'Bob', libraries: ['bob/essays'] },
+      ],
+      [{ owner: null, libraries: ['thefloor/ai'], channel: true }],
+    ]) {
+      expect(systemPrompt('medium', libraries)).toContain(LOOK_NOW);
+    }
+    expect(systemPrompt('medium')).not.toContain(LOOK_NOW);
+    expect(LOOK_NOW).toContain('you remember nothing else of an earlier turn');
   });
 });
 
@@ -953,6 +1071,49 @@ describe('a press with the library', () => {
     expect(claudePastes(channelId)).toEqual([
       expect.objectContaining({ display_name: 'Claude', text: answer }),
     ]);
+  });
+
+  it('keeps the calls with the reply, and hands them to the next press in the Record', async () => {
+    let n = 0;
+    const { calls, bob, channelId } = await setUp('pro', true, () =>
+      ++n === 1
+        ? reply('', {
+            model: 'claude-sonnet-5-5',
+            content: [
+              { type: 'mcp_tool_use', id: 'u', name: 'lookup_term', server_name: 'noesis', input: { term: 'attention' } },
+              {
+                type: 'mcp_tool_result',
+                tool_use_id: 'u',
+                is_error: false,
+                content: [{ type: 'text', text: 'attention\n  Documents:\n    2026/2026-01-02-on-attention.document.md — On Attention — 900w\n      Attention as a kind of will.' }],
+              },
+              { type: 'text', text: 'On Attention says it is a kind of will.' },
+            ],
+          })
+        : reply('Again.', { model: 'claude-sonnet-5-5' })
+    );
+
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    const [kept] = claudePastes(channelId) as unknown as Array<{ working: string }>;
+    expect(JSON.parse(kept.working)).toEqual([
+      {
+        tool: 'lookup_term',
+        library: 'alice/philosophy',
+        input: { term: 'attention' },
+        kept: 'attention\n  Documents:\n    2026/2026-01-02-on-attention.document.md — On Attention — 900w\n      Attention as a kind of will.',
+      },
+    ]);
+
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    const next = JSON.stringify(calls[1].body.messages);
+    expect(next).toContain('lookup_term(term=\\"attention\\") in alice/philosophy');
+    expect(next).toContain('Attention as a kind of will.');
+  });
+
+  it('keeps nothing beside a reply that made no calls', async () => {
+    const { bob, channelId } = await setUp('pro');
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(claudePastes(channelId)).toEqual([expect.objectContaining({ working: null })]);
   });
 
   it('asks once more without noesis when a request with it fails, and posts that answer', async () => {

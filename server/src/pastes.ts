@@ -9,6 +9,7 @@ export interface PasteRow {
   display_name: string;
   pasted_at: number;
   text: string;
+  working?: string | null;
 }
 
 /**
@@ -67,6 +68,23 @@ export class Pastes {
          VALUES (?, ?, ?, ?, ?, ?)`
       )
       .run(clip.id, channelId, clip.authorId, this.nameOf(clip.authorId), clip.pastedAt, clip.text);
+  }
+
+  /**
+   * Keeps beside a reply of Claude's the library calls it made before it, as
+   * JSON — server-side only: the *Record* reads it for the next press, and
+   * nothing carries it on the wire yet.
+   */
+  keepWorking(id: string, working: unknown): void {
+    this.db.prepare('UPDATE pastes SET working = ? WHERE id = ?').run(JSON.stringify(working), id);
+  }
+
+  /** What `keepWorking` kept for a paste, or null. */
+  working(id: string): unknown {
+    const row = this.db.prepare('SELECT working FROM pastes WHERE id = ?').get(id) as
+      | { working: string | null }
+      | undefined;
+    return row?.working ? JSON.parse(row.working) : null;
   }
 }
 

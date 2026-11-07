@@ -7670,12 +7670,17 @@ export class ChannelRegistry {
    * as whoever is, since losing a paid answer because one person stepped out
    * would be wrong in a room still waiting for it. With nobody here at all,
    * written straight to the log, where the *Record* finds it on its next load.
+   *
+   * `working` is the library calls the reply was made with, kept beside it
+   * once it is posted (`Pastes.keepWorking`) — before any *Record* is read
+   * again, since nothing between here and there yields.
    */
   postClaudeReply(
     channelId: string,
     askerId: string,
     text: string,
-    voices?: Record<string, string>
+    voices?: Record<string, string>,
+    working?: readonly unknown[]
   ): 'posted' | 'too_long' | 'empty' | 'gone' {
     const channel = this.channels.get(channelId);
     if (!channel) return 'gone';
@@ -7690,15 +7695,21 @@ export class ChannelRegistry {
       ...(voices ? { voices } : {}),
     };
     const actor = channel.present.includes(askerId) ? askerId : channel.present[0];
+    const keep = () => {
+      if (working?.length) this.pastes.keepWorking(clip.id, working);
+    };
     if (actor === undefined) {
       this.pastes.write(channelId, clip);
+      keep();
       return 'posted';
     }
     const applied = this.apply(channelId, actor, {
       type: 'PASTE_CLIP',
       clip,
     } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
-    return applied.ok && applied.channel.clip?.id === clip.id ? 'posted' : 'gone';
+    if (!(applied.ok && applied.channel.clip?.id === clip.id)) return 'gone';
+    keep();
+    return 'posted';
   }
 
   /** Takes a knock back, for a page that gave up waiting. */

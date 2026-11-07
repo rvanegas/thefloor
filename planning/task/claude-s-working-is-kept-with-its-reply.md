@@ -42,7 +42,8 @@ table, whichever the schema takes better. Each step:
   for it** — Rodrigo's call, 2026-11-07 — which for `lookup_term` is its path,
   title, word count and summary (`noesis/library.py` `lookup_term`, from
   `DocEntry`), and for `list_documents` its name and title, each with the
-  library it came from; a read's name, title and length; **an error's text in
+  library it came from, and a lookup's line of *Related* terms, which is the
+  term's rather than any hit's; a read's name, title and length; **an error's text in
   full**, since it is short and it is the diagnosis.
 
 **Never a document's body.** It can be read again, it would swell the
@@ -63,6 +64,7 @@ message, and replaying blocks would mean inventing turns and carrying bodies:
       looked up "artificial cognition" in thefloor/artificial-intelligence-e9y8:
         2026/2026-11-07-mem-architecture-summary.document.md — Mem Architecture Summary — 4200w
           <its summary, as the manifest has it>
+        Related: <the term's related terms>
       read 2026/2026-11-07-mem-architecture-summary.document.md (thefloor/artificial-intelligence-e9y8): 4,200 words
     Claude: Rodrigo, I've now read…
 
@@ -107,6 +109,12 @@ as the room sees them, so the channel's library reads what the room read.
 ## In this order
 
 1. Storage, and the steps in the *Record* with the prompt's sentences — what
-   fixes the evening above.
+   fixes the evening above. **Built 2026-11-07 on `claude-working`, not
+   landed**: `pastes.working`, `workingSteps` and `renderWorking` in
+   claude.ts, and `LOOK_NOW` in every library rule — only there, so a plain
+   press's prompt is what it was. Off the wire: rooms carry no steps yet.
+   A press that posts nothing logs its steps. The privacy page says what is
+   kept of the lookups, and is dated by its latest paragraph now rather than
+   the first one listed.
 2. The app's line and its steps; the filed transcript; the policy.
 3. Caching, measured in `claude_usage` before and after.
