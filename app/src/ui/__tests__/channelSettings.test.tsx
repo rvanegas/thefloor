@@ -548,8 +548,8 @@ describe('the channel library', () => {
   const none = mockApp.loadChannelLibrary.getMockImplementation()!;
   afterEach(() => mockApp.loadChannelLibrary.mockImplementation(none));
 
-  async function open(view: { on: boolean; url: string | null }) {
-    mockApp.loadChannelLibrary.mockImplementation(async () => view);
+  async function open(view: { on: boolean; url: string | null; consult?: boolean | null; mayChange?: boolean }) {
+    mockApp.loadChannelLibrary.mockImplementation(async () => ({ consult: null, mayChange: false, ...view }));
     tree = render(
       <ChannelSettingsView
         publicAt={null}
@@ -573,6 +573,16 @@ describe('the channel library', () => {
     expect(textOf(tree)).toContain('Every transcript made here goes into this channel’s own library');
     expect(textOf(tree)).toContain('It is made with the first transcript');
     expect(findButton(tree, 'Open in noesis')).toBeUndefined();
+  });
+
+  it('switches whether Claude consults it, for somebody who may edit the channel', async () => {
+    await open({ on: true, url: null, consult: true, mayChange: true });
+    const consult = tree.root.findAll(
+      (node) => node.props.accessibilityLabel === 'Claude consults it' && node.props.onValueChange
+    )[0];
+    expect(consult.props.value).toBe(true);
+    act(() => consult.props.onValueChange(false));
+    expect(mockApp.setChannelLibraryConsult).toHaveBeenCalledWith(channel.id, false);
   });
 
   it('opens the library in the browser once there is one', async () => {

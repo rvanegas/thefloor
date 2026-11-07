@@ -1971,6 +1971,31 @@ export class ChannelRegistry {
     return { id: row.id, name: row.name, participants: JSON.parse(row.participants ?? '[]') as string[] };
   }
 
+  /** Whether *Ask Claude* consults the channel's own library: yes unless switched off. */
+  consultsLibrary(channelId: string): boolean {
+    const row = this.db
+      .prepare('SELECT consult_library FROM channels WHERE id = ?')
+      .get(channelId) as { consult_library: number | null } | undefined;
+    return row?.consult_library !== 0;
+  }
+
+  /**
+   * Switches *Ask Claude*'s consulting of the channel's own library, by
+   * anybody who may edit the channel (`canEditChannel`), as the other
+   * settings on its screen are.
+   */
+  setConsultsLibrary(channelId: string, userId: string, consult: boolean): { ok: true } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || !isParticipant(channel, userId)) {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (!canEditChannel(channel, userId)) {
+      return { ok: false, error: 'Step in to change this.', code: 'forbidden' };
+    }
+    this.db.prepare('UPDATE channels SET consult_library = ? WHERE id = ?').run(consult ? 1 : 0, channelId);
+    return { ok: true };
+  }
+
   /** A channel's name and members, from the database; null for none, or one deleted. */
   nameAndMembers(channelId: string): { name: string | null; participants: string[] } | null {
     const row = this.db

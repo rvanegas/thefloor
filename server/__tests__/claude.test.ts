@@ -9,6 +9,7 @@ import { CLAUDE_ID, MAX_CLIP_LENGTH } from '../../core/constants';
 import type { RoomView } from '../../core/protocol';
 import { buildApp, type App } from '../src/app';
 import {
+  channelLibraryRule,
   CLAUDE_LIBRARY_TIMEOUT_MS,
   CLAUDE_TIMEOUT_MS,
   composeRecord,
@@ -327,6 +328,7 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
     return Response.json({ ...noesisWho, libraries: noesisLibraries, names: noesisNames });
   }
   if (url.pathname.endsWith('/import')) return noesisImport();
+  if (url.pathname === '/applications/token') return Response.json({ access_token: 'channel-token', expires_in: 3600 });
   return new Response(null, { status: 200 });
 }) as typeof fetch;
 
@@ -358,9 +360,20 @@ function boot(
   client?: ClaudeClient,
   timeoutMs?: number,
   library?: NoesisOptions,
-  libraryTimeoutMs?: number
+  libraryTimeoutMs?: number,
+  channelLibraries = false
 ): App {
   app = buildApp({
+    ...(channelLibraries
+      ? {
+          channelLibraries: {
+            origin: 'https://noesis.example',
+            clientId: 'thefloor',
+            clientSecret: 'client-secret',
+            fetch: fakeNoesis,
+          },
+        }
+      : {}),
     dbPath: join(dir, 'thefloor.db'),
     mailer: new MemoryMailer(),
     now: () => clock,
@@ -1571,5 +1584,68 @@ describe('the response model', () => {
       fallbacks: 'default',
     });
     expect(usageRows()[0]).toMatchObject({ grade: 'max', model: 'claude-opus-5-5' });
+  });
+});
+
+describe("a press with the channel's own library", () => {
+  /** A channel on `grade` with a library at noesis, and nobody's own switched on. */
+  async function setUp(grade: 'standard' | 'pro', withLibrary = true) {
+    const fake = fakeClient(() => reply('From the channel.'));
+    boot(fake.client, undefined, NOESIS, undefined, true);
+    const people = await room2();
+    const { alice, channelId } = people;
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
+    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_RESPONSE_MODEL', responseModel: grade } as never);
+    const handle = withLibrary ? app.channels.handleFor(channelId) : null;
+    return { ...fake, ...people, handle };
+  }
+
+  it('hands Claude the channel library by a token confined to it, and says what it is', async () => {
+    const { calls, bob, channelId, handle } = await setUp('pro');
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls[0].body).toMatchObject({
+      mcp_servers: [
+        {
+          type: 'url',
+          url: `https://noesis.example/mcp?libraries=thefloor%2F${handle}`,
+          name: 'noesis',
+          authorization_token: 'channel-token',
+        },
+      ],
+    });
+    expect(calls[0].body.system).toBe(
+      systemPrompt('medium', [{ owner: null, libraries: [`thefloor/${handle}`], channel: true }])
+    );
+    expect(calls[0].body.system).toContain(channelLibraryRule());
+  });
+
+  it('consults it on Pro and Max only, and not once switched off on its card', async () => {
+    const standard = await setUp('standard');
+    await press(standard.channelId, standard.bob.token);
+    expect(standard.calls[0].body).not.toHaveProperty('mcp_servers');
+
+    await app.fastify.close();
+    const { calls, alice, bob, channelId } = await setUp('pro');
+    const off = await app.fastify.inject({
+      method: 'PUT',
+      url: `/channels/${channelId}/noesis-library`,
+      headers: auth(alice.token),
+      payload: { consult: false },
+    });
+    expect(off.statusCode).toBe(200);
+    const card = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/noesis-library`,
+      headers: auth(bob.token),
+    });
+    expect(card.json()).toMatchObject({ on: true, consult: false, mayChange: true });
+    await press(channelId, bob.token);
+    expect(calls[0].body).not.toHaveProperty('mcp_servers');
+  });
+
+  it('consults nothing for a channel with no library yet', async () => {
+    const { calls, bob, channelId } = await setUp('pro', false);
+    await press(channelId, bob.token);
+    expect(calls[0].body).not.toHaveProperty('mcp_servers');
   });
 });

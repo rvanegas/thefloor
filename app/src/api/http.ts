@@ -416,6 +416,14 @@ export const api = {
   channelLibrary: (token: string, channelId: string) =>
     request<ChannelLibraryView>(`/channels/${channelId}/noesis-library`, { token }),
 
+  /** Whether *Ask Claude* consults the channel's own library. */
+  setChannelLibraryConsult: (token: string, channelId: string, consult: boolean) =>
+    request<{ consult: boolean }>(`/channels/${channelId}/noesis-library`, {
+      method: 'PUT',
+      token,
+      body: { consult },
+    }),
+
   /** noesis's sign-in URL, to open in a browser; it comes back to `returnTo`. */
   connectNoesis: (token: string, returnTo: 'app' | 'web') =>
     request<{ url: string }>('/me/noesis/connect', { method: 'POST', token, body: { returnTo } }),

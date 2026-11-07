@@ -874,6 +874,10 @@ export interface NoesisView {
 export interface ChannelLibraryView {
   on: boolean;
   url: string | null;
+  /** Whether *Ask Claude* consults it; null where the server has no Claude, absent from an older one. */
+  consult?: boolean | null;
+  /** Whether this reader may switch that, as any channel setting (`canEditChannel`). */
+  mayChange?: boolean;
 }
 
 /**

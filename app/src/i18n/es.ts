@@ -876,6 +876,9 @@ export const es: Strings = {
       'Cada transcripción hecha aquí va a la biblioteca propia de este canal en noesis, que puede abrir cualquier miembro y nadie más. La pagan los miembros Pro del canal; mientras no haya ninguno, no entra nada nuevo.',
     channelLibraryNotYet: () => 'Se crea con la primera transcripción mientras alguien aquí sea Pro.',
     channelLibraryOpen: () => 'Abrir en noesis',
+    channelLibraryConsult: () => 'Claude la consulta',
+    channelLibraryConsultNote: () =>
+      'Si está activada, Claude puede apoyarse en las conversaciones anteriores y las fuentes de este canal al responder. Se aplica en Pro y Max, a quien pregunte a Claude.',
     libraryTheirs: (name: string, libraries: string[]) =>
       libraries.length === 1
         ? `Consultando la biblioteca de ${name}: ${libraries[0]}. Cualquiera aquí puede desactivarla.`

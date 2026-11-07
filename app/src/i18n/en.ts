@@ -1151,6 +1151,10 @@ export const en = {
       'Every transcript made here goes into this channel’s own library at noesis, which every member can open and nobody else can. The channel’s Pro members pay for it; while none is Pro, nothing new goes in.',
     channelLibraryNotYet: () => 'It is made with the first transcript while somebody here is Pro.',
     channelLibraryOpen: () => 'Open in noesis',
+    /** Whether *Ask Claude* consults it: on by default, any member who may edit the channel switches it. */
+    channelLibraryConsult: () => 'Claude consults it',
+    channelLibraryConsultNote: () =>
+      'When on, Claude may draw on this channel’s earlier conversations and sources while it answers. It applies on Pro and Max, to whoever asks Claude.',
     /** One per somebody else whose libraries are on here; several may be. */
     libraryTheirs: (name: string, libraries: string[]) =>
       libraries.length === 1

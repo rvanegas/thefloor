@@ -654,6 +654,27 @@ export function ChannelSettingsView({
           ) : (
             <Text style={type.muted}>{t.channelLibraryNotYet()}</Text>
           )}
+          {typeof channelLibrary.consult === 'boolean' ? (
+            <>
+              <View style={styles.autoSwitches}>
+                <KeepSwitch
+                  label={t.channelLibraryConsult()}
+                  on={channelLibrary.consult}
+                  refused={!channelLibrary.mayChange}
+                  onChange={(consult) => {
+                    setChannelLibrary({ ...channelLibrary, consult });
+                    app.setChannelLibraryConsult(channel.id, consult).catch(() =>
+                      setChannelLibrary(channelLibrary)
+                    );
+                  }}
+                />
+              </View>
+              <Text style={type.muted}>{t.channelLibraryConsultNote()}</Text>
+              {channelLibrary.mayChange ? null : (
+                <Text style={type.muted}>{community && !owner ? t.ownerOnly() : t.libraryStepIn()}</Text>
+              )}
+            </>
+          ) : null}
         </Card>
       ) : null}
 

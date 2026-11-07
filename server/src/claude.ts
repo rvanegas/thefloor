@@ -272,6 +272,25 @@ export function librariesRule(
   ].join(' ');
 }
 
+/**
+ * What a press consulting the channel's own library is told of it, beside
+ * any person's: not anybody's writing but the channel's — its earlier
+ * conversations and the sources its members brought in — of which the
+ * *Record* it is given is only the recent part.
+ */
+export function channelLibraryRule(): string {
+  return [
+    'You can also consult this channel’s own library through the noesis tools: its earlier ' +
+      'conversations, each transcribed, and sources its members brought in, dated and indexed ' +
+      'by term. The record you were given is only the recent part of what was said here. ' +
+      'Consult it when the conversation turns to something said here before, or to one of its ' +
+      'sources; most turns need nothing from it. Read a guide tool before the others.',
+    'When your reply draws on one of its documents, name it by its title in plain words, ' +
+      'inline. Do not write Related or References sections. Only your final answer is shown, ' +
+      'and the word limit is for it alone.',
+  ].join(' ');
+}
+
 /** A line that heads a Related or References section, however it is marked. */
 const CITATION_HEADING = /^[ \t]*(?:#{1,6}[ \t]*)?(?:Related|References)[ \t]*:?[ \t]*$/im;
 
@@ -310,8 +329,10 @@ export function replyText(
  */
 export function systemPrompt(
   length: ReplyLength,
-  libraries?: readonly { owner: string | null; libraries: readonly string[] }[]
+  consulted?: readonly { owner: string | null; libraries: readonly string[]; channel?: boolean }[]
 ): string {
+  const libraries = consulted?.filter((each) => !each.channel);
+  const channelLibrary = consulted?.some((each) => each.channel) ?? false;
   return [
     'You are Claude, taking part in a voice conversation among people using an ' +
       'app called The Floor. You are given the record of the conversation so far: ' +
@@ -331,6 +352,7 @@ export function systemPrompt(
       : libraries?.length
         ? [librariesRule(libraries)]
         : []),
+    ...(channelLibrary ? [channelLibraryRule()] : []),
     lengthRule(length),
   ].join('\n\n');
 }
@@ -585,6 +607,8 @@ export interface ConsultedLibrary {
   owner: string;
   /** Which, by noesis id, for the prompt to say whose each is. */
   libraries: string[];
+  /** The channel's own library (channelLibraries.ts) rather than somebody's; `owner` is then empty. */
+  channel?: boolean;
 }
 
 /**
@@ -631,6 +655,15 @@ export interface ClaudeResponderOptions {
   libraryTimeoutMs?: number;
   /** Absent, no press consults a library. See `LibraryOptions`. */
   library?: LibraryOptions;
+  /**
+   * The channel's own library (channelLibraries.ts): its id and a token
+   * confined to it, or null where the channel has none, has switched it
+   * off, or noesis gave no token. Absent, no press consults one.
+   */
+  channelLibrary?: {
+    url: string;
+    consult: (channelId: string) => Promise<{ id: string; token: string } | null>;
+  };
   /**
    * An account's display name, for the prompt to say whose library a press
    * consults; asked at each press that consults one, null when it has none.
@@ -685,6 +718,16 @@ export class ClaudeResponder {
     // Read at the press with the grade, for the same reason.
     // None consulted is no library at all, as the request is concerned.
     const consulted = await librariesFor(this.options.library, channel, grade);
+    // And the channel's own, on the same grades, beside whoever's are on.
+    const own =
+      grade === 'standard' || !this.options.channelLibrary
+        ? null
+        : await this.options.channelLibrary.consult(channelId);
+    if (own) {
+      const url = new URL(this.options.channelLibrary!.url);
+      url.searchParams.set('libraries', own.id);
+      consulted.push({ url: url.toString(), token: own.token, owner: '', libraries: [own.id], channel: true });
+    }
     const library = consulted.length ? consulted : undefined;
     const controller = new AbortController();
     const timeoutMs = library
@@ -805,8 +848,9 @@ export class ClaudeResponder {
       system: systemPrompt(
         length,
         library?.map((each) => ({
-          owner: this.options.libraryOwner?.(each.owner) ?? null,
+          owner: each.channel ? null : (this.options.libraryOwner?.(each.owner) ?? null),
           libraries: each.libraries,
+          channel: each.channel,
         }))
       ),
       messages: [

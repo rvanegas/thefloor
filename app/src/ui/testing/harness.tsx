@@ -328,7 +328,13 @@ export const mockApp = {
     email: undefined as string | null | undefined,
   })),
   // No channel library on this server either: the channel library card's tests replace it.
-  loadChannelLibrary: jest.fn(async (_channelId: string) => ({ on: false, url: null as string | null })),
+  loadChannelLibrary: jest.fn(async (_channelId: string) => ({
+    on: false,
+    url: null as string | null,
+    consult: null as boolean | null,
+    mayChange: false,
+  })),
+  setChannelLibraryConsult: jest.fn(async (_channelId: string, _consult: boolean) => {}),
   connectNoesis: jest.fn(async (_returnTo: 'app' | 'web') => 'https://noesis.example/authorize?state=s'),
   disconnectNoesis: jest.fn(async () => {}),
   // No questions asked yet and a slot free, which is the state everybody is

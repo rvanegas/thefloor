@@ -3091,6 +3091,11 @@ function migrate(db: Db): void {
     is 0, from before, and never owed: a channel takes its transcripts from
     the day it could, not its history.
   */
+  // Whether *Ask Claude* consults the channel's own library: null or 1 yes, the
+  // default, and 0 switched off on its card. A column for `handle`'s reasons.
+  if (!hasColumn(db, 'channels', 'consult_library')) {
+    db.exec('ALTER TABLE channels ADD COLUMN consult_library INTEGER');
+  }
   if (!hasColumn(db, 'segments', 'filed_at')) {
     db.exec('ALTER TABLE segments ADD COLUMN filed_at INTEGER');
     db.exec('UPDATE segments SET filed_at = 0');

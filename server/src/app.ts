@@ -19,7 +19,7 @@ import {
   IM_SERVICE_NAMES,
   normaliseImHandle,
 } from '../../core/im';
-import { capacityOf, keepForPlay, keepOf, keepingOf } from '../../core/channel';
+import { canEditChannel, capacityOf, keepForPlay, keepOf, keepingOf } from '../../core/channel';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { isNavAction, NAV_ACTIONS } from '../../core/navigation';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
@@ -1292,6 +1292,18 @@ export function buildApp(options: BuildOptions = {}): App {
             : undefined,
         // Whose library it is, by the name the room knows them by.
         libraryOwner: (accountId) => accounts.byId(accountId)?.display_name ?? null,
+        // The channel's own, by a token confined to it, unless switched off on its card.
+        channelLibrary: channelLibraries
+          ? {
+              url: options.library?.url ?? `${options.channelLibraries!.origin}/mcp`,
+              consult: async (channelId) => {
+                const handle = channels.handleOf(channelId);
+                if (!handle || !channels.consultsLibrary(channelId)) return null;
+                const token = await channelLibraries.consultToken(channelId, handle);
+                return token ? { id: `thefloor/${handle}`, token } : null;
+              },
+            }
+          : undefined,
         log: { warn: (details, message) => fastify.log.warn(details, message) },
       })
     : null;
@@ -4066,7 +4078,26 @@ export function buildApp(options: BuildOptions = {}): App {
     const url = handle
       ? `${noesisWeb(options.channelLibraries.origin)}?library=${encodeURIComponent(`thefloor/${handle}`)}`
       : null;
-    return { on: true, url };
+    const live = channels.get(id);
+    return {
+      on: true,
+      url,
+      // Whether *Ask Claude* consults it, which only matters where there is a Claude.
+      consult: claude ? channels.consultsLibrary(id) : null,
+      mayChange: !!live && canEditChannel(live, account.id),
+    };
+  });
+
+  /** Switches *Ask Claude*'s consulting of the channel's own library, on its card. */
+  fastify.put('/channels/:id/noesis-library', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = request.body as { consult?: unknown } | undefined;
+    if (typeof body?.consult !== 'boolean') return reply.code(400).send({ error: 'consult is true or false.' });
+    const result = channels.setConsultsLibrary(id, account.id, body.consult);
+    if (!result.ok) return reply.code(statusFor(result.code)).send({ error: result.error });
+    return { consult: body.consult };
   });
 
   /**

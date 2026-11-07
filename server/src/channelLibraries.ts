@@ -70,6 +70,7 @@ interface OwedRow {
 export class ChannelLibraries {
   private basic: string;
   private made = new Set<string>();
+  private tokens = new Map<string, { token: string; until: number }>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private sweeping: Promise<void> | null = null;
 
@@ -177,6 +178,32 @@ export class ChannelLibraries {
       entries.push({ who: paste.display_name, at: paste.pasted_at, text: paste.text, pasted: true });
     }
     return segmentText(name, row.started_at, row.ended_at, entries);
+  }
+
+  /**
+   * A token for noesis's MCP that reaches the channel's library and nothing
+   * else, for *Ask Claude* to consult it with: an hour long, kept until a
+   * minute before it lapses. Null where the channel has no library yet, or
+   * noesis will not issue one — the press goes without it.
+   */
+  async consultToken(channelId: string, handle: string): Promise<string | null> {
+    const kept = this.tokens.get(handle);
+    if (kept && kept.until > this.deps.now()) return kept.token;
+    const doFetch = this.options.fetch ?? fetch;
+    try {
+      const response = await doFetch(new URL('/applications/token', this.options.origin), {
+        method: 'POST',
+        headers: { Authorization: this.basic, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ library: handle }),
+      });
+      if (!response.ok) return null;
+      const { access_token, expires_in } = (await response.json()) as { access_token: string; expires_in: number };
+      this.tokens.set(handle, { token: access_token, until: this.deps.now() + (expires_in - 60) * 1000 });
+      return access_token;
+    } catch (error) {
+      this.deps.log?.warn({ err: error, channelId }, 'channel library: no token to consult it');
+      return null;
+    }
   }
 
   /** Files `text` in the channel's library, making the library first if it has none. */

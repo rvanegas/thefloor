@@ -235,7 +235,7 @@ describe("Channel Settings' card", () => {
     const erta = { authorization: `Bearer ${(await signIn('erta@example.com', 'Erta Example')).token}` };
     const card = (headers: Record<string, string>) =>
       app.fastify.inject({ method: 'GET', url: `/channels/${channelId}/noesis-library`, headers });
-    expect((await card(erta)).json()).toEqual({ on: true, url: null });
+    expect((await card(erta)).json()).toMatchObject({ on: true, url: null });
 
     makePro(ertaId);
     textSegment(channelId);
@@ -244,7 +244,7 @@ describe("Channel Settings' card", () => {
     const handle = app.channels.handleOf(channelId)!;
     // Three years on, as the clock goes here: a session from then has lapsed.
     const again = { authorization: `Bearer ${(await signIn('erta@example.com', 'Erta Example')).token}` };
-    expect((await card(again)).json()).toEqual({
+    expect((await card(again)).json()).toMatchObject({
       on: true,
       url: `https://noesis.example/web/?library=thefloor%2F${handle}`,
     });

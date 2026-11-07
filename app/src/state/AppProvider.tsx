@@ -635,6 +635,8 @@ interface AppValue extends AppState {
   loadNoesis: () => Promise<NoesisView>;
   /** The channel's own library at noesis, for its settings card. */
   loadChannelLibrary: (channelId: string) => Promise<ChannelLibraryView>;
+  /** Switches whether *Ask Claude* consults the channel's own library. */
+  setChannelLibraryConsult: (channelId: string, consult: boolean) => Promise<void>;
   /** noesis's sign-in URL for connecting yours, coming back to the app or to a page. */
   connectNoesis: (returnTo: 'app' | 'web') => Promise<string>;
   /** Disconnects yours: off in every channel, and forgotten by the server. */
@@ -2952,6 +2954,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadChannelLibrary: async (channelId) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return api.channelLibrary(state.token, channelId);
+      },
+
+      setChannelLibraryConsult: async (channelId, consult) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        await api.setChannelLibraryConsult(state.token, channelId, consult);
       },
 
       connectNoesis: async (returnTo) => {
