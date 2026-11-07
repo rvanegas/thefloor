@@ -25,7 +25,10 @@ reaches one only by somebody's *Send to noesis* into their own.
 - **In noesis, a member's list of libraries shows their own and those of
   every channel they belong to.**
 - **The cost is split among the channel's Pro members.**
-- **Every transcript goes in by itself**, with no switch to stop it.
+- **Every transcript goes in by itself**, with no switch to stop it, each
+  *segment* as one document, as if somebody had sent it with *Send to noesis*.
+- **With no Pro member the channel stops taking transcripts** and otherwise
+  goes on as before: the library stays readable, and the channel works.
 
 ## Open
 
@@ -33,13 +36,14 @@ reaches one only by somebody's *Send to noesis* into their own.
   up naming a channel now called something else. Whether a library holds the
   name fixed, as a connected library holds a username, is to be decided once
   it is in use.
-- **No Pro member.** What a library does when the channel has none, or the
-  last one lapses: stop taking transcripts, stop answering, or neither.
-- **Which transcripts, and when.** Every *segment*'s text, as *Send to noesis*
-  files it, is the obvious unit: live transcripts at the room's end, a
-  recording's when it is transcribed. Since a channel's text goes in with no
-  switch, whether the members need telling — a notice like the *public
-  notice* — is a question too.
+- **Which segment is which.** Two segments of one day are told apart only by
+  their hours, and noesis drops them: The Floor sends the hours twice — the
+  filename's `HHMM` and the text's hours line — and `from_the_floor`
+  (`noesis/cmd_import.py`) keeps the date alone, files the document as
+  `<date>-<title>.chat.md` under a title a model gives it, and discards each
+  turn's time too. The fix is noesis's: carry the hours into the document.
+- **Telling the members.** Their text goes in with no switch, so whether they
+  are told — a notice like the *public notice* — is open.
 - **The question's credential.** noesis asking The Floor means The Floor
   authenticating noesis, a credential this project holds rather than issues
   (CREDENTIALS.md).
