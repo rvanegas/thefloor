@@ -1996,6 +1996,11 @@ export class ChannelRegistry {
     return { ok: true };
   }
 
+  /** Whether any channel has ever had a library made: the privacy page says so while any has. */
+  hasChannelLibraries(): boolean {
+    return !!this.db.prepare('SELECT 1 FROM channels WHERE handle IS NOT NULL LIMIT 1').get();
+  }
+
   /** A channel's name and members, from the database; null for none, or one deleted. */
   nameAndMembers(channelId: string): { name: string | null; participants: string[] } | null {
     const row = this.db

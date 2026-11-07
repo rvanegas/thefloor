@@ -397,9 +397,13 @@ Deliberately separate, so no single leak is worse than it has to be:
   `/noesis/users/:user/libraries`, `server/src/app.ts`): a channel's members by
   username and display name, who of them is Pro, and its name; and which channels somebody
   belongs to. noesis keeps the secret in the clear (`oauth.py`), so no second
-  credential was made. A leak lets somebody read those answers — who is in
-  which channel that has a library — and nothing else. A rotation reaches
-  noesis by itself, since noesis minted the secret.
+  credential was made. **And The Floor signs in with it as the owner of every
+  channel library**, `thefloor/<handle>` (`server/src/channelLibraries.ts`):
+  making them, filing every transcript into them, and asking for the hour's
+  token, confined to one, that *Ask Claude* consults it with. So a leak lets
+  somebody read those answers — who is in which channel that has a library —
+  and read and write every channel library. A rotation reaches noesis by
+  itself, since noesis minted the secret.
 
   **What it holds up: every person's grant**, in `noesis_connections`, one
   refresh token per account that connected a library, sealed with a key

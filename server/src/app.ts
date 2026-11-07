@@ -3079,6 +3079,8 @@ export function buildApp(options: BuildOptions = {}): App {
       claude: claude ? 'Anthropic' : undefined,
       // Only beside Claude, on its rule. See PolicyOptions.library.
       library: channels.libraryAvailable(),
+      // Filing now, or filed before: what is at noesis outlives the setting.
+      channelLibraries: !!options.channelLibraries || channels.hasChannelLibraries(),
     });
   });
 

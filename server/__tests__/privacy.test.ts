@@ -13,6 +13,7 @@ import { buildApp, type App } from '../src/app';
 import { toTransaction, type AppStoreVerifier } from '../src/appStore';
 import {
   CLAUDE_PRIVACY_UPDATED,
+  CHANNEL_LIBRARY_PRIVACY_UPDATED,
   DIGEST_PRIVACY_UPDATED,
   LIBRARY_PRIVACY_UPDATED,
   PRIVACY_UPDATED,
@@ -309,6 +310,30 @@ describe('The privacy policy', () => {
       expect(page).not.toContain(`last updated ${CLAUDE_PRIVACY_UPDATED}`);
       // The Record paragraph above it still stands as written.
       expect(page).toContain('Nothing else is sent');
+    });
+
+    it('says nothing of channel libraries where none is filed into, nor ever was', async () => {
+      app = buildApp({ dbPath: ':memory:', claude: noClient });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).not.toContain('<h2>Channel libraries</h2>');
+      expect(page).not.toContain(CHANNEL_LIBRARY_PRIVACY_UPDATED);
+    });
+
+    it('says what a channel library keeps, who opens it, what noesis is told, and what deleting leaves', async () => {
+      const channelLibraries = { origin: 'https://noesis.example', clientId: 'thefloor', clientSecret: 's' };
+      app = buildApp({ dbPath: ':memory:', claude: noClient, channelLibraries });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).toContain('<h2>Channel libraries</h2>');
+      expect(page).toContain('every transcript made in it is also kept in the channel');
+      expect(page).toContain('and not its guests');
+      expect(page).toContain("each member's username, display name and whether they have Pro");
+      expect(page).toContain('does not delete what is in it from noesis');
+      // Claude's half, inside Claude's section.
+      const claudeAt = page.indexOf('<h2>Claude</h2>');
+      const at = page.indexOf('Where a channel has its own library');
+      expect(at).toBeGreaterThan(claudeAt);
+      expect(at).toBeLessThan(page.indexOf('<h2>', claudeAt + 1));
+      expect(page).toContain(`last updated ${CHANNEL_LIBRARY_PRIVACY_UPDATED}`);
     });
 
     it('says nothing of a digest where nothing is transcribed live', async () => {

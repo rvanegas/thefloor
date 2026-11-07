@@ -56,8 +56,7 @@ reaches one only by somebody's *Send to noesis* into their own.
 
 ## How the two ends talk
 
-**The Floor's half is built, 2026-11-07**, and nothing calls it until noesis
-does; nothing mints a handle yet either.
+**Built, 2026-11-07, at both ends**, and off until `CHANNEL_LIBRARIES` is set.
 
 - **noesis asks The Floor two questions**, for channels with a handle only:
   the members of a handle — by username, each marked Pro or not, with the
@@ -73,10 +72,15 @@ does; nothing mints a handle yet either.
   Floor presents to noesis's register, kept in the clear at noesis
   (`oauth.py`, `keeps_names`), so one shared secret answers both ways and no
   new credential is made. CREDENTIALS.md says so.
-- **Still to do here**: minting the handle when a channel's library is made,
-  filing each segment, the settings card, Ask Claude's use of it, and the
-  privacy policy, which has to name what noesis is told before any channel
-  has a library.
+- **The Floor files and consults with the same pair**: it makes the library
+  and imports each segment (`server/src/channelLibraries.ts`, a sweep a
+  minute, `segments.filed_at`), and asks `POST /applications/token` for an
+  hour's MCP token confined to the one library at a press of *Ask Claude*.
+- **What a member sees**: the *Channel library* card on *Channel Settings*
+  (`GET`/`PUT /channels/:id/noesis-library`), with *Open in noesis* and the
+  *Claude consults it* switch (`channels.consult_library`); *Open noesis* on
+  *Floor Settings*' card. The privacy policy's *Channel libraries* section,
+  shown while filing is on or any channel has a library.
 
 ## noesis's side
 
@@ -104,9 +108,19 @@ does; nothing mints a handle yet either.
   library. A segment imported before is not recognised again, its text having
   changed.
 
+## Open
+
+- **What happens to a library when its channel is deleted.** Nobody can open
+  it — The Floor no longer knows the handle — but its contents stay at noesis,
+  and the privacy policy says so and offers deletion on request. Deleting it
+  with the channel, or keeping it, is undecided.
+- **Dividing the cost.** noesis meters each library and answers
+  `GET /applications/spending`; nothing here reads it yet, so nobody's share is
+  shown or charged.
+
 ## To ship it, in this order
 
-Each verb Rodrigo's to say: land and deploy noesis; register the mark on
-`commons`; land and deploy The Floor; and, before any channel has a library,
-the privacy policy saying what noesis is told — members' usernames and display
-names, and who is Pro.
+Each verb Rodrigo's to say: land and deploy noesis; mark the client on
+`commons` (`scripts/client_libraries.py thefloor https://thefloor.rvanegas.co`);
+land and deploy The Floor; then set `CHANNEL_LIBRARIES` and `ts env-push`,
+which turns filing on and the privacy section with it.
