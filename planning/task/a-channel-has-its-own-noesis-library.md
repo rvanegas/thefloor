@@ -36,29 +36,55 @@ reaches one only by somebody's *Send to noesis* into their own.
   *segment* as one document, as if somebody had sent it with *Send to noesis*.
 - **With no Pro member the channel stops taking transcripts** and otherwise
   goes on as before: the library stays readable, and the channel works.
+- **Members are told on a settings card** that the channel's transcripts go
+  into its library.
+- **A rename leaves the handle alone, and the name is never held fixed.** The
+  handle is an id, the way a repository's URL is; what a person reads is the
+  channel's *current* name, which The Floor's answer to noesis carries, with
+  the handle under it. Renaming the library with the channel is the shape
+  2026-11-03 rejected — ids saved where nothing can rewrite them, like
+  `ChannelState.libraries` and connector setups — and fixing the name costs
+  every channel that has a library. Documents filed before a rename keep the
+  name they were filed under, which was true when said.
+- **Ask Claude consults it by default.** The Floor reaches it with its own
+  client token, confined to that library, so a press needs nobody's noesis
+  connection; it is on wherever the channel has a library, the channel's
+  *Library* switch turning it off as for anybody's; and Claude is told it
+  holds the channel's earlier conversations and the sources members imported
+  — the *Record* it already reads being the recent part — rather than one
+  person's writing, as `libraryRule` says of the others.
 
-## Open
+## How the two ends talk
 
-- **Renames.** The handle survives one, so `thefloor/book-club-k3x9` can end
-  up naming a channel now called something else. Whether a library holds the
-  name fixed, as a connected library holds a username, is to be decided once
-  it is in use.
-- **Which segment is which.** Two segments of one day are told apart only by
-  their hours, and noesis drops them: The Floor sends the hours twice — the
+- **noesis asks The Floor two questions**, for channels with a handle only:
+  the members of a handle — by username, each marked Pro or not, with the
+  channel's current name — and the handles a username is a member of, for
+  the list of libraries.
+- **noesis proves it is noesis with the pair The Floor already holds**,
+  `NOESIS_CLIENT_ID` / `NOESIS_CLIENT_SECRET`, as HTTP Basic: the one The
+  Floor presents to noesis's register, kept in the clear at noesis
+  (`oauth.py`, `keeps_names`), so one shared secret answers both ways and no
+  new credential is made. CREDENTIALS.md says so when it is built.
+
+## noesis's side
+
+- **An owner that is not a person**: `libraries/thefloor/<handle>`, the name
+  `thefloor` reserved in the register so no person signs up as it, and a
+  call for a client to make a library under it — `POST /libraries` makes one
+  under the caller's own name and refuses a service.
+- **Access by asking The Floor** rather than `who == user`
+  (`noesis/service.py`, `library_root`), on every way in: files, runs,
+  imports and MCP.
+- **The list of libraries** carrying a member's channels', by their current
+  names.
+- **Spending metered per channel library** for The Floor to read and divide,
+  and refused, where it would spend, for a channel with no Pro member.
+- **Whose voice.** noesis reads its owner's lines as their own and the rest as
+  context (`speaker_names`); a channel's library has every member's lines as
+  its own voice, and Claude's or a guest's as context.
+- **The hours of a segment kept.** Two segments of one day are told apart
+  only by their hours, and noesis drops them: The Floor sends them twice — the
   filename's `HHMM` and the text's hours line — and `from_the_floor`
-  (`noesis/cmd_import.py`) keeps the date alone, files the document as
-  `<date>-<title>.chat.md` under a title a model gives it, and discards each
-  turn's time too. The fix is noesis's: carry the hours into the document.
-- **Telling the members.** Their text goes in with no switch, so whether they
-  are told — a notice like the *public notice* — is open.
-- **The question's credential.** noesis asking The Floor means The Floor
-  authenticating noesis, a credential this project holds rather than issues
-  (CREDENTIALS.md).
-- **noesis's side.** An owner that is not a person (`thefloor`, reserved in
-  the register so no person can take it), access decided by asking The Floor
-  rather than `who == user` (`noesis/service.py`, `library_root`), the list
-  of libraries that includes a member's channels', spending metered per
-  channel library for The Floor to read, and a channel with no Pro member
-  refused whatever would spend — the members answer saying so.
-- **Ask Claude** consulting it, which is the obvious next use: the channel's
-  own library offered alongside its members'.
+  (`noesis/cmd_import.py`) keeps the date alone, files the document under a
+  title a model gives it, and discards each turn's time too. The hours belong
+  in the document: on its date line, and on each turn.

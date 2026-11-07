@@ -1936,8 +1936,8 @@ export class ChannelRegistry {
    * A channel's handle, minted from its name the first time anything asks:
    * only a channel that needs one — for its noesis library — has one. Null
    * for no such channel. Renaming leaves it alone, so whatever was filed
-   * under it stays reachable; whether a handle should hold the name back from
-   * changing is for later.
+   * under it stays reachable, and the name is free to change: the handle is
+   * an id, read beside the channel's current name.
    */
   handleFor(channelId: string): string | null {
     const row = this.db

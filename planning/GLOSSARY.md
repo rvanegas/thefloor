@@ -4309,9 +4309,9 @@ a username.
 opposite: a community's door, whose suffix is the secret, and which every
 rename and every reset replaces. A handle is not secret, is never replaced,
 and **survives a rename** — the name it was read from may go on to say
-something else, as a username outlives a change of display name. Whether a
-handle should hold the name fixed, as a connected library holds a username, is
-open. Not the *channel title*, which is the viewer's own; not the channel's
+something else, as a username outlives a change of display name. **Nor does a
+handle hold the name fixed**, as a connected library holds a username: it is an
+id, and what anybody reads is the channel's current name beside it. Not the *channel title*, which is the viewer's own; not the channel's
 `id`, which is the one that is never shown.
 
 ## Hearing (a device's)
