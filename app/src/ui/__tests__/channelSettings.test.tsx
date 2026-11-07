@@ -4,7 +4,7 @@ import {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
-import { Alert, Keyboard, TextInput } from 'react-native';
+import { Alert, Keyboard, Linking, TextInput } from 'react-native';
 import { ChannelSettingsView } from '../ChannelSettingsView';
 import { SectionLabel } from '../components';
 import { reduce } from '../../../../core/channel';
@@ -543,3 +543,44 @@ describe('the library, a toggle per library', () => {
 });
 
 type ChannelStateLike = typeof channel;
+
+describe('the channel library', () => {
+  const none = mockApp.loadChannelLibrary.getMockImplementation()!;
+  afterEach(() => mockApp.loadChannelLibrary.mockImplementation(none));
+
+  async function open(view: { on: boolean; url: string | null }) {
+    mockApp.loadChannelLibrary.mockImplementation(async () => view);
+    tree = render(
+      <ChannelSettingsView
+        publicAt={null}
+        channel={channel}
+        derivedTitle="Dana Chu"
+        onBack={onBack}
+        onLeft={onLeft}
+      />
+    );
+    await act(async () => {});
+    return tree;
+  }
+
+  it('is not drawn where the server files no transcripts', async () => {
+    await open({ on: false, url: null });
+    expect(textOf(tree)).not.toContain('Channel library');
+  });
+
+  it('tells the members where their transcripts go, before there is a library', async () => {
+    await open({ on: true, url: null });
+    expect(textOf(tree)).toContain('Every transcript made here goes into this channel’s own library');
+    expect(textOf(tree)).toContain('It is made with the first transcript');
+    expect(findButton(tree, 'Open in noesis')).toBeUndefined();
+  });
+
+  it('opens the library in the browser once there is one', async () => {
+    const url = 'https://noesis.example/web/?library=thefloor%2Fbook-club-k3x9';
+    await open({ on: true, url });
+    const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    act(() => findButton(tree, 'Open in noesis')!.props.onPress());
+    expect(opened).toHaveBeenCalledWith(url);
+    opened.mockRestore();
+  });
+});

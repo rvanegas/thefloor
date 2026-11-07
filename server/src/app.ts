@@ -3944,7 +3944,8 @@ export function buildApp(options: BuildOptions = {}): App {
       const current = await noesis.refreshLibraries(account.id);
       if (current) channels.pruneLibrariesOf(account.id, current);
     }
-    return { available: true, ...noesis.status(account.id) };
+    // noesis's own web client, which *Open noesis* opens in a browser.
+    return { available: true, web: noesisWeb(options.library!.url), ...noesis.status(account.id) };
   });
 
   /**
@@ -4048,6 +4049,25 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   // --- A channel's own noesis library, as noesis asks about it ---------------
+
+  /**
+   * What *Channel Settings*' card says of the channel's own library
+   * (channelLibraries.ts): whether this server files its transcripts into one
+   * at all, and once the library exists, where noesis's web client opens it.
+   * Members only, as the library is.
+   */
+  fastify.get('/channels/:id/noesis-library', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!channels.isMemberOf(id, account.id)) return reply.code(404).send({ error: 'No such channel.' });
+    if (!options.channelLibraries) return { on: false, url: null };
+    const handle = channels.handleOf(id);
+    const url = handle
+      ? `${noesisWeb(options.channelLibraries.origin)}?library=${encodeURIComponent(`thefloor/${handle}`)}`
+      : null;
+    return { on: true, url };
+  });
 
   /**
    * Whether this request is noesis's: the client pair noesis issued The Floor,
@@ -6836,6 +6856,11 @@ export function buildApp(options: BuildOptions = {}): App {
     noesis,
     channelLibraries,
   };
+}
+
+/** noesis's web client, from any URL of noesis's: its origin's `/web/`. */
+function noesisWeb(url: string): string {
+  return `${new URL(url).origin}/web/`;
 }
 
 /**

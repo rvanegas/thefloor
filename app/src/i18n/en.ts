@@ -998,6 +998,8 @@ export const en = {
     noesisReconnect: () => 'Connect again',
     noesisDisconnect: () => 'Disconnect',
     noesisDisconnecting: () => 'Disconnecting…',
+    /** Opens noesis's web client in the browser, where the libraries are read and kept. */
+    noesisOpen: () => 'Open noesis',
     noesisDisconnectAsk: () => 'Disconnect your noesis library?',
     noesisDisconnectBody: () =>
       'Claude stops consulting it in every channel where it is on. The library itself stays in noesis, and you can connect it again at any time.',
@@ -1138,6 +1140,17 @@ export const en = {
     libraryChoose: () =>
       'Turn on the libraries Claude may consult here. Each one you turn on is your consent to its writing reaching this channel’s Record.',
     libraryNoneYet: () => 'You have no library in noesis yet. Make one there, and it will show here.',
+    /**
+     * The channel's own library at noesis, since 2026-11-07: every transcript
+     * filed into it by itself, for every member and nobody else, paid for by
+     * the channel's Pro members. Not *Library*, which is somebody's own. See
+     * GLOSSARY.md, *Channel library*.
+     */
+    channelLibrary: () => 'Channel library',
+    channelLibraryNote: () =>
+      'Every transcript made here goes into this channel’s own library at noesis, which every member can open and nobody else can. The channel’s Pro members pay for it; while none is Pro, nothing new goes in.',
+    channelLibraryNotYet: () => 'It is made with the first transcript while somebody here is Pro.',
+    channelLibraryOpen: () => 'Open in noesis',
     /** One per somebody else whose libraries are on here; several may be. */
     libraryTheirs: (name: string, libraries: string[]) =>
       libraries.length === 1

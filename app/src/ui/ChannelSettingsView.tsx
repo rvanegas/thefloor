@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, StyleSheet, Text, View } from 'react-native';
+import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
 import {
   DELETED_RETENTION_MS,
   MAX_CHANNEL_DESCRIPTION_LENGTH,
@@ -22,7 +22,7 @@ import {
   type NotificationLevel,
 } from '../../../core/notifications';
 import type { ChannelState, ResponseModel, TranscriptionModel } from '../../../core/types';
-import type { NoesisView } from '../../../core/protocol';
+import type { ChannelLibraryView, NoesisView } from '../../../core/protocol';
 import { API_URL } from '../api/config';
 import { api, type GuestLinkSummary } from '../api/http';
 import { pickAndUploadArtwork } from '../api/upload';
@@ -206,6 +206,22 @@ export function ChannelSettingsView({
       cancelled = true;
     };
   }, [view?.libraryAvailable, app.token]);
+  /** The channel's own library at noesis; null until read, and on an older server. */
+  const [channelLibrary, setChannelLibrary] = useState<ChannelLibraryView | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const found = await app.loadChannelLibrary(channel.id);
+        if (!cancelled) setChannelLibrary(found);
+      } catch {
+        // An older server, or a guest's: no card.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [channel.id, app.token]);
   const [name, setName] = useState(channel.name ?? '');
   const [description, setDescription] = useState(channel.description ?? '');
   /**
@@ -618,6 +634,27 @@ export function ChannelSettingsView({
           }
           onStop={(owner) => app.act(channel.id, { type: 'SET_LIBRARY', library: false, owner })}
         />
+      ) : null}
+
+      {/*
+        **The channel's own library at noesis, since 2026-11-07** — where every
+        transcript made here goes by itself: no switch, so this card is how
+        the members are told. Drawn wherever the server files them, with the
+        library opened in the browser once there is one.
+      */}
+      {channelLibrary?.on ? (
+        <Card style={styles.stack}>
+          <Text style={type.heading}>{t.channelLibrary()}</Text>
+          <Text style={type.body}>{t.channelLibraryNote()}</Text>
+          {channelLibrary.url ? (
+            <Button
+              label={t.channelLibraryOpen()}
+              onPress={() => void Linking.openURL(channelLibrary.url!)}
+            />
+          ) : (
+            <Text style={type.muted}>{t.channelLibraryNotYet()}</Text>
+          )}
+        </Card>
       ) : null}
 
       {/*

@@ -23,6 +23,7 @@ import type {
   ScreenDevice,
   SupportView,
   NoesisView,
+  ChannelLibraryView,
   ProView,
 } from '../../../core/protocol';
 import type { ImHandles } from '../../../core/im';
@@ -632,6 +633,8 @@ interface AppValue extends AppState {
    * reason, and read again when the app returns from noesis's sign-in.
    */
   loadNoesis: () => Promise<NoesisView>;
+  /** The channel's own library at noesis, for its settings card. */
+  loadChannelLibrary: (channelId: string) => Promise<ChannelLibraryView>;
   /** noesis's sign-in URL for connecting yours, coming back to the app or to a page. */
   connectNoesis: (returnTo: 'app' | 'web') => Promise<string>;
   /** Disconnects yours: off in every channel, and forgotten by the server. */
@@ -2944,6 +2947,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadNoesis: async () => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         return api.noesis(state.token);
+      },
+
+      loadChannelLibrary: async (channelId) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        return api.channelLibrary(state.token, channelId);
       },
 
       connectNoesis: async (returnTo) => {

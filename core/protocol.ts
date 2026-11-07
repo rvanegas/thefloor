@@ -862,6 +862,18 @@ export interface NoesisView {
    * which connects again to have it; absent from an older server.
    */
   canSend?: boolean;
+  /** noesis's web client, which *Open noesis* opens in a browser; absent from an older server. */
+  web?: string;
+}
+
+/**
+ * The channel's own library at noesis, for *Channel Settings*' card: whether
+ * this server files the channel's transcripts into one, and once it exists,
+ * where noesis's web client opens it. Members only.
+ */
+export interface ChannelLibraryView {
+  on: boolean;
+  url: string | null;
 }
 
 /**

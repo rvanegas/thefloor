@@ -760,6 +760,7 @@ export const es: Strings = {
       'Para enviar el texto de una sala a tu biblioteca, vuelve a conectarla: noesis te preguntará si The Floor puede añadirle conversaciones.',
     noesisReconnect: () => 'Volver a conectar',
     noesisDisconnect: () => 'Desconectar',
+    noesisOpen: () => 'Abrir noesis',
     noesisDisconnecting: () => 'Desconectando…',
     noesisDisconnectAsk: () => '¿Desconectar tu biblioteca de noesis?',
     noesisDisconnectBody: () =>
@@ -870,6 +871,11 @@ export const es: Strings = {
     libraryChoose: () =>
       'Activa las bibliotecas que Claude puede consultar aquí. Cada una que actives es tu consentimiento para que sus escritos lleguen al Grabado de este canal.',
     libraryNoneYet: () => 'Todavía no tienes ninguna biblioteca en noesis. Crea una allí y aparecerá aquí.',
+    channelLibrary: () => 'Biblioteca del canal',
+    channelLibraryNote: () =>
+      'Cada transcripción hecha aquí va a la biblioteca propia de este canal en noesis, que puede abrir cualquier miembro y nadie más. La pagan los miembros Pro del canal; mientras no haya ninguno, no entra nada nuevo.',
+    channelLibraryNotYet: () => 'Se crea con la primera transcripción mientras alguien aquí sea Pro.',
+    channelLibraryOpen: () => 'Abrir en noesis',
     libraryTheirs: (name: string, libraries: string[]) =>
       libraries.length === 1
         ? `Consultando la biblioteca de ${name}: ${libraries[0]}. Cualquiera aquí puede desactivarla.`

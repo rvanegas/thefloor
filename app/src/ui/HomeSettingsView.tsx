@@ -890,6 +890,9 @@ function NoesisCard() {
               onPress={disconnect}
             />
             <Text style={type.muted}>{t.noesisConnectedNote()}</Text>
+            {view.web ? (
+              <Button label={t.noesisOpen()} onPress={() => void Linking.openURL(view.web!)} />
+            ) : null}
             {view.canSend === false ? (
               <>
                 <Text style={type.muted}>{t.noesisSendNeedsReconnect()}</Text>

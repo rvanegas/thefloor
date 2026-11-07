@@ -229,6 +229,31 @@ describe('a channel library, filed into by itself', () => {
   });
 });
 
+describe("Channel Settings' card", () => {
+  it('says the transcripts go in, and opens the library once there is one, for members only', async () => {
+    const { channelId, ertaId } = await bookClub();
+    const erta = { authorization: `Bearer ${(await signIn('erta@example.com', 'Erta Example')).token}` };
+    const card = (headers: Record<string, string>) =>
+      app.fastify.inject({ method: 'GET', url: `/channels/${channelId}/noesis-library`, headers });
+    expect((await card(erta)).json()).toEqual({ on: true, url: null });
+
+    makePro(ertaId);
+    textSegment(channelId);
+    clock = START + 2 * 3_600_000;
+    await app.channelLibraries!.sweep();
+    const handle = app.channels.handleOf(channelId)!;
+    // Three years on, as the clock goes here: a session from then has lapsed.
+    const again = { authorization: `Bearer ${(await signIn('erta@example.com', 'Erta Example')).token}` };
+    expect((await card(again)).json()).toEqual({
+      on: true,
+      url: `https://noesis.example/web/?library=thefloor%2F${handle}`,
+    });
+
+    const zed = await signIn('zed@example.com', 'Zed Zebedee');
+    expect((await card({ authorization: `Bearer ${zed.token}` })).statusCode).toBe(404);
+  });
+});
+
 describe("a segment's text", () => {
   it('is what noesis reads as The Floor', () => {
     // noesis/cmd_import.py: the hours line, and each entry's `who · time`.

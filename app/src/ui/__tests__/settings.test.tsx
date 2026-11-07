@@ -1307,4 +1307,21 @@ describe("noesis library", () => {
     ask.mockRestore();
     act(() => tree.unmount());
   });
+
+  it("opens noesis in the browser, once connected", async () => {
+    mockApp.loadNoesis.mockResolvedValue({
+      available: true,
+      connected: true,
+      user: "rodvandur",
+      email: null,
+      libraries: [],
+      web: "https://noesis.example/web/",
+    } as never);
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    const tree = await openSettings();
+    act(() => findButton(tree, "Open noesis")!.props.onPress());
+    expect(open).toHaveBeenCalledWith("https://noesis.example/web/");
+    open.mockRestore();
+    act(() => tree.unmount());
+  });
 });

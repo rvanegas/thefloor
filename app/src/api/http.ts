@@ -9,6 +9,7 @@ import type {
   ProfileView,
   SupportView,
   NoesisView,
+  ChannelLibraryView,
   ProView,
   AppStoreUpload,
 } from '../../../core/protocol';
@@ -410,6 +411,10 @@ export const api = {
 
   /** Whether this server offers noesis libraries, and whether yours is connected. */
   noesis: (token: string) => request<NoesisView>('/me/noesis', { token }),
+
+  /** The channel's own library at noesis, for its settings card. */
+  channelLibrary: (token: string, channelId: string) =>
+    request<ChannelLibraryView>(`/channels/${channelId}/noesis-library`, { token }),
 
   /** noesis's sign-in URL, to open in a browser; it comes back to `returnTo`. */
   connectNoesis: (token: string, returnTo: 'app' | 'web') =>

@@ -36,6 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
+- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro*, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro nothing new goes in. Told on *Channel Settings*' card, with *Open in noesis*. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
@@ -301,6 +302,23 @@ and a member could hand out microphones without limit; see
 
 Never called a *room* on screen. See *room* in Part Two, which is the media
 plane's word for the audio underneath a channel and is a different thing.
+
+## Channel library
+
+**A channel's own library at noesis**, since 2026-11-07, as against a
+*library*, which is one person's own writing that they let a channel consult.
+Every transcript the channel makes goes into it by itself, one document per
+*segment*, with no switch; it is made at noesis with the first of them while
+somebody in the channel is *Pro*, under the channel's *handle*,
+`thefloor/<handle>`. **Every member opens it and nobody else does** — not a
+*guest*, whatever their seat — because noesis asks The Floor who the members
+are each time rather than being told. **Its Pro members pay**, divided among
+them; while none is, the channel stops taking transcripts and otherwise works,
+and what was said meanwhile never goes in later. There being no switch, the
+members are told on *Channel Settings*' *Channel library* card, which opens it
+in the browser with *Open in noesis* once it exists. See
+task/a-channel-has-its-own-noesis-library.md and
+`server/src/channelLibraries.ts`.
 
 ## Channel name
 
@@ -5276,7 +5294,10 @@ are settled:
     Library               Biblioteca — its switch *Consultar*; its owner is
                           *el dueño*, as a community's is; the Floor Settings
                           card *Biblioteca de noesis*, *Conectar* / *Desconectar*,
-                          and *Volver a conectar* where sending is not yet granted
+                          and *Volver a conectar* where sending is not yet granted,
+                          and *Abrir noesis* once connected
+    Channel library       Biblioteca del canal — *Abrir en noesis* its
+                          button
     Send to noesis        Enviar a noesis — *¿A qué biblioteca?* when several
     Floor Settings        Ajustes de The Floor
     Pro (the subscription) Pro — a name, the same in both
