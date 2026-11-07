@@ -5302,7 +5302,8 @@ are settled:
                           *el dueño*, as a community's is; the Floor Settings
                           card *Biblioteca de noesis*, *Conectar* / *Desconectar*,
                           and *Volver a conectar* where sending is not yet granted,
-                          and *Abrir noesis* once connected
+                          and *Abrir noesis* once connected, on Channel
+                          Settings' *Biblioteca* card too
     Channel library       Biblioteca del canal — *Abrir en noesis* its
                           button, *Claude la consulta* its switch
     Send to noesis        Enviar a noesis — *¿A qué biblioteca?* when several

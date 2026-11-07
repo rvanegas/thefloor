@@ -457,7 +457,14 @@ describe('the library, a toggle per library', () => {
     mockApp.loadNoesis.mockImplementation(async () =>
       mine === null
         ? { available: true, connected: false, user: undefined, email: undefined }
-        : ({ available: true, connected: true, user: 'me', email: null, libraries: mine } as never)
+        : ({
+            available: true,
+            connected: true,
+            user: 'me',
+            email: null,
+            libraries: mine,
+            web: 'https://noesis.example/web/',
+          } as never)
     );
     mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
     const held = { ...channel, ...state } as typeof channel;
@@ -506,6 +513,19 @@ describe('the library, a toggle per library', () => {
       library: false,
       owner: ME,
     });
+  });
+
+  it('opens noesis in the browser, once connected', async () => {
+    const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
+    await openLibrary({}, ['me/notes']);
+    act(() => findButton(tree, 'Open noesis')!.props.onPress());
+    expect(open).toHaveBeenCalledWith('https://noesis.example/web/');
+    open.mockRestore();
+  });
+
+  it('offers no Open noesis while not connected', async () => {
+    await openLibrary({}, null);
+    expect(findButton(tree, 'Open noesis')).toBeUndefined();
   });
 
   it('shows somebody else’s on as whose and which, with the one switch to stop theirs', async () => {

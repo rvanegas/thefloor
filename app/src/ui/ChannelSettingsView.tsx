@@ -622,6 +622,7 @@ export function ChannelSettingsView({
           me={app.me?.id ?? ''}
           nameOf={(id) => view.participants.find((p) => p.id === id)?.displayName ?? null}
           mine={noesis?.connected ? (noesis.libraries ?? []) : null}
+          web={noesis?.connected ? (noesis.web ?? null) : null}
           mayEdit={mayEdit}
           mayChangeLibrary={mayChangeLibrary}
           refusedWhy={community && !owner ? t.ownerOnly() : t.libraryStepIn()}
@@ -973,12 +974,17 @@ const styles = StyleSheet.create({
  * on: the one switch, grey, with the sentence pointing at Floor Settings. A
  * library is named by what follows the owner in its id, the owner being the
  * same for every toggle.
+ *
+ * ***Open noesis*, since 2026-11-07**, as on *Floor Settings*' noesis card and
+ * on the same condition, connected: this is the other place somebody is
+ * choosing among libraries kept there.
  */
 function LibraryCard({
   channel,
   me,
   nameOf,
   mine,
+  web,
   mayEdit,
   mayChangeLibrary,
   refusedWhy,
@@ -991,6 +997,8 @@ function LibraryCard({
   nameOf: (id: string) => string | null;
   /** Your library ids at noesis, or null when you have none connected. */
   mine: string[] | null;
+  /** noesis's web client, for *Open noesis*; null when not connected. */
+  web: string | null;
   mayEdit: boolean;
   mayChangeLibrary: boolean;
   /** Why it is grey for somebody who may not edit the channel. */
@@ -1001,6 +1009,7 @@ function LibraryCard({
   onStop: (owner: string) => void;
 }) {
   const t = useText().channelSettings;
+  const home = useText().homeSettings;
   const chosen = channel.libraries?.[me] ?? [];
   const short = (id: string) => id.split('/').slice(1).join('/') || id;
   // Everybody else's on here, each a readout with the one switch to stop it:
@@ -1059,6 +1068,7 @@ function LibraryCard({
       ) : !mayEdit ? (
         <Text style={type.muted}>{refusedWhy}</Text>
       ) : null}
+      {web ? <Button label={home.noesisOpen()} onPress={() => void Linking.openURL(web)} /> : null}
     </Card>
   );
 }
