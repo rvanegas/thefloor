@@ -1304,6 +1304,14 @@ export class ChannelRegistry {
     return this.live?.hasLines(channelId) ?? false;
   }
 
+  /** When a segment of a channel was last filed in its library, for its snapshot; null for never. */
+  lastFiledAt(channelId: string): number | null {
+    const row = this.db
+      .prepare('SELECT MAX(filed_at) AS at FROM segments WHERE channel_id = ? AND filed_at > 0')
+      .get(channelId) as { at: number | null } | undefined;
+    return row?.at ?? null;
+  }
+
   /**
    * Turns a channel's live transcript on or off, for somebody the caller has
    * already found entitled to — the route checks the account mark, which is

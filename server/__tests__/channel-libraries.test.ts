@@ -297,6 +297,20 @@ describe('deleting what a channel library holds, a week on', () => {
     });
   });
 
+  it("tells the channel when a segment is filed, so the Record fetches again for its title", async () => {
+    const { channelId, ertaId } = await bookClub();
+    makePro(ertaId);
+    textSegment(channelId);
+    expect(app.channels.lastFiledAt(channelId)).toBeNull();
+    const told: string[][] = [];
+    const off = app.channels.onChange((ids) => told.push(ids));
+    clock = START + 2 * 3_600_000;
+    await app.channelLibraries!.sweep();
+    off();
+    expect(told).toContainEqual([channelId]);
+    expect(app.channels.lastFiledAt(channelId)).toBe(clock);
+  });
+
   it('names it on the Record, with where noesis opens it', async () => {
     const { channelId, handle } = await filed();
     // Signed in again: the clock has moved past the first session.

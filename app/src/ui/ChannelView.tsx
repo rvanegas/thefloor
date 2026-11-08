@@ -3963,8 +3963,9 @@ export function ChannelView({
           name={channel.name ?? derivedTitle}
           recordings={recordings}
           // The latest paste's id with them: a paste is a segment of its own,
-          // so one arriving means the rooms are fetched again.
-          keptKey={`${channel.recording.runId}:${isTranscribingLive(channel)}:${channel.clip?.id ?? ''}`}
+          // so one arriving means the rooms are fetched again. And when a
+          // segment was last filed in the channel's library, for its title.
+          keptKey={`${channel.recording.runId}:${isTranscribingLive(channel)}:${channel.clip?.id ?? ''}:${view?.filedAt ?? ''}`}
           renderRecording={(r, head) => (
             <RecordingRow
               key={r.id}

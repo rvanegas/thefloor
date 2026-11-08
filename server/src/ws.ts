@@ -1339,6 +1339,9 @@ export function registerWebsocket(deps: {
         // Whether there is a live transcript to read, which is what offers
         // the tab once the setting has been turned off. See LiveLine.
         liveTranscript: channels.hasLiveTranscript(channelId),
+        // When a segment was last filed in the channel's library, which is
+        // what has the Record fetch its rooms again for the title.
+        filedAt: channels.lastFiledAt(channelId),
         // About the reader, like `publicNotice`: whether the switch is
         // theirs to see. Everybody else's answer is nobody's business here.
         mayTranscribeLive: deps.mayTranscribeLive?.(connection.userId) ?? false,

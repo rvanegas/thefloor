@@ -1268,6 +1268,7 @@ export function buildApp(options: BuildOptions = {}): App {
           displayName: (id) => accounts.byId(id)?.display_name ?? null,
           transcriptLines: (id) => transcripts.linesFor(id),
           now,
+          onFiled: (channelId) => channels.announce(channelId),
           log: { warn: (details, message) => fastify.log.warn(details, message) },
         },
         options.channelLibraries

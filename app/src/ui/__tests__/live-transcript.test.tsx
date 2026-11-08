@@ -449,6 +449,39 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
+  it("fetches the rooms again when a segment is filed, and draws the title it was given", async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 5_000, 'said and filed')],
+      more: false,
+    } as never);
+    showChannel(transcribed());
+    const unfiled = seg('s1', NOW, NOW + 30_000, null, true);
+    const rooms = jest
+      .spyOn(api, 'rooms')
+      .mockResolvedValue({ rooms: [room('room_1', NOW, NOW + 60_000, [], [unfiled])] } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+    expect(textOf(tree)).not.toContain('Bach Reads Kant');
+
+    // Filed a minute or more after it ended, which nobody did: the snapshot
+    // the server pushes for it is all that says so.
+    rooms.mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, [], [
+          { ...unfiled, filed: { file: '2026/x.chat.md', title: 'Bach Reads Kant' } },
+        ]),
+      ],
+    } as never);
+    const asked = rooms.mock.calls.length;
+    mockApp.channelViews['sess_1'] = { ...mockApp.channelViews['sess_1']!, filedAt: NOW + 90_000 };
+    act(() => tree.update(screen()));
+    await settle();
+    expect(rooms.mock.calls.length).toBeGreaterThan(asked);
+    expect(textOf(tree)).toContain('Bach Reads Kant');
+    act(() => tree.unmount());
+  });
+
   it('closes each segment to its header, which opens it, its actions with it', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [

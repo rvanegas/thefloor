@@ -1272,6 +1272,16 @@ export interface ChannelView {
    */
   liveTranscript?: boolean;
   /**
+   * When a segment of this channel was last filed in its *channel library*,
+   * or null for never — since 2026-11-07, so that the *Record* tab fetches
+   * the rooms again and draws the title noesis gave it. Filing lands a minute
+   * or more after the segment ends, which nothing on the screen would
+   * otherwise notice. The same reason as `liveTranscript` for being here, and
+   * optional: a server that predates it sends nothing, and the tab fetches as
+   * it did.
+   */
+  filedAt?: number | null;
+  /**
    * Whether this connection's own member may turn the live transcript on —
    * which is what draws the switch in settings. About the reader, like
    * `publicNotice`. Optional, read as no.

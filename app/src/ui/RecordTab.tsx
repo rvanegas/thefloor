@@ -143,7 +143,8 @@ export function RecordTab({
   recordings: readonly RecordingView[];
   /**
    * What is being kept now, as any string that changes when it does — every
-   * such change begins a segment, so the rooms are fetched again.
+   * such change begins a segment, so the rooms are fetched again — and when a
+   * segment was last filed in the channel's library, which adds its title.
    */
   keptKey?: string;
   /** One recording as a segment's line of the log. */

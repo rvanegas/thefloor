@@ -48,6 +48,11 @@ export interface ChannelLibrariesDeps {
   /** A recording's batch transcript, as held. */
   transcriptLines(recordingId: string): TranscriptLine[];
   now(): number;
+  /**
+   * A segment of the channel was just filed: nobody did anything, so nothing
+   * else pushes the snapshot whose `filedAt` tells the Record to look again.
+   */
+  onFiled?(channelId: string): void;
   log?: { warn(details: object, message: string): void };
 }
 
@@ -128,6 +133,7 @@ export class ChannelLibraries {
         this.db
           .prepare('UPDATE segments SET filed_file = ?, filed_title = ? WHERE id = ?')
           .run(sent.file, sent.title ?? null, row.id);
+        this.deps.onFiled?.(row.channel_id);
       }
       else this.deps.log?.warn({ segment: row.id, ...sent }, 'channel library: a segment was not filed');
     }
