@@ -5344,6 +5344,8 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(404).send({ error: 'No such transcript.' });
     }
     transcripts.deleteFor(id);
+    // And the document it was filed as in the channel's library, now.
+    channels.transcriptDeleted(id);
     return { ok: true };
   });
 

@@ -14,7 +14,10 @@ export interface SegmentRow {
   /** The document it was filed as, by its path in the library. */
   filed_file: string | null;
   filed_title: string | null;
-  /** When its live text was deleted on its own; `text` is 0 from then. */
+  /**
+   * When its text was deleted on its own — live, `text` 0 from then, or its
+   * recording's transcript since 2026-11-08 — and its filed document with it.
+   */
   text_deleted_at: number | null;
 }
 

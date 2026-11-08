@@ -4547,8 +4547,9 @@ export class ChannelRegistry {
    *
    * **On a transcript's terms**, being the same thing made another way:
    * gone for everybody at once, and swept TRANSCRIPT_DELETED_RETENTION_MS
-   * later (`sweepDeletedText`), with the document it was filed as. And on a
-   * recording's guards, which a segment shares, being part of the same room.
+   * later (`sweepDeletedText`). The document it was filed as goes now
+   * (`forgetDocuments`). And on a recording's guards, which a segment shares,
+   * being part of the same room.
    *
    * The segment is found by its id among what `Rooms.forChannel` lists, which
    * is the one place a segment from before 2026-10-10 exists at all. A paste
@@ -4594,31 +4595,71 @@ export class ChannelRegistry {
     this.db
       .prepare('UPDATE segments SET text = 0, text_deleted_at = ? WHERE id = ? AND channel_id = ?')
       .run(now, segmentId, channelId);
+    this.forgetDocuments();
     this.emit([channelId]);
     return { ok: true };
   }
 
   /**
+   * A recording's batch transcript was deleted on its own, by its route: the
+   * segment it is the text of is marked as `deleteSegmentText` marks one, so
+   * the document it was filed as goes too, and goes now. Since 2026-11-08;
+   * until then it stayed in the channel's library until the recording went.
+   * Not for a transcript going with its recording, whose document goes with
+   * the recording a week later (`documentsGone`).
+   */
+  transcriptDeleted(recordingId: string): void {
+    const marked = this.db
+      .prepare(
+        `UPDATE segments SET text_deleted_at = ?
+          WHERE recording_id = ? AND text = 0 AND text_deleted_at IS NULL
+          RETURNING channel_id`
+      )
+      .all(this.now(), recordingId) as unknown as Array<{ channel_id: string }>;
+    if (marked.length === 0) return;
+    this.forgetDocuments();
+    // So the segment's line drops the title of a document on its way out.
+    this.emit([...new Set(marked.map((row) => row.channel_id))]);
+  }
+
+  /**
+   * Deletes from the channel's library every document a segment was filed as
+   * whose text has since been deleted on its own — at once, and again at each
+   * sweep for any noesis did not take. **Now, not on the text's window**, for
+   * the reason the transcription provider is told at once (`Transcripts.
+   * deleteFor`): it is a copy somewhere else, which every member can still
+   * open there, and the text it was made from is still here for the month a
+   * recovery by hand would need. Not awaited by anybody.
+   */
+  private forgetDocuments(): void {
+    this.forgettingDocuments ??= (async () => {
+      const filed = this.db
+        .prepare(
+          `SELECT s.id, s.filed_file, c.handle FROM segments s JOIN channels c ON c.id = s.channel_id
+            WHERE s.text_deleted_at IS NOT NULL AND s.filed_file IS NOT NULL
+              AND c.handle IS NOT NULL`
+        )
+        .all() as unknown as Array<{ id: string; filed_file: string; handle: string }>;
+      for (const row of filed) {
+        if (this.libraryCleaner && (await this.libraryCleaner.deleteDocument(row.handle, row.filed_file))) {
+          this.db.prepare('UPDATE segments SET filed_file = NULL WHERE id = ?').run(row.id);
+        }
+      }
+    })()
+      .catch((error) => this.onMediaError(error, 'deleting a filed document'))
+      .finally(() => (this.forgettingDocuments = null));
+  }
+  private forgettingDocuments: Promise<void> | null = null;
+
+  /**
    * Removes the live text `deleteSegmentText` marked, once its window has
-   * passed: the document a segment was filed as first, then the lines — the
-   * recordings sweep's order, the segment's mark being the only record of
-   * which document was its. One whose document would not go keeps its mark
-   * for the next sweep; its lines go regardless, being nothing it names.
+   * passed, and tries again any filed document of deleted text that noesis
+   * did not take when it was asked (`forgetDocuments`).
    */
   async sweepDeletedText(now: number): Promise<void> {
     const cutoff = now - TRANSCRIPT_DELETED_RETENTION_MS;
-    const filed = this.db
-      .prepare(
-        `SELECT s.id, s.filed_file, c.handle FROM segments s JOIN channels c ON c.id = s.channel_id
-          WHERE s.text_deleted_at IS NOT NULL AND s.text_deleted_at <= ?
-            AND s.filed_file IS NOT NULL AND c.handle IS NOT NULL`
-      )
-      .all(cutoff) as unknown as Array<{ id: string; filed_file: string; handle: string }>;
-    for (const row of filed) {
-      if (this.libraryCleaner && (await this.libraryCleaner.deleteDocument(row.handle, row.filed_file))) {
-        this.db.prepare('UPDATE segments SET filed_file = NULL WHERE id = ?').run(row.id);
-      }
-    }
+    this.forgetDocuments();
+    await this.forgettingDocuments;
     this.db
       .prepare('DELETE FROM live_lines WHERE deleted_at IS NOT NULL AND deleted_at <= ?')
       .run(cutoff);

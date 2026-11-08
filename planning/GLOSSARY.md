@@ -333,7 +333,11 @@ library does not hold stays in full as before (`composeLibraryRecord`).
 so a member matches the two without opening either; the segment's menu has
 *Open in noesis*, which opens that document. **Deleting the channel deletes it**, and deleting a recording deletes
 the document its transcript was filed as, a week later as everything deleted
-goes — and deleting a segment's live text, a month later, its own — the card saying it can be recovered until then. See
+goes, the card saying it can be recovered until then. **Deleting a segment's
+text on its own deletes its document at once**, since 2026-11-08 — *Delete
+text*, whether a recording's transcript or text kept live — as a copy elsewhere
+that every member can still open there, while the text itself is kept the
+month a recovery by hand needs. See
 task/a-channel-has-its-own-noesis-library.md and
 `server/src/channelLibraries.ts`.
 
@@ -2789,7 +2793,8 @@ became *Delete audio*, and *Delete text* takes the batch transcript or, where
 the text was kept live, its lines — offered once the segment has finished and
 has something said in it, never its *pastes*. Text deleted goes from every
 screen at once and is removed a month later, as a transcript deleted on its
-own is. A segment whose audio is deleted keeps no audio, and says so; one left
+own is, and the document it was filed as in the *channel library* goes from
+there at once. A segment whose audio is deleted keeps no audio, and says so; one left
 keeping nothing is not drawn. They were three
 things until then: a share glyph asking *Audio* or *Text*, wide buttons in
 the open recording, and *Open in noesis* under the line.

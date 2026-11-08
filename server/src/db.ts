@@ -3182,10 +3182,12 @@ function migrate(db: Db): void {
   }
   /*
     A segment's live text deleted on its own, since 2026-11-07 (*Delete
-    text*): each line marked, and unreachable from the mark; the segment marked
-    too, with `text` cleared, so the sweep can find the document it was filed
-    as. Both go on TRANSCRIPT_DELETED_RETENTION_MS, as a transcript deleted on
-    its own does. Null on everything that exists, none of it deleted.
+    text*): each line marked, and unreachable from the mark, and swept on
+    TRANSCRIPT_DELETED_RETENTION_MS as a transcript deleted on its own is. The
+    segment is marked too, with `text` cleared — and since 2026-11-08 when its
+    recording's transcript is deleted on its own — so the document it was
+    filed as can be found and deleted, at once. Null on everything that
+    exists, none of it deleted.
   */
   if (!hasColumn(db, 'live_lines', 'deleted_at')) {
     db.exec('ALTER TABLE live_lines ADD COLUMN deleted_at INTEGER');

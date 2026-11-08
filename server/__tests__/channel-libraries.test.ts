@@ -289,6 +289,66 @@ describe('deleting what a channel library holds, a week on', () => {
     expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_r'").get()).toEqual({ filed_file: null });
   });
 
+  // Not a week on: a copy elsewhere, which members can still open there, goes
+  // when the text is deleted, as the transcription provider's does.
+  const settle = async () => {
+    for (let i = 0; i < 20; i++) await new Promise((resolve) => setImmediate(resolve));
+  };
+  const deletes = (handle: string) => [
+    ['GET', `/libraries/thefloor/${handle}/files`],
+    ['DELETE', `/libraries/thefloor/${handle}/files/2026/x.chat.md`],
+  ];
+
+  it("deletes the document of a segment's live text at once, and again at a sweep if noesis was down", async () => {
+    const { channelId, ertaId, handle } = await filed();
+    noesisDown = true;
+    expect(app.channels.deleteSegmentText(channelId, 'seg_1', ertaId)).toEqual({ ok: true });
+    await settle();
+    expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_1'").get()).toEqual({
+      filed_file: '2026/x.chat.md',
+    });
+
+    noesisDown = false;
+    await app.channels.sweepDeleted(clock);
+    expect(sent.map((s) => [s.method, s.path])).toEqual(deletes(handle));
+    expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_1'").get()).toEqual({ filed_file: null });
+  });
+
+  it("deletes the document of a recording's transcript at once when the transcript is deleted", async () => {
+    const { channelId, ertaId, handle } = await filed();
+    app.db
+      .prepare(
+        `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id, participants, started_at,
+           duration_ms, s3_key, stems, ended_at)
+         VALUES ('rec_1', ?, ?, ?, ?, ?, 0, '', '{}', ?)`
+      )
+      .run(channelId, ertaId, ertaId, JSON.stringify([ertaId]), START, START + 1);
+    app.db
+      .prepare(
+        `INSERT INTO transcripts (recording_id, state, requested_by, requested_at, provider, billed_ms)
+         VALUES ('rec_1', 'ready', ?, ?, 'Memory', 0)`
+      )
+      .run(ertaId, clock);
+    app.db
+      .prepare(
+        `INSERT INTO segments (id, channel_id, started_at, ended_at, recording_id, text, filed_at, filed_file)
+         VALUES ('seg_r', ?, ?, ?, 'rec_1', 0, ?, '2026/x.chat.md')`
+      )
+      .run(channelId, START, START + 1, clock);
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const removed = await app.fastify.inject({
+      method: 'DELETE',
+      url: '/recordings/rec_1/transcript',
+      headers: { authorization: `Bearer ${erta.token}` },
+    });
+    expect(removed.statusCode).toBe(200);
+    await settle();
+    expect(sent.map((s) => [s.method, s.path])).toEqual(deletes(handle));
+    expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_r'").get()).toEqual({ filed_file: null });
+    // The recording stays, and so does the segment, keeping its audio.
+    expect(app.db.prepare("SELECT deleted_at FROM recordings WHERE id = 'rec_1'").get()).toEqual({ deleted_at: null });
+  });
+
   it('keeps the file each segment was filed as, and the title noesis gave it', async () => {
     await filed();
     expect(app.db.prepare("SELECT filed_file, filed_title FROM segments WHERE id = 'seg_1'").get()).toEqual({
