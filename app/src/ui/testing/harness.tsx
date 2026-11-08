@@ -122,6 +122,8 @@ export const mockApp = {
        * channels. See `ChannelView.cohort`.
        */
       cohort?: number | null;
+      /** When a segment was last filed in the channel's library. See `ChannelView.filedAt`. */
+      filedAt?: number | null;
     }
   >,
   goneChannels: [] as string[],

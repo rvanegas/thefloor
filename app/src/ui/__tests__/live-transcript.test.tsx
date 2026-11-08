@@ -521,10 +521,11 @@ describe('rooms on the Record tab', () => {
     expect(textOf(tree)).toContain('said just now');
     expect(textOf(tree)).not.toContain('Planning');
 
-    // A recording's header opens its name and its lines in one press.
+    // A recording's header opens its lines in one press — not its name,
+    // which the row stopped drawing on 2026-11-07.
     act(() => headers()[0].props.onPress());
     expect(textOf(tree)).toContain('said on the record');
-    expect(textOf(tree)).toContain('Planning');
+    expect(textOf(tree)).not.toContain('Planning');
     expect(textOf(tree)).not.toContain('said off the record');
 
     // And closes them in another.

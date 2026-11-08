@@ -2777,7 +2777,9 @@ tab opens at its foot.
 kept one way throughout — is one muted line: the record dot where it kept
 audio and a ring where it did not, its hours, what it kept (*Audio*, *Text*,
 *Audio + Text*), and the menu glyph, with its text under it. A segment with
-audio is its recording's line, and opens to that recording's name. **Every
+audio is its recording's line, and opened to that recording's name until
+2026-11-07, when the name — the channel's unless renamed — stopped being
+drawn. **Every
 action is in the menu since 2026-11-07** — *Share audio*, *Share text*,
 *Send to noesis*, *Open in noesis*, and a recording's *Play*, *Rename*,
 *Transcribe* and *Delete recording* — a column of buttons the glyph opens

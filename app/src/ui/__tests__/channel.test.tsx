@@ -3212,7 +3212,7 @@ describe('Channel', () => {
     act(() => bystander.unmount());
   });
 
-  it('keeps a recording’s actions in its menu, and opens to its name', async () => {
+  it('keeps a recording’s actions in its menu, and never draws its name', async () => {
     const recording: RecordingView = {
       id: 'rec_1',
       channelId: 'sess_1',
@@ -3245,11 +3245,11 @@ describe('Channel', () => {
     act(() => menuGlyphs(tree)[0].props.onPress());
     expect(findExactButton(tree, 'Rename')).toBeUndefined();
 
-    // Opening says the recording's name, which the line does not, and
-    // draws no buttons.
+    // Opening draws no buttons, and not the name either since 2026-11-07:
+    // unless renamed it is the channel's, which the header already says.
     expect(textOf(tree)).not.toContain('Tuesday');
     act(() => findRecording(tree, 'Tuesday')!.props.onPress());
-    expect(textOf(tree)).toContain('Tuesday');
+    expect(textOf(tree)).not.toContain('Tuesday');
     expect(findExactButton(tree, 'Rename')).toBeUndefined();
 
     act(() => findRecording(tree, 'Tuesday')!.props.onPress());
@@ -3352,10 +3352,10 @@ describe('Channel', () => {
     await act(async () => findButton(tree, 'Save')!.props.onPress());
     expect(renamed).toHaveBeenCalledWith('token', 'rec_1', 'Tuesday planning');
 
-    // Done: the row says the name again, and the new one arrives on the next
-    // snapshot rather than being patched in here.
+    // Done: the field goes, and the new name arrives on the next snapshot
+    // rather than being patched in here — not drawn, but what the next
+    // Rename starts on.
     expect(nameField(tree)).toBeUndefined();
-    expect(textOf(tree)).toContain('Tuesday');
 
     renamed.mockRestore();
     act(() => tree.unmount());

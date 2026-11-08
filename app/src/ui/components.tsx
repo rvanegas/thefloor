@@ -1544,8 +1544,10 @@ const styles = StyleSheet.create({
 /**
  * A finished recording, as its segment's line in the *Record* log: the record
  * dot, the segment's hours and what it kept, and the menu at the end. Open, it
- * says the recording's name, and asks your consent to publish it where the
- * channel has a public page.
+ * asks your consent to publish it where the channel has a public page. **Its
+ * name is not drawn since 2026-11-07**: unless somebody renamed it, it was the
+ * channel's, said again under the header that says it; the segment's noesis
+ * title stands in its place and style. *Rename* still shows it, in its field.
  *
  * **Its actions are the segment's menu since 2026-11-07** (`useActionMenu`):
  * Play, Rename, Transcribe and Delete join the segment's own — its audio, its
@@ -1600,9 +1602,9 @@ export function RecordingRow({
   const app = useApp();
   const { open, onToggle } = head;
   /**
-   * The rename field takes the place of the name rather than joining it, so
-   * the row is asking for a name or saying one, never both. Chosen from the
-   * menu, it opens the segment if it was shut.
+   * The rename field, which opens under the line starting on the current
+   * name — the one place the name is shown. Chosen from the menu, it opens
+   * the segment if it was shut.
    */
   const [renaming, setRenaming] = React.useState(false);
   /**
@@ -1764,11 +1766,6 @@ export function RecordingRow({
 
         {open && !renaming ? (
           <View style={recordingStyles.actions}>
-            {/* The name, which a segment's line does not carry: said where
-                Rename puts its field, so the thing renamed is on screen. */}
-            <Text style={recordingStyles.name} numberOfLines={2}>
-              {recording.name}
-            </Text>
             {/*
               Only on a channel that has declared itself public — the server
               sends this field only then, so an ordinary channel's rows are
@@ -2112,7 +2109,6 @@ const recordingStyles = StyleSheet.create({
   inlinePress: { flex: 1, paddingVertical: spacing(0.5) },
   marker: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
   markerText: { flexShrink: 1 },
-  name: { color: colors.text, fontSize: 16, fontWeight: '600' },
   pressed: { opacity: 0.6 },
   actions: { gap: spacing(1) },
 });

@@ -216,9 +216,10 @@ on `AuthView`, and the whole of `AudioDebugPanel`.
 
 These are the sizes that are not in the table, each because of where it sits:
 
-- **16** — a `Field`'s text, and a recording's name: a step above `body`,
-  because what somebody is typing and what they named it are the subject of
-  the row rather than a line in it.
+- **16** — a `Field`'s text, and a filed segment's noesis title, `600`: a
+  step above `body`, because what somebody is typing and what the segment is
+  called are the subject of the row rather than a line in it. A recording's
+  name had it until 2026-11-07, when the name stopped being drawn.
 - **20** — the channel name in a pinned header. Not `title`'s 28: a large
   title is something a scroll is entitled to at its top, and a bar that rides
   above every screenful is not.
@@ -1358,8 +1359,9 @@ lines were. **Since 2026-10-18 the line is the segment's header**: in
 `type.heading` rather than muted, the record dot and the ring at 17, and the
 whole of it up to the menu a press that opens and closes the segment.
 Closed, a segment is its header alone, so a closed log is a list of them;
-open, it is its lines, and for one with audio its recording's name above
-them — one press, as opening the recording always was. Segments start closed
+open, it is its lines — and until 2026-11-07, for one with audio, its
+recording's name above them, which unless renamed was the channel's and
+said again what the header over the screen says. Segments start closed
 except the one still being kept, so talk arriving is seen arriving. **Every
 action on a segment is one menu since 2026-11-07**: the menu glyph at the
 header's end, where the share glyph was, opening a column of `Button`s under
@@ -1371,12 +1373,13 @@ On iOS it was the action sheet for its first day, until Rodrigo asked for it
 in the page, since a sheet takes the screen away from the segment. They
 had been three forms — the share glyph's sheet, a column of wide buttons in
 the opened recording, and *Open in noesis* as a word under the line — and
-the opened recording keeps only its name and, on a public channel, the
-consent box, which is a question rather than an act. **A segment filed in
-the channel's library has a second line**, since 2026-11-07: the title noesis
-gave its document in `type.muted`, two lines at most, indented past the dot,
-so it reads as the header's own, and drawn shut or open, since it names the
-segment. Each room starts with its line — date and hours, no menu — over a
+the opened recording keeps only, on a public channel, the consent box,
+which is a question rather than an act. **A segment filed in the channel's
+library has a second line**, since 2026-11-07: the title noesis gave its
+document, in the recording name's 16-point `600` in `text` that it replaced
+— in `type.muted` for its first hours —, two lines at most, indented past
+the dot, so it reads as the header's own, and drawn shut or open, since it
+names the segment. Each room starts with its line — date and hours, no menu — over a
 hairline; see § *The pinned header*.
 **A paste is an entry like a speaker's**, since 2026-10-15: the clipboard
 glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*

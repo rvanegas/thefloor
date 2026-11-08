@@ -685,13 +685,15 @@ export function SegmentLine({
  * since 2026-11-07: **the title noesis gave its document** — a model's, from
  * what was said — so the two can be matched without opening either. Drawn
  * shut or open, as the line is: it names the segment rather than being any of
- * what it kept. A segment filed before noesis said has none; *Open in noesis*,
+ * what it kept. In the style the recording's name had in the open row, which
+ * it replaced: that name was the channel's unless somebody renamed it, and
+ * said again what the header over the screen says. A segment filed before noesis said has none; *Open in noesis*,
  * which stood at this line's end, is in the segment's menu.
  */
 function FiledTitle({ title }: { title: string }) {
   return (
     <View style={styles.filedLine}>
-      <Text style={[type.muted, styles.filedTitle]} numberOfLines={2}>
+      <Text style={styles.filedTitle} numberOfLines={2}>
         {title}
       </Text>
     </View>
@@ -1326,7 +1328,9 @@ const styles = StyleSheet.create({
     paddingLeft: SEGMENT_MARK + spacing(0.75),
     paddingBottom: spacing(0.5),
   },
-  filedTitle: { flex: 1 },
+  // A recording's name's style, which it replaced in the open row: what the
+  // segment is called, the subject of the line rather than a note on it.
+  filedTitle: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '600' },
   // Which library to send to, where there is no action sheet. Wraps: a
   // library's name is as long as its owner made it, and there may be several.
   libraryChoice: { gap: spacing(1), paddingBottom: spacing(0.5) },
