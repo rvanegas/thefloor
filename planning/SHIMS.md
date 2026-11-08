@@ -67,10 +67,12 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 388 | *Ask Claude* with no `length` taken as *Medium* | `server/src/claude.ts`, `server/src/app.ts` |
 | 364 | `CLEAR_CLIP`, for the *Clipboard* tab | `core/channel.ts`, `core/types.ts`, `core/protocol.ts`, `server/src/channels.ts` |
 
-The floor is **80**, raised there on 2026-09-13 once `oldestBuild` had
-already read 80. Everything it freed — `HomeView.recordings`,
-`ChannelView.pingableAt` and `ChannelView.notificationLevel` — went in the same
-commit, so nothing above is free today.
+The floor is **189**, raised there on 2026-11-07 once `oldestBuild` had
+already read 189. That frees every entry gated at or below it — 110, 121,
+123, 159, 175, 188 and 189 — and none of them is deleted yet; the raise to 155
+on 2026-10-17 freed the first three and deleted nothing either. The 80 raise
+of 2026-09-13 is the one that took what it freed (`HomeView.recordings`,
+`ChannelView.pingableAt`, `ChannelView.notificationLevel`) in the same commit.
 
 `WATCH_READY.title` is optional so that an app older than the field can go on
 reporting a duration alone, and the reducer leaves the party's name as it was

@@ -43,7 +43,11 @@ import {
  * phone that matters, which after a public release means waiting rather than
  * deciding.
  *
- * **155 since 2026-10-17**, raised from 80 on the same order: `oldestBuild`
+ * **189 since 2026-11-07**, raised from 155 on the same order: `oldestBuild`
+ * read 189 and `silentBuilds` 0, so nobody was shown an update screen by the
+ * change.
+ *
+ * **155 from 2026-10-17**, raised from 80 on the same order: `oldestBuild`
  * read 155 and `silentBuilds` 0, so nobody was shown an update screen by the
  * change. 288 was proposed the same day and declined, because four sessions
  * active in the window were still below it; the next raise follows the oldest
@@ -81,7 +85,7 @@ import {
  * on `/healthz` has already passed the number, never in advance to license a
  * deletion.
  */
-export const MIN_SUPPORTED_BUILD = 155;
+export const MIN_SUPPORTED_BUILD = 189;
 
 /**
  * The first build that reports attention, and so the first the server may
