@@ -919,6 +919,7 @@ export class Transcripts {
            ON l.channel_id = r.channel_id
           AND l.start_at >= r.started_at
           AND l.start_at <= COALESCE(r.ended_at, ?)
+          AND l.deleted_at IS NULL
          WHERE r.id = ? LIMIT 1`
       )
       .get(this.now(), recordingId);

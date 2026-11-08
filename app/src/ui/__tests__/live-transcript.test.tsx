@@ -649,7 +649,7 @@ describe('rooms on the Record tab', () => {
 
     const menu = openMenu(tree);
     // The segment's own between Play and the recording's.
-    expect(menu.options).toEqual(['Play', 'Share audio', 'Share text', 'Rename', 'Delete recording']);
+    expect(menu.options).toEqual(['Play', 'Share audio', 'Share text', 'Rename', 'Delete audio', 'Delete text']);
     expect(menu.disabled('Share audio')).toBe(false);
     expect(menu.disabled('Share text')).toBe(false);
     menu.choose('Share audio');
@@ -680,7 +680,7 @@ describe('rooms on the Record tab', () => {
 
     const menu = openMenu(tree);
     // Left out rather than greyed: a segment kept as text never will have any.
-    expect(menu.options).toEqual(['Share text']);
+    expect(menu.options).toEqual(['Share text', 'Delete text']);
     menu.choose('Share text');
     await settle();
     expect(shareRecording).not.toHaveBeenCalled();
@@ -692,6 +692,46 @@ describe('rooms on the Record tab', () => {
     expect(message).toMatch(new RegExp(`^The Floor — .+\\n${day} · `));
     expect(message).toContain('only written down\nand again');
     expect(message).not.toContain('before the room');
+    act(() => tree.unmount());
+  });
+
+  it("deletes a finished segment's text after asking, and offers it only once it is finished", async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        line('l1', ME, 'Me', NOW + 1_000, 'only written down'),
+        line('l2', ME, 'Me', NOW + 31_000, 'still being written'),
+      ],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, null, [], [
+          seg('s1', NOW, NOW + 30_000, null, true),
+          seg('s2', NOW + 30_000, null, null, true),
+        ]),
+      ],
+    } as never);
+    const deleted = jest.spyOn(api, 'deleteSegmentText').mockResolvedValue({ ok: true } as never);
+    const { Alert } = require('react-native');
+    const asked = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    // Still being written down: more is coming, and the server refuses.
+    expect(openMenu(tree, 1).options).not.toContain('Delete text');
+
+    const menu = openMenu(tree);
+    expect(menu.destructive('Delete text')).toBe(true);
+    menu.choose('Delete text');
+    expect(asked).toHaveBeenCalledWith('Delete this text?', expect.any(String), expect.any(Array));
+    expect(deleted).not.toHaveBeenCalled();
+    const actions = asked.mock.calls[0][2] as Array<{ style?: string; onPress?: () => void }>;
+    await act(async () => actions.find((a) => a.style === 'destructive')!.onPress!());
+    expect(deleted).toHaveBeenCalledWith('token', 'sess_1', 's1');
+
+    asked.mockRestore();
     act(() => tree.unmount());
   });
 
@@ -788,7 +828,7 @@ describe('rooms on the Record tab', () => {
     await settle();
 
     let menu = openMenu(tree);
-    expect(menu.options).toEqual(['Share text', 'Send to noesis']);
+    expect(menu.options).toEqual(['Share text', 'Send to noesis', 'Delete text']);
     menu.choose('Send to noesis');
     await settle();
     // One library: no second question.
@@ -829,7 +869,7 @@ describe('rooms on the Record tab', () => {
     tree = render(screen());
     showTab(tree, 'Record');
     await settle();
-    expect(openMenu(tree).options).toEqual(['Share text']);
+    expect(openMenu(tree).options).toEqual(['Share text', 'Delete text']);
     act(() => tree.unmount());
     for (const spy of [noesis, sent, alert]) spy.mockRestore();
   });

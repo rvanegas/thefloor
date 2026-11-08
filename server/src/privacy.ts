@@ -155,6 +155,12 @@ export interface PolicyOptions {
  */
 export const LIBRARY_PRIVACY_UPDATED = '7 November 2026';
 
+/**
+ * When the page last changed for a reader whose server can transcribe live,
+ * where that paragraph is: its text deletable on its own since 2026-11-07.
+ */
+export const LIVE_PRIVACY_UPDATED = '7 November 2026';
+
 /** The latest of several of these dates, as written. */
 const latestOf = (dates: readonly string[]) =>
   dates.reduce((latest, date) => (Date.parse(date) > Date.parse(latest) ? date : latest));
@@ -287,12 +293,13 @@ person’s audio is streamed to ${provider} as it is spoken, the parts a
 silenced person spoke while they did not hold the floor replaced with silence
 first, and only the text that comes back is kept: one line per thing said, with
 the speaker’s name and the time, readable by the channel’s members and
-deleted with the channel, on the same schedule as everything else in it. The
-audio itself is not stored here.</p>
+deleted with the channel, on the same schedule as everything else in it, or
+before that on its own, as any transcript can be. The audio itself is not
+stored here.</p>
 `
       : ''
   }
-<p>A transcript can also be deleted on its own, leaving the recording. That
+<p>A transcript can also be deleted on its own, leaving any recording. That
 works the same way: it disappears for everyone at once, and the text is removed
 about ${TRANSCRIPT_RETENTION_DAYS} days later. Longer than the week a deleted
 recording gets, and for a reason worth saying: deleting a recording by mistake
@@ -374,6 +381,7 @@ ${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}
     // first one listed: the library's moved past the digest's on 2026-11-07.
     standfirst: `The Floor · last updated ${latestOf([
       PRIVACY_UPDATED,
+      ...(live ? [LIVE_PRIVACY_UPDATED] : []),
       ...(claude ? [CLAUDE_PRIVACY_UPDATED] : []),
       ...(library ? [LIBRARY_PRIVACY_UPDATED] : []),
       ...(digest ? [DIGEST_PRIVACY_UPDATED] : []),

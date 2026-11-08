@@ -182,7 +182,7 @@ export class LiveTranscriber {
     const rows = this.options.db
       .prepare(
         `SELECT id, identity, display_name, start_at, end_at, text, confidence, speaker
-         FROM live_lines WHERE channel_id = ? AND start_at < ?
+         FROM live_lines WHERE channel_id = ? AND start_at < ? AND deleted_at IS NULL
          ORDER BY start_at DESC LIMIT ?`
       )
       .all(channelId, before, limit) as unknown as LineRow[];
@@ -192,7 +192,7 @@ export class LiveTranscriber {
   /** Whether a channel has any live transcript at all. */
   hasLines(channelId: string): boolean {
     return !!this.options.db
-      .prepare('SELECT 1 FROM live_lines WHERE channel_id = ? LIMIT 1')
+      .prepare('SELECT 1 FROM live_lines WHERE channel_id = ? AND deleted_at IS NULL LIMIT 1')
       .get(channelId);
   }
 

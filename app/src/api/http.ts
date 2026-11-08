@@ -1036,4 +1036,14 @@ export const api = {
       method: 'DELETE',
       token,
     }),
+
+  /**
+   * Removes the live text one finished segment kept, and leaves its audio.
+   * Since 2026-11-07; a server before then answers 404.
+   */
+  deleteSegmentText: (token: string, channelId: string, segmentId: string) =>
+    request<{ ok: true }>(
+      `/channels/${channelId}/segments/${encodeURIComponent(segmentId)}/text`,
+      { method: 'DELETE', token }
+    ),
 };

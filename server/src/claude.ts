@@ -559,7 +559,7 @@ export function databaseSources(
         db
           .prepare(
             `SELECT display_name, start_at, text FROM live_lines
-             WHERE channel_id = ? AND start_at >= ? AND start_at <= ?
+             WHERE channel_id = ? AND start_at >= ? AND start_at <= ? AND deleted_at IS NULL
              ORDER BY start_at, id`
           )
           .all(channelId, from, until) as unknown as Array<{

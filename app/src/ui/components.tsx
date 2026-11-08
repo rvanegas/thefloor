@@ -1668,9 +1668,13 @@ export function RecordingRow({
         setRenaming(true);
       },
     },
-    ...transcript.items,
+    ...transcript.items.filter((item) => !item.destructive),
+    // *Delete audio*, then *Delete text*, since 2026-11-07, when *Delete
+    // recording* became the first: a segment is both, and either may go
+    // alone. The text is the batch transcript's, or the segment's own where
+    // it was kept live; only one of the two is ever offered.
     {
-      label: t.deleteRecording(),
+      label: t.deleteAudio(),
       destructive: true,
       disabled: !manageable,
       // Confirmed first, and the confirmation says what the week is for. This
@@ -1679,7 +1683,7 @@ export function RecordingRow({
       // it, not just whoever tapped. Deleting is marking: it leaves every list
       // at once, and the sweep removes the audio a week later.
       onPress: () =>
-        Alert.alert(t.deleteAsk(recording.name), t.deleteBody(), [
+        Alert.alert(t.deleteAsk(), t.deleteBody(), [
           { text: t.keep(), style: 'cancel' },
           {
             text: t.delete(),
@@ -1691,6 +1695,8 @@ export function RecordingRow({
           },
         ]),
     },
+    ...transcript.items.filter((item) => item.destructive),
+    ...(head.menu.remove ?? []),
   ];
   const notes = [
     // Said once, for the two it greys: the segment's audio, and Play. Renaming
@@ -2014,7 +2020,7 @@ function transcriptActions(
     if (transcript.mayRemove === false) return { items: [], notes };
     const remove = () =>
       Alert.alert(
-        said.deleteThisTranscript(),
+        said.deleteThisText(),
         // Says the cost out loud. Nothing is refunded, and the app
         // should not let somebody find that out by asking again.
         said.deleteCost(),
@@ -2031,7 +2037,7 @@ function transcriptActions(
         ]
       );
     return {
-      items: [{ label: said.deleteTranscript(), destructive: true, disabled: !manageable, onPress: remove }],
+      items: [{ label: said.deleteText(), destructive: true, disabled: !manageable, onPress: remove }],
       notes,
     };
   }

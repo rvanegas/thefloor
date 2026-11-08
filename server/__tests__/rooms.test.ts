@@ -2,6 +2,7 @@ import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
 import { ROOM_DEPARTURE_MS } from '../src/rooms';
+import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
 
 /**
  * Rooms: a channel's sittings, from the first member stepping in to the last
@@ -299,6 +300,7 @@ describe('rooms', () => {
       ).json() as {
         rooms: Array<{
           segments: Array<{
+            id: string;
             startedAt: number;
             endedAt: number | null;
             recordingId: string | null;
@@ -435,5 +437,88 @@ describe('rooms', () => {
       [opened + 10_000, opened + 70_000, `rec_${opened + 10_000}`, true],
       [opened + 100_000, opened + 101_000, null, true],
     ]);
+  });
+
+  it('forget a segment\'s deleted audio, and a segment that kept nothing else', async () => {
+    const { alice, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    const t0 = clock;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'START_RECORDING' });
+    const first = app.channels.get(channelId)!.recording.runId!;
+    clock += 10_000;
+    app.channels.setLiveTranscription(channelId, alice.account.id, true);
+    const second = app.channels.get(channelId)!.recording.runId!;
+    line(channelId, t0 + 15_000);
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_LIVE_TRANSCRIPTION' });
+
+    expect(app.channels.deleteRecording(first, alice.account.id)).toEqual({ ok: true });
+    expect(app.channels.deleteRecording(second, alice.account.id)).toEqual({ ok: true });
+
+    const [room] = await roomsOf(channelId, alice.token);
+    expect(room.segments.map((s) => [s.startedAt, s.recordingId, s.text])).toEqual([
+      [t0 + 10_000, null, true],
+      [t0 + 20_000, null, true],
+    ]);
+  });
+
+  it('delete a finished segment\'s live text, for everybody, and sweep it a month later', async () => {
+    const { alice, bob, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    const t0 = clock;
+    app.channels.setLiveTranscription(channelId, alice.account.id, true, true);
+    line(channelId, t0 + 1_000);
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STOP_RECORDING' });
+    line(channelId, t0 + 11_000);
+    const remove = (segmentId: string, token: string) =>
+      app.fastify.inject({
+        method: 'DELETE',
+        url: `/channels/${channelId}/segments/${segmentId}/text`,
+        headers: auth(token),
+      });
+
+    // Text alone, still being written down.
+    let [room] = await roomsOf(channelId, alice.token);
+    const [both, alone] = room.segments;
+    expect(alone.endedAt).toBeNull();
+    expect((await remove(alone.id, alice.token)).statusCode).toBe(409);
+
+    clock += 10_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'PAUSE_LIVE_TRANSCRIPTION' });
+    const stranger = await signIn('eve@example.com', 'Eve');
+    expect((await remove(both.id, stranger.token)).statusCode).toBe(404);
+    expect((await remove(both.id, alice.token)).statusCode).toBe(200);
+    // Nothing left to delete.
+    expect((await remove(both.id, alice.token)).statusCode).toBe(404);
+
+    // The audio stays, keeping no text; the next segment's line is untouched.
+    [room] = await roomsOf(channelId, bob.token);
+    expect(room.segments.map((s) => [s.id, s.recordingId, s.text])).toEqual([
+      [both.id, both.recordingId, false],
+      [alone.id, null, true],
+    ]);
+    const unmarked = app.db
+      .prepare('SELECT start_at FROM live_lines WHERE channel_id = ? AND deleted_at IS NULL')
+      .all(channelId) as Array<{ start_at: number }>;
+    expect(unmarked.map((l) => l.start_at)).toEqual([t0 + 11_000]);
+
+    // Text alone that is deleted leaves nothing to list.
+    expect((await remove(alone.id, alice.token)).statusCode).toBe(200);
+    [room] = await roomsOf(channelId, alice.token);
+    expect(room.segments.map((s) => s.id)).toEqual([both.id]);
+
+    const kept = () =>
+      (app.db.prepare('SELECT COUNT(*) AS n FROM live_lines WHERE channel_id = ?').get(channelId) as {
+        n: number;
+      }).n;
+    expect(kept()).toBe(2);
+    clock += TRANSCRIPT_DELETED_RETENTION_MS + 1;
+    await app.channels.sweepDeleted(clock);
+    expect(kept()).toBe(0);
   });
 });

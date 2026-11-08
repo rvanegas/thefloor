@@ -555,8 +555,12 @@ export const es: Strings = {
     headerKind: () => 'Invitado',
   },
   transcript: {
-    deleteTranscript: () => 'Borrar la transcripci\u00f3n',
-    deleteThisTranscript: () => '\u00bfBorrar esta transcripci\u00f3n?',
+    deleteText: () => 'Borrar texto',
+    deleteThisText: () => '\u00bfBorrar este texto?',
+    deleteLiveBody: () =>
+      'Todos los de este canal lo pierden, y nada en la app puede recuperarlo.',
+    stepInToDelete: () =>
+      'Entra para borrar. Borrar lo quita tambi\u00e9n del Grabado de todos.',
     deleteCost: () =>
       'La grabaci\u00f3n se conserva. Volver a transcribirla cuesta lo mismo que la primera vez.',
     deleteConfirm: () => 'Borrar',
@@ -1424,11 +1428,11 @@ export const es: Strings = {
     cancel: () => 'Cancelar',
     couldNotDelete: () => 'No se ha podido borrar',
     deleting: () => 'Borrando\u2026',
-    deleteRecording: () => 'Borrar grabaci\u00f3n',
+    deleteAudio: () => 'Borrar audio',
     delete: () => 'Borrar',
-    deleteAsk: (name: string) => `\u00bfBorrar ${name}?`,
+    deleteAsk: () => '\u00bfBorrar este audio?',
     deleteBody: () =>
-      'Todos los de este canal la pierden. El audio se elimina dentro de una semana, y nada en la app puede recuperarlo.',
+      'Todos los de este canal lo pierden. Se elimina dentro de una semana, y nada en la app puede recuperarlo.',
     keep: () => 'Conservar',
     publishedPreparing: () => 'Publicada: el audio a\u00fan se est\u00e1 preparando.',
     published: () => 'Publicada. Cualquiera con la direcci\u00f3n puede escucharla.',

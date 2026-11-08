@@ -14,6 +14,8 @@ export interface SegmentRow {
   /** The document it was filed as, by its path in the library. */
   filed_file: string | null;
   filed_title: string | null;
+  /** When its live text was deleted on its own; `text` is 0 from then. */
+  text_deleted_at: number | null;
 }
 
 /**

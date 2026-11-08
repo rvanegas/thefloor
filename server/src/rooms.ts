@@ -123,7 +123,7 @@ export class Rooms {
        ORDER BY started_at`
     );
     const transcribedIn = this.db.prepare(
-      'SELECT 1 FROM live_lines WHERE channel_id = ? AND start_at >= ? AND start_at <= ? LIMIT 1'
+      'SELECT 1 FROM live_lines WHERE channel_id = ? AND start_at >= ? AND start_at <= ? AND deleted_at IS NULL LIMIT 1'
     );
     // A batch transcript is the room's text as much as a live line is, since
     // 2026-10-10: it is drawn in the log the same way and shared with it.
@@ -203,16 +203,32 @@ export class Rooms {
   ): SegmentView[] {
     const written = this.segments?.within(channelId, from, until) ?? [];
     if (written.length > 0) {
-      return written.map((row) => ({
-        id: row.id,
-        startedAt: row.started_at,
-        endedAt: row.ended_at,
-        recordingId: row.recording_id,
-        text: row.text === 1,
-        ...(row.filed_file && (row.filed_at ?? 0) > 0
-          ? { filed: { file: row.filed_file, title: row.filed_title } }
-          : {}),
-      }));
+      // A segment's audio that has since been deleted is audio it no longer
+      // keeps, since 2026-11-07: listed with it, the line went on saying
+      // *Audio + Text* and greying *Share audio* as though the recording were
+      // still being filed, which ends on its own and this never does. One
+      // still being filed has no `deleted_at` and keeps its id.
+      const deletedRun = this.db.prepare(
+        'SELECT deleted_at FROM recordings WHERE id = ?'
+      );
+      const gone = (id: string) => {
+        const run = deletedRun.get(id) as { deleted_at: number | null } | undefined;
+        return !run || run.deleted_at !== null;
+      };
+      return written
+        .map((row) => ({
+          id: row.id,
+          startedAt: row.started_at,
+          endedAt: row.ended_at,
+          recordingId: row.recording_id && !gone(row.recording_id) ? row.recording_id : null,
+          text: row.text === 1,
+          // Not the document of text since deleted, which is on its way out.
+          ...(row.filed_file && (row.filed_at ?? 0) > 0 && !row.text_deleted_at
+            ? { filed: { file: row.filed_file, title: row.filed_title } }
+            : {}),
+        }))
+        // A finished one left keeping nothing is nothing to show.
+        .filter((segment) => segment.endedAt === null || segment.recordingId !== null || segment.text);
     }
     const runs = recordingIds
       .map(
@@ -224,7 +240,7 @@ export class Rooms {
       .filter((r) => !!r);
     const linesIn = this.db.prepare(
       `SELECT MIN(start_at) first, MAX(end_at) last FROM live_lines
-       WHERE channel_id = ? AND start_at >= ? AND start_at < ?`
+       WHERE channel_id = ? AND start_at >= ? AND start_at < ? AND deleted_at IS NULL`
     );
     const derived: SegmentView[] = [];
     let gapFrom = from;

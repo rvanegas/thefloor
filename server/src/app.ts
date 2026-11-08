@@ -1323,7 +1323,7 @@ export function buildApp(options: BuildOptions = {}): App {
           (
             db
               .prepare(
-                'SELECT MIN(start_at) first FROM live_lines WHERE channel_id = ? AND start_at >= ?'
+                'SELECT MIN(start_at) first FROM live_lines WHERE channel_id = ? AND start_at >= ? AND deleted_at IS NULL'
               )
               .get(channelId, from) as { first: number | null }
           ).first,
@@ -5344,6 +5344,24 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(404).send({ error: 'No such transcript.' });
     }
     transcripts.deleteFor(id);
+    return { ok: true };
+  });
+
+  /**
+   * Removes the live text one segment kept, leaving its audio — *Delete
+   * text*, since 2026-11-07. The batch transcript, where that is a segment's
+   * text, goes by the route above. See `deleteSegmentText` for the terms.
+   */
+  fastify.delete('/channels/:id/segments/:segmentId/text', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, segmentId } = request.params as { id: string; segmentId: string };
+    const result = channels.deleteSegmentText(id, segmentId, account.id);
+    if (!result.ok) {
+      return reply
+        .code(result.code === 'conflict' ? 409 : result.code === 'forbidden' ? 403 : 404)
+        .send({ error: result.error });
+    }
     return { ok: true };
   });
 

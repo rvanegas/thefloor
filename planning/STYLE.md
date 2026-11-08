@@ -1367,7 +1367,7 @@ action on a segment is one menu since 2026-11-07**: the menu glyph at the
 header's end, where the share glyph was, opening a column of `Button`s under
 the line and closing it again — in the view, never a sheet over it — with
 *Share audio*, *Share text*, *Send to noesis*, *Open in noesis*, and a
-recording's *Play*, *Rename*, *Transcribe* and *Delete recording*, greyed
+recording's *Play*, *Rename*, *Transcribe*, *Delete audio* and *Delete text* (the two destructive ones last), greyed
 where refused with the sentences saying why under them (`useActionMenu`).
 On iOS it was the action sheet for its first day, until Rodrigo asked for it
 in the page, since a sheet takes the screen away from the segment. They
@@ -1653,7 +1653,7 @@ the copy.
   is nothing in it to press. It took the share glyph's place there — the
   share was the room's from 2026-10-09 and each segment's from the next day —
   when a segment's actions became one list, since a share glyph opening
-  *Rename* and *Delete recording* would say less than what it opens. Its
+  *Rename* and *Delete audio* would say less than what it opens. Its
   accessible name is *Actions for* the segment's hours.
 - **The *Invite card*, since 2026-10-16**, is *Add a contact*'s row on the
   People tab, the `+` and its word in the floor's colour, and so the third

@@ -441,7 +441,7 @@ describe('Channel', () => {
     // refused. Sharing is not, and that is the assertion worth having.
     const menu = openMenu(tree);
     expect(menu.disabled('Rename')).toBe(true);
-    expect(menu.disabled('Delete recording')).toBe(true);
+    expect(menu.disabled('Delete audio')).toBe(true);
     expect(menu.disabled('Share audio')).toBe(false);
     expect(menu.message).toContain('Step in to rename or delete');
     act(() => tree.unmount());
@@ -500,7 +500,7 @@ describe('Channel', () => {
     showRecord(tree);
     const menu = openMenu(tree);
     expect(menu.disabled('Rename')).toBe(false);
-    expect(menu.disabled('Delete recording')).toBe(false);
+    expect(menu.disabled('Delete audio')).toBe(false);
     // **Except pasting, since 2026-10-15**: a paste is kept in a room, and an
     // empty channel has none, so it waits for somebody to step in.
     expect(on('Paste my clipboard')).toEqual({ disabled: true });
@@ -3238,7 +3238,7 @@ describe('Channel', () => {
       'Play',
       'Share audio',
       'Rename',
-      'Delete recording',
+      'Delete audio',
     ]);
     // Under the line, and put away by the glyph that opened it.
     expect(findExactButton(tree, 'Rename')).toBeDefined();
@@ -3289,8 +3289,8 @@ describe('Channel', () => {
 
     const menu = openMenu(tree);
     // Red in the sheet, and asked about anyway.
-    expect(menu.destructive('Delete recording')).toBe(true);
-    menu.choose('Delete recording');
+    expect(menu.destructive('Delete audio')).toBe(true);
+    menu.choose('Delete audio');
     expect(asked).toHaveBeenCalled();
     // Nothing has happened yet — the question is the point.
     expect(deleted).not.toHaveBeenCalled();

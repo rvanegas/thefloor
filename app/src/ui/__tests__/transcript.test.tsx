@@ -209,7 +209,7 @@ describe("a recording's menu, on its transcript", () => {
 
   it('offers to delete one that is ready, and nothing more', () => {
     const menu = open(recordingWith('ready'));
-    expect(menu.labels).toContain('Delete transcript');
+    expect(menu.labels).toContain('Delete text');
     expect(menu.labels).not.toContain('Transcribe');
     act(() => menu.tree.unmount());
   });
@@ -217,7 +217,7 @@ describe("a recording's menu, on its transcript", () => {
   it('warns that deleting is not free to undo', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const menu = open(recordingWith('ready'));
-    menu.choose('Delete transcript');
+    menu.choose('Delete text');
 
     const [, body, buttons] = alert.mock.calls[0] as [
       string,
@@ -236,7 +236,7 @@ describe("a recording's menu, on its transcript", () => {
 
   it('greys deleting for somebody who is not in the room', () => {
     const menu = open(recordingWith('ready'), false);
-    expect(menu.disabled('Delete transcript')).toBe(true);
+    expect(menu.disabled('Delete text')).toBe(true);
     act(() => menu.tree.unmount());
   });
 

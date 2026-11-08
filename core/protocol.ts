@@ -1278,7 +1278,8 @@ export interface ChannelView {
    * or more after the segment ends, which nothing on the screen would
    * otherwise notice. The same reason as `liveTranscript` for being here, and
    * optional: a server that predates it sends nothing, and the tab fetches as
-   * it did.
+   * it did. **It moves when a segment's text is deleted too**, since the
+   * same day, for the same reason; the name says less than it does.
    */
   filedAt?: number | null;
   /**

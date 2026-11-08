@@ -15,6 +15,7 @@ import {
   CLAUDE_PRIVACY_UPDATED,
   DIGEST_PRIVACY_UPDATED,
   LIBRARY_PRIVACY_UPDATED,
+  LIVE_PRIVACY_UPDATED,
   PRIVACY_UPDATED,
 } from '../src/privacy';
 import { MemoryMediaServer } from '../src/media';
@@ -338,7 +339,22 @@ describe('The privacy policy', () => {
       expect(page).toContain('five minutes after it first writes down something said in a conversation');
       expect(page).toContain('what has been said so far is sent to Anthropic');
       expect(page).toContain('members who are not in the conversation');
-      expect(page).toContain(`last updated ${DIGEST_PRIVACY_UPDATED}`);
+      // Past the digest's since 2026-11-07, live text being deletable on its
+      // own: the latest paragraph shown dates the page.
+      expect(page).not.toContain(`last updated ${DIGEST_PRIVACY_UPDATED}`);
+      expect(page).toContain(`last updated ${LIVE_PRIVACY_UPDATED}`);
+    });
+
+    it('says live text can be deleted on its own, where there can be any, with its own date', async () => {
+      app = buildApp({
+        dbPath: ':memory:',
+        transcription: new MemoryTranscription(),
+        streaming: new MemoryStreaming(),
+        media: new MemoryMediaServer(),
+      });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).toContain('or before that on its own, as any transcript can be');
+      expect(page).toContain(`last updated ${LIVE_PRIVACY_UPDATED}`);
     });
 
     it('dates the page by the latest paragraph shown, the library’s past the digest’s', async () => {

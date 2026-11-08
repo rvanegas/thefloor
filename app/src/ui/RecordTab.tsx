@@ -57,7 +57,16 @@ import { colors, formatDuration, measure, spacing, type } from './theme';
  */
 export interface SegmentHead {
   label: string;
-  menu: { label: string; items: readonly MenuItem[]; busy: string | null };
+  /**
+   * `remove` is *Delete text* where the segment kept its text live, which
+   * `RecordingRow` puts after its own *Delete audio*. Since 2026-11-07.
+   */
+  menu: {
+    label: string;
+    items: readonly MenuItem[];
+    remove?: readonly MenuItem[];
+    busy: string | null;
+  };
   open: boolean;
   onToggle: () => void;
 }
@@ -128,6 +137,7 @@ export function RecordTab({
   paused = false,
   recordings,
   keptKey = '',
+  manageable = true,
   renderRecording,
 }: {
   channelId: string;
@@ -147,6 +157,12 @@ export function RecordTab({
    * segment was last filed in the channel's library, which adds its title.
    */
   keptKey?: string;
+  /**
+   * Whether you may delete what a segment kept: present or the room empty,
+   * and not a channel only its owner runs. `RecordingRow`'s, for a segment
+   * with no recording.
+   */
+  manageable?: boolean;
   /** One recording as a segment's line of the log. */
   renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
 }) {
@@ -398,6 +414,7 @@ export function RecordTab({
               name={name}
               item={item}
               libraries={libraries}
+              manageable={manageable}
               renderRecording={renderRecording}
             />
           ))}
@@ -416,12 +433,14 @@ function Segment({
   name,
   item,
   libraries,
+  manageable,
   renderRecording,
 }: {
   channelId: string;
   name: string;
   item: SegmentItem;
   libraries: readonly string[];
+  manageable: boolean;
   renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
 }) {
   const t = useText().channel;
@@ -435,6 +454,7 @@ function Segment({
         name={name}
         item={item}
         libraries={libraries}
+        manageable={manageable}
         renderRecording={renderRecording}
         open={open}
         onToggle={() => setOpen((was) => !was)}
@@ -504,6 +524,7 @@ export function SegmentLine({
   name,
   item,
   libraries = [],
+  manageable = true,
   renderRecording,
   open = false,
   onToggle = () => {},
@@ -513,14 +534,19 @@ export function SegmentLine({
   item: SegmentItem;
   /** Your noesis libraries the menu may send the text to; none leaves it out. */
   libraries?: readonly string[];
+  /** Whether you may delete its text; see `RecordTab`. */
+  manageable?: boolean;
   renderRecording?: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
   open?: boolean;
   onToggle?: () => void;
 }) {
   const t = useText().channel;
+  const said = useText().transcript;
+  const recordingWords = useText().recordings;
   const linkWords = useText().links;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
+  const [deleting, setDeleting] = React.useState(false);
   /** Everywhere but iOS, whether which library is being chosen. */
   const [choosing, setChoosing] = React.useState(false);
   const { segment, recording } = item;
@@ -598,6 +624,38 @@ export function SegmentLine({
     }
   };
 
+  /**
+   * Deletes the text this segment kept live, for everybody, after asking:
+   * *Delete text*, since 2026-11-07. Nothing to do on success — the snapshot
+   * that follows moves the rooms, which drop it.
+   */
+  const removeText = () =>
+    Alert.alert(said.deleteThisText(), said.deleteLiveBody(), [
+      { text: recordingWords.keep(), style: 'cancel' },
+      {
+        text: recordingWords.delete(),
+        style: 'destructive',
+        onPress: () => {
+          if (!app.token) return;
+          const token = app.token;
+          setDeleting(true);
+          api
+            .deleteSegmentText(token, channelId, segment.id)
+            .catch((e: unknown) =>
+              Alert.alert(said.couldNotDelete(), e instanceof Error ? e.message : String(e))
+            )
+            .finally(() => setDeleting(false));
+        },
+      },
+    ]);
+  // Only once it is finished, while it is still being written down there
+  // being more to come, which the server refuses; and only with something
+  // said in it. Its pastes are not its text, and are never deleted.
+  const remove =
+    segment.text && segment.endedAt !== null && item.lines.length > 0
+      ? [{ label: said.deleteText(), destructive: true, disabled: !manageable, onPress: removeText }]
+      : [];
+
   const menu: SegmentHead['menu'] = {
     label: t.segmentActions(span),
     items: [
@@ -612,11 +670,17 @@ export function SegmentLine({
         ? [{ label: t.openFiledInNoesis(), onPress: () => void openUrl(filed, linkWords) }]
         : []),
     ],
-    busy: busy ? t.preparingKept() : null,
+    remove,
+    busy: deleting ? recordingWords.deleting() : busy ? t.preparingKept() : null,
   };
   // Drawn by `RecordingRow` instead where there is a recording, which adds its
   // own actions; called either way, being a hook.
-  const own = useActionMenu(menu);
+  const own = useActionMenu({
+    label: menu.label,
+    items: [...menu.items, ...remove],
+    notes: remove.length > 0 && !manageable ? [said.stepInToDelete()] : [],
+    busy: menu.busy,
+  });
 
   // A paste is an instant, said by its own entry's name and time; there are
   // no hours to give it and nothing to do with it but what Copy already does.

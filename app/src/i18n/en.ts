@@ -735,8 +735,14 @@ export const en = {
     headerKind: () => 'Guest',
   },
   transcript: {
-    deleteTranscript: () => 'Delete transcript',
-    deleteThisTranscript: () => 'Delete this transcript?',
+    /** *Delete audio*'s other half, whichever way the text was kept. */
+    deleteText: () => 'Delete text',
+    deleteThisText: () => 'Delete this text?',
+    /** For text kept live, which nobody paid to have made. */
+    deleteLiveBody: () =>
+      'Everyone in this channel loses it, and nothing in the app can bring it back.',
+    stepInToDelete: () =>
+      "Step in to delete. Deleting takes it out of everybody's Record too.",
     deleteCost: () =>
       'The recording is kept. Transcribing it again costs the same as the first time.',
     deleteConfirm: () => 'Delete',
@@ -1804,15 +1810,15 @@ export const en = {
     couldNotDelete: () => 'Could not delete',
     deleting: () => 'Deleting\u2026',
     /**
-     * In a segment's menu, since 2026-11-07, where *Delete transcript* can be
-     * beside it; `delete` is the confirmation's button, the question having
-     * already named the recording.
+     * In a segment's menu, since 2026-11-07, beside *Delete text*: what each
+     * takes is said in the item, the segment being both. `delete` is the
+     * confirmation's button, the question having already said which.
      */
-    deleteRecording: () => 'Delete recording',
+    deleteAudio: () => 'Delete audio',
     delete: () => 'Delete',
-    deleteAsk: (name: string) => `Delete ${name}?`,
+    deleteAsk: () => 'Delete this audio?',
     deleteBody: () =>
-      'Everyone in this channel loses it. The audio is removed a week from now, and nothing in the app can bring it back.',
+      'Everyone in this channel loses it. It is removed a week from now, and nothing in the app can bring it back.',
     keep: () => 'Keep',
     publishedPreparing: () => 'Published — the audio is still being prepared.',
     published: () => 'Published. Anybody with the address can listen.',

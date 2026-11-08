@@ -3966,6 +3966,7 @@ export function ChannelView({
           // so one arriving means the rooms are fetched again. And when a
           // segment was last filed in the channel's library, for its title.
           keptKey={`${channel.recording.runId}:${isTranscribingLive(channel)}:${channel.clip?.id ?? ''}:${view?.filedAt ?? ''}`}
+          manageable={presentOrEmptyForMe && !ownersAlone}
           renderRecording={(r, head) => (
             <RecordingRow
               key={r.id}

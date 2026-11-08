@@ -3180,6 +3180,19 @@ function migrate(db: Db): void {
   if (!hasColumn(db, 'pastes', 'working')) {
     db.exec('ALTER TABLE pastes ADD COLUMN working TEXT');
   }
+  /*
+    A segment's live text deleted on its own, since 2026-11-07 (*Delete
+    text*): each line marked, and unreachable from the mark; the segment marked
+    too, with `text` cleared, so the sweep can find the document it was filed
+    as. Both go on TRANSCRIPT_DELETED_RETENTION_MS, as a transcript deleted on
+    its own does. Null on everything that exists, none of it deleted.
+  */
+  if (!hasColumn(db, 'live_lines', 'deleted_at')) {
+    db.exec('ALTER TABLE live_lines ADD COLUMN deleted_at INTEGER');
+  }
+  if (!hasColumn(db, 'segments', 'text_deleted_at')) {
+    db.exec('ALTER TABLE segments ADD COLUMN text_deleted_at INTEGER');
+  }
   // The feed reads published recordings of one channel, in `started_at`
   // order, on every poll by every subscriber and every aggregator. Partial
   // so it covers the few rows that are published rather than every recording

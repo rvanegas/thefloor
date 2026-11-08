@@ -132,7 +132,7 @@ caused; the list carries the meaning.
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Text made from a recording, on request, by a provider — offered only for a recording made with no *live transcript*, and drawn in the *Record* log under it as live lines are, since 2026-10-10, when its own screen went; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
 - **Free minutes** — What an account without the `transcripts_unlimited` mark may spend on transcription each calendar week, from Monday 00:00 UTC: `FREE_TRANSCRIPT_MINUTES`, 60 unless set, shared between a recording's *transcript* (length times stems, held when asked for) and the *live transcript* (each session's open time, billed to whoever switched it on), and kept in `transcript_usage`. Since 2026-10-10, replacing one free transcript per account
-- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10, and with a server restart since 2026-10-28; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes. Since 2026-10-09
+- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10, and with a server restart since 2026-10-28; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes; a finished *segment*'s deleted on its own by *Delete text* since 2026-11-07. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
@@ -333,7 +333,7 @@ library does not hold stays in full as before (`composeLibraryRecord`).
 so a member matches the two without opening either; the segment's menu has
 *Open in noesis*, which opens that document. **Deleting the channel deletes it**, and deleting a recording deletes
 the document its transcript was filed as, a week later as everything deleted
-goes, the card saying it can be recovered until then. See
+goes — and deleting a segment's live text, a month later, its own — the card saying it can be recovered until then. See
 task/a-channel-has-its-own-noesis-library.md and
 `server/src/channelLibraries.ts`.
 
@@ -2782,8 +2782,15 @@ audio is its recording's line, and opened to that recording's name until
 drawn. **Every
 action is in the menu since 2026-11-07** — *Share audio*, *Share text*,
 *Send to noesis*, *Open in noesis*, and a recording's *Play*, *Rename*,
-*Transcribe* and *Delete recording* — a column of buttons the glyph opens
-under the line, in the view rather than as a sheet over it. They were three
+*Transcribe* and *Delete audio*, then *Delete text* — a column of buttons the glyph opens
+under the line, in the view rather than as a sheet over it. **A segment's
+audio and its text are deleted apart since 2026-11-07**: *Delete recording*
+became *Delete audio*, and *Delete text* takes the batch transcript or, where
+the text was kept live, its lines — offered once the segment has finished and
+has something said in it, never its *pastes*. Text deleted goes from every
+screen at once and is removed a month later, as a transcript deleted on its
+own is. A segment whose audio is deleted keeps no audio, and says so; one left
+keeping nothing is not drawn. They were three
 things until then: a share glyph asking *Audio* or *Text*, wide buttons in
 the open recording, and *Open in noesis* under the line.
 

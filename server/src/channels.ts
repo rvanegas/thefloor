@@ -20,6 +20,7 @@ import {
   MAX_PING_TEXT_LENGTH,
   MAX_RECORDING_NAME_LENGTH,
   MIN_PARTICIPANTS_TO_REMOVE,
+  TRANSCRIPT_DELETED_RETENTION_MS,
   WAITING_WINDOW_MS,
 } from '../../core/constants';
 import { playbackPositionMs } from '../../core/playback';
@@ -1306,9 +1307,19 @@ export class ChannelRegistry {
 
   /** When a segment of a channel was last filed in its library, for its snapshot; null for never. */
   lastFiledAt(channelId: string): number | null {
+    // And when a segment's text was last deleted, since 2026-11-07: the
+    // snapshot's `filedAt` is what tells the *Record* to look at the rooms
+    // again, and every installed build reads it, so the text goes from every
+    // screen at once as the privacy page says. The name now undersells it.
     const row = this.db
-      .prepare('SELECT MAX(filed_at) AS at FROM segments WHERE channel_id = ? AND filed_at > 0')
-      .get(channelId) as { at: number | null } | undefined;
+      .prepare(
+        `SELECT MAX(at) AS at FROM (
+           SELECT MAX(filed_at) AS at FROM segments WHERE channel_id = ? AND filed_at > 0
+           UNION ALL
+           SELECT MAX(text_deleted_at) FROM segments WHERE channel_id = ?
+         )`
+      )
+      .get(channelId, channelId) as { at: number | null } | undefined;
     return row?.at ?? null;
   }
 
@@ -4529,6 +4540,91 @@ export class ChannelRegistry {
   }
 
   /**
+   * Deletes the live text one finished segment kept, leaving its audio, since
+   * 2026-11-07 — *Delete text*, beside *Delete audio*. A recording's batch
+   * transcript is deleted by its own route; this is the text that has no
+   * recording behind it, which until now went only with the channel.
+   *
+   * **On a transcript's terms**, being the same thing made another way:
+   * gone for everybody at once, and swept TRANSCRIPT_DELETED_RETENTION_MS
+   * later (`sweepDeletedText`), with the document it was filed as. And on a
+   * recording's guards, which a segment shares, being part of the same room.
+   *
+   * The segment is found by its id among what `Rooms.forChannel` lists, which
+   * is the one place a segment from before 2026-10-10 exists at all. A paste
+   * kept inside it is not its text: pastes are never deleted.
+   */
+  deleteSegmentText(
+    channelId: string,
+    segmentId: string,
+    userId: string
+  ): { ok: true } | Refused {
+    const now = this.now();
+    const segment = this.isMemberOf(channelId, userId)
+      ? this.rooms
+          .forChannel(channelId, now)
+          .flatMap((room) => room.segments)
+          .find((candidate) => candidate.id === segmentId && !candidate.paste)
+      : undefined;
+    if (!segment || !segment.text) {
+      return { ok: false, error: 'No such text.', code: 'not_found' };
+    }
+    if (segment.endedAt === null) {
+      return {
+        ok: false,
+        error: 'This is still being written down. Switch Text off to delete it.',
+        code: 'conflict',
+      };
+    }
+    if (!this.holdsTheControlsIn(channelId, userId)) return OWNERS_ALONE;
+    if (!this.presentOrEmptyIn(channelId, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to delete text.',
+        code: 'conflict',
+      };
+    }
+    // The span the *Record* draws the segment's lines from, ends included.
+    this.db
+      .prepare(
+        `UPDATE live_lines SET deleted_at = ?
+         WHERE channel_id = ? AND start_at >= ? AND start_at <= ? AND deleted_at IS NULL`
+      )
+      .run(now, channelId, segment.startedAt, segment.endedAt);
+    this.db
+      .prepare('UPDATE segments SET text = 0, text_deleted_at = ? WHERE id = ? AND channel_id = ?')
+      .run(now, segmentId, channelId);
+    this.emit([channelId]);
+    return { ok: true };
+  }
+
+  /**
+   * Removes the live text `deleteSegmentText` marked, once its window has
+   * passed: the document a segment was filed as first, then the lines — the
+   * recordings sweep's order, the segment's mark being the only record of
+   * which document was its. One whose document would not go keeps its mark
+   * for the next sweep; its lines go regardless, being nothing it names.
+   */
+  async sweepDeletedText(now: number): Promise<void> {
+    const cutoff = now - TRANSCRIPT_DELETED_RETENTION_MS;
+    const filed = this.db
+      .prepare(
+        `SELECT s.id, s.filed_file, c.handle FROM segments s JOIN channels c ON c.id = s.channel_id
+          WHERE s.text_deleted_at IS NOT NULL AND s.text_deleted_at <= ?
+            AND s.filed_file IS NOT NULL AND c.handle IS NOT NULL`
+      )
+      .all(cutoff) as unknown as Array<{ id: string; filed_file: string; handle: string }>;
+    for (const row of filed) {
+      if (this.libraryCleaner && (await this.libraryCleaner.deleteDocument(row.handle, row.filed_file))) {
+        this.db.prepare('UPDATE segments SET filed_file = NULL WHERE id = ?').run(row.id);
+      }
+    }
+    this.db
+      .prepare('DELETE FROM live_lines WHERE deleted_at IS NOT NULL AND deleted_at <= ?')
+      .run(cutoff);
+  }
+
+  /**
    * Renames one recording, for everybody who can reach it.
    *
    * The same reach test as deleting, and for the same reason: a recording
@@ -4752,6 +4848,9 @@ export class ChannelRegistry {
            AND NOT EXISTS (SELECT 1 FROM recordings WHERE recordings.channel_id = channels.id)`
       )
       .run(cutoff);
+    // Text deleted on its own, on its own longer window, from both of this
+    // sweep's callers.
+    await this.sweepDeletedText(now);
     return { recordings, channels: Number(gone.changes ?? 0) };
   }
 
