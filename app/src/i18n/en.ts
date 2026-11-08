@@ -1513,23 +1513,26 @@ export const en = {
     preparingKept: () => 'Preparing\u2026',
     couldNotShareKept: () => 'Could not share',
     /**
-     * Share's question, answered by `audio` and `keepText`, naming a segment
-     * by its hours (`roomSpan`); see `chooseWhatToShare`.
+     * What a screen reader calls a segment's menu, since 2026-11-07, naming
+     * the segment by its hours (`roomSpan`); see `SegmentLine`.
      */
-    shareSpan: (span: string) => `Share ${span}`,
+    segmentActions: (span: string) => `Actions for ${span}`,
+    /** In a segment's menu: its audio, or its text, as a file. */
+    shareAudio: () => 'Share audio',
+    shareText: () => 'Share text',
     /** A segment kept as audio and as text, on its line. */
     keptBoth: () => 'Audio + Text',
     roomTextCopied: () => 'The text is copied.',
     /**
-     * Share's third answer, since 2026-11-02, offered to somebody whose noesis
+     * In a segment's menu, since 2026-11-02, offered to somebody whose noesis
      * library is connected with sending granted: the segment's text, filed in
      * a library of theirs as a conversation. *noesis* stays lower-case, as it
      * names itself.
      */
     sendToNoesis: () => 'Send to noesis',
     /**
-     * Beside a segment's title in the channel's library, since 2026-11-07:
-     * opens that document in noesis's web client.
+     * In a segment's menu once it is filed in the channel's library, since
+     * 2026-11-07: opens that document in noesis's web client.
      */
     openFiledInNoesis: () => 'Open in noesis',
     /** Which library, asked only of somebody with more than one. */
@@ -1800,6 +1803,12 @@ export const en = {
     cancel: () => 'Cancel',
     couldNotDelete: () => 'Could not delete',
     deleting: () => 'Deleting\u2026',
+    /**
+     * In a segment's menu, since 2026-11-07, where *Delete transcript* can be
+     * beside it; `delete` is the confirmation's button, the question having
+     * already named the recording.
+     */
+    deleteRecording: () => 'Delete recording',
     delete: () => 'Delete',
     deleteAsk: (name: string) => `Delete ${name}?`,
     deleteBody: () =>
@@ -1844,9 +1853,6 @@ export const en = {
           : ''),
     useIt: () => 'Use it',
     couldNotTranscribe: () => 'Could not transcribe',
-    preparing: () => 'Preparing\u2026',
-    share: () => 'Share',
-    couldNotShare: () => 'Could not share',
     guestWithNoAccount: () =>
       'Somebody spoke here as a guest without an account, so this one cannot be published — there is nobody to ask.',
   },

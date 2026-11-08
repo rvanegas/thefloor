@@ -36,7 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
-- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro*, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro nothing new goes in. Told on *Channel Settings*' card, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, with *Open in noesis*. Deleted a week after the channel is. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
+- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro*, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro nothing new goes in. Told on *Channel Settings*' card, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis*. Deleted a week after the channel is. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
@@ -125,7 +125,7 @@ caused; the list carries the meaning.
 - **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off, by a Pause, or by *Text* changing under it, since 2026-10-10, or by a film being played over it, since 2026-10-26 — each one the audio of exactly one *segment* of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
-- **Share** — Handing a copy of a *segment*'s audio or its text — live or *transcript* — or the channel's track to whatever else is on the device; called *Export* until 2026-09-12. A segment's also offers *Send to noesis*, since 2026-11-02, to somebody whose *library* may take it
+- **Share** — Handing a copy of a *segment*'s audio or its text — live or *transcript* — or the channel's track to whatever else is on the device; called *Export* until 2026-09-12. A segment's is *Share audio* and *Share text* in its menu, since 2026-11-07, beside *Send to noesis*, since 2026-11-02, for somebody whose *library* may take it
 - **Send to noesis** — Share's third answer on a *segment*, since 2026-11-02: its text, as Share hands it, filed as a conversation in one of your own noesis libraries — asked which only if you have several — your lines yours by your display name and everybody else's context; offered once your connection includes noesis's `import` grant, which a connection from before asks for by connecting again. `POST /me/noesis/send`
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
@@ -220,7 +220,7 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
-- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, and what its share hands over. The user's word, not drawn on screen, where a segment is named by its hours — and once filed in the *channel library*, since 2026-11-07, by the title noesis gave it there too, under them, with *Open in noesis*. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
+- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, with every action on it and its recording in one menu at the line's end since 2026-11-07. The user's word, not drawn on screen, where a segment is named by its hours — and once filed in the *channel library*, since 2026-11-07, by the title noesis gave it there too, under them. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
 - **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in, holding one *segment* or more. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — being reachable, by push or by email, being the other — and deliberately **not** the *island* of `ts growth`, which walks accepted edges alone
@@ -330,8 +330,8 @@ for Claude to read with `read_file` when the conversation turns to it; what the
 library does not hold stays in full as before (`composeLibraryRecord`).
 **Each filed segment is named by its document's title** on its line in
 *Record* — the one noesis's model gave it, which `segments.filed_title` keeps —
-with *Open in noesis* opening that document, so a member matches the two
-without opening either. **Deleting the channel deletes it**, and deleting a recording deletes
+so a member matches the two without opening either; the segment's menu has
+*Open in noesis*, which opens that document. **Deleting the channel deletes it**, and deleting a recording deletes
 the document its transcript was filed as, a week later as everything deleted
 goes, the card saying it can be recovered until then. See
 task/a-channel-has-its-own-noesis-library.md and
@@ -2776,10 +2776,14 @@ tab opens at its foot.
 **A sequence of segments, since 2026-10-10.** Each *segment* — a stretch
 kept one way throughout — is one muted line: the record dot where it kept
 audio and a ring where it did not, its hours, what it kept (*Audio*, *Text*,
-*Audio + Text*), and the share glyph, with its text under it. A segment with
-audio is its recording's line, and opens to that recording's actions, its
-name among them. The share asks which: the segment's audio or its text, with
-whichever it lacks greyed, under a title naming its hours — never *room*.
+*Audio + Text*), and the menu glyph, with its text under it. A segment with
+audio is its recording's line, and opens to that recording's name. **Every
+action is in the menu since 2026-11-07** — *Share audio*, *Share text*,
+*Send to noesis*, *Open in noesis*, and a recording's *Play*, *Rename*,
+*Transcribe* and *Delete recording* — under a title naming its hours, never
+*room*. They were three things until then: a share glyph asking *Audio* or
+*Text*, wide buttons in the open recording, and *Open in noesis* under the
+line.
 
 **Laid out in rooms.** Each *room* — a sitting, first step in to last step
 out — that kept something starts with a line bearing its date and hours,
@@ -3029,9 +3033,10 @@ Handing a copy of something to whatever else is on the device: a *recording*, a
 *room* — its audio, or since 2026-10-09 its text, which since 2026-10-10
 includes its recordings' *transcripts* — or the track the channel is listening
 to. One verb, labelled
-`Share` or drawn as the share glyph — and on a phone all of them end at the
-system share sheet. A room's asks first which of the two, in iOS's action
-sheet, with what the room did not keep greyed.
+`Share` — and on a phone all of them end at the system share sheet. A
+segment's is two actions in its menu since 2026-11-07, *Share audio* and
+*Share text*; until then it was the share glyph, asking which of the two in
+iOS's action sheet, with what the segment did not keep greyed.
 
 **It was called *Export* until 2026-09-12**, which said what the file did and
 not what the person was doing with it. Nothing about the mechanism changed with
@@ -4868,10 +4873,10 @@ recording one, and the live transcript between recordings one each.
 `SegmentView` on the wire, inside `RoomView`.
 
 **Not a word on screen.** A segment's line names it by its hours, and its
-share's title does too, so nothing asks a person to learn it. Once filed in
+menu's title does too, so nothing asks a person to learn it. Once filed in
 the *channel library*, since 2026-11-07, the title noesis gave its document
-is drawn under the hours, with *Open in noesis* (`SegmentView.filed`,
-`FiledLine`): noesis names a document by what was said, the *Record* by when,
+is drawn under the hours, and the menu offers *Open in noesis*
+(`SegmentView.filed`, `FiledTitle`): noesis names a document by what was said, the *Record* by when,
 and showing the one beside the other is how they are matched. A recording
 made as audio alone may be given a *transcript* afterwards, which makes it
 a segment kept both ways; one kept as text live is not offered one.

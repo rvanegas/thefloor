@@ -1193,7 +1193,9 @@ export const es: Strings = {
       }`,
     preparingKept: () => 'Preparando\u2026',
     couldNotShareKept: () => 'No se pudo compartir',
-    shareSpan: (span: string) => `Compartir ${span}`,
+    segmentActions: (span: string) => `Acciones de ${span}`,
+    shareAudio: () => 'Compartir audio',
+    shareText: () => 'Compartir texto',
     keptBoth: () => 'Audio + Texto',
     roomTextCopied: () => 'El texto est\u00e1 copiado.',
     sendToNoesis: () => 'Enviar a noesis',
@@ -1422,6 +1424,7 @@ export const es: Strings = {
     cancel: () => 'Cancelar',
     couldNotDelete: () => 'No se ha podido borrar',
     deleting: () => 'Borrando\u2026',
+    deleteRecording: () => 'Borrar grabaci\u00f3n',
     delete: () => 'Borrar',
     deleteAsk: (name: string) => `\u00bfBorrar ${name}?`,
     deleteBody: () =>
@@ -1460,9 +1463,6 @@ export const es: Strings = {
           : ''),
     useIt: () => 'Usarla',
     couldNotTranscribe: () => 'No se ha podido transcribir',
-    preparing: () => 'Preparando\u2026',
-    share: () => 'Compartir',
-    couldNotShare: () => 'No se ha podido compartir',
     guestWithNoAccount: () =>
       'Aqu\u00ed habl\u00f3 alguien como invitado sin cuenta, as\u00ed que esta no se puede publicar: no hay a qui\u00e9n pregunt\u00e1rselo.',
   },

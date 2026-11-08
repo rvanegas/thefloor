@@ -17,7 +17,7 @@ import type {
 import type { UploadHooks } from '../../api/upload';
 import { api, type GuestLinkSummary } from '../../api/http';
 import type { Introduction } from '../../state/introduction';
-import { Alert } from 'react-native';
+import { ActionSheetIOS, Alert } from 'react-native';
 
 /**
  * The fixture every view test renders against: one mutable `mockApp` standing
@@ -597,6 +597,69 @@ export function findRecording(
   return root
     .findAll((n) => n.props?.accessibilityRole === 'button')
     .find((n) => String(n.props?.accessibilityLabel ?? '').startsWith(name));
+}
+
+/** A segment's menu as `openMenu` found it. */
+export interface OpenedMenu {
+  title: string | undefined;
+  /** Its notes, the sentences saying why an action is greyed. */
+  message: string | undefined;
+  /** Its actions, in order, without *Cancel*. */
+  options: string[];
+  disabled: (label: string) => boolean;
+  destructive: (label: string) => boolean;
+  /** Presses an action as the sheet would, greyed ones included: the sheet refuses those. */
+  choose: (label: string) => void;
+}
+
+/**
+ * Opens a segment's menu in the *Record* log — the `which`th from the top —
+ * the way a press on its glyph does on iOS, and says what it offers. The
+ * sheet answers nothing for the press alone: a test's own spy on it, there
+ * for a sheet an action asks next, stays as it was.
+ * A glyph is found by its accessible name, *Actions for* its hours, and is
+ * missing while something it started is under way, when it names that.
+ */
+export function openMenu(tree: ReactTestRenderer, which = 0): OpenedMenu {
+  const glyph = menuGlyphs(tree)[which];
+  if (!glyph) throw new Error(`no segment menu at ${which}`);
+  const spied = jest.isMockFunction(ActionSheetIOS.showActionSheetWithOptions);
+  const sheet = jest.spyOn(ActionSheetIOS, 'showActionSheetWithOptions');
+  const before = sheet.mock.calls.length;
+  sheet.mockImplementationOnce(() => {});
+  act(() => glyph.props.onPress());
+  const call = sheet.mock.calls[before];
+  if (!spied) sheet.mockRestore();
+  if (!call) throw new Error('the menu opened no sheet');
+  const [options, callback] = call;
+  const labels = options.options.slice(0, options.cancelButtonIndex);
+  const index = (label: string) => {
+    const i = labels.indexOf(label);
+    if (i < 0) throw new Error(`no "${label}" in [${labels.join(', ')}]`);
+    return i;
+  };
+  const destructive = ([] as number[]).concat(options.destructiveButtonIndex ?? []);
+  return {
+    title: options.title,
+    message: options.message,
+    options: labels,
+    disabled: (label) => (options.disabledButtonIndices ?? []).includes(index(label)),
+    destructive: (label) => destructive.includes(index(label)),
+    choose: (label) => {
+      const i = index(label);
+      act(() => callback(i));
+    },
+  };
+}
+
+/** Every segment's menu glyph in the log, top to bottom. */
+export function menuGlyphs(tree: ReactTestRenderer): ReactTestInstance[] {
+  return tree.root.findAll(
+    (n) =>
+      n.props?.accessibilityRole === 'button' &&
+      !!n.props.onPress &&
+      /^Actions for /.test(String(n.props.accessibilityLabel ?? ''))
+  );
 }
 
 /**

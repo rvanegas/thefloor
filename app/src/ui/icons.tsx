@@ -475,16 +475,16 @@ export function TranscriptIcon({
 }
 
 /**
- * Hands something to the rest of the phone. `lucide/share`.
+ * Three bars, the menu: a segment's actions in the *Record* tab, at the end
+ * of its line, since 2026-11-07. `lucide/menu`.
  *
- * The arrow leaving a box open at the top, which is iOS's own share glyph and
- * the one people already reach for to send a file somewhere. It was briefly
- * `lucide/square-arrow-up`, the arrow inside a closed box, on 2026-10-09, and
- * came back on 2026-10-10 when the two were set side by side. On each room's rule
- * in the *Record* tab and on the pinned bar that takes over from it, where it
- * offers the room's audio, its text, or both.
+ * It took the place of `lucide/share` — the arrow leaving a box open at the
+ * top, iOS's own share glyph, here from 2026-10-09 — when a segment's
+ * actions, which were that glyph's sheet, a row of wide buttons in the open
+ * segment and *Open in noesis* under its line, became the one list. A share
+ * glyph opening *Rename* and *Delete* would say less than what it opens.
  */
-export function ShareIcon({
+export function MenuIcon({
   color,
   size = 22,
 }: {
@@ -493,9 +493,9 @@ export function ShareIcon({
 }) {
   return (
     <Glyph color={color} size={size}>
-      <Path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <Path d="m16 6-4-4-4 4" />
-      <Path d="M12 2v13" />
+      <Path d="M4 5h16" />
+      <Path d="M4 12h16" />
+      <Path d="M4 19h16" />
     </Glyph>
   );
 }

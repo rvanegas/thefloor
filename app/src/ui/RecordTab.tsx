@@ -39,19 +39,27 @@ import { copyText } from '../clipboard';
 import { subscribeLiveLines } from '../live/lines';
 import { useApp } from '../state/AppProvider';
 import { useText, type Strings } from '../i18n';
-import { Button, Empty, IconButton, useScrollPosition } from './components';
-import { ClipboardIcon, PauseIcon, RecordingsIcon, ShareIcon, StopIcon } from './icons';
+import {
+  Button,
+  Empty,
+  IconButton,
+  useActionMenu,
+  useScrollPosition,
+  type MenuItem,
+} from './components';
+import { ClipboardIcon, PauseIcon, RecordingsIcon, StopIcon } from './icons';
 import { isSafeUrl, openUrl } from './links';
 import { colors, formatDuration, measure, spacing, type } from './theme';
 
 /**
  * What a segment's line says and carries, for a recording drawn as one: its
- * hours and what it kept, and its share — and whether the segment is open,
- * which pressing the line changes.
+ * hours and what it kept, the segment's own actions, which the recording's
+ * join in its menu — and whether the segment is open, which pressing the line
+ * changes.
  */
 export interface SegmentHead {
   label: string;
-  trailing: React.ReactNode;
+  menu: { label: string; title: string; items: readonly MenuItem[]; busy: string | null };
   open: boolean;
   onToggle: () => void;
 }
@@ -69,9 +77,9 @@ export interface SegmentHead {
  * change of what is kept, Pause and Resume included, so that where both are
  * kept they cover exactly the same span. Each is one muted line — the record
  * dot where it has audio and a ring where it has none, its hours, and what it
- * kept — with its share at the end, and its text under it. A segment with
- * audio is its recording's line, and opens to the actions that recording's
- * card had. Its text is the live transcript written inside it, or, for one
+ * kept — with its menu at the end, and its text under it. A segment with
+ * audio is its recording's line, whose actions join the segment's in that
+ * menu. Its text is the live transcript written inside it, or, for one
  * kept as audio alone, that recording's batch transcript once there is one,
  * on the clock at the recording's start plus each line's offset — exact, a
  * recording being one unbroken run.
@@ -477,20 +485,20 @@ export function RoomLine({ room }: { room: RoomView }) {
 
 /**
  * A segment's line: the record dot where it kept audio and a ring where it
- * kept none, its hours, what it kept, and its share, in `type.heading`: the
+ * kept none, its hours, what it kept, and its menu, in `type.heading`: the
  * segment's header, which opens and closes it. A segment with a recording is
- * drawn by `renderRecording`, so opening it opens that recording's actions
- * too; the rest is this.
+ * drawn by `renderRecording`, whose menu takes this one's actions in among
+ * the recording's; the rest is this.
  *
- * **The share asks which**: the segment's audio, or its text, with whichever
- * it lacks greyed — the native action sheet on iOS, which can grey an option;
- * in a browser two buttons opened under the line by the glyph and closed by
- * it again, since the web's `Alert` is a chain of `confirm`s asking *Audio?*
- * and then *Text?*; on Android `Alert`, which offers only what there is. Its
- * title names the segment by its hours rather than by a noun, there being no
- * word for it a person needs. **It stays drawn either way**: a control that
- * comes and goes as you scroll is one that is not where the thumb went
- * (STYLE.md, rule six).
+ * **One menu since 2026-11-07** (`useActionMenu`), for what was three things:
+ * a share glyph whose sheet offered the segment's audio, its text and *Send
+ * to noesis*; the recording's wide buttons in the open segment; and *Open in
+ * noesis* under the line. Sharing asks no second question now — *Share
+ * audio* and *Share text* are each an action — and an action the segment
+ * cannot have is left out, save its audio while it is still being mixed,
+ * which is greyed with the reason. Its title is the line, naming the segment
+ * by its hours rather than by a noun, there being no word for it a person
+ * needs.
  */
 export function SegmentLine({
   channelId,
@@ -504,26 +512,24 @@ export function SegmentLine({
   channelId: string;
   name: string;
   item: SegmentItem;
-  /** Your noesis libraries Share may send the text to; none hides the choice. */
+  /** Your noesis libraries the menu may send the text to; none leaves it out. */
   libraries?: readonly string[];
   renderRecording?: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
   open?: boolean;
   onToggle?: () => void;
 }) {
   const t = useText().channel;
+  const linkWords = useText().links;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
-  /** The web's inline choice, and everywhere but iOS which library: what is being chosen, if anything. */
-  const [choosing, setChoosing] = React.useState<false | 'what' | 'library'>(false);
+  /** Everywhere but iOS, whether which library is being chosen. */
+  const [choosing, setChoosing] = React.useState(false);
   const { segment, recording } = item;
-  // A paste is an instant, said by its own entry's name and time; there are
-  // no hours to give it and nothing to share but what Copy already takes.
-  if (segment.paste) return null;
   const audio = !!recording && !recording.mixing;
   // Pastes count: they are text, and are shared with the lines around them.
   const text = item.lines.length > 0 || item.pastes.length > 0;
   const noesis = text && libraries.length > 0;
-  const available = (audio || text) && !busy;
+  const filed = segment.filed?.url && isSafeUrl(segment.filed.url) ? segment.filed.url : null;
   const span = t.roomSpan(segment.startedAt, segment.endedAt);
   const kept =
     segment.recordingId !== null && (segment.text || recording?.transcript?.state === 'ready')
@@ -534,8 +540,9 @@ export function SegmentLine({
   const label = `${span} · ${kept}`;
 
   /**
-   * Files the text in `library` at noesis — what Share would hand over, under
-   * the name it would give the file — and says where it went, or why not.
+   * Files the text in `library` at noesis — what *Share text* would hand
+   * over, under the name it would give the file — and says where it went, or
+   * why not.
    */
   const send = async (library: string) => {
     if (!app.token || busy) return;
@@ -563,7 +570,7 @@ export function SegmentLine({
 
   const chooseLibrary = () => {
     if (libraries.length === 1) return void send(libraries[0]);
-    if (Platform.OS !== 'ios') return setChoosing('library');
+    if (Platform.OS !== 'ios') return setChoosing(true);
     ActionSheetIOS.showActionSheetWithOptions(
       {
         title: t.sendToWhichLibrary(),
@@ -576,13 +583,15 @@ export function SegmentLine({
     );
   };
 
-  const share = async (what: 'audio' | 'text' | 'noesis') => {
-    if (what === 'noesis') return chooseLibrary();
+  const share = async (what: 'audio' | 'text') => {
     if (!app.token || busy) return;
     setBusy(true);
     try {
       if (what === 'audio' && recording) {
-        await shareRecording(app.token, recording.id, name, recording.endedAt);
+        // Under the recording's own name, which the server fixed when the run
+        // stopped, as the recording's own Share did until the two were one
+        // action on 2026-11-07: the same for everybody who shares it.
+        await shareRecording(app.token, recording.id, recording.name, recording.endedAt);
       } else {
         // Stamped as its audio is, so the two files sort and pair together;
         // a text kept alone has only the segment's own end to go by.
@@ -601,63 +610,55 @@ export function SegmentLine({
     }
   };
 
-  const trailing = (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={busy ? t.preparingKept() : t.shareSpan(span)}
-      accessibilityState={{ disabled: !available, busy }}
-      disabled={!available}
-      hitSlop={spacing(1)}
-      onPress={() =>
-        Platform.OS === 'web'
-          ? setChoosing(choosing ? false : 'what')
-          : chooseWhatToShare(t, span, { audio, text, noesis }, (what) => void share(what))
-      }
-      style={({ pressed }) => (pressed ? styles.pressed : undefined)}
-    >
-      <ShareIcon color={available ? colors.text : colors.textFaint} />
-    </Pressable>
-  );
+  const menu: SegmentHead['menu'] = {
+    label: t.segmentActions(span),
+    title: label,
+    items: [
+      // Greyed rather than left out while its recording is being filed or
+      // mixed, both of which end on their own.
+      ...(segment.recordingId !== null
+        ? [{ label: t.shareAudio(), disabled: !audio, onPress: () => void share('audio') }]
+        : []),
+      ...(text ? [{ label: t.shareText(), onPress: () => void share('text') }] : []),
+      ...(noesis ? [{ label: t.sendToNoesis(), onPress: chooseLibrary }] : []),
+      ...(filed
+        ? [{ label: t.openFiledInNoesis(), onPress: () => void openUrl(filed, linkWords) }]
+        : []),
+    ],
+    busy: busy ? t.preparingKept() : null,
+  };
+  // Drawn by `RecordingRow` instead where there is a recording, which adds its
+  // own actions; called either way, being a hook.
+  const own = useActionMenu(menu);
 
-  const choice =
-    choosing === 'what' ? (
-      <View style={styles.shareChoice}>
-        {(noesis ? (['audio', 'text', 'noesis'] as const) : (['audio', 'text'] as const)).map((what) => (
-          <Button
-            key={what}
-            label={what === 'audio' ? t.audio() : what === 'text' ? t.keepText() : t.sendToNoesis()}
-            disabled={what === 'audio' ? !audio : !text}
-            onPress={() => {
-              setChoosing(false);
-              void share(what);
-            }}
-          />
-        ))}
-      </View>
-    ) : choosing === 'library' ? (
-      <View style={styles.shareChoice}>
-        {libraries.map((library) => (
-          <Button
-            key={library}
-            label={libraryName(library)}
-            onPress={() => {
-              setChoosing(false);
-              void send(library);
-            }}
-          />
-        ))}
-        <Button label={t.cancel()} onPress={() => setChoosing(false)} />
-      </View>
-    ) : null;
+  // A paste is an instant, said by its own entry's name and time; there are
+  // no hours to give it and nothing to do with it but what Copy already does.
+  if (segment.paste) return null;
 
-  const filed = segment.filed ? <FiledLine filed={segment.filed} /> : null;
+  const library = choosing ? (
+    <View style={styles.libraryChoice}>
+      {libraries.map((library) => (
+        <Button
+          key={library}
+          label={libraryName(library)}
+          onPress={() => {
+            setChoosing(false);
+            void send(library);
+          }}
+        />
+      ))}
+      <Button label={t.cancel()} onPress={() => setChoosing(false)} />
+    </View>
+  ) : null;
+
+  const title = segment.filed?.title ? <FiledTitle title={segment.filed.title} /> : null;
 
   if (recording && renderRecording) {
     return (
       <>
-        {renderRecording(recording, { label, trailing, open, onToggle })}
-        {filed}
-        {choice}
+        {renderRecording(recording, { label, menu, open, onToggle })}
+        {title}
+        {library}
       </>
     );
   }
@@ -680,10 +681,11 @@ export function SegmentLine({
             {label}
           </Text>
         </Pressable>
-        {trailing}
+        {own.button}
       </View>
-      {filed}
-      {choice}
+      {own.panel}
+      {title}
+      {library}
     </>
   );
 }
@@ -691,79 +693,18 @@ export function SegmentLine({
 /**
  * Under a segment's line once it is filed in the channel's own library,
  * since 2026-11-07: **the title noesis gave its document** — a model's, from
- * what was said — so the two can be matched without opening either, and
- * *Open in noesis*, which opens that document there. Drawn shut or open, as
- * the line is: it names the segment rather than being any of what it kept.
- * A segment filed before noesis said has the word alone; one never filed,
- * nothing.
+ * what was said — so the two can be matched without opening either. Drawn
+ * shut or open, as the line is: it names the segment rather than being any of
+ * what it kept. A segment filed before noesis said has none; *Open in noesis*,
+ * which stood at this line's end, is in the segment's menu.
  */
-function FiledLine({ filed }: { filed: FiledView }) {
-  const t = useText().channel;
-  const linkWords = useText().links;
-  const url = filed.url && isSafeUrl(filed.url) ? filed.url : null;
-  if (!filed.title && !url) return null;
+function FiledTitle({ title }: { title: string }) {
   return (
     <View style={styles.filedLine}>
       <Text style={[type.muted, styles.filedTitle]} numberOfLines={2}>
-        {filed.title ?? ''}
+        {title}
       </Text>
-      {url ? (
-        <Pressable
-          accessibilityRole="link"
-          accessibilityLabel={t.openFiledInNoesis()}
-          hitSlop={spacing(1)}
-          onPress={() => void openUrl(url, linkWords)}
-          style={({ pressed }) => (pressed ? styles.pressed : undefined)}
-        >
-          <Text style={styles.pasteAction}>{t.openFiledInNoesis()}</Text>
-        </Pressable>
-      ) : null}
     </View>
-  );
-}
-
-/**
- * Which of a segment's two to share, with what it lacks shown and refused,
- * under its hours. Exported for the test, which drives both paths.
- */
-export function chooseWhatToShare(
-  t: Strings['channel'],
-  span: string,
-  has: { audio: boolean; text: boolean; noesis?: boolean },
-  then: (what: 'audio' | 'text' | 'noesis') => void
-): void {
-  if (Platform.OS === 'ios') {
-    const disabledButtonIndices: number[] = [];
-    if (!has.audio) disabledButtonIndices.push(0);
-    if (!has.text) disabledButtonIndices.push(1);
-    // *Send to noesis* only where it can be done, after the two Share always offers.
-    const options = [t.audio(), t.keepText(), ...(has.noesis ? [t.sendToNoesis()] : []), t.cancel()];
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title: t.shareSpan(span),
-        options,
-        cancelButtonIndex: options.length - 1,
-        disabledButtonIndices,
-      },
-      (index) => {
-        if (index === 0 && has.audio) then('audio');
-        if (index === 1 && has.text) then('text');
-        if (index === 2 && has.noesis) then('noesis');
-      }
-    );
-    return;
-  }
-  const buttons = [
-    ...(has.audio ? [{ text: t.audio(), onPress: () => then('audio') }] : []),
-    ...(has.text ? [{ text: t.keepText(), onPress: () => then('text') }] : []),
-    ...(has.noesis ? [{ text: t.sendToNoesis(), onPress: () => then('noesis') }] : []),
-  ];
-  // Android draws three buttons at most; with three answers, a tap outside is the cancel.
-  Alert.alert(
-    t.shareSpan(span),
-    undefined,
-    buttons.length < 3 ? [{ text: t.cancel(), style: 'cancel' as const }, ...buttons] : buttons,
-    { cancelable: true }
   );
 }
 
@@ -1305,7 +1246,7 @@ export function intoRooms(
  * then *Copy* — and *Open* when the whole of it is one link, on the allowlist
  * a description's links are held to — at the end of that line, and the text
  * under it. **Words at the end of the line rather than buttons under it**, as
- * a segment's share is a glyph at the end of its: this tab is a log with
+ * a segment's menu is a glyph at the end of its: this tab is a log with
  * nothing around its entries (STYLE.md), and a button row under every paste
  * would be the loudest thing in it. Finding a link *inside* longer text is deliberately not attempted:
  * it would mean guessing which of several somebody meant.
@@ -1376,8 +1317,8 @@ const styles = StyleSheet.create({
   room: { gap: spacing(1.5) },
   segment: { gap: spacing(1) },
   // A segment's line where no recording draws it: the marker and the label,
-  // which are the press, and the share at the end, outside it — the same row
-  // `RecordingRow`'s inline line is.
+  // which are the press, and the menu at the end, outside it — the same row
+  // `RecordingRow`'s line is.
   segmentLine: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
   segmentPress: {
     flex: 1,
@@ -1396,8 +1337,9 @@ const styles = StyleSheet.create({
     paddingBottom: spacing(0.5),
   },
   filedTitle: { flex: 1 },
-  // Wraps: a library's name is as long as its owner made it, and there may be several.
-  shareChoice: {
+  // Which library to send to, where there is no action sheet. Wraps: a
+  // library's name is as long as its owner made it, and there may be several.
+  libraryChoice: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'flex-end',

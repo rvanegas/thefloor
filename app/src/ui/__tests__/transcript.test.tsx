@@ -4,14 +4,16 @@ import renderer, {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
-import { Alert } from 'react-native';
+import { ActionSheetIOS, Alert } from 'react-native';
 import type { RecordingView } from '../../../../core/protocol';
 import { RecordingRow, Screen } from '../components';
 
 /**
- * A recording's transcript, from the row that starts one. Its lines are drawn
- * in the *Record* log since 2026-10-10 — `live-transcript.test.tsx` — so what
- * is left here is asking for one and deleting it.
+ * A recording's transcript, from the menu that starts one. Its lines are
+ * drawn in the *Record* log since 2026-10-10 — `live-transcript.test.tsx` —
+ * so what is left here is asking for one and deleting it, which are actions
+ * in its segment's menu since 2026-11-07, with what was said beside them in
+ * the menu's message.
  *
  * The thing worth a test rather than a look: that asking names the provider
  * before it spends anything, because whoever taps is deciding for everybody
@@ -37,19 +39,6 @@ jest.mock('../../api/download', () => ({
 jest.mock('../../state/AppProvider', () => ({
   useApp: () => ({ token: 'token', me: { id: 'acct_me', displayName: 'Me' } }),
 }));
-
-function textOf(tree: ReactTestRenderer): string {
-  const strings: string[] = [];
-  const walk = (node: unknown): void => {
-    if (typeof node === 'string') strings.push(node);
-    else if (Array.isArray(node)) node.forEach(walk);
-    else if (node && typeof node === 'object' && 'children' in node) {
-      walk((node as { children: unknown }).children);
-    }
-  };
-  walk(tree.toJSON());
-  return strings.join(' ');
-}
 
 /** The visible text inside one instance, used to identify a button by label. */
 function labelOf(instance: ReactTestInstance): string {
@@ -108,36 +97,61 @@ beforeEach(() => {
   jest.clearAllMocks();
 });
 
-describe('the button on a recording', () => {
-  /** Opens the row's drawer, which is where every action lives. */
+describe("a recording's menu, on its transcript", () => {
+  /**
+   * The row, and its menu opened as iOS opens it: the sheet's actions, which
+   * are greyed, its notes, and a press on one as the sheet would make it.
+   */
   const open = (recording: RecordingView, manageable = true) => {
     // Inside a Screen, as it is in the app: the row measures itself against
-    // the scroll view to bring its own drawer into view. And inside `act`,
-    // without which the renderer is torn down before anything can be found.
+    // the scroll view to bring itself into view. And inside `act`, without
+    // which the renderer is torn down before anything can be found.
     let tree!: ReactTestRenderer;
     act(() => {
       tree = renderer.create(
         <Screen>
-          <RecordingRow recording={recording} manageable={manageable} />
+          <RecordingRow
+            recording={recording}
+            manageable={manageable}
+            head={{
+              label: '12:00–12:02 PM · Audio',
+              menu: { label: 'Actions for 12:00–12:02 PM', title: '', items: [], busy: null },
+              open: false,
+              onToggle: () => {},
+            }}
+          />
         </Screen>
       );
     });
-    act(() => findButton(tree, 'Book club')!.props.onPress());
-    return tree;
+    const sheet = jest
+      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
+      .mockImplementation(() => {});
+    act(() => findButton(tree, 'Actions for')!.props.onPress());
+    const [options, callback] = sheet.mock.calls[0];
+    sheet.mockRestore();
+    const labels = options.options.slice(0, options.cancelButtonIndex);
+    return {
+      tree,
+      labels,
+      message: options.message ?? '',
+      disabled: (label: string) =>
+        (options.disabledButtonIndices ?? []).includes(labels.indexOf(label)),
+      choose: (label: string) => act(() => callback(labels.indexOf(label))),
+    };
   };
 
   it('is not offered at all by a server that cannot transcribe', () => {
     // Absent and 'none' are different answers. This is absent.
-    const tree = open(recordingWith());
-    expect(findButton(tree, 'Transcribe')).toBeUndefined();
-    act(() => tree.unmount());
+    const menu = open(recordingWith());
+    expect(menu.labels).not.toContain('Transcribe');
+    act(() => menu.tree.unmount());
   });
 
   it('names the provider before it spends anything', () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const tree = open(recordingWith('none'));
+    const menu = open(recordingWith('none'));
 
-    act(() => findButton(tree, 'Transcribe')!.props.onPress());
+    menu.choose('Transcribe');
 
     const [title, body] = alert.mock.calls[0];
     expect(title).toContain('Transcribe this recording');
@@ -149,14 +163,14 @@ describe('the button on a recording', () => {
     // Nothing was started by opening the dialog.
     expect(mockStart).not.toHaveBeenCalled();
 
-    act(() => tree.unmount());
+    act(() => menu.tree.unmount());
     alert.mockRestore();
   });
 
   it('starts one once the dialog is confirmed', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const tree = open(recordingWith('none'));
-    act(() => findButton(tree, 'Transcribe')!.props.onPress());
+    const menu = open(recordingWith('none'));
+    menu.choose('Transcribe');
 
     const buttons = alert.mock.calls[0][2] as Array<{
       text: string;
@@ -167,44 +181,43 @@ describe('the button on a recording', () => {
     });
 
     expect(mockStart).toHaveBeenCalledWith('token', 'rec_1');
-    act(() => tree.unmount());
+    act(() => menu.tree.unmount());
     alert.mockRestore();
   });
 
   it('says it is working, and offers nothing to press meanwhile', () => {
-    const tree = open(recordingWith('pending'));
-    const button = findButton(tree, 'Transcribing…');
-    expect(button).toBeDefined();
-    expect(button!.props.accessibilityState).toEqual({ disabled: true });
-    act(() => tree.unmount());
+    const menu = open(recordingWith('pending'));
+    expect(menu.labels).toContain('Transcribing…');
+    expect(menu.disabled('Transcribing…')).toBe(true);
+    act(() => menu.tree.unmount());
   });
 
   it('is not offered for a recording transcribed live, and says nothing', () => {
     // Its words are in the log already. The refusal and its sentence are for
     // builds that predate `live`.
-    const tree = open(
+    const menu = open(
       recordingWith('none', {
         live: true,
         mayRequest: false,
         requestLimit: 'This recording was transcribed as it was said.',
       })
     );
-    expect(findButton(tree, 'Transcribe')).toBeUndefined();
-    expect(textOf(tree)).not.toContain('transcribed as it was said');
-    act(() => tree.unmount());
+    expect(menu.labels).not.toContain('Transcribe');
+    expect(menu.message).not.toContain('transcribed as it was said');
+    act(() => menu.tree.unmount());
   });
 
-  it('offers to delete one that is ready, and opens nothing', () => {
-    const tree = open(recordingWith('ready'));
-    expect(findButton(tree, 'Delete transcript')).toBeDefined();
-    expect(findButton(tree, 'Transcribe')).toBeUndefined();
-    act(() => tree.unmount());
+  it('offers to delete one that is ready, and nothing more', () => {
+    const menu = open(recordingWith('ready'));
+    expect(menu.labels).toContain('Delete transcript');
+    expect(menu.labels).not.toContain('Transcribe');
+    act(() => menu.tree.unmount());
   });
 
   it('warns that deleting is not free to undo', async () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const tree = open(recordingWith('ready'));
-    act(() => findButton(tree, 'Delete transcript')!.props.onPress());
+    const menu = open(recordingWith('ready'));
+    menu.choose('Delete transcript');
 
     const [, body, buttons] = alert.mock.calls[0] as [
       string,
@@ -217,62 +230,62 @@ describe('the button on a recording', () => {
       buttons.find((b) => b.text === 'Delete')!.onPress!();
     });
     expect(mockDelete).toHaveBeenCalledWith('token', 'rec_1');
-    act(() => tree.unmount());
+    act(() => menu.tree.unmount());
     alert.mockRestore();
   });
 
   it('greys deleting for somebody who is not in the room', () => {
-    const tree = open(recordingWith('ready'), false);
-    expect(findButton(tree, 'Delete transcript')!.props.disabled).toBe(true);
-    act(() => tree.unmount());
+    const menu = open(recordingWith('ready'), false);
+    expect(menu.disabled('Delete transcript')).toBe(true);
+    act(() => menu.tree.unmount());
   });
 
   it('says who is missing rather than presenting a partial as whole', () => {
-    const tree = open(recordingWith('ready', { missing: 1 }));
-    expect(textOf(tree)).toContain(
+    const menu = open(recordingWith('ready', { missing: 1 }));
+    expect(menu.message).toContain(
       'One person could not be transcribed and is missing from this.'
     );
-    act(() => tree.unmount());
+    act(() => menu.tree.unmount());
   });
 
   it('says why one failed, and offers to ask again', () => {
-    const tree = open(recordingWith('failed', { failure: 'audio_too_short' }));
-    expect(textOf(tree)).toContain('Transcribing failed — audio_too_short');
-    expect(findButton(tree, 'Transcribe')!.props.disabled).toBeFalsy();
-    act(() => tree.unmount());
+    const menu = open(recordingWith('failed', { failure: 'audio_too_short' }));
+    expect(menu.message).toContain('Transcribing failed — audio_too_short');
+    expect(menu.disabled('Transcribe')).toBe(false);
+    act(() => menu.tree.unmount());
   });
 
   it('is withheld entirely when the server gives no reason', () => {
-    // Nothing rather than a disabled button. A server old enough to limit
+    // Nothing rather than a greyed action. A server old enough to limit
     // transcribing to one account sends no sentence, and "not you, ever, on
-    // this server" is not worth a control on every recording.
-    const tree = open(recordingWith('none', { mayRequest: false }));
-    expect(findButton(tree, 'Transcribe')).toBeUndefined();
-    act(() => tree.unmount());
+    // this server" is not worth an action on every recording.
+    const menu = open(recordingWith('none', { mayRequest: false }));
+    expect(menu.labels).not.toContain('Transcribe');
+    act(() => menu.tree.unmount());
   });
 
-  it('is disabled with the reason beside it when there is one', () => {
-    // Which is what a disabled control means everywhere else on this card:
-    // "not now", with a sentence. Having used your one free transcript is a
-    // fact about you rather than about this recording, and saying it is much
-    // better than a button that has quietly gone.
-    const tree = open(
+  it('is greyed with the reason beside it when there is one', () => {
+    // Which is what a greyed action means everywhere else in the menu: "not
+    // now", with a sentence. Having used your one free transcript is a fact
+    // about you rather than about this recording, and saying it is much
+    // better than an action that has quietly gone.
+    const menu = open(
       recordingWith('none', {
         mayRequest: false,
         requestLimit: 'You have used your one free transcript.',
       })
     );
-    expect(findButton(tree, 'Transcribe')!.props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('You have used your one free transcript.');
-    act(() => tree.unmount());
+    expect(menu.disabled('Transcribe')).toBe(true);
+    expect(menu.message).toContain('You have used your one free transcript.');
+    act(() => menu.tree.unmount());
   });
 
-  it('says the free use is being spent, and offers to cancel', async () => {
+  it('says the free use is being spent, and offers to cancel', () => {
     // The thing that can only be done once should not be discovered
     // afterwards. Cancel is the first button, as it is on every Alert here.
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const tree = open(recordingWith('none', { spendsFreeUse: true }));
-    act(() => findButton(tree, 'Transcribe')!.props.onPress());
+    const menu = open(recordingWith('none', { spendsFreeUse: true }));
+    menu.choose('Transcribe');
 
     const [title, body, buttons] = alert.mock.calls[0] as [
       string,
@@ -284,15 +297,15 @@ describe('the button on a recording', () => {
     expect(buttons[0]).toMatchObject({ text: 'Cancel', style: 'cancel' });
     expect(buttons[1].text).toBe('Use it');
     alert.mockRestore();
-    act(() => tree.unmount());
+    act(() => menu.tree.unmount());
   });
 
   it('says what the minutes are and what is left, from a server that counts them', () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const tree = open(
+    const menu = open(
       recordingWith('none', { spendsFreeUse: true, freeMinutes: { cost: 4, left: 37 } })
     );
-    act(() => findButton(tree, 'Transcribe')!.props.onPress());
+    menu.choose('Transcribe');
 
     const [title, body, buttons] = alert.mock.calls[0] as [
       string,
@@ -305,29 +318,26 @@ describe('the button on a recording', () => {
     expect(buttons[0]).toMatchObject({ text: 'Cancel', style: 'cancel' });
     expect(buttons[1].text).toBe('Transcribe');
     alert.mockRestore();
-    act(() => tree.unmount());
+    act(() => menu.tree.unmount());
   });
 
   it('does not mention a free use to an account that has no limit', () => {
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const tree = open(recordingWith('none'));
-    act(() => findButton(tree, 'Transcribe')!.props.onPress());
+    const menu = open(recordingWith('none'));
+    menu.choose('Transcribe');
 
     const [title, body] = alert.mock.calls[0] as [string, string];
     expect(title).toBe('Transcribe this recording?');
     expect(body).not.toMatch(/free/i);
     alert.mockRestore();
-    act(() => tree.unmount());
+    act(() => menu.tree.unmount());
   });
 
-
-  it('is withheld from somebody who is not in the room', () => {
+  it('is greyed for somebody who is not in the room', () => {
     // The manage rule, the same one renaming and deleting use: this changes
     // what everybody's screen says.
-    const tree = open(recordingWith('none'), false);
-    expect(findButton(tree, 'Transcribe')!.props.accessibilityState).toEqual({
-      disabled: true,
-    });
-    act(() => tree.unmount());
+    const menu = open(recordingWith('none'), false);
+    expect(menu.disabled('Transcribe')).toBe(true);
+    act(() => menu.tree.unmount());
   });
 });

@@ -3968,11 +3968,7 @@ export function ChannelView({
           renderRecording={(r, head) => (
             <RecordingRow
               key={r.id}
-              inline
-              inlineLabel={head.label}
-              inlineTrailing={head.trailing}
-              inlineOpen={head.open}
-              onInlineToggle={head.onToggle}
+              head={head}
               recording={r}
               // Playing one loads it as the channel's shared track, so it is
               // governed by exactly what governs a track somebody uploaded —

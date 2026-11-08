@@ -34,6 +34,7 @@ import {
   findNamed,
   findTab,
   findExactButton,
+  openMenu,
   contactAction,
   labelOf,
   mockApp,
@@ -435,15 +436,13 @@ describe('Channel', () => {
     expect(textOf(tree)).toContain('Step in to ask anybody in');
 
     showRecord(tree);
-    // The recording row's actions are behind a tap, and two of the three are
-    // refused. Share is not, and that is the assertion worth having.
-    act(() => findRecording(tree, 'Book club')!.props.onPress());
-    expect(disabled('Rename')).toEqual(off('Rename'));
-    expect(disabled('Delete')).toEqual(off('Delete'));
-    expect(findExactButton(tree, 'Share')!.props.accessibilityState).toEqual({
-      disabled: false,
-    });
-    expect(textOf(tree)).toContain('Step in to rename or delete');
+    // The recording's actions are its segment's menu, and two of them are
+    // refused. Sharing is not, and that is the assertion worth having.
+    const menu = openMenu(tree);
+    expect(menu.disabled('Rename')).toBe(true);
+    expect(menu.disabled('Delete recording')).toBe(true);
+    expect(menu.disabled('Share audio')).toBe(false);
+    expect(menu.message).toContain('Step in to rename or delete');
     act(() => tree.unmount());
   });
 
@@ -498,9 +497,9 @@ describe('Channel', () => {
     expect(on('Share a guest link')).toEqual({ disabled: false });
 
     showRecord(tree);
-    act(() => findRecording(tree, 'Book club')!.props.onPress());
-    expect(on('Rename')).toEqual({ disabled: false });
-    expect(on('Delete')).toEqual({ disabled: false });
+    const menu = openMenu(tree);
+    expect(menu.disabled('Rename')).toBe(false);
+    expect(menu.disabled('Delete recording')).toBe(false);
     // **Except pasting, since 2026-10-15**: a paste is kept in a room, and an
     // empty channel has none, so it waits for somebody to step in.
     expect(on('Paste my clipboard')).toEqual({ disabled: true });
@@ -3080,17 +3079,17 @@ describe('Channel', () => {
     expect(findRecording(tree, 'Book club')).toBeDefined();
     expect(text).not.toContain('Nothing kept yet');
 
-    // Closed until asked: the list is what this section is for, and the
-    // actions belong to whichever row somebody has opened.
-    expect(findExactButton(tree, 'Share')).toBeUndefined();
-    act(() => findRecording(tree, 'Book club')!.props.onPress());
+    // No buttons in the list: the actions are in the menu at the end of
+    // the line, since 2026-11-07, shut or open.
+    expect(findExactButton(tree, 'Share audio')).toBeUndefined();
 
     // Shared under the recording's own name, which the server fixed when the
     // run stopped — not a label rebuilt here from the roster, which is how two
     // people came to call one recording two different things.
     const { shareRecording } = require('../../api/download');
     shareRecording.mockClear();
-    await act(async () => findExactButton(tree, 'Share')!.props.onPress());
+    openMenu(tree).choose('Share audio');
+    await act(async () => {});
     expect(shareRecording).toHaveBeenCalledWith(
       'token',
       'rec_1',
@@ -3123,8 +3122,7 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(mine);
-    act(() => findRecording(mine, 'Tuesday')!.props.onPress());
-    expect(findButton(mine, 'Play')!.props.disabled).toBeFalsy();
+    expect(openMenu(mine).disabled('Play')).toBe(false);
     act(() => mine.unmount());
 
     showChannel(
@@ -3138,9 +3136,9 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(theirs);
-    act(() => findRecording(theirs, 'Tuesday')!.props.onPress());
-    expect(findButton(theirs, 'Play')!.props.disabled).toBe(true);
-    expect(textOf(theirs)).toContain('the floor decides what plays');
+    const menu = openMenu(theirs);
+    expect(menu.disabled('Play')).toBe(true);
+    expect(menu.message).toContain('the floor decides what plays');
     act(() => theirs.unmount());
   });
 
@@ -3213,7 +3211,7 @@ describe('Channel', () => {
     act(() => bystander.unmount());
   });
 
-  it('opens a recording to its actions, and closes it again', async () => {
+  it('keeps a recording’s actions in its menu, and opens to its name', async () => {
     const recording: RecordingView = {
       id: 'rec_1',
       channelId: 'sess_1',
@@ -3232,21 +3230,25 @@ describe('Channel', () => {
       />);
     showRecord(tree);
 
-    // Share, Rename and Delete rather than Play, which is also the name of
-    // the shared audio control further up the screen — and 'Share' is that
-    // card's own button too.
-    for (const label of ['Share', 'Rename', 'Delete']) {
-      expect(findExactButton(tree, label)).toBeUndefined();
-    }
+    // Every action in the one list, shut: the segment's own between Play
+    // and the recording's — which were wide buttons in the open row, under a
+    // share glyph that offered the audio a second time.
+    expect(openMenu(tree).options).toEqual([
+      'Play',
+      'Share audio',
+      'Rename',
+      'Delete recording',
+    ]);
+
+    // Opening says the recording's name, which the line does not, and
+    // draws no buttons.
+    expect(textOf(tree)).not.toContain('Tuesday');
+    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
+    expect(textOf(tree)).toContain('Tuesday');
+    expect(findExactButton(tree, 'Rename')).toBeUndefined();
 
     act(() => findRecording(tree, 'Tuesday')!.props.onPress());
-    for (const label of ['Share', 'Rename', 'Delete']) {
-      expect(findExactButton(tree, label)).toBeDefined();
-    }
-
-    // One row's worth of actions at a time: tapping it again puts them away.
-    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
-    expect(findButton(tree, 'Delete')).toBeUndefined();
+    expect(textOf(tree)).not.toContain('Tuesday');
     act(() => tree.unmount());
   });
 
@@ -3280,7 +3282,10 @@ describe('Channel', () => {
       .spyOn(api, 'deleteRecording')
       .mockResolvedValue({ ok: true } as never);
 
-    act(() => findButton(tree, 'Delete')!.props.onPress());
+    const menu = openMenu(tree);
+    // Red in the sheet, and asked about anyway.
+    expect(menu.destructive('Delete recording')).toBe(true);
+    menu.choose('Delete recording');
     expect(asked).toHaveBeenCalled();
     // Nothing has happened yet — the question is the point.
     expect(deleted).not.toHaveBeenCalled();
@@ -3317,23 +3322,19 @@ describe('Channel', () => {
         onExit={() => {}}
       />);
     showRecord(tree);
-    act(() => findRecording(tree, 'Tuesday')!.props.onPress());
 
     const { api } = require('../../api/http');
     const renamed = jest
       .spyOn(api, 'renameRecording')
       .mockResolvedValue({ ok: true } as never);
 
-    act(() => findButton(tree, 'Rename')!.props.onPress());
-    // The field takes the place of the actions, so nothing destructive sits
-    // beside a keyboard somebody is typing into.
-    expect(findButton(tree, 'Delete')).toBeUndefined();
-    // And it says who else this reaches, before the tap rather than after.
+    // From the menu of a segment still shut, which opens it to the field.
+    openMenu(tree).choose('Rename');
+    // The field takes the place of the name, and says who else this
+    // reaches, before the tap rather than after.
     expect(textOf(tree)).toContain('Everyone in this channel sees the new name');
 
-    const field = tree.root.findAll(
-      (n) => n.props?.placeholder === 'What was this conversation?'
-    )[0];
+    const field = nameField(tree)!;
     // Amending, not starting over: the current name is already in it.
     expect(field.props.value).toBe('Tuesday');
 
@@ -3346,9 +3347,10 @@ describe('Channel', () => {
     await act(async () => findButton(tree, 'Save')!.props.onPress());
     expect(renamed).toHaveBeenCalledWith('token', 'rec_1', 'Tuesday planning');
 
-    // Done: the row is back to offering actions, and the new name arrives on
-    // the next snapshot rather than being patched in here.
-    expect(findButton(tree, 'Delete')).toBeDefined();
+    // Done: the row says the name again, and the new one arrives on the next
+    // snapshot rather than being patched in here.
+    expect(nameField(tree)).toBeUndefined();
+    expect(textOf(tree)).toContain('Tuesday');
 
     renamed.mockRestore();
     act(() => tree.unmount());
@@ -3374,14 +3376,20 @@ describe('Channel', () => {
     showRecord(tree);
 
     act(() => findRecording(tree, 'Tuesday')!.props.onPress());
-    act(() => findButton(tree, 'Rename')!.props.onPress());
+    openMenu(tree).choose('Rename');
+    expect(nameField(tree)).toBeDefined();
     act(() => findRecording(tree, 'Tuesday')!.props.onPress());
     act(() => findRecording(tree, 'Tuesday')!.props.onPress());
-    // Reopening offers the actions again, not the half-typed name of something
+    // Reopening says the name again, not the half-typed one of something
     // somebody had already changed their mind about.
-    expect(findButton(tree, 'Rename')).toBeDefined();
+    expect(nameField(tree)).toBeUndefined();
     act(() => tree.unmount());
   });
+
+  /** A recording's rename field, while it is asking for a name. */
+  function nameField(tree: ReactTestRenderer) {
+    return tree.root.findAll((n) => n.props?.placeholder === 'What was this conversation?')[0];
+  }
 
   it('survives a server too old to send them', () => {
     // The field is additive, so a build carrying this screen meets a server

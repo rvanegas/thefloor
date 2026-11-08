@@ -15,7 +15,9 @@ import {
   findRecording,
   findSwitch,
   findTab,
+  menuGlyphs,
   mockApp,
+  openMenu,
   openSegments,
   render,
   resetHarness,
@@ -308,19 +310,12 @@ describe('merging lines', () => {
   to last step out, each headed by a line with its date and its hours, which
   is hoisted over the top once it scrolls off. **And segments, since
   2026-10-10**: within a room, each stretch kept one way throughout is a line
-  of its own — its hours, what it kept, its share — with its text under it.
+  of its own — its hours, what it kept, its menu — with its text under it.
+  The tests run as iOS, where the menu is the action sheet (`openMenu`).
 */
 describe('rooms on the Record tab', () => {
   const { shareRecording, shareTextFile } = require('../../api/download');
   const { ActionSheetIOS } = require('react-native');
-
-  /** A segment's share, named by its hours. The tests run as iOS. */
-  const sharesOf = (tree: ReturnType<typeof render>) =>
-    tree.root.findAll(
-      (node: { props: Record<string, unknown> }) =>
-        /^Share \d/.test(String(node.props.accessibilityLabel ?? '')) && !!node.props.onPress
-    );
-  const shareOf = (tree: ReturnType<typeof render>) => sharesOf(tree)[0];
 
   it('starts each room with its date and hours, and leaves out what fell in none', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
@@ -414,8 +409,8 @@ describe('rooms on the Record tab', () => {
     expect(both).toBeLessThan(text.indexOf('said on the record'));
     expect(text.indexOf('said on the record')).toBeLessThan(textOnly);
     expect(textOnly).toBeLessThan(text.indexOf('said off the record'));
-    // One share each, and none on the room.
-    expect(sharesOf(tree)).toHaveLength(2);
+    // One menu each, and none on the room.
+    expect(menuGlyphs(tree)).toHaveLength(2);
     act(() => tree.unmount());
   });
 
@@ -442,12 +437,12 @@ describe('rooms on the Record tab', () => {
 
     // Shut, as every closed segment is: the title names it all the same.
     expect(textOf(tree).match(/Bach Reads Kant/g)).toHaveLength(1);
-    const links = tree.root.findAll(
-      (node: { props: Record<string, unknown> }) =>
-        node.props.accessibilityLabel === 'Open in noesis' && !!node.props.onPress
-    );
-    expect(links).toHaveLength(1);
-    await act(async () => links[0].props.onPress());
+    // Opened from the segment's menu since 2026-11-07, rather than a link
+    // under the title; offered by the filed segment's alone.
+    expect(findButton(tree, 'Open in noesis')).toBeUndefined();
+    expect(openMenu(tree, 1).options).not.toContain('Open in noesis');
+    openMenu(tree, 0).choose('Open in noesis');
+    await settle();
     expect(opened).toHaveBeenCalledWith(url);
     opened.mockRestore();
     act(() => tree.unmount());
@@ -489,18 +484,18 @@ describe('rooms on the Record tab', () => {
     expect(textOf(tree)).not.toContain('said on the record');
     expect(textOf(tree)).not.toContain('said off the record');
     expect(textOf(tree)).toContain('said just now');
-    expect(findButton(tree, 'Rename')).toBeUndefined();
+    expect(textOf(tree)).not.toContain('Planning');
 
-    // A recording's header opens its actions and its lines in one press.
+    // A recording's header opens its name and its lines in one press.
     act(() => headers()[0].props.onPress());
     expect(textOf(tree)).toContain('said on the record');
-    expect(findButton(tree, 'Rename')).toBeDefined();
+    expect(textOf(tree)).toContain('Planning');
     expect(textOf(tree)).not.toContain('said off the record');
 
     // And closes them in another.
     act(() => headers()[0].props.onPress());
     expect(textOf(tree)).not.toContain('said on the record');
-    expect(findButton(tree, 'Rename')).toBeUndefined();
+    expect(textOf(tree)).not.toContain('Planning');
 
     act(() => headers()[2].props.onPress());
     expect(textOf(tree)).not.toContain('said just now');
@@ -556,18 +551,15 @@ describe('rooms on the Record tab', () => {
     // A stand-in carries its recording's text, never live talk it overlaps.
     expect(text).not.toContain('said during the old one');
 
-    const sheet = jest
-      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
-      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
     shareTextFile.mockClear();
-    await act(async () => shareOf(tree).props.onPress());
-    // A file, named as its audio is: the recording's name and end.
+    openMenu(tree).choose('Share text');
+    await settle();
+    // A file, stamped as its audio is: the recording's end.
     const [message, , endedAt] = shareTextFile.mock.calls[0];
     expect(endedAt).toBe(old.endedAt);
     expect(message).toContain('first in batch\nthen more');
     expect(message).toContain('and Dana');
     expect(message).not.toContain('said during the old one');
-    sheet.mockRestore();
     transcript.mockRestore();
     act(() => tree.unmount());
   });
@@ -597,14 +589,11 @@ describe('rooms on the Record tab', () => {
       'room_1',
       'room_2',
     ]);
-    expect(sharesOf(tree)).toHaveLength(2);
+    expect(menuGlyphs(tree)).toHaveLength(2);
     act(() => tree.unmount());
   });
 
-  it("offers a segment's audio and text under its hours, and shares its recording", async () => {
-    const sheet = jest
-      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
-      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(0));
+  it("offers a segment's audio and text in its menu, under its hours, and shares its recording", async () => {
     showChannel(transcribed(), [segment('rec_1', 'Planning', NOW + 10_000)]);
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [line('l1', ME, 'Me', NOW + 12_000, 'said')],
@@ -622,26 +611,21 @@ describe('rooms on the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
 
-    const share = shareOf(tree);
-    expect(share.props.accessibilityState.disabled).toBe(false);
-    await act(async () => share.props.onPress());
-    expect(sheet.mock.calls[0][0]).toMatchObject({
-      title: expect.stringMatching(/^Share \d/),
-      options: ['Audio', 'Text', 'Cancel'],
-      disabledButtonIndices: [],
-    });
-    expect(String((sheet.mock.calls[0][0] as { title?: string }).title)).not.toMatch(/room/i);
-    expect(shareRecording).toHaveBeenCalledWith(
-      expect.any(String),
-      'rec_1',
-      expect.any(String),
-      NOW + 40_000
-    );
-    sheet.mockRestore();
+    const menu = openMenu(tree);
+    // Titled by the line, its hours and what it kept, and never as a room.
+    expect(menu.title).toMatch(/^\d.* · Audio \+ Text$/);
+    // The segment's own between Play and the recording's.
+    expect(menu.options).toEqual(['Play', 'Share audio', 'Share text', 'Rename', 'Delete recording']);
+    expect(menu.disabled('Share audio')).toBe(false);
+    expect(menu.disabled('Share text')).toBe(false);
+    menu.choose('Share audio');
+    await settle();
+    // Under the recording's own name, as everybody who shares it gets it.
+    expect(shareRecording).toHaveBeenCalledWith(expect.any(String), 'rec_1', 'Planning', NOW + 40_000);
     act(() => tree.unmount());
   });
 
-  it('greys audio on a segment with none, and shares its text', async () => {
+  it('offers no audio on a segment with none, and shares its text', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [
         line('l0', ME, 'Me', NOW - 5_000, 'before the room'),
@@ -653,9 +637,6 @@ describe('rooms on the Record tab', () => {
     jest.spyOn(api, 'rooms').mockResolvedValue({
       rooms: [room('room_1', NOW, NOW + 60_000, [])],
     } as never);
-    const sheet = jest
-      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
-      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
     shareTextFile.mockClear();
     shareRecording.mockClear();
     showChannel(transcribed());
@@ -663,8 +644,11 @@ describe('rooms on the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
 
-    await act(async () => shareOf(tree).props.onPress());
-    expect(sheet.mock.calls[0][0]).toMatchObject({ disabledButtonIndices: [0] });
+    const menu = openMenu(tree);
+    // Left out rather than greyed: a segment kept as text never will have any.
+    expect(menu.options).toEqual(['Share text']);
+    menu.choose('Share text');
+    await settle();
     expect(shareRecording).not.toHaveBeenCalled();
     // No audio to be named after, so the segment's own end stands in.
     const [message, , endedAt] = shareTextFile.mock.calls[0];
@@ -674,7 +658,6 @@ describe('rooms on the Record tab', () => {
     expect(message).toMatch(new RegExp(`^The Floor — .+\\n${day} · `));
     expect(message).toContain('only written down\nand again');
     expect(message).not.toContain('before the room');
-    sheet.mockRestore();
     act(() => tree.unmount());
   });
 
@@ -692,24 +675,21 @@ describe('rooms on the Record tab', () => {
         ]),
       ],
     } as never);
-    const sheet = jest
-      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
-      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
     shareTextFile.mockClear();
     showChannel(transcribed());
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
 
-    expect(shareOf(tree).props.accessibilityState.disabled).toBe(false);
-    await act(async () => shareOf(tree).props.onPress());
-    expect(sheet.mock.calls[0][0]).toMatchObject({ disabledButtonIndices: [0] });
+    const menu = openMenu(tree);
+    expect(menu.disabled('Share audio')).toBe(true);
+    menu.choose('Share text');
+    await settle();
     expect(shareTextFile.mock.calls[0][0]).toContain('said while recording');
-    sheet.mockRestore();
     act(() => tree.unmount());
   });
 
-  it('asks in a browser with two buttons under the line, the missing one greyed', async () => {
+  it('opens in a browser as buttons under the line, which the glyph closes', async () => {
     const { Platform } = require('react-native');
     const was = Platform.OS;
     Platform.OS = 'web';
@@ -730,23 +710,27 @@ describe('rooms on the Record tab', () => {
     const choice = () =>
       tree.root.findAll(
         (n: { props: { label?: string; onPress?: unknown } }) =>
-          (n.props.label === 'Audio' || n.props.label === 'Text') && !!n.props.onPress
+          n.props.label === 'Share text' && !!n.props.onPress
       );
     expect(choice()).toHaveLength(0);
-    act(() => shareOf(tree).props.onPress());
-    const [audio, text] = choice();
-    expect(audio.props.disabled).toBe(true);
-    expect(text.props.disabled).toBe(false);
-    await act(async () => text.props.onPress());
+    act(() => menuGlyphs(tree)[0].props.onPress());
+    expect(choice()).toHaveLength(1);
+    act(() => menuGlyphs(tree)[0].props.onPress());
+    expect(choice()).toHaveLength(0);
+
+    act(() => menuGlyphs(tree)[0].props.onPress());
+    act(() => choice()[0].props.onPress());
+    await settle();
     expect(sheet).not.toHaveBeenCalled();
     expect(shareTextFile.mock.calls[0][0]).toContain('only written down');
+    // Chosen, it closes.
     expect(choice()).toHaveLength(0);
     Platform.OS = was;
     sheet.mockRestore();
     act(() => tree.unmount());
   });
 
-  it('sends the text to noesis from Share, asking which library only of somebody with several', async () => {
+  it('sends the text to noesis from the menu, asking which library only of somebody with several', async () => {
     const { Alert } = require('react-native');
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [line('l1', ME, 'Me', NOW + 1_000, 'worth keeping')],
@@ -763,7 +747,8 @@ describe('rooms on the Record tab', () => {
     });
     const sent = jest.spyOn(api, 'sendToNoesis').mockResolvedValue({ file: '2026/x.chat.md' });
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const answers = [2];
+    // The library's sheet, which the menu's own leads to.
+    const answers: number[] = [];
     const sheet = jest
       .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
       .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(answers.shift()!));
@@ -772,11 +757,10 @@ describe('rooms on the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
 
-    await act(async () => shareOf(tree).props.onPress());
-    expect(sheet.mock.calls[0][0]).toMatchObject({
-      options: ['Audio', 'Text', 'Send to noesis', 'Cancel'],
-      cancelButtonIndex: 3,
-    });
+    let menu = openMenu(tree);
+    expect(menu.options).toEqual(['Share text', 'Send to noesis']);
+    menu.choose('Send to noesis');
+    await settle();
     // One library: no second question.
     expect(sheet).toHaveBeenCalledTimes(1);
     expect(sent).toHaveBeenCalledWith(expect.anything(), {
@@ -796,29 +780,28 @@ describe('rooms on the Record tab', () => {
     });
     sent.mockClear();
     sheet.mockClear();
-    answers.push(2, 1);
+    answers.push(1);
     tree = render(screen());
     showTab(tree, 'Record');
     await settle();
-    await act(async () => shareOf(tree).props.onPress());
+    menu = openMenu(tree);
+    menu.choose('Send to noesis');
+    await settle();
     expect(sheet.mock.calls[1][0]).toMatchObject({ options: ['essays', 'journal', 'Cancel'] });
     expect(sent.mock.calls[0][1]).toMatchObject({ library: 'me/journal' });
     act(() => tree.unmount());
 
-    // Not granted: no third answer at all.
+    // Not granted: not offered at all.
     noesis.mockResolvedValue({ available: true, connected: true, canSend: false, libraries: ['me/essays'] });
-    sheet.mockClear();
-    answers.push(3);
     tree = render(screen());
     showTab(tree, 'Record');
     await settle();
-    await act(async () => shareOf(tree).props.onPress());
-    expect(sheet.mock.calls[0][0]).toMatchObject({ options: ['Audio', 'Text', 'Cancel'] });
+    expect(openMenu(tree).options).toEqual(['Share text']);
     act(() => tree.unmount());
     for (const spy of [noesis, sent, alert, sheet]) spy.mockRestore();
   });
 
-  it('shares the text of a segment whose audio is still being mixed', async () => {
+  it('shares the text of a segment whose audio is still being mixed, and says why not the audio', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [line('l1', ME, 'Me', NOW + 12_000, 'said while recording')],
       more: false,
@@ -830,26 +813,25 @@ describe('rooms on the Record tab', () => {
         ]),
       ],
     } as never);
-    const sheet = jest
-      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
-      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(1));
     shareTextFile.mockClear();
     showChannel(transcribed(), [{ ...segment('rec_1', 'Planning', NOW + 10_000), mixing: true }]);
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
 
-    expect(shareOf(tree).props.accessibilityState.disabled).toBe(false);
-    await act(async () => shareOf(tree).props.onPress());
-    expect(sheet.mock.calls[0][0]).toMatchObject({ disabledButtonIndices: [0] });
+    const menu = openMenu(tree);
+    expect(menu.disabled('Share audio')).toBe(true);
+    expect(menu.disabled('Play')).toBe(true);
+    expect(menu.message).toContain('Still being prepared');
+    menu.choose('Share text');
+    await settle();
     expect(shareTextFile.mock.calls[0][0]).toContain('said while recording');
-    sheet.mockRestore();
     act(() => tree.unmount());
   });
 
-  it('greys the share on a segment that has kept nothing yet', async () => {
+  it('greys the menu on a segment that has kept nothing yet', async () => {
     // A recording still running is a segment whose recording is not filed:
-    // drawn, with nothing yet to share.
+    // drawn, with nothing yet to do.
     jest.spyOn(api, 'rooms').mockResolvedValue({
       rooms: [
         {
@@ -862,65 +844,7 @@ describe('rooms on the Record tab', () => {
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
-    expect(shareOf(tree).props.accessibilityState.disabled).toBe(true);
-    act(() => tree.unmount());
-  });
-});
-
-/*
-  **Several voices on my microphone**, since 2026-10-16: under Audio and
-  Text, your own track told apart into voices for this sitting. Only while
-  you are here, and only ever your own.
-*/
-describe('several voices on my microphone', () => {
-  it('is drawn while you are here, says what is chosen, and asks for the change', () => {
-    mockApp.act.mockClear();
-    showChannel(channelOf());
-    const tree = render(screen());
-    showTab(tree, 'Record');
-    const off = findSwitch(tree, 'Several voices on my microphone')!;
-    expect(off.props.value).toBe(false);
-    act(() => off.props.onValueChange(true));
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'SET_DIARIZE', on: true });
-    act(() => tree.unmount());
-
-    showChannel(channelOf((s) => reduce(s, { type: 'SET_DIARIZE', userId: ME, on: true }, NOW)));
-    const on = render(screen());
-    showTab(on, 'Record');
-    expect(findSwitch(on, 'Several voices on my microphone')!.props.value).toBe(true);
-    act(() => on.unmount());
-  });
-
-  it('is not drawn while you are away', () => {
-    showChannel(channelOf((s) => reduce(s, { type: 'STEP_OUT', userId: ME }, NOW)));
-    const tree = render(screen());
-    showTab(tree, 'Record');
-    expect(findSwitch(tree, 'Several voices on my microphone')).toBeUndefined();
-    act(() => tree.unmount());
-  });
-
-  it('letters a stem in the log only where it holds more than one voice', async () => {
-    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
-      lines: [
-        { ...line('l1', 'media', 'Played audio', NOW, 'welcome to the show'), speaker: 'A' },
-        { ...line('l2', 'media', 'Played audio', NOW + 2_000, 'glad to be here'), speaker: 'B' },
-        { ...line('l3', ME, 'Me', NOW + 4_000, 'just me here'), speaker: 'A' },
-      ],
-      more: false,
-    } as never);
-    jest.spyOn(api, 'rooms').mockResolvedValue({
-      rooms: [room('room_1', NOW - 1_000, NOW + 60_000, [])],
-    } as never);
-    showChannel(transcribed());
-    const tree = render(screen());
-    showTab(tree, 'Record');
-    await settle();
-    openSegments(tree);
-
-    const text = textOf(tree);
-    expect(text).toContain('Played audio (A)');
-    expect(text).toContain('Played audio (B)');
-    expect(text).not.toContain('Me (A)');
+    expect(menuGlyphs(tree)[0].props.accessibilityState.disabled).toBe(true);
     act(() => tree.unmount());
   });
 });

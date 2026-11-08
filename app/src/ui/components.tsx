@@ -1,5 +1,6 @@
 import React from 'react';
 import {
+  ActionSheetIOS,
   Alert,
   Animated,
   Keyboard,
@@ -19,15 +20,15 @@ import {
 } from 'react-native';
 import { MAX_RECORDING_NAME_LENGTH } from '../../../core/constants';
 import type { RecordingView } from '../../../core/protocol';
-import { shareRecording } from '../api/download';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
-import { CheckIcon, RecordingsIcon } from './icons';
+import { CheckIcon, MenuIcon, RecordingsIcon } from './icons';
 import { BodyHeightContext, segmentRowsFor, usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
-import { useText } from '../i18n';
+import { useText, type Strings } from '../i18n';
 import type { ReadAloudControls } from '../audio/readAloud';
+import type { SegmentHead } from './RecordTab';
 
 /**
  * The mark: something is waiting behind this.
@@ -295,6 +296,115 @@ export function IconButton({
       {icon(disabled ? colors.textFaint : colors.textMuted)}
     </Pressable>
   );
+}
+
+/** One of a menu's actions. See `useActionMenu`. */
+export interface MenuItem {
+  label: string;
+  onPress: () => void;
+  /** Shown greyed, with the reason among the menu's `notes`. */
+  disabled?: boolean;
+  /** Red, for what cannot be undone; it still confirms on its own. */
+  destructive?: boolean;
+}
+
+/**
+ * A list of actions behind the menu glyph, since 2026-11-07: a segment's in
+ * the *Record* tab, which were three things — a share glyph's sheet, a row of
+ * wide buttons in the open segment, and *Open in noesis* under its line.
+ *
+ * **On iOS the native action sheet**, for the reason the share's was: only
+ * the sheet can show an action greyed rather than leave it out, and it has a
+ * `message` where the sentences saying why go — `notes`, the muted lines that
+ * stood beside the buttons. **Everywhere else a column of buttons under the
+ * line**, opened and closed by the glyph, which is what the web's share was
+ * since 2026-10-30: the web's `Alert` is a chain of `confirm`s, and Android's
+ * draws three buttons at most. Returned as two pieces, `button` for the
+ * line's end and `panel` for under it, since only the caller knows where
+ * under it is.
+ *
+ * `busy`, while something it started is under way, is the word for what —
+ * *Preparing…* — and greys the glyph, a screen reader hearing the word in
+ * place of `label`. So does a menu with nothing to press and nothing to say,
+ * a greyed action with a note being worth opening to read. **The glyph stays drawn
+ * either way**: a control that comes and goes as you scroll is one that is
+ * not where the thumb went (STYLE.md, rule six).
+ */
+export function useActionMenu({
+  label,
+  title,
+  items,
+  notes = [],
+  busy = null,
+}: {
+  /** What a screen reader calls the glyph. */
+  label: string;
+  /** The sheet's heading: what the actions are of. */
+  title: string;
+  items: readonly MenuItem[];
+  notes?: readonly string[];
+  busy?: string | null;
+}): { button: React.ReactNode; panel: React.ReactNode } {
+  const t = useText().channel;
+  const [open, setOpen] = React.useState(false);
+  const available = !busy && (items.some((item) => !item.disabled) || notes.length > 0);
+
+  const show = () => {
+    if (Platform.OS !== 'ios') return setOpen(!open);
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title,
+        message: notes.length > 0 ? notes.join('\n\n') : undefined,
+        options: [...items.map((item) => item.label), t.cancel()],
+        cancelButtonIndex: items.length,
+        disabledButtonIndices: items.flatMap((item, i) => (item.disabled ? [i] : [])),
+        destructiveButtonIndex: items.flatMap((item, i) => (item.destructive ? [i] : [])),
+      },
+      (index) => {
+        const item = items[index];
+        if (item && !item.disabled) item.onPress();
+      }
+    );
+  };
+
+  const button = (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={busy ?? label}
+      accessibilityState={{ disabled: !available, busy: !!busy }}
+      disabled={!available}
+      hitSlop={spacing(1)}
+      onPress={show}
+      style={({ pressed }) => (pressed ? styles.pressed : undefined)}
+    >
+      <MenuIcon color={available ? colors.text : colors.textFaint} />
+    </Pressable>
+  );
+
+  const panel =
+    open && available ? (
+      <View style={styles.menuPanel}>
+        {items.map((item) => (
+          <Button
+            key={item.label}
+            label={item.label}
+            variant={item.destructive ? 'danger' : 'default'}
+            disabled={item.disabled}
+            onPress={() => {
+              setOpen(false);
+              item.onPress();
+            }}
+          />
+        ))}
+        {notes.map((note) => (
+          <Text key={note} style={type.muted}>
+            {note}
+          </Text>
+        ))}
+      </View>
+    ) : null;
+
+  return { button, panel };
 }
 
 /**
@@ -1248,6 +1358,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.7 },
+  /** `useActionMenu`'s column, where there is no action sheet. */
+  menuPanel: { gap: spacing(1) },
   checkRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1453,47 +1565,37 @@ const styles = StyleSheet.create({
 });
 
 /**
- * A finished recording, with the control that turns it into a file.
+ * A finished recording, as its segment's line in the *Record* log: the record
+ * dot, the segment's hours and what it kept, and the menu at the end. Open, it
+ * says the recording's name, and asks your consent to publish it where the
+ * channel has a public page.
  *
- * Here rather than in `ChannelView.tsx`, which is now its only production
- * consumer, because it shares `recordingStyles` with the controls below
- * it. It was shared for a second reason until the floor passed 21: Home drew
- * recordings too, and a recording must not be called one thing on one screen
- * and something else on the other.
+ * **Its actions are the segment's menu since 2026-11-07** (`useActionMenu`):
+ * Play, Rename, Transcribe and Delete join the segment's own — its audio, its
+ * text, noesis — in one list. They were a column of wide buttons in the open
+ * row, under a share glyph offering the audio a second time. The sentences
+ * that stood beside them saying why one is greyed are the menu's notes.
+ *
+ * **No card since then either**, nothing having drawn it as one: the log has
+ * drawn recordings as lines since 2026-10-09, and Home drew cards until the
+ * floor passed 21. Here rather than in `ChannelView.tsx`, its only caller,
+ * because it shares `recordingStyles` with the controls below it.
  */
 export function RecordingRow({
   recording,
+  head,
   playable = false,
   playDisabled = false,
   playDisabledReason,
   manageable = true,
-  inline = false,
-  inlineLabel,
-  inlineTrailing,
-  inlineOpen,
-  onInlineToggle,
 }: {
   recording: RecordingView;
   /**
-   * A line in the *Record* tab's log rather than a card, since 2026-10-09:
-   * the record dot, the name, when it began and how long it ran, muted, in
-   * the flow of what was said around it. Opens to the same actions.
+   * Its segment's line: what it says, the segment's own actions, and whether
+   * it is open — which the segment holds, since 2026-10-18, one press opening
+   * the row and the lines under it together. See `SegmentLine`.
    */
-  inline?: boolean;
-  /**
-   * What the inline line says in place of the name, the time and the length:
-   * its segment's hours and what it kept, since 2026-10-10. See `SegmentLine`.
-   */
-  inlineLabel?: string;
-  /** Drawn at the end of the inline line, outside its press: the share. */
-  inlineTrailing?: React.ReactNode;
-  /**
-   * Whether the row is open, when its segment holds that rather than the row,
-   * since 2026-10-18: the line is the segment's header, and one press opens
-   * the actions and the lines under them together. See `SegmentLine`.
-   */
-  inlineOpen?: boolean;
-  onInlineToggle?: () => void;
+  head: SegmentHead;
   /** Whether this row can be played into the room. */
   playable?: boolean;
   /** Whoever holds the floor decides what plays, and this says when that is not you. */
@@ -1517,27 +1619,23 @@ export function RecordingRow({
   manageable?: boolean;
 }) {
   const t = useText().recordings;
+  const said = useText().transcript;
+  const app = useApp();
+  const { open, onToggle } = head;
   /**
-   * Closed until asked. A recording is a thing you mostly scan past — the list
-   * is the point, and three buttons per row turned a list of what was said
-   * into a wall of controls. Tapping one opens it, and only one row's worth of
-   * actions is ever on screen at a time.
-   *
-   * It also puts delete somewhere that takes a deliberate act to reach, which
-   * matters more than the tidiness: it is the one action here that cannot be
-   * undone from inside the app.
-   */
-  const [ownOpen, setOwnOpen] = React.useState(false);
-  const open = inlineOpen ?? ownOpen;
-  /**
-   * The rename field takes the place of the actions rather than joining them,
-   * so a row is either offering things to do or asking for a name — never a
-   * text box wedged between Share and Delete, with Delete a thumb's width
-   * from a keyboard somebody is typing into.
+   * The rename field takes the place of the name rather than joining it, so
+   * the row is asking for a name or saying one, never both. Chosen from the
+   * menu, it opens the segment if it was shut.
    */
   const [renaming, setRenaming] = React.useState(false);
+  /**
+   * What an action from the menu is doing, while it does — *Loading…*,
+   * *Starting…*, *Deleting…* — which the glyph says in place of its name.
+   * One for the row, since only one of its actions can be under way at once:
+   * the menu is greyed while any is.
+   */
+  const [busy, setBusy] = React.useState<string | null>(null);
 
-  const Shell = inline ? View : Card;
   const reveal = useReveal();
   /**
    * Measured, not laid out — see `Screen`'s `reveal`. The rename field is the
@@ -1547,6 +1645,94 @@ export function RecordingRow({
   const row = useRevealOnKeyboard(renaming);
   /** Set when something has grown, cleared by the layout that follows it. */
   const wants = React.useRef(false);
+
+  const run = async (word: string, failed: string, act: (token: string) => Promise<unknown>) => {
+    if (!app.token) return;
+    setBusy(word);
+    try {
+      await act(app.token);
+      // Nothing to do on success: the server pushes a fresh snapshot, and the
+      // row moves with everybody else's.
+    } catch (e) {
+      Alert.alert(failed, e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const transcript = transcriptActions(recording, manageable, run, t, said);
+  const items: MenuItem[] = [
+    ...(playable
+      ? [
+          {
+            label: t.play(),
+            disabled: playDisabled || !!recording.mixing,
+            onPress: () =>
+              void run(t.loading(), t.couldNotPlay(), (token) =>
+                api.playRecording(token, recording.id)
+              ),
+          },
+        ]
+      : []),
+    ...head.menu.items,
+    {
+      label: t.rename(),
+      disabled: !manageable,
+      onPress: () => {
+        // The field is taller than the name it replaces, and the keyboard
+        // takes the bottom of the screen as it arrives — so the row has to be
+        // brought in against a viewport that is about to shrink. `Screen`
+        // reads that height from its own layout, which changes for the same
+        // reason and at the same time.
+        wants.current = true;
+        if (!open) onToggle();
+        setRenaming(true);
+      },
+    },
+    ...transcript.items,
+    {
+      label: t.deleteRecording(),
+      destructive: true,
+      disabled: !manageable,
+      // Confirmed first, and the confirmation says what the week is for. This
+      // is the only action in the app that destroys somebody else's copy of
+      // something — a recording belongs to the channel, so every member loses
+      // it, not just whoever tapped. Deleting is marking: it leaves every list
+      // at once, and the sweep removes the audio a week later.
+      onPress: () =>
+        Alert.alert(t.deleteAsk(recording.name), t.deleteBody(), [
+          { text: t.keep(), style: 'cancel' },
+          {
+            text: t.delete(),
+            style: 'destructive',
+            onPress: () =>
+              void run(t.deleting(), t.couldNotDelete(), (token) =>
+                api.deleteRecording(token, recording.id)
+              ),
+          },
+        ]),
+    },
+  ];
+  const notes = [
+    // Said once, for the two it greys: the segment's audio, and Play. Renaming
+    // and deleting are about the row rather than the audio, so a recording
+    // that has only just stopped is not one you can do nothing with.
+    ...(recording.mixing ? [t.stillBeingPrepared()] : []),
+    ...(playable && playDisabled && playDisabledReason
+      ? [t.playUnavailable(playDisabledReason)]
+      : []),
+    ...transcript.notes,
+    // Sharing is missing from this sentence on purpose: it is the action
+    // still working — see `manageable`.
+    ...(manageable ? [] : [t.stepInToRenameOrDelete()]),
+  ];
+  const menu = useActionMenu({
+    label: head.menu.label,
+    title: head.menu.title,
+    items,
+    notes,
+    busy: busy ?? head.menu.busy,
+  });
 
   return (
     <View
@@ -1559,154 +1745,70 @@ export function RecordingRow({
         reveal(row);
       }}
     >
-    <Shell style={recordingStyles.row}>
-      <View style={recordingStyles.head}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t.rowLabel(
-          recording.name,
-          formatDuration(recording.durationMs),
-          open
-        )}
-        onPress={() => {
-          // Collapsing abandons a rename in progress, so reopening the row
-          // offers the actions again rather than the half-typed name of
-          // whatever the person had changed their mind about.
-          setRenaming(false);
-          // Only opening needs revealing. Closing can only make the card
-          // smaller, and scrolling after it would move the list under a
-          // finger that asked for nothing of the sort.
-          if (!open) wants.current = true;
-          if (onInlineToggle) onInlineToggle();
-          else setOwnOpen(!open);
-        }}
-        accessibilityState={inlineLabel !== undefined ? { expanded: open } : undefined}
-        style={({ pressed }) => [
-          inline ? recordingStyles.inlinePress : undefined,
-          pressed ? recordingStyles.pressed : undefined,
-        ]}
-      >
-        {inline ? (
-          <View style={recordingStyles.marker}>
-            {/* A segment's header, in `type.heading`, where it heads one;
-                the old muted marker where it does not. */}
-            <RecordingsIcon
-              color={colors.textMuted}
-              size={inlineLabel !== undefined ? 17 : 14}
-            />
-            <Text
-              style={[
-                inlineLabel !== undefined ? type.heading : type.muted,
-                recordingStyles.markerText,
-              ]}
-              numberOfLines={1}
-            >
-              {inlineLabel ?? (
-                <>
-                  {recording.name} ·{' '}
-                  {new Date(recording.startedAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}{' '}
-                  · {formatDuration(recording.durationMs)}
-                </>
-              )}
-            </Text>
-          </View>
-        ) : (
-        <View style={recordingStyles.main}>
-          {/*
-            Decided when the run stopped and the same for everybody who was in
-            it, so two people can talk about one recording by one name.
-          */}
-          <Text style={recordingStyles.name} numberOfLines={1}>
-            {recording.name}
-          </Text>
-          <Text style={type.muted}>
-            {new Date(recording.startedAt).toLocaleString()} ·{' '}
-            {formatDuration(recording.durationMs)}
-          </Text>
+      <View style={recordingStyles.row}>
+        <View style={recordingStyles.head}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={t.rowLabel(
+              recording.name,
+              formatDuration(recording.durationMs),
+              open
+            )}
+            onPress={() => {
+              // Collapsing abandons a rename in progress, so reopening the
+              // row says the name again rather than offering the half-typed
+              // one somebody had changed their mind about.
+              setRenaming(false);
+              // Only opening needs revealing. Closing can only make the row
+              // smaller, and scrolling after it would move the list under a
+              // finger that asked for nothing of the sort.
+              if (!open) wants.current = true;
+              onToggle();
+            }}
+            accessibilityState={{ expanded: open }}
+            style={({ pressed }) => [
+              recordingStyles.inlinePress,
+              pressed ? recordingStyles.pressed : undefined,
+            ]}
+          >
+            <View style={recordingStyles.marker}>
+              <RecordingsIcon color={colors.textMuted} size={17} />
+              <Text style={[type.heading, recordingStyles.markerText]} numberOfLines={1}>
+                {head.label}
+              </Text>
+            </View>
+          </Pressable>
+          {menu.button}
         </View>
-        )}
-      </Pressable>
-      {inline ? inlineTrailing : null}
-      </View>
+        {menu.panel}
 
-      {open && renaming ? (
-        <RenameEditor recording={recording} onDone={() => setRenaming(false)} />
-      ) : null}
+        {open && renaming ? (
+          <RenameEditor recording={recording} onDone={() => setRenaming(false)} />
+        ) : null}
 
-      {open && !renaming ? (
-        <View style={recordingStyles.actions}>
-          {/* The name, which a segment's line does not carry: said where
-              Rename is, so the thing renamed is on screen. */}
-          {inline && inlineLabel !== undefined ? (
+        {open && !renaming ? (
+          <View style={recordingStyles.actions}>
+            {/* The name, which a segment's line does not carry: said where
+                Rename puts its field, so the thing renamed is on screen. */}
             <Text style={recordingStyles.name} numberOfLines={2}>
               {recording.name}
             </Text>
-          ) : null}
-          {playable ? (
-            <PlayButton
-              recording={recording}
-              disabled={playDisabled || !!recording.mixing}
-            />
-          ) : null}
-          <ShareButton recording={recording} disabled={!!recording.mixing} />
-          <Button
-            label={t.rename()}
-            disabled={!manageable}
-            onPress={() => {
-              // The field is taller than the actions it replaces, and the
-              // keyboard takes the bottom of the screen as it arrives — so the
-              // card has to be brought in against a viewport that is about to
-              // shrink. `Screen` reads that height from its own layout, which
-              // changes for the same reason and at the same time.
-              wants.current = true;
-              setRenaming(true);
-            }}
-          />
-          <TranscriptButton recording={recording} manageable={manageable} />
-          <DeleteButton recording={recording} disabled={!manageable} />
-          {/*
-            Only on a channel that has declared itself public — the server
-            sends this field only then, so an ordinary channel's rows are
-            untouched. Below Delete because it is the rarer act and the one
-            that wants a deliberate reach.
-          */}
-          <PublishControl recording={recording} />
-          {/*
-            Said once, beside the two controls it applies to. Renaming and
-            deleting are unaffected — they are about the row rather than the
-            audio — so a recording that has only just stopped is not a card you
-            can do nothing with.
-          */}
-          {recording.mixing ? (
-            <Text style={type.muted}>{t.stillBeingPrepared()}</Text>
-          ) : null}
-          {/*
-            Beside the disabled button rather than up in the summary line,
-            where it was explaining a control that is no longer visible until
-            somebody asks for it.
-          */}
-          {playable && playDisabled && playDisabledReason ? (
-            <Text style={type.muted}>{t.playUnavailable(playDisabledReason)}</Text>
-          ) : null}
-          {/*
-            Share is missing from this sentence on purpose, and it is the one
-            button on the row still working — see `manageable`.
-          */}
-          {manageable ? null : (
-            <Text style={type.muted}>{t.stepInToRenameOrDelete()}</Text>
-          )}
-        </View>
-      ) : null}
-    </Shell>
+            {/*
+              Only on a channel that has declared itself public — the server
+              sends this field only then, so an ordinary channel's rows are
+              untouched. Not in the menu: it is a question about you with a
+              line about everybody else under it, rather than an act.
+            */}
+            <PublishControl recording={recording} />
+          </View>
+        ) : null}
+      </View>
     </View>
   );
 }
 
 /**
- * Renames a recording, in place of the row's actions.
+ * Renames a recording, in place of the row's name.
  *
  * Inline rather than an `Alert.prompt`, which would have been three lines:
  * that is iOS-only, and every other confirmation in this app is an
@@ -1774,66 +1876,6 @@ function RenameEditor({
       />
       <Button label={t.cancel()} disabled={busy} onPress={onDone} />
     </View>
-  );
-}
-
-/**
- * Marks a recording for deletion, which is what deleting one means here: it
- * leaves every list at once, and the sweep removes the audio a week later.
- *
- * Confirmed first, and the confirmation says what the week is for. This is the
- * only action in the app that destroys somebody else's copy of something —
- * a recording belongs to the channel, so every member loses it, not just
- * whoever tapped.
- */
-function DeleteButton({
-  recording,
-  disabled = false,
-}: {
-  recording: RecordingView;
-  disabled?: boolean;
-}) {
-  const t = useText().recordings;
-  const app = useApp();
-  const [busy, setBusy] = React.useState(false);
-
-  const remove = async () => {
-    if (!app.token) return;
-    setBusy(true);
-    try {
-      await api.deleteRecording(app.token, recording.id);
-      // Nothing to do on success: the server pushes a fresh snapshot without
-      // this recording in it, and the row goes with it.
-    } catch (e) {
-      Alert.alert(
-        t.couldNotDelete(),
-        e instanceof Error ? e.message : String(e)
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Button
-      label={busy ? t.deleting() : t.delete()}
-      variant="danger"
-      disabled={busy || disabled}
-      onPress={() =>
-        Alert.alert(
-          t.deleteAsk(recording.name),
-          t.deleteBody(),
-          [
-            { text: t.keep(), style: 'cancel' },
-            {
-              text: t.delete(),
-              style: 'destructive',
-              onPress: () => void remove(),
-            },
-          ]
-        )
-      }
-    />
   );
 }
 
@@ -1955,55 +1997,14 @@ function PublishControl({ recording }: { recording: RecordingView }) {
 }
 
 /**
- * Loads a recording as the channel's shared track, which is how it is played:
- * there is no second playback mechanism, and once it is loaded the controls
- * already on the screen are the ones that run it.
- *
- * Its own component for the same reason as the export button — the mix is
- * encoded on demand, so this is a wait of seconds and the row that was tapped
- * is the one that should say so.
- */
-function PlayButton({
-  recording,
-  disabled,
-}: {
-  recording: RecordingView;
-  disabled: boolean;
-}) {
-  const t = useText().recordings;
-  const app = useApp();
-  const [busy, setBusy] = React.useState(false);
-
-  return (
-    <Button
-      label={busy ? t.loading() : t.play()}
-      disabled={busy || disabled}
-      onPress={async () => {
-        if (!app.token) return;
-        setBusy(true);
-        try {
-          await api.playRecording(app.token, recording.id);
-        } catch (e) {
-          Alert.alert(
-            t.couldNotPlay(),
-            e instanceof Error ? e.message : String(e)
-          );
-        } finally {
-          setBusy(false);
-        }
-      }}
-    />
-  );
-}
-
-/**
- * Starts a transcript, or says where the one there is stands.
+ * What a recording's menu offers of its transcript — asking for one, or
+ * deleting it — and the sentences saying where the one there is stands.
  *
  * **The transcript itself is not here since 2026-10-10.** Its lines are drawn
  * in the *Record* log under this recording's line, the way the live
- * transcript's are, so what stays on the row is what is done to it: asking
- * for one, and deleting it. A recording made with Text on offers neither —
- * its words are in the log already — and says nothing about it.
+ * transcript's are, so what stays with the row is what is done to it. A
+ * recording made with Text on offers neither — its words are in the log
+ * already — and says nothing about it.
  *
  * Asking is the state that matters: it costs money and sends everybody's
  * audio to a third party, so it asks first and names the company while doing
@@ -2014,19 +2015,15 @@ function PlayButton({
  * Withheld entirely when the server sends no `transcript` field, which is how
  * a server with no credential says it cannot do this at all.
  */
-function TranscriptButton({
-  recording,
-  manageable,
-}: {
-  recording: RecordingView;
-  manageable: boolean;
-}) {
-  const t = useText().recordings;
-  const said = useText().transcript;
-  const app = useApp();
-  const [busy, setBusy] = React.useState(false);
+function transcriptActions(
+  recording: RecordingView,
+  manageable: boolean,
+  run: (word: string, failed: string, act: (token: string) => Promise<unknown>) => Promise<void>,
+  t: Strings['recordings'],
+  said: Strings['transcript']
+): { items: MenuItem[]; notes: string[] } {
   const transcript = recording.transcript;
-  if (!transcript || transcript.live) return null;
+  if (!transcript || transcript.live) return { items: [], notes: [] };
   // Everybody gets free minutes a week, so a refusal here is usually "this
   // week's are spent" or "this one is more than you have left" — temporary,
   // personal, and worth a sentence. Reading is never limited, so a transcript that
@@ -2035,176 +2032,94 @@ function TranscriptButton({
   const limit = transcript.requestLimit;
 
   if (transcript.state === 'pending') {
-    // Not disabled-with-a-reason: there is nothing to do and nothing to wait
+    // Greyed with no sentence: there is nothing to do and nothing to wait
     // for on this screen, and the snapshot will move it when it moves.
-    return <Button label={t.transcribingNow()} disabled onPress={() => {}} />;
+    return { items: [{ label: t.transcribingNow(), disabled: true, onPress: () => {} }], notes: [] };
   }
   if (transcript.state === 'ready') {
-    const missing = transcript.missing ? (
-      <Text style={type.muted}>{said.missing(transcript.missing)}</Text>
-    ) : null;
-    if (transcript.mayRemove === false) return missing;
-    return (
-      <>
-        {missing}
-        <Button
-          label={said.deleteTranscript()}
-          disabled={!manageable || busy}
-          onPress={() => {
-            Alert.alert(
-              said.deleteThisTranscript(),
-              // Says the cost out loud. Nothing is refunded, and the app
-              // should not let somebody find that out by asking again.
-              said.deleteCost(),
-              [
-                { text: t.cancel(), style: 'cancel' },
-                {
-                  text: said.deleteConfirm(),
-                  style: 'destructive',
-                  onPress: async () => {
-                    if (!app.token) return;
-                    setBusy(true);
-                    try {
-                      await api.deleteTranscript(app.token, recording.id);
-                    } catch (e) {
-                      Alert.alert(
-                        said.couldNotDelete(),
-                        e instanceof Error ? e.message : String(e)
-                      );
-                    } finally {
-                      setBusy(false);
-                    }
-                  },
-                },
-              ]
-            );
-          }}
-        />
-      </>
-    );
+    const notes = transcript.missing ? [said.missing(transcript.missing)] : [];
+    if (transcript.mayRemove === false) return { items: [], notes };
+    const remove = () =>
+      Alert.alert(
+        said.deleteThisTranscript(),
+        // Says the cost out loud. Nothing is refunded, and the app
+        // should not let somebody find that out by asking again.
+        said.deleteCost(),
+        [
+          { text: t.cancel(), style: 'cancel' },
+          {
+            text: said.deleteConfirm(),
+            style: 'destructive',
+            onPress: () =>
+              void run(t.deleting(), said.couldNotDelete(), (token) =>
+                api.deleteTranscript(token, recording.id)
+              ),
+          },
+        ]
+      );
+    return {
+      items: [{ label: said.deleteTranscript(), destructive: true, disabled: !manageable, onPress: remove }],
+      notes,
+    };
   }
 
   // A failed one says why and may be asked for again, which is the retry.
   const failed =
-    transcript.state === 'failed' ? (
-      <Text style={type.muted}>
-        {transcript.failure
-          ? said.transcribingFailedWith(transcript.failure)
-          : said.transcribingFailed()}
-      </Text>
-    ) : null;
+    transcript.state === 'failed'
+      ? [
+          transcript.failure
+            ? said.transcribingFailedWith(transcript.failure)
+            : said.transcribingFailed(),
+        ]
+      : [];
 
-  // A disabled button with the reason beside it, which is what a disabled
-  // control means everywhere else on this card. Without a sentence there is
-  // nothing at all — an old server that limited transcribing to one account
-  // sends no reason, and "not you, ever, on this server" was never worth
-  // putting on every recording in the list.
+  // Greyed with the reason beside it, which is what a greyed action means
+  // everywhere else in the menu. Without a sentence there is nothing at all —
+  // an old server that limited transcribing to one account sends no reason,
+  // and "not you, ever, on this server" was never worth putting on every
+  // recording in the list.
   if (!mayRequest) {
-    if (!limit) return failed;
-    return (
-      <>
-        {failed}
-        <Button label={t.transcribe()} disabled onPress={() => {}} />
-        <Text style={type.muted}>{limit}</Text>
-      </>
-    );
+    if (!limit) return { items: [], notes: failed };
+    return {
+      items: [{ label: t.transcribe(), disabled: true, onPress: () => {} }],
+      notes: [...failed, limit],
+    };
   }
 
-  return (
-    <>
-      {failed}
-      <Button
-        label={busy ? t.starting() : t.transcribe()}
-        // Not while the recording is still being prepared, though it used to
-        // be: its stems may not all have landed, but the server holds the job
-        // until the mix settles, so the wait is the request's and not the
-        // button's. A server from before that refuses nothing either, and its
-        // job may fail — the retry it offers then is this same button.
-        disabled={busy || !manageable}
-        onPress={() => {
-          // Two confirmations, because there are two different stakes. The
-          // ordinary one is about where the audio goes; the other is about
-          // something that can be done exactly once, which somebody should not
-          // discover afterwards — so the title asks about the free use rather
-          // than about the recording, and Cancel is the way out of both.
-          const spends = transcript.spendsFreeUse === true;
-          // Minutes since 2026-10-10; a server from before them sends the
-          // flag alone, which meant the one free transcript.
-          const free = spends ? (transcript.freeMinutes ?? true) : false;
-          Alert.alert(
-            free === true ? t.spendFreeAsk() : free ? t.spendMinutesAsk() : t.transcribeAsk(),
-            t.transcribeBody(transcript.provider, free),
-            [
-              { text: t.cancel(), style: 'cancel' },
-              {
-                text: free === true ? t.useIt() : t.transcribe(),
-                onPress: async () => {
-                  if (!app.token) return;
-                  setBusy(true);
-                  try {
-                    await api.startTranscript(app.token, recording.id);
-                  } catch (e) {
-                    Alert.alert(
-                      t.couldNotTranscribe(),
-                      e instanceof Error ? e.message : String(e)
-                    );
-                  } finally {
-                    setBusy(false);
-                  }
-                },
-              },
-            ]
-          );
-        }}
-      />
-    </>
-  );
-}
-
-/**
- * Its own component so each row keeps its own progress state — the mix is
- * encoded on demand, so this is a wait of seconds rather than an instant
- * download, and a shared flag would show every row as busy.
- */
-export function ShareButton({
-  recording,
-  disabled = false,
-}: {
-  recording: RecordingView;
-  /** The mix is not made yet, so there is nothing to encode from. */
-  disabled?: boolean;
-}) {
-  const t = useText().recordings;
-  const app = useApp();
-  const [busy, setBusy] = React.useState(false);
-
-  return (
-    <Button
-      label={busy ? t.preparing() : t.share()}
-      disabled={busy || disabled}
-      onPress={async () => {
-        if (!app.token) return;
-        setBusy(true);
-        try {
-          await shareRecording(
-            app.token,
-            recording.id,
-            // Same label as the row it came from, so the file that lands in
-            // the share sheet is recognisable as the thing that was tapped.
-            recording.name,
-            recording.endedAt
-          );
-        } catch (e) {
-          Alert.alert(
-            t.couldNotShare(),
-            e instanceof Error ? e.message : String(e)
-          );
-        } finally {
-          setBusy(false);
-        }
-      }}
-    />
-  );
+  const ask = () => {
+    // Two confirmations, because there are two different stakes. The
+    // ordinary one is about where the audio goes; the other is about
+    // something that can be done exactly once, which somebody should not
+    // discover afterwards — so the title asks about the free use rather
+    // than about the recording, and Cancel is the way out of both.
+    const spends = transcript.spendsFreeUse === true;
+    // Minutes since 2026-10-10; a server from before them sends the
+    // flag alone, which meant the one free transcript.
+    const free = spends ? (transcript.freeMinutes ?? true) : false;
+    Alert.alert(
+      free === true ? t.spendFreeAsk() : free ? t.spendMinutesAsk() : t.transcribeAsk(),
+      t.transcribeBody(transcript.provider, free),
+      [
+        { text: t.cancel(), style: 'cancel' },
+        {
+          text: free === true ? t.useIt() : t.transcribe(),
+          onPress: () =>
+            void run(t.starting(), t.couldNotTranscribe(), (token) =>
+              api.startTranscript(token, recording.id)
+            ),
+        },
+      ]
+    );
+  };
+  return {
+    // Not greyed while the recording is still being prepared, though it used
+    // to be: its stems may not all have landed, but the server holds the job
+    // until the mix settles, so the wait is the request's and not the
+    // action's. A server from before that refuses nothing either, and its
+    // job may fail — the retry it offers then is this same action.
+    items: [{ label: t.transcribe(), disabled: !manageable, onPress: ask }],
+    notes: failed,
+  };
 }
 
 const recordingStyles = StyleSheet.create({
@@ -2213,13 +2128,11 @@ const recordingStyles = StyleSheet.create({
   // recording card sit edge to edge and read as one control.
   search: { gap: spacing(1), marginBottom: spacing(1) },
   hit: { gap: spacing(0.5) },
-  // A column now, because the actions open *below* the name rather than
-  // sitting beside it.
+  // A column, because what opens opens *below* the line rather than beside it.
   row: { gap: spacing(1.5) },
-  main: { gap: spacing(0.25) },
-  // The press and, inline, the share beside it.
+  // The press and the menu beside it.
   head: { flexDirection: 'row', alignItems: 'center', gap: spacing(1) },
-  // The whole of the line up to the share is the press, not only its words.
+  // The whole of the line up to the menu is the press, not only its words.
   inlinePress: { flex: 1, paddingVertical: spacing(0.5) },
   marker: { flexDirection: 'row', alignItems: 'center', gap: spacing(0.75) },
   markerText: { flexShrink: 1 },

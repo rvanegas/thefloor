@@ -1356,21 +1356,30 @@ moved into the opened row, above its actions. A segment's text — live, or
 its recording's *transcript* — is drawn under its line exactly as the live
 lines were. **Since 2026-10-18 the line is the segment's header**: in
 `type.heading` rather than muted, the record dot and the ring at 17, and the
-whole of it up to the share a press that opens and closes the segment.
+whole of it up to the menu a press that opens and closes the segment.
 Closed, a segment is its header alone, so a closed log is a list of them;
-open, it is its lines, and for one with audio its recording's actions above
+open, it is its lines, and for one with audio its recording's name above
 them — one press, as opening the recording always was. Segments start closed
-except the one still being kept, so talk arriving is seen arriving. **A
-segment filed in the channel's library has a second line**, since 2026-11-07:
-the title noesis gave its document in `type.muted`, two lines at most, and
-*Open in noesis* at its end as a 13-point word in `text`, a paste's *Open*'s
-shape — indented past the dot, so it reads as the header's own, and drawn shut
-or open, since it names the segment. Each room starts with its line — date and hours, no share — over
-a hairline; see § *The pinned header*.
+except the one still being kept, so talk arriving is seen arriving. **Every
+action on a segment is one menu since 2026-11-07**: the menu glyph at the
+header's end, where the share glyph was, opening iOS's action sheet titled by
+the header — elsewhere a column of `Button`s under the line — with *Share
+audio*, *Share text*, *Send to noesis*, *Open in noesis*, and a recording's
+*Play*, *Rename*, *Transcribe* and *Delete recording*, greyed where refused
+and the sentence saying why as the sheet's message (`useActionMenu`). They
+had been three forms — the share glyph's sheet, a column of wide buttons in
+the opened recording, and *Open in noesis* as a word under the line — and
+the opened recording keeps only its name and, on a public channel, the
+consent box, which is a question rather than an act. **A segment filed in
+the channel's library has a second line**, since 2026-11-07: the title noesis
+gave its document in `type.muted`, two lines at most, indented past the dot,
+so it reads as the header's own, and drawn shut or open, since it names the
+segment. Each room starts with its line — date and hours, no menu — over a
+hairline; see § *The pinned header*.
 **A paste is an entry like a speaker's**, since 2026-10-15: the clipboard
 glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*
 as 13-point words in `text` at the end of that line — words and not buttons,
-as the share is a glyph — and the whole text under it in `type.body`. Drawn
+as the menu is a glyph — and the whole text under it in `type.body`. Drawn
 among its segment's lines at its moment, or alone where nothing was being
 kept. **Pasting is a glyph at the right end of the pinned bar**, after *Text*,
 since 2026-10-16 — the clipboard, or on iOS Apple's own paste control drawn
@@ -1634,9 +1643,13 @@ the copy.
   the recording transport's buttons until 2026-10-09, when they became
   switches with words and their glyphs (`lucide/pause`, `lucide/square`) left
   this file. The word survives as the accessibility label. See § *Button*.
-- **The room's share, since 2026-10-09**, which is the share glyph alone on
-  the room's line: the line is the room's date, and the glyph is the one
-  everybody has met on a phone. Its accessible name is *Share this room*.
+- **A segment's menu, since 2026-11-07**, which is `lucide/menu`'s three bars
+  alone at the end of the segment's line, in `text`, `textFaint` while there
+  is nothing in it to press. It took the share glyph's place there — the
+  share was the room's from 2026-10-09 and each segment's from the next day —
+  when a segment's actions became one list, since a share glyph opening
+  *Rename* and *Delete recording* would say less than what it opens. Its
+  accessible name is *Actions for* the segment's hours.
 - **The *Invite card*, since 2026-10-16**, is *Add a contact*'s row on the
   People tab, the `+` and its word in the floor's colour, and so the third
   place that shape stands for *make something new* — the two existing ones
@@ -1751,13 +1764,16 @@ rules.
   what is actually lost and for how long. There are 36 of these; there are no
   custom modal dialogs and no `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
-  **One choice is asked through iOS's action sheet**, since 2026-10-09: a
-  room's share, *Audio* or *Text*, because only the sheet can show an option
-  greyed rather than leave it out. **In a browser it is two buttons opened
-  under the line by the glyph**, since 2026-10-30, the missing one greyed:
-  the web's `Alert` is a chain of `confirm`s, which asked *Audio?* and then
-  *Text?* as two dialogs. On Android it is `Alert`, offering only what there
-  is.
+  **One menu is iOS's action sheet**, since 2026-11-07: a segment's actions
+  (`useActionMenu`), because only the sheet can show an action greyed rather
+  than leave it out, and its message is where the sentence saying why goes —
+  this rule's *beside it*, in the one place a sheet has for it. It was a
+  room's share, *Audio* or *Text*, from 2026-10-09. **Everywhere else it is a
+  column of buttons opened under the line by the glyph**, the greyed ones
+  greyed and the sentences under them, as the share was in a browser since
+  2026-10-30: the web's `Alert` is a chain of `confirm`s, and Android's draws
+  three buttons at most. Choosing a library to send to is the sheet's second
+  question, asked only of somebody with several.
 - **And a control that only *proposes* something confirms anyway, saying that
   nothing has happened yet.** Added 2026-09-26 with the *motion to remove*.
   *Move to remove them* takes nobody's place away — a second member has to
