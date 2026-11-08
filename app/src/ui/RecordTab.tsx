@@ -1,9 +1,7 @@
 import React from 'react';
 import {
-  ActionSheetIOS,
   Alert,
   Animated,
-  Platform,
   Pressable,
   StyleSheet,
   Switch,
@@ -59,7 +57,7 @@ import { colors, formatDuration, measure, spacing, type } from './theme';
  */
 export interface SegmentHead {
   label: string;
-  menu: { label: string; title: string; items: readonly MenuItem[]; busy: string | null };
+  menu: { label: string; items: readonly MenuItem[]; busy: string | null };
   open: boolean;
   onToggle: () => void;
 }
@@ -495,10 +493,10 @@ export function RoomLine({ room }: { room: RoomView }) {
  * to noesis*; the recording's wide buttons in the open segment; and *Open in
  * noesis* under the line. Sharing asks no second question now — *Share
  * audio* and *Share text* are each an action — and an action the segment
- * cannot have is left out, save its audio while it is still being mixed,
- * which is greyed with the reason. Its title is the line, naming the segment
- * by its hours rather than by a noun, there being no word for it a person
- * needs.
+ * cannot have is left out, save its audio while it is still being filed or
+ * mixed, which is greyed. **It opens under the line rather than over the
+ * screen**, since the day after: a column of buttons the glyph opens and
+ * closes, and *Send to noesis* asking which library the same way.
  */
 export function SegmentLine({
   channelId,
@@ -568,20 +566,9 @@ export function SegmentLine({
     }
   };
 
-  const chooseLibrary = () => {
-    if (libraries.length === 1) return void send(libraries[0]);
-    if (Platform.OS !== 'ios') return setChoosing(true);
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title: t.sendToWhichLibrary(),
-        options: [...libraries.map(libraryName), t.cancel()],
-        cancelButtonIndex: libraries.length,
-      },
-      (index) => {
-        if (index < libraries.length) void send(libraries[index]);
-      }
-    );
-  };
+  // Asked under the line, as the menu is, and only of somebody with several.
+  const chooseLibrary = () =>
+    libraries.length === 1 ? void send(libraries[0]) : setChoosing(true);
 
   const share = async (what: 'audio' | 'text') => {
     if (!app.token || busy) return;
@@ -612,7 +599,6 @@ export function SegmentLine({
 
   const menu: SegmentHead['menu'] = {
     label: t.segmentActions(span),
-    title: label,
     items: [
       // Greyed rather than left out while its recording is being filed or
       // mixed, both of which end on their own.
@@ -637,17 +623,20 @@ export function SegmentLine({
 
   const library = choosing ? (
     <View style={styles.libraryChoice}>
-      {libraries.map((library) => (
-        <Button
-          key={library}
-          label={libraryName(library)}
-          onPress={() => {
-            setChoosing(false);
-            void send(library);
-          }}
-        />
-      ))}
-      <Button label={t.cancel()} onPress={() => setChoosing(false)} />
+      <Text style={type.muted}>{t.sendToWhichLibrary()}</Text>
+      <View style={styles.libraryOptions}>
+        {libraries.map((library) => (
+          <Button
+            key={library}
+            label={libraryName(library)}
+            onPress={() => {
+              setChoosing(false);
+              void send(library);
+            }}
+          />
+        ))}
+        <Button label={t.cancel()} onPress={() => setChoosing(false)} />
+      </View>
     </View>
   ) : null;
 
@@ -1339,13 +1328,8 @@ const styles = StyleSheet.create({
   filedTitle: { flex: 1 },
   // Which library to send to, where there is no action sheet. Wraps: a
   // library's name is as long as its owner made it, and there may be several.
-  libraryChoice: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'flex-end',
-    gap: spacing(1),
-    paddingBottom: spacing(0.5),
-  },
+  libraryChoice: { gap: spacing(1), paddingBottom: spacing(0.5) },
+  libraryOptions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing(1) },
   // A ring the record dot's size: kept, and not as audio.
   ring: {
     width: 12,

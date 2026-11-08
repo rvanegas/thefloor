@@ -1,6 +1,5 @@
 import React from 'react';
 import {
-  ActionSheetIOS,
   Alert,
   Animated,
   Keyboard,
@@ -313,15 +312,15 @@ export interface MenuItem {
  * the *Record* tab, which were three things — a share glyph's sheet, a row of
  * wide buttons in the open segment, and *Open in noesis* under its line.
  *
- * **On iOS the native action sheet**, for the reason the share's was: only
- * the sheet can show an action greyed rather than leave it out, and it has a
- * `message` where the sentences saying why go — `notes`, the muted lines that
- * stood beside the buttons. **Everywhere else a column of buttons under the
- * line**, opened and closed by the glyph, which is what the web's share was
- * since 2026-10-30: the web's `Alert` is a chain of `confirm`s, and Android's
- * draws three buttons at most. Returned as two pieces, `button` for the
- * line's end and `panel` for under it, since only the caller knows where
- * under it is.
+ * **A column of buttons under the line, opened and closed by the glyph** —
+ * part of the view, everywhere, rather than a sheet over it. It was iOS's
+ * action sheet for its first day, which can grey an action and has a message
+ * for why; Rodrigo asked for it in the page instead, a sheet taking the
+ * screen away from the segment it is about. The column greys what is refused
+ * with `notes` under it, the sentences saying why, as a disabled control is
+ * accompanied everywhere else (STYLE.md § *Words on controls*). Returned as
+ * two pieces, `button` for the line's end and `panel` for under it, since
+ * only the caller knows where under it is. Choosing an action closes it.
  *
  * `busy`, while something it started is under way, is the word for what —
  * *Preparing…* — and greys the glyph, a screen reader hearing the word in
@@ -332,49 +331,27 @@ export interface MenuItem {
  */
 export function useActionMenu({
   label,
-  title,
   items,
   notes = [],
   busy = null,
 }: {
-  /** What a screen reader calls the glyph. */
+  /** What a screen reader calls the glyph, and the column it opens. */
   label: string;
-  /** The sheet's heading: what the actions are of. */
-  title: string;
   items: readonly MenuItem[];
   notes?: readonly string[];
   busy?: string | null;
 }): { button: React.ReactNode; panel: React.ReactNode } {
-  const t = useText().channel;
   const [open, setOpen] = React.useState(false);
   const available = !busy && (items.some((item) => !item.disabled) || notes.length > 0);
-
-  const show = () => {
-    if (Platform.OS !== 'ios') return setOpen(!open);
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        title,
-        message: notes.length > 0 ? notes.join('\n\n') : undefined,
-        options: [...items.map((item) => item.label), t.cancel()],
-        cancelButtonIndex: items.length,
-        disabledButtonIndices: items.flatMap((item, i) => (item.disabled ? [i] : [])),
-        destructiveButtonIndex: items.flatMap((item, i) => (item.destructive ? [i] : [])),
-      },
-      (index) => {
-        const item = items[index];
-        if (item && !item.disabled) item.onPress();
-      }
-    );
-  };
 
   const button = (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={busy ?? label}
-      accessibilityState={{ disabled: !available, busy: !!busy }}
+      accessibilityState={{ disabled: !available, busy: !!busy, expanded: open && available }}
       disabled={!available}
       hitSlop={spacing(1)}
-      onPress={show}
+      onPress={() => setOpen(!open)}
       style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >
       <MenuIcon color={available ? colors.text : colors.textFaint} />
@@ -383,7 +360,7 @@ export function useActionMenu({
 
   const panel =
     open && available ? (
-      <View style={styles.menuPanel}>
+      <View accessibilityRole="menu" accessibilityLabel={label} style={styles.menuPanel}>
         {items.map((item) => (
           <Button
             key={item.label}
@@ -1728,7 +1705,6 @@ export function RecordingRow({
   ];
   const menu = useActionMenu({
     label: head.menu.label,
-    title: head.menu.title,
     items,
     notes,
     busy: busy ?? head.menu.busy,

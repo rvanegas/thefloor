@@ -2780,10 +2780,10 @@ audio and a ring where it did not, its hours, what it kept (*Audio*, *Text*,
 audio is its recording's line, and opens to that recording's name. **Every
 action is in the menu since 2026-11-07** — *Share audio*, *Share text*,
 *Send to noesis*, *Open in noesis*, and a recording's *Play*, *Rename*,
-*Transcribe* and *Delete recording* — under a title naming its hours, never
-*room*. They were three things until then: a share glyph asking *Audio* or
-*Text*, wide buttons in the open recording, and *Open in noesis* under the
-line.
+*Transcribe* and *Delete recording* — a column of buttons the glyph opens
+under the line, in the view rather than as a sheet over it. They were three
+things until then: a share glyph asking *Audio* or *Text*, wide buttons in
+the open recording, and *Open in noesis* under the line.
 
 **Laid out in rooms.** Each *room* — a sitting, first step in to last step
 out — that kept something starts with a line bearing its date and hours,

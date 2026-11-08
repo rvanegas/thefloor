@@ -1362,11 +1362,13 @@ open, it is its lines, and for one with audio its recording's name above
 them — one press, as opening the recording always was. Segments start closed
 except the one still being kept, so talk arriving is seen arriving. **Every
 action on a segment is one menu since 2026-11-07**: the menu glyph at the
-header's end, where the share glyph was, opening iOS's action sheet titled by
-the header — elsewhere a column of `Button`s under the line — with *Share
-audio*, *Share text*, *Send to noesis*, *Open in noesis*, and a recording's
-*Play*, *Rename*, *Transcribe* and *Delete recording*, greyed where refused
-and the sentence saying why as the sheet's message (`useActionMenu`). They
+header's end, where the share glyph was, opening a column of `Button`s under
+the line and closing it again — in the view, never a sheet over it — with
+*Share audio*, *Share text*, *Send to noesis*, *Open in noesis*, and a
+recording's *Play*, *Rename*, *Transcribe* and *Delete recording*, greyed
+where refused with the sentences saying why under them (`useActionMenu`).
+On iOS it was the action sheet for its first day, until Rodrigo asked for it
+in the page, since a sheet takes the screen away from the segment. They
 had been three forms — the share glyph's sheet, a column of wide buttons in
 the opened recording, and *Open in noesis* as a word under the line — and
 the opened recording keeps only its name and, on a public channel, the
@@ -1764,16 +1766,16 @@ rules.
   what is actually lost and for how long. There are 36 of these; there are no
   custom modal dialogs and no `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
-  **One menu is iOS's action sheet**, since 2026-11-07: a segment's actions
-  (`useActionMenu`), because only the sheet can show an action greyed rather
-  than leave it out, and its message is where the sentence saying why goes —
-  this rule's *beside it*, in the one place a sheet has for it. It was a
-  room's share, *Audio* or *Text*, from 2026-10-09. **Everywhere else it is a
-  column of buttons opened under the line by the glyph**, the greyed ones
-  greyed and the sentences under them, as the share was in a browser since
-  2026-10-30: the web's `Alert` is a chain of `confirm`s, and Android's draws
-  three buttons at most. Choosing a library to send to is the sheet's second
-  question, asked only of somebody with several.
+  **And no action sheets: a menu opens in the view.** A segment's actions
+  (`useActionMenu`) are a column of buttons the glyph opens under its line
+  and closes, the refused ones greyed with their sentences under them, and
+  *Send to noesis* asks which library the same way, of somebody with
+  several. iOS's action sheet asked a room's share, *Audio* or *Text*, from
+  2026-10-09 — chosen because only the sheet could grey an option rather
+  than leave it out — and held the whole menu for 2026-11-07 alone, when
+  Rodrigo asked for it in the page instead: a sheet covers the segment it is
+  about. The web's `Alert` was never a candidate, being a chain of
+  `confirm`s, nor Android's, which draws three buttons at most.
 - **And a control that only *proposes* something confirms anyway, saying that
   nothing has happened yet.** Added 2026-09-26 with the *motion to remove*.
   *Move to remove them* takes nobody's place away — a second member has to

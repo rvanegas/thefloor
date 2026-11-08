@@ -4,16 +4,16 @@ import renderer, {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
-import { ActionSheetIOS, Alert } from 'react-native';
+import { Alert, Text } from 'react-native';
 import type { RecordingView } from '../../../../core/protocol';
-import { RecordingRow, Screen } from '../components';
+import { Button, RecordingRow, Screen } from '../components';
 
 /**
  * A recording's transcript, from the menu that starts one. Its lines are
  * drawn in the *Record* log since 2026-10-10 — `live-transcript.test.tsx` —
  * so what is left here is asking for one and deleting it, which are actions
- * in its segment's menu since 2026-11-07, with what was said beside them in
- * the menu's message.
+ * in its segment's menu since 2026-11-07, with the sentences saying why one
+ * is greyed under them.
  *
  * The thing worth a test rather than a look: that asking names the provider
  * before it spends anything, because whoever taps is deciding for everybody
@@ -99,8 +99,8 @@ beforeEach(() => {
 
 describe("a recording's menu, on its transcript", () => {
   /**
-   * The row, and its menu opened as iOS opens it: the sheet's actions, which
-   * are greyed, its notes, and a press on one as the sheet would make it.
+   * The row, and its menu opened under its line: its actions, which are
+   * greyed, the notes under them, and a press on one.
    */
   const open = (recording: RecordingView, manageable = true) => {
     // Inside a Screen, as it is in the app: the row measures itself against
@@ -115,7 +115,7 @@ describe("a recording's menu, on its transcript", () => {
             manageable={manageable}
             head={{
               label: '12:00–12:02 PM · Audio',
-              menu: { label: 'Actions for 12:00–12:02 PM', title: '', items: [], busy: null },
+              menu: { label: 'Actions for 12:00–12:02 PM', items: [], busy: null },
               open: false,
               onToggle: () => {},
             }}
@@ -123,20 +123,20 @@ describe("a recording's menu, on its transcript", () => {
         </Screen>
       );
     });
-    const sheet = jest
-      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
-      .mockImplementation(() => {});
     act(() => findButton(tree, 'Actions for')!.props.onPress());
-    const [options, callback] = sheet.mock.calls[0];
-    sheet.mockRestore();
-    const labels = options.options.slice(0, options.cancelButtonIndex);
+    const menu = tree.root.findAll((n) => n.props?.accessibilityRole === 'menu')[0];
+    const buttons = menu.findAll((n) => n.type === Button);
+    const inButtons = new Set(buttons.flatMap((b) => b.findAll(() => true)));
+    const button = (label: string) => buttons.find((b) => b.props.label === label)!;
     return {
       tree,
-      labels,
-      message: options.message ?? '',
-      disabled: (label: string) =>
-        (options.disabledButtonIndices ?? []).includes(labels.indexOf(label)),
-      choose: (label: string) => act(() => callback(labels.indexOf(label))),
+      labels: buttons.map((b) => b.props.label as string),
+      message: menu
+        .findAll((n) => n.type === Text && !inButtons.has(n))
+        .map((n) => String(n.props.children))
+        .join('\n'),
+      disabled: (label: string) => !!button(label).props.disabled,
+      choose: (label: string) => act(() => button(label).props.onPress()),
     };
   };
 

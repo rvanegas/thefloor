@@ -17,7 +17,7 @@ import type {
 import type { UploadHooks } from '../../api/upload';
 import { api, type GuestLinkSummary } from '../../api/http';
 import type { Introduction } from '../../state/introduction';
-import { ActionSheetIOS, Alert } from 'react-native';
+import { Alert, Text } from 'react-native';
 
 /**
  * The fixture every view test renders against: one mutable `mockApp` standing
@@ -601,55 +601,72 @@ export function findRecording(
 
 /** A segment's menu as `openMenu` found it. */
 export interface OpenedMenu {
-  title: string | undefined;
-  /** Its notes, the sentences saying why an action is greyed. */
-  message: string | undefined;
-  /** Its actions, in order, without *Cancel*. */
+  /** Its notes under the actions, the sentences saying why one is greyed. */
+  message: string;
+  /** Its actions, in order. */
   options: string[];
   disabled: (label: string) => boolean;
   destructive: (label: string) => boolean;
-  /** Presses an action as the sheet would, greyed ones included: the sheet refuses those. */
+  /** Presses an action; a greyed one is refused here, as its button refuses it. */
   choose: (label: string) => void;
 }
 
 /**
  * Opens a segment's menu in the *Record* log — the `which`th from the top —
- * the way a press on its glyph does on iOS, and says what it offers. The
- * sheet answers nothing for the press alone: a test's own spy on it, there
- * for a sheet an action asks next, stays as it was.
- * A glyph is found by its accessible name, *Actions for* its hours, and is
+ * as a press on its glyph does, and says what the column under the line
+ * offers. One already open is read as it is rather than pressed shut. A
+ * glyph is found by its accessible name, *Actions for* its hours, and is
  * missing while something it started is under way, when it names that.
  */
 export function openMenu(tree: ReactTestRenderer, which = 0): OpenedMenu {
   const glyph = menuGlyphs(tree)[which];
   if (!glyph) throw new Error(`no segment menu at ${which}`);
-  const spied = jest.isMockFunction(ActionSheetIOS.showActionSheetWithOptions);
-  const sheet = jest.spyOn(ActionSheetIOS, 'showActionSheetWithOptions');
-  const before = sheet.mock.calls.length;
-  sheet.mockImplementationOnce(() => {});
-  act(() => glyph.props.onPress());
-  const call = sheet.mock.calls[before];
-  if (!spied) sheet.mockRestore();
-  if (!call) throw new Error('the menu opened no sheet');
-  const [options, callback] = call;
-  const labels = options.options.slice(0, options.cancelButtonIndex);
-  const index = (label: string) => {
-    const i = labels.indexOf(label);
-    if (i < 0) throw new Error(`no "${label}" in [${labels.join(', ')}]`);
-    return i;
+  const label = String(glyph.props.accessibilityLabel);
+  if (glyph.props.disabled) throw new Error(`the menu "${label}" is greyed`);
+  if (!glyph.props.accessibilityState?.expanded) act(() => glyph.props.onPress());
+  const panel = () => {
+    const found = tree.root.findAll(
+      (n) => n.props?.accessibilityRole === 'menu' && n.props.accessibilityLabel === label
+    )[0];
+    if (!found) throw new Error(`the menu "${label}" opened nothing`);
+    return found;
   };
-  const destructive = ([] as number[]).concat(options.destructiveButtonIndex ?? []);
+  const opened = panel();
+  const buttons = () => panel().findAll(isButton);
+  const inButtons = new Set(buttons().flatMap((b) => b.findAll(() => true)));
+  const button = (label: string) => {
+    const found = buttons().find((b) => b.props.label === label);
+    if (!found) throw new Error(`no "${label}" in [${buttons().map((b) => b.props.label).join(', ')}]`);
+    return found;
+  };
   return {
-    title: options.title,
-    message: options.message,
-    options: labels,
-    disabled: (label) => (options.disabledButtonIndices ?? []).includes(index(label)),
-    destructive: (label) => destructive.includes(index(label)),
+    message: opened
+      .findAll((n) => n.type === Text && !inButtons.has(n))
+      .map((n) => String(n.props.children))
+      .join('\n'),
+    options: buttons().map((b) => b.props.label),
+    disabled: (label) => !!button(label).props.disabled,
+    destructive: (label) => button(label).props.variant === 'danger',
     choose: (label) => {
-      const i = index(label);
-      act(() => callback(i));
+      const pressed = button(label);
+      if (pressed.props.disabled) throw new Error(`"${label}" is greyed`);
+      act(() => pressed.props.onPress());
     },
   };
+}
+
+/**
+ * A `Button` element, by its props rather than its type: a `label` and an
+ * `onPress`, and no role of its own, which only the `Pressable` inside it
+ * has. Not imported, since `components` importing the mocked provider while
+ * this module is what the mock is made from is a cycle.
+ */
+export function isButton(n: ReactTestInstance): boolean {
+  return (
+    typeof n.props?.label === 'string' &&
+    typeof n.props.onPress === 'function' &&
+    n.props.accessibilityRole === undefined
+  );
 }
 
 /** Every segment's menu glyph in the log, top to bottom. */

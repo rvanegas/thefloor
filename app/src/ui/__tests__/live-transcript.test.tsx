@@ -311,7 +311,7 @@ describe('merging lines', () => {
   is hoisted over the top once it scrolls off. **And segments, since
   2026-10-10**: within a room, each stretch kept one way throughout is a line
   of its own — its hours, what it kept, its menu — with its text under it.
-  The tests run as iOS, where the menu is the action sheet (`openMenu`).
+  The menu opens under the line, as `openMenu` reads it.
 */
 describe('rooms on the Record tab', () => {
   const { shareRecording, shareTextFile } = require('../../api/download');
@@ -440,7 +440,8 @@ describe('rooms on the Record tab', () => {
     // Opened from the segment's menu since 2026-11-07, rather than a link
     // under the title; offered by the filed segment's alone.
     expect(findButton(tree, 'Open in noesis')).toBeUndefined();
-    expect(openMenu(tree, 1).options).not.toContain('Open in noesis');
+    // The other, kept as text with nothing said in it, has nothing to offer.
+    expect(menuGlyphs(tree)[1].props.accessibilityState.disabled).toBe(true);
     openMenu(tree, 0).choose('Open in noesis');
     await settle();
     expect(opened).toHaveBeenCalledWith(url);
@@ -478,7 +479,8 @@ describe('rooms on the Record tab', () => {
         (n) =>
           typeof n.type !== 'string' &&
           typeof n.props?.onPress === 'function' &&
-          n.props?.accessibilityState?.expanded !== undefined
+          n.props?.accessibilityState?.expanded !== undefined &&
+          !menuGlyphs(tree).includes(n)
       );
     expect(headers()).toHaveLength(3);
     expect(textOf(tree)).not.toContain('said on the record');
@@ -612,8 +614,6 @@ describe('rooms on the Record tab', () => {
     await settle();
 
     const menu = openMenu(tree);
-    // Titled by the line, its hours and what it kept, and never as a room.
-    expect(menu.title).toMatch(/^\d.* · Audio \+ Text$/);
     // The segment's own between Play and the recording's.
     expect(menu.options).toEqual(['Play', 'Share audio', 'Share text', 'Rename', 'Delete recording']);
     expect(menu.disabled('Share audio')).toBe(false);
@@ -689,10 +689,7 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
-  it('opens in a browser as buttons under the line, which the glyph closes', async () => {
-    const { Platform } = require('react-native');
-    const was = Platform.OS;
-    Platform.OS = 'web';
+  it('opens in the view as buttons under the line, never a sheet, and the glyph closes it', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [line('l1', ME, 'Me', NOW + 1_000, 'only written down')],
       more: false,
@@ -725,7 +722,6 @@ describe('rooms on the Record tab', () => {
     expect(shareTextFile.mock.calls[0][0]).toContain('only written down');
     // Chosen, it closes.
     expect(choice()).toHaveLength(0);
-    Platform.OS = was;
     sheet.mockRestore();
     act(() => tree.unmount());
   });
@@ -747,11 +743,11 @@ describe('rooms on the Record tab', () => {
     });
     const sent = jest.spyOn(api, 'sendToNoesis').mockResolvedValue({ file: '2026/x.chat.md' });
     const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    // The library's sheet, which the menu's own leads to.
-    const answers: number[] = [];
-    const sheet = jest
-      .spyOn(ActionSheetIOS, 'showActionSheetWithOptions')
-      .mockImplementation((...args: unknown[]) => (args[1] as (index: number) => void)(answers.shift()!));
+    const libraries = () =>
+      tree.root.findAll(
+        (n: { props: { label?: string; onPress?: unknown } }) =>
+          (n.props.label === 'essays' || n.props.label === 'journal') && !!n.props.onPress
+      );
     showChannel(transcribed());
     let tree = render(screen());
     showTab(tree, 'Record');
@@ -762,7 +758,7 @@ describe('rooms on the Record tab', () => {
     menu.choose('Send to noesis');
     await settle();
     // One library: no second question.
-    expect(sheet).toHaveBeenCalledTimes(1);
+    expect(libraries()).toHaveLength(0);
     expect(sent).toHaveBeenCalledWith(expect.anything(), {
       library: 'me/essays',
       filename: expect.any(String),
@@ -779,16 +775,19 @@ describe('rooms on the Record tab', () => {
       libraries: ['me/essays', 'me/journal'],
     });
     sent.mockClear();
-    sheet.mockClear();
-    answers.push(1);
     tree = render(screen());
     showTab(tree, 'Record');
     await settle();
     menu = openMenu(tree);
     menu.choose('Send to noesis');
+    // Asked under the line, as the menu was, and nothing sent until answered.
+    expect(textOf(tree)).toContain('Send to which library?');
+    expect(libraries().map((n) => n.props.label)).toEqual(['essays', 'journal']);
+    expect(sent).not.toHaveBeenCalled();
+    act(() => libraries()[1].props.onPress());
     await settle();
-    expect(sheet.mock.calls[1][0]).toMatchObject({ options: ['essays', 'journal', 'Cancel'] });
     expect(sent.mock.calls[0][1]).toMatchObject({ library: 'me/journal' });
+    expect(libraries()).toHaveLength(0);
     act(() => tree.unmount());
 
     // Not granted: not offered at all.
@@ -798,7 +797,7 @@ describe('rooms on the Record tab', () => {
     await settle();
     expect(openMenu(tree).options).toEqual(['Share text']);
     act(() => tree.unmount());
-    for (const spy of [noesis, sent, alert, sheet]) spy.mockRestore();
+    for (const spy of [noesis, sent, alert]) spy.mockRestore();
   });
 
   it('shares the text of a segment whose audio is still being mixed, and says why not the audio', async () => {

@@ -34,6 +34,7 @@ import {
   findNamed,
   findTab,
   findExactButton,
+  menuGlyphs,
   openMenu,
   contactAction,
   labelOf,
@@ -3239,6 +3240,10 @@ describe('Channel', () => {
       'Rename',
       'Delete recording',
     ]);
+    // Under the line, and put away by the glyph that opened it.
+    expect(findExactButton(tree, 'Rename')).toBeDefined();
+    act(() => menuGlyphs(tree)[0].props.onPress());
+    expect(findExactButton(tree, 'Rename')).toBeUndefined();
 
     // Opening says the recording's name, which the line does not, and
     // draws no buttons.
