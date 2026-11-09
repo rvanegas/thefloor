@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
 import { Alert, AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
 import {
@@ -794,12 +795,14 @@ const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes
  * there. Drawn only where the server offers libraries — an older server
  * answers 404, read as no card, as `ProCard` reads a failure.
  *
- * **Connect opens noesis's sign-in in the browser**, not inside the app: the
- * server's callback sends a phone back with `thefloor://noesis`, which the
- * app's other link handlers do not match, and the web app's tab is closed by
- * hand. Either way the status is read again whenever the app comes back to
- * the front, which is the one signal both have; *Connecting…* lasts until
- * then. Disconnect confirms, being the one direction that takes something
+ * **Connect opens dianoia-auth's sign-in in the system sheet on a phone**, as
+ * signing in does, since build 423: the sheet shares Safari's cookies whatever
+ * the default browser is, so a session there connects without a code, where
+ * handing the URL to iOS opened the default browser, which may know nobody
+ * (Chrome did, 2026-11-09). The sheet ends at the server's `thefloor://noesis`
+ * and says how it went. On the web the sign-in still opens in a tab, closed
+ * by hand, and the status is read again whenever the app comes back to the
+ * front; *Connecting…* lasts until then. Disconnect confirms, being the one direction that takes something
  * away from rooms other people are in.
  */
 function NoesisCard() {
@@ -843,8 +846,15 @@ function NoesisCard() {
     setMessage(null);
     setBusy('connecting');
     try {
-      const url = await app.connectNoesis(Platform.OS === 'web' ? 'web' : 'app');
-      await Linking.openURL(url);
+      if (Platform.OS === 'web') {
+        await Linking.openURL(await app.connectNoesis('web'));
+        return;
+      }
+      const url = await app.connectNoesis('app');
+      const result = await WebBrowser.openAuthSessionAsync(url, 'thefloor://noesis');
+      setBusy(null);
+      if (result.type === 'success' && result.url.includes('result=failed')) setMessage(t.noesisFailed());
+      setView(await app.loadNoesis());
     } catch (e) {
       setBusy(null);
       setMessage(e instanceof Error ? e.message : String(e));

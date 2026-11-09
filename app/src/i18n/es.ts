@@ -738,7 +738,7 @@ export const es: Strings = {
     proNotFound: () => 'No se encontr\u00f3 ninguna suscripci\u00f3n Pro para esta cuenta.',
     noesisLibrary: () => 'Biblioteca de noesis',
     noesisAbout: () =>
-      'Conecta tu biblioteca de noesis y podrás dejar que Claude la consulte en los canales que elijas, en Ajustes del canal, y enviarle el texto de una sala desde Compartir en Grabado. Al conectarla se abre el acceso a noesis en tu navegador.',
+      'Conecta tu biblioteca de noesis y podrás dejar que Claude la consulte en los canales que elijas, en Ajustes del canal, y enviarle el texto de una sala desde Compartir en Grabado. Para conectarla entras en auth.rvanegas.co; si ya habías entrado, al instante.',
     noesisConnect: () => 'Conectar',
     noesisConnecting: () => 'Conectando…',
     noesisConnectedAs: (user: string, email: string | null) =>
@@ -759,7 +759,7 @@ export const es: Strings = {
     noesisDisconnectBody: () =>
       'Claude deja de consultarla en todos los canales donde está activada. La biblioteca sigue en noesis, y puedes volver a conectarla cuando quieras.',
     noesisFailed: () =>
-      'Tu biblioteca no se conectó. Vuelve a intentarlo y termina de acceder a noesis en el navegador.',
+      'Tu biblioteca no se conect\u00f3. Int\u00e9ntalo de nuevo y termina de entrar en auth.rvanegas.co.',
     storeUnreachable: () => 'Ahora mismo no se puede acceder a la App Store.',
     proNotConfirmed: () =>
       'La App Store lo acept\u00f3, pero aqu\u00ed todav\u00eda no se pudo confirmar. Se volver\u00e1 a intentar la pr\u00f3xima vez que abras la app.',

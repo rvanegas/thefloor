@@ -977,7 +977,7 @@ export const en = {
      */
     noesisLibrary: () => 'noesis library',
     noesisAbout: () =>
-      'Connect your noesis library and you can let Claude consult it in the channels you choose, on Channel Settings, and send a room’s text to it from Share on the Record tab. Connecting opens noesis’s sign-in in your browser.',
+      'Connect your noesis library and you can let Claude consult it in the channels you choose, on Channel Settings, and send a room’s text to it from Share on the Record tab. Connecting asks you to sign in at auth.rvanegas.co — at once, if you already are.',
     noesisConnect: () => 'Connect',
     noesisConnecting: () => 'Connecting…',
     noesisConnectedAs: (user: string, email: string | null) =>
@@ -1000,7 +1000,7 @@ export const en = {
     noesisDisconnectBody: () =>
       'Claude stops consulting it in every channel where it is on. The library itself stays in noesis, and you can connect it again at any time.',
     noesisFailed: () =>
-      'Your library was not connected. Try again, and finish signing in to noesis in the browser.',
+      'Your library was not connected. Try again, and finish signing in at auth.rvanegas.co.',
     storeUnreachable: () => 'The App Store cannot be reached right now.',
     /**
      * The server would not confirm a purchase StoreKit says succeeded. Not

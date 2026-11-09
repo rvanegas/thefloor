@@ -30,6 +30,11 @@ import {
  * of no other — `testing/harness` holds the factories, and the single copy of
  * the state they close over.
  */
+const mockSheet = jest.fn(async (_url: string, _back: string) => ({ type: "cancel" } as { type: string; url?: string }));
+jest.mock("expo-web-browser", () => ({
+  openAuthSessionAsync: (url: string, back: string) => mockSheet(url, back),
+}));
+
 jest.mock("../../api/download", () =>
   require("../testing/harness").downloadMock(),
 );
@@ -1266,18 +1271,47 @@ describe("noesis library", () => {
     act(() => tree.unmount());
   });
 
-  it("offers Connect, and opens noesis's sign-in in the browser coming back to the app", async () => {
+  /**
+   * In the system sheet, as signing in is, since build 423: it shares Safari's
+   * cookies whatever the default browser, where handing the URL to iOS opened
+   * Chrome, which knew nobody, and asked for a code (2026-11-09).
+   */
+  it("offers Connect, and signs in in the system sheet, not the default browser", async () => {
     mockApp.loadNoesis.mockResolvedValue({ available: true, connected: false, user: undefined, email: undefined });
     const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    let finish!: (result: { type: string; url?: string }) => void;
+    mockSheet.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     const tree = await openSettings();
     expect(textOf(tree)).toContain("Connect your noesis library");
     await act(async () => {
       findButton(tree, "Connect")!.props.onPress();
     });
     expect(mockApp.connectNoesis).toHaveBeenCalledWith("app");
-    expect(open).toHaveBeenCalledWith("https://noesis.example/authorize?state=s");
+    expect(mockSheet).toHaveBeenCalledWith("https://noesis.example/authorize?state=s", "thefloor://noesis");
+    expect(open).not.toHaveBeenCalled();
     expect(findButton(tree, "Connecting…")!.props.disabled).toBe(true);
+    mockApp.loadNoesis.mockResolvedValue({ available: true, connected: true, user: "rodvandur", email: null, libraries: [] } as never);
+    await act(async () => {
+      finish({ type: "success", url: "thefloor://noesis?result=connected" });
+    });
+    expect(textOf(tree)).toContain("Connected as rodvandur");
     open.mockRestore();
+    act(() => tree.unmount());
+  });
+
+  it("says so when the sheet comes back failed, and nothing when it is closed", async () => {
+    mockApp.loadNoesis.mockResolvedValue({ available: true, connected: false, user: undefined, email: undefined });
+    mockSheet.mockResolvedValueOnce({ type: "success", url: "thefloor://noesis?result=failed" });
+    const tree = await openSettings();
+    await act(async () => {
+      findButton(tree, "Connect")!.props.onPress();
+    });
+    expect(textOf(tree)).toContain("was not connected");
+    mockSheet.mockResolvedValueOnce({ type: "cancel" });
+    await act(async () => {
+      findButton(tree, "Connect")!.props.onPress();
+    });
+    expect(findButton(tree, "Connect")!.props.disabled).toBeFalsy();
     act(() => tree.unmount());
   });
 
