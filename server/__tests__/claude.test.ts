@@ -35,6 +35,7 @@ import {
 import { openDb } from '../src/db';
 import { noesisFilename, type NoesisOptions } from '../src/noesis';
 import { MemoryMailer } from '../src/mail';
+import { fakeAuth } from '../__stubs__/fakeAuth';
 
 /**
  * *Ask Claude* on the *Record* bar: the Record read as text, one request, and the
@@ -454,7 +455,7 @@ beforeEach(() => {
   noesisCalls.length = 0;
   noesisRefuses = false;
   noesisLibraries = ['alice/philosophy'];
-  noesisScope = 'import';
+  noesisScope = 'noesis:read noesis:import';
   noesisNames = [];
   noesisImport = () =>
     new Response('event: output\ndata: {"text": "imported"}\n\nevent: done\ndata: {"exit_code": 0, "changed": {"2026/2026-11-02-lunch.chat.md": "abc"}, "deleted": []}\n\n');
@@ -476,7 +477,7 @@ let noesisRefuses = false;
 /** What noesis's `/me` lists as the person's libraries. */
 let noesisLibraries = ['alice/philosophy'];
 /** The scopes noesis grants at a sign-in: `import` since 2026-11-02, nothing before. */
-let noesisScope = 'import';
+let noesisScope = 'noesis:read noesis:import';
 /** The names noesis keeps as the person's voice, which `PUT /me/names` replaces. */
 let noesisNames: string[] = [];
 /** How noesis's import answers. */
@@ -517,6 +518,7 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
 
 const NOESIS: NoesisOptions = {
   url: 'https://noesis.example/mcp',
+  authUrl: 'https://auth.example',
   clientId: 'thefloor',
   clientSecret: 'client-secret',
   callbackUrl: 'https://floor.example/noesis/callback',
@@ -551,8 +553,7 @@ function boot(
       ? {
           channelLibraries: {
             origin: 'https://noesis.example',
-            clientId: 'thefloor',
-            clientSecret: 'client-secret',
+            auth: fakeAuth(),
             fetch: fakeNoesis,
           },
         }
@@ -1552,11 +1553,11 @@ describe('connecting an noesis library', () => {
       payload: { returnTo: 'app' },
     });
     const url = new URL(started.json().url);
-    expect(url.origin + url.pathname).toBe('https://noesis.example/authorize');
+    expect(url.origin + url.pathname).toBe('https://auth.example/authorize');
     expect(url.searchParams.get('client_id')).toBe('thefloor');
     expect(url.searchParams.get('redirect_uri')).toBe('https://floor.example/noesis/callback');
     expect(url.searchParams.get('code_challenge_method')).toBe('S256');
-    expect(url.searchParams.get('scope')).toBe('import');
+    expect(url.searchParams.get('scope')).toBe('noesis:read noesis:import');
 
     const back = await app.fastify.inject({
       method: 'GET',

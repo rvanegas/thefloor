@@ -1,6 +1,7 @@
 import { buildApp, type App } from '../src/app';
 import { mintHandle } from '../src/channels';
 import { MemoryMailer } from '../src/mail';
+import { AUTH_ORIGIN, authToken, fakeAuth, strangerToken } from '../__stubs__/fakeAuth';
 
 /**
  * A channel's *handle*: what names it to noesis, minted only when asked for,
@@ -19,7 +20,8 @@ import { MemoryMailer } from '../src/mail';
 let app: App;
 const clock = 1_700_000_000_000;
 const SECRET = 'client-secret';
-const NOESIS = { authorization: 'Basic ' + Buffer.from(`thefloor:${SECRET}`).toString('base64') };
+// noesis's own token from auth, for asking who belongs.
+const NOESIS = { authorization: `Bearer ${authToken()}` };
 
 /** noesis's register, as far as a signup sees it: the suggested stem, numbered when taken. */
 let names: Set<string>;
@@ -38,7 +40,8 @@ beforeEach(() => {
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
     now: () => clock,
-    names: { origin: 'https://noesis.example', clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis },
+    names: { origin: AUTH_ORIGIN, clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis },
+    auth: fakeAuth(),
   });
 });
 
@@ -220,6 +223,17 @@ describe('what noesis asks about a channel library', () => {
     expect((await members(handle, auth(erta.token))).statusCode).toBe(401);
     expect((await members(handle, {})).statusCode).toBe(401);
     expect((await libraries('erta_example', wrong)).statusCode).toBe(401);
+    // A token auth did not sign, one past its time, one for another scope or audience, or a person's.
+    for (const token of [
+      strangerToken(),
+      authToken({ exp: Math.floor(Date.now() / 1000) - 60 }),
+      authToken({ scope: 'noesis:keep' }),
+      authToken({ aud: 'https://noesis.example/mcp' }),
+      authToken({ iss: 'https://elsewhere.example' }),
+      authToken({}, undefined, 'unknown-key'),
+    ]) {
+      expect((await members(handle, auth(token))).statusCode).toBe(401);
+    }
   });
 
   it('knows no handle that names nothing', async () => {

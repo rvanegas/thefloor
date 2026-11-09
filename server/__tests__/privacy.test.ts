@@ -273,6 +273,7 @@ describe('The privacy policy', () => {
 
     const library = {
       url: 'https://noesis.example/mcp',
+      authUrl: 'https://auth.example',
       clientId: 'thefloor',
       clientSecret: 's',
       callbackUrl: 'https://floor.example/noesis/callback',

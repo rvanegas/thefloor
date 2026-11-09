@@ -1,5 +1,6 @@
 import { describeChannel } from '../../core/naming';
 import type { TranscriptLine } from '../../core/transcript';
+import type { AuthClient } from './auth';
 import type { Db } from './db';
 import { finished, noesisFilename, type NoesisSent } from './noesis';
 import { readableLines } from './transcripts';
@@ -10,8 +11,8 @@ import { readableLines } from './transcripts';
  *
  * - **Made the first time a channel has a transcript to file** while somebody
  *   in it is Pro: the handle minted (`ChannelRegistry.handleFor`), and the
- *   library made at noesis, where The Floor is the owner and signs in with its
- *   client pair as HTTP Basic. Nothing else makes one.
+ *   library made at noesis, where The Floor is the owner and signs in with a
+ *   token of its own from auth (`noesis:keep`, auth.ts). Nothing else makes one.
  * - **Each segment is one document**, its text as *Share* hands it
  *   (`segmentText`, the app's `formatSegmentText` in UTC), filed through
  *   noesis's import as if somebody had sent it with *Send to noesis*.
@@ -32,8 +33,8 @@ import { readableLines } from './transcripts';
 export interface ChannelLibrariesOptions {
   /** noesis's origin. */
   origin: string;
-  clientId: string;
-  clientSecret: string;
+  /** auth, for The Floor's own token at noesis. */
+  auth: AuthClient;
   /** Tests answer for noesis. */
   fetch?: typeof fetch;
 }
@@ -72,8 +73,10 @@ interface OwedRow {
   transcript: string | null;
 }
 
+/** The scope of The Floor's own token at noesis: the owner of its channels' libraries. */
+export const KEEP_SCOPE = 'noesis:keep';
+
 export class ChannelLibraries {
-  private basic: string;
   private made = new Set<string>();
   private tokens = new Map<string, { token: string; until: number }>();
   private timer: ReturnType<typeof setInterval> | null = null;
@@ -83,8 +86,11 @@ export class ChannelLibraries {
     private db: Db,
     private deps: ChannelLibrariesDeps,
     private options: ChannelLibrariesOptions
-  ) {
-    this.basic = 'Basic ' + Buffer.from(`${options.clientId}:${options.clientSecret}`).toString('base64');
+  ) {}
+
+  /** The Authorization header The Floor signs in to noesis with, as its channels' libraries' owner. */
+  private async owner(): Promise<string> {
+    return `Bearer ${await this.options.auth.ownToken(KEEP_SCOPE)}`;
   }
 
   start(everyMs = SWEEP_MS): void {
@@ -204,7 +210,7 @@ export class ChannelLibraries {
     try {
       const response = await doFetch(new URL('/applications/token', this.options.origin), {
         method: 'POST',
-        headers: { Authorization: this.basic, 'Content-Type': 'application/json' },
+        headers: { Authorization: await this.owner(), 'Content-Type': 'application/json' },
         body: JSON.stringify({ library: handle }),
       });
       if (!response.ok) return null;
@@ -228,7 +234,7 @@ export class ChannelLibraries {
     try {
       const response = await doFetch(new URL(`/libraries/thefloor/${handle}`, this.options.origin), {
         method: 'DELETE',
-        headers: { Authorization: this.basic },
+        headers: { Authorization: await this.owner() },
       });
       return response.ok || response.status === 404;
     } catch (error) {
@@ -246,7 +252,7 @@ export class ChannelLibraries {
     const doFetch = this.options.fetch ?? fetch;
     const base = `/libraries/thefloor/${handle}/files`;
     try {
-      const listing = await doFetch(new URL(base, this.options.origin), { headers: { Authorization: this.basic } });
+      const listing = await doFetch(new URL(base, this.options.origin), { headers: { Authorization: await this.owner() } });
       if (listing.status === 404) return true;
       if (!listing.ok) return false;
       const sha = ((await listing.json()) as Record<string, string>)[file];
@@ -254,7 +260,7 @@ export class ChannelLibraries {
       const path = file.split('/').map(encodeURIComponent).join('/');
       const response = await doFetch(new URL(`${base}/${path}`, this.options.origin), {
         method: 'DELETE',
-        headers: { Authorization: this.basic, 'If-Match': `"${sha}"` },
+        headers: { Authorization: await this.owner(), 'If-Match': `"${sha}"` },
       });
       return response.ok || response.status === 404;
     } catch (error) {
@@ -272,7 +278,7 @@ export class ChannelLibraries {
       if (!this.made.has(handle)) {
         const made = await doFetch(new URL('/libraries', this.options.origin), {
           method: 'POST',
-          headers: { Authorization: this.basic, 'Content-Type': 'application/json' },
+          headers: { Authorization: await this.owner(), 'Content-Type': 'application/json' },
           body: JSON.stringify({ name: handle }),
         });
         if (!made.ok && made.status !== 409) {
@@ -284,7 +290,7 @@ export class ChannelLibraries {
       url.search = new URLSearchParams({ filename, replace: 'true' }).toString();
       const response = await doFetch(url, {
         method: 'POST',
-        headers: { Authorization: this.basic, 'Content-Type': 'text/markdown; charset=utf-8' },
+        headers: { Authorization: await this.owner(), 'Content-Type': 'text/markdown; charset=utf-8' },
         body: text,
       });
       if (response.status === 402) return { ok: false, reason: 'allowance' };

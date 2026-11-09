@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { FREE_TRANSCRIPT_MINUTES_DEFAULT } from './accounts';
 import { buildApp } from './app';
+import { AuthClient } from './auth';
 import { ConsoleMailer, SesMailer, type Mailer } from './mail';
 import { LiveKitMediaServer, type MediaServer } from './media';
 import {
@@ -308,29 +309,44 @@ const claude = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : undefine
 
 /**
  * noesis, whose libraries *Ask Claude* may consult — each account connecting its
- * own on *Floor Settings*, by signing in at noesis (noesis.ts). Off unless
+ * own on *Floor Settings*, by signing in at auth (noesis.ts, auth.ts). Off unless
  * `NOESIS_CLIENT_ID` and `NOESIS_CLIENT_SECRET` are set: The Floor's registration as
- * an OAuth client of noesis, made by noesis's `scripts/add_client.py` with
- * `NOESIS_CALLBACK_URL` as its one redirect. Meaningless without the key above.
+ * an OAuth client of auth (`AUTH_URL`), made by dianoia-auth's `scripts/add_client.py` with
+ * `NOESIS_CALLBACK_URL` as its one redirect, and the names keep noesis's since
+ * the client came over from noesis as it was. Meaningless without the key above.
  * Anthropic's servers call `NOESIS_URL` with each owner's token, so it has to be
  * reachable from outside and served over HTTPS. See planning/CREDENTIALS.md.
  */
 const noesisUrl = process.env.NOESIS_URL || 'https://noesis.rvanegas.co/mcp';
+const authUrl = process.env.AUTH_URL || 'https://auth.rvanegas.co';
 const noesisClientId = process.env.NOESIS_CLIENT_ID;
 const noesisClientSecret = process.env.NOESIS_CLIENT_SECRET;
 const noesisCallbackUrl = process.env.NOESIS_CALLBACK_URL || 'https://thefloor.rvanegas.co/noesis/callback';
-if (noesisClientId && (!noesisUrl.startsWith('https://') || !noesisCallbackUrl.startsWith('https://'))) {
+if (
+  noesisClientId &&
+  (!noesisUrl.startsWith('https://') || !noesisCallbackUrl.startsWith('https://') || !authUrl.startsWith('https://'))
+) {
   // Refused rather than ignored, as FREE_TRANSCRIPT_MINUTES is below: every
   // library press would fail and quietly fall back, and nothing would say why.
-  throw new Error('NOESIS_URL and NOESIS_CALLBACK_URL must be https:// URLs.');
+  throw new Error('NOESIS_URL, NOESIS_CALLBACK_URL and AUTH_URL must be https:// URLs.');
 }
+const auth =
+  noesisClientId && noesisClientSecret
+    ? new AuthClient({ origin: authUrl, clientId: noesisClientId, clientSecret: noesisClientSecret })
+    : undefined;
 const library =
   noesisClientId && noesisClientSecret
-    ? { url: noesisUrl, clientId: noesisClientId, clientSecret: noesisClientSecret, callbackUrl: noesisCallbackUrl }
+    ? {
+        url: noesisUrl,
+        authUrl,
+        clientId: noesisClientId,
+        clientSecret: noesisClientSecret,
+        callbackUrl: noesisCallbackUrl,
+      }
     : undefined;
 
 /**
- * noesis's register of names (names.ts), with the same client's credentials
+ * auth's register of names (names.ts, noesis's before 2026-11-08), with the same client's credentials
  * and independent of Claude: wherever they are set, noesis decides each
  * signup's username and every rename. Without them names are derived here,
  * which is a development server's case.
@@ -342,7 +358,7 @@ const library =
  */
 const names =
   noesisClientId && noesisClientSecret
-    ? { origin: new URL(noesisUrl).origin, clientId: noesisClientId, clientSecret: noesisClientSecret }
+    ? { origin: new URL(authUrl).origin, clientId: noesisClientId, clientSecret: noesisClientSecret }
     : undefined;
 const retiredNoesisNames = process.env.NOESIS_NAMES !== undefined;
 
@@ -353,7 +369,8 @@ const retiredNoesisNames = process.env.NOESIS_NAMES !== undefined;
  * is told about a channel's members only while it is — and noesis has to have
  * marked this client (`scripts/client_libraries.py`) first.
  */
-const channelLibraries = names && process.env.CHANNEL_LIBRARIES ? names : undefined;
+const channelLibraries =
+  auth && process.env.CHANNEL_LIBRARIES ? { origin: new URL(noesisUrl).origin, auth } : undefined;
 
 /**
  * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
@@ -414,6 +431,7 @@ const app = buildApp({
   library,
   names,
   channelLibraries,
+  auth,
   freeTranscriptMinutes,
   logger: true,
 });

@@ -2,20 +2,21 @@ import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } f
 import type { Db } from './db';
 
 /**
- * Each account's own noesis library, connected by signing in at noesis — the way a
+ * Each account's own noesis library, connected by signing in at auth — the way a
  * claude.ai connector is, and through the same page.
  *
- * noesis is the identity for its libraries, and another application reaches a
- * person's only through a grant from it (rvanegas-site's PROJECTS.md, *Shared
- * rules*, since 2026-11-01). So The Floor is an OAuth client of noesis — a
- * confidential one, registered by noesis's operator with `scripts/add_client.py`
- * and holding `NOESIS_CLIENT_ID` / `NOESIS_CLIENT_SECRET` — and this is that client:
+ * Another application reaches a person's library only through a grant
+ * (rvanegas-site's PROJECTS.md, *Shared rules*), which auth (`auth.rvanegas.co`,
+ * auth.ts) issues since 2026-11-08, noesis before it. So The Floor is an OAuth
+ * client of auth — a confidential one, registered by auth's operator with
+ * `scripts/add_client.py` and holding `NOESIS_CLIENT_ID` / `NOESIS_CLIENT_SECRET`,
+ * carried over from noesis as they were — and this is that client:
  *
  * - **Connecting** is *Connect* on *Floor Settings*: `start` makes an
  *   authorization URL (code flow with PKCE), the app opens it in a browser,
- *   the person signs in at noesis with their address and an emailed code, and
- *   noesis sends the browser back to `/noesis/callback`, where `finish` trades the
- *   code for tokens and asks noesis whose library it is.
+ *   the person signs in at auth with their address and an emailed code, and
+ *   auth sends the browser back to `/noesis/callback`, where `finish` trades the
+ *   code for tokens and asks noesis whose library it is (and auth, their address).
  * - **What is kept** is the refresh token, encrypted with a key derived from
  *   the client secret, so a copy of the database alone reaches nobody's
  *   library; rotating the secret disconnects everybody, who connect again.
@@ -26,23 +27,25 @@ import type { Db } from './db';
  * - **Refreshing rotates the refresh token** (noesis's rule), so one account's
  *   refreshes are serialised; a refused refresh means the grant is gone at
  *   noesis, and the connection is dropped here too.
- * - **Disconnecting** revokes at noesis, best effort, and forgets the row.
+ * - **Disconnecting** revokes at auth, best effort, and forgets the row.
  * - **Which libraries** are the person's is noesis's `/me`, read at connecting
  *   and again by `refreshLibraries` whenever Floor Settings or a channel's
  *   card asks: what the channel toggles offer. The grant reaches all of them;
  *   a channel's selection is sent with each press (claude.ts).
  * - **Sending a room's text** (`send`, since 2026-11-02) files it in one of
  *   the person's libraries through noesis's import — the one thing The Floor
- *   writes there, and only with the `import` scope, which noesis's operator
- *   grants this client alone and its sign-in names. Asked for at every
+ *   writes there, and only with the `noesis:import` scope, which auth's
+ *   operator allows this client alone and its sign-in names. Asked for at every
  *   connecting; a connection made before it lacks it (`canSend`) and connects
  *   again to have it. Before sending, the person's display name here is added
  *   to the names noesis keeps as their voice, so their lines are filed as
  *   their own words and everybody else's as context.
  */
 export interface NoesisOptions {
-  /** noesis's MCP endpoint, which Anthropic's servers call; its origin is the authorization server. */
+  /** noesis's MCP endpoint, which Anthropic's servers call; its origin answers /me and the import. */
   url: string;
+  /** auth's origin: the authorization server, which signs people in and issues the grant. */
+  authUrl: string;
   clientId: string;
   clientSecret: string;
   /** This server's `/noesis/callback`, registered with noesis as the client's one redirect. */
@@ -56,7 +59,7 @@ export type NoesisReturn = 'app' | 'web';
 
 export interface NoesisStatus {
   connected: boolean;
-  /** noesis's user name for the library's owner, and the address they sign in to noesis with. */
+  /** The library owner's user name, and the address they sign in to auth with. */
   user?: string;
   email?: string | null;
   connectedAt?: number;
@@ -71,8 +74,10 @@ export type NoesisSent =
   | { ok: true; file: string | null; title?: string | null }
   | { ok: false; reason: 'not_connected' | 'no_grant' | 'not_yours' | 'busy' | 'allowance' | 'failed'; message?: string };
 
-/** The scope that lets this client file conversations at noesis, which its operator grants. */
-export const NOESIS_IMPORT_SCOPE = 'import';
+/** The scope that lets this client file conversations at noesis, which auth's operator allows it. */
+export const NOESIS_IMPORT_SCOPE = 'noesis:import';
+/** What a connection asks for: reading the person's libraries through Claude, and filing into them. */
+export const NOESIS_SCOPES = `noesis:read ${NOESIS_IMPORT_SCOPE}`;
 
 interface Pending {
   accountId: string;
@@ -101,6 +106,7 @@ export class NoesisConnections {
   private refreshing = new Map<string, Promise<string | null>>();
   private key: Buffer;
   private origin: string;
+  private authOrigin: string;
 
   constructor(
     private db: Db,
@@ -109,26 +115,27 @@ export class NoesisConnections {
     private log?: { warn(details: object, message: string): void }
   ) {
     this.origin = new URL(options.url).origin;
+    this.authOrigin = new URL(options.authUrl).origin;
     this.key = Buffer.from(
       hkdfSync('sha256', options.clientSecret, 'thefloor', 'noesis refresh tokens', 32)
     );
   }
 
-  /** The URL to open: noesis's sign-in, for this account, coming back to `returnTo`. */
+  /** The URL to open: auth's sign-in, for this account, coming back to `returnTo`. */
   start(accountId: string, returnTo: NoesisReturn): string {
     const now = this.now();
     for (const [state, entry] of this.pending) if (entry.expiresAt < now) this.pending.delete(state);
     const state = randomBytes(24).toString('base64url');
     const verifier = randomBytes(48).toString('base64url');
     this.pending.set(state, { accountId, verifier, returnTo, expiresAt: now + NOESIS_SIGN_IN_TTL_MS });
-    const url = new URL('/authorize', this.origin);
+    const url = new URL('/authorize', this.authOrigin);
     url.search = new URLSearchParams({
       response_type: 'code',
       client_id: this.options.clientId,
       redirect_uri: this.options.callbackUrl,
       code_challenge: createHash('sha256').update(verifier).digest('base64url'),
       code_challenge_method: 'S256',
-      scope: NOESIS_IMPORT_SCOPE,
+      scope: NOESIS_SCOPES,
       state,
     }).toString();
     return url.toString();
@@ -363,7 +370,7 @@ export class NoesisConnections {
 
   private post(path: string, fields: Record<string, string>): Promise<Response> {
     const doFetch = this.options.fetch ?? fetch;
-    return doFetch(new URL(path, this.origin), {
+    return doFetch(new URL(path, this.authOrigin), {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
@@ -378,24 +385,27 @@ export class NoesisConnections {
     accessToken: string
   ): Promise<{ user: string; email: string | null; libraries: string[]; names: string[] } | null> {
     const doFetch = this.options.fetch ?? fetch;
-    const response = await doFetch(new URL('/me', this.origin), {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const headers = { Authorization: `Bearer ${accessToken}` };
+    // noesis says whose libraries the grant reaches; auth, the address they sign in with.
+    const [response, identity] = await Promise.all([
+      doFetch(new URL('/me', this.origin), { headers }),
+      doFetch(new URL('/me', this.authOrigin), { headers }),
+    ]);
     if (!response.ok) return null;
     const body = (await response.json()) as {
       user?: string;
-      email?: string | null;
       libraries?: unknown;
       names?: unknown;
     };
     if (!body.user) return null;
+    const email = identity.ok ? (((await identity.json()) as { email?: string | null }).email ?? null) : null;
     // The person's own only: since 2026-11-07 noesis lists a channel's library
     // too, `thefloor/<handle>`, to each member, and that is the channel's, not
     // theirs to consult or file into as their own.
     const own = `${body.user.toLowerCase()}/`;
     return {
       user: body.user,
-      email: body.email ?? null,
+      email,
       libraries: parseLibraries(body.libraries).filter((id) => id.toLowerCase().startsWith(own)),
       names: parseLibraries(body.names),
     };

@@ -374,6 +374,13 @@ Deliberately separate, so no single leak is worse than it has to be:
   replaced `MDC_TOKEN`, one bearer token for Rodrigo's library alone, added
   2026-10-27. noesis was called mdc until 2026-11-02, when the client was
   registered again under the new names, its redirect `/noesis/callback`.
+  **Since 2026-11-08 it is a client of auth** (`AUTH_URL`,
+  `https://auth.rvanegas.co`; `server/src/auth.ts`), where sign-in moved out
+  of noesis: auth carried the registration over with its id and secret
+  unchanged, and its marks became scopes, set by dianoia-auth's `scripts/add_client.py
+  … --scope "noesis:read noesis:import" --credentials noesis:keep
+  --keeps-names`. Where the text below says noesis's sign-in, register or
+  `add_client.py`, read auth's.
 
   **It reads nobody's library by itself.** It lets this server finish a
   person's sign-in at noesis (`/noesis/callback`) and refresh or revoke the grant
@@ -391,14 +398,15 @@ Deliberately separate, so no single leak is worse than it has to be:
   (and `client_imports.py`) again, or the register refuses this server and
   every signup fails.
 
-  **Since 2026-11-07 it is also how noesis proves itself here**, the same
-  pair presented the other way as HTTP Basic, for the two questions noesis
-  asks about a channel's own library (`/noesis/libraries/:handle` and
-  `/noesis/users/:user/libraries`, `server/src/app.ts`): a channel's members by
-  username and display name, who of them is Pro, and its name; and which channels somebody
-  belongs to. noesis keeps the secret in the clear (`oauth.py`), so no second
-  credential was made. **And The Floor signs in with it as the owner of every
-  channel library**, `thefloor/<handle>` (`server/src/channelLibraries.ts`):
+  **Since 2026-11-08 noesis no longer proves itself here with this pair**:
+  for the two questions it asks about a channel's own library
+  (`/noesis/libraries/:handle` and `/noesis/users/:user/libraries`,
+  `server/src/app.ts`) — a channel's members by username and display name, who
+  of them is Pro, and its name; and which channels somebody belongs to — it
+  presents a token of its own from auth, scope `thefloor:members`, which this
+  server checks against auth's published keys. No secret is shared. **And
+  The Floor uses the pair to get its own token from auth** (`noesis:keep`), with
+  which it is the owner of every channel library, `thefloor/<handle>` (`server/src/channelLibraries.ts`):
   making them, filing every transcript into them, and asking for the hour's
   token, confined to one, that *Ask Claude* consults it with. So a leak lets
   somebody read those answers — who is in which channel that has a library —
@@ -418,8 +426,8 @@ Deliberately separate, so no single leak is worse than it has to be:
   no write since noesis `43be338`, a property of noesis, so the allowlist in the
   request is still what keeps a later noesis tool out of a room.
 
-  Marked `# env-push: optional`, with `NOESIS_URL` and `NOESIS_CALLBACK_URL`, which
-  are settings rather than secrets.
+  Marked `# env-push: optional`, with `NOESIS_URL`, `NOESIS_CALLBACK_URL` and
+  `AUTH_URL`, which are settings rather than secrets.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it

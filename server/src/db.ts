@@ -870,9 +870,10 @@ CREATE TABLE IF NOT EXISTS noesis_connections (
   -- connecting and again whenever Floor Settings asks: what a channel's
   -- toggles offer, and what a channel's selection is pruned to.
   libraries     TEXT,
-  -- The scopes noesis granted (space-separated): import lets the person send
-  -- a room's text to a library of theirs. Null for a connection made before
-  -- they were kept, which is one made before import was asked for.
+  -- The scopes granted (space-separated; auth's since 2026-11-08, noesis's
+  -- before): noesis:import lets the person send a room's text to a library
+  -- of theirs. Null for a connection made before they were kept, which is one
+  -- made before import was asked for.
   scopes        TEXT
 );
 
@@ -2433,6 +2434,9 @@ function migrate(db: Db): void {
   if (!connectionColumns.some((c) => c.name === 'scopes')) {
     db.exec('ALTER TABLE noesis_connections ADD COLUMN scopes TEXT');
   }
+  // noesis's `import` became auth's `noesis:read noesis:import` on 2026-11-08,
+  // when sign-in moved to auth (noesis.ts); auth carried the grants over.
+  db.exec("UPDATE noesis_connections SET scopes = 'noesis:read noesis:import' WHERE scopes = 'import'");
   const columns = db
     .prepare('PRAGMA table_info(recordings)')
     .all() as Array<{ name: string }>;

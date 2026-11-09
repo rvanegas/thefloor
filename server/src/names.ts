@@ -1,7 +1,8 @@
 /**
- * noesis's register of names, which decides every username here.
+ * The register of names, which decides every username here: auth's since
+ * 2026-11-08 (auth.rvanegas.co, where sign-in moved), noesis's before it.
  *
- * Since 2026-11-02 noesis is the source of truth for people's names across
+ * Since 2026-11-02 the register is the source of truth for people's names across
  * the applications it serves, and The Floor keeps its own sign-in but not the
  * say over names: a person is the same `@name` here and at noesis, and an
  * address is one name throughout. See
@@ -22,12 +23,12 @@
  *   noesis refuses either for any account of its own.
  *
  * The register answers this client by its id and secret, as HTTP Basic, on
- * nobody's behalf; noesis's operator marks it with `scripts/client_names.py`.
+ * nobody's behalf; auth's operator marks it with `scripts/add_client.py --keeps-names`.
  * The Floor keeps the case its people type and noesis keeps names lowercase,
  * so the two are the same name compared without case, as usernames here are.
  */
 export interface NamesOptions {
-  /** noesis's origin. */
+  /** auth's origin, which keeps the register. */
   origin: string;
   clientId: string;
   clientSecret: string;
@@ -40,7 +41,7 @@ export type NamesAnswer =
   | { ok: true; user: string }
   | { ok: false; reason: 'taken' | 'busy' | 'invalid' | 'unreachable'; message: string };
 
-const UNREACHABLE = 'noesis, which keeps everybody’s username, did not answer. Try again in a minute.';
+const UNREACHABLE = 'The sign-in service, which keeps everybody’s username, did not answer. Try again in a minute.';
 
 export class NoesisNames {
   private fetch: typeof fetch;

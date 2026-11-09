@@ -3,6 +3,7 @@ import { ChannelLibraries, SETTLE_MS, segmentFilename, segmentText } from '../sr
 import type { RoomView } from '../../core/protocol';
 import { MemoryMailer } from '../src/mail';
 import { finished } from '../src/noesis';
+import { AUTH_ORIGIN, OWN_TOKEN, fakeAuth } from '../__stubs__/fakeAuth';
 
 /**
  * Every transcript filed into its channel's own noesis library by itself
@@ -20,7 +21,8 @@ import { finished } from '../src/noesis';
 let app: App;
 let clock = 1_700_000_000_000;
 const SECRET = 'client-secret';
-const BASIC = 'Basic ' + Buffer.from(`thefloor:${SECRET}`).toString('base64');
+// The Floor's own token from auth, with which it is the libraries' owner at noesis.
+const OWNER = `Bearer ${OWN_TOKEN}`;
 
 let sent: Array<{ method: string; path: string; search: string; auth: string; body: string }>;
 let noesisDown: boolean;
@@ -46,7 +48,8 @@ const fakeNoesis = (async (input: unknown, init?: { method?: string; headers?: u
   );
 }) as typeof fetch;
 
-const NOESIS = { origin: 'https://noesis.example', clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis };
+const NOESIS = { origin: 'https://noesis.example', auth: fakeAuth(), fetch: fakeNoesis };
+const NAMES = { origin: AUTH_ORIGIN, clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis };
 
 beforeEach(() => {
   clock = 1_700_000_000_000;
@@ -56,7 +59,7 @@ beforeEach(() => {
     dbPath: ':memory:',
     mailer: new MemoryMailer(),
     now: () => clock,
-    names: NOESIS,
+    names: NAMES,
     channelLibraries: NOESIS,
   });
 });
@@ -140,7 +143,7 @@ describe('a channel library, filed into by itself', () => {
       ['POST', '/libraries'],
       ['POST', `/libraries/thefloor/${handle}/import`],
     ]);
-    expect(sent.every((s) => s.auth === BASIC)).toBe(true);
+    expect(sent.every((s) => s.auth === OWNER)).toBe(true);
     expect(JSON.parse(sent[0].body)).toEqual({ name: handle });
     expect(new URLSearchParams(sent[1].search).get('filename')).toBe('The Floor — Book Club — 2026-11-07 1405.md');
     expect(sent[1].body).toBe(
@@ -261,7 +264,7 @@ describe('deleting what a channel library holds, a week on', () => {
     noesisDown = false;
     await app.channels.sweepDeleted(clock + WEEK);
     expect(sent.map((s) => [s.method, s.path])).toEqual([['DELETE', `/libraries/thefloor/${handle}`]]);
-    expect(sent[0].auth).toBe(BASIC);
+    expect(sent[0].auth).toBe(OWNER);
     expect(channelRow(channelId)).toBeUndefined();
   });
 

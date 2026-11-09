@@ -86,6 +86,7 @@ import { RoomDigests } from './digest';
 import { NoesisConnections, noesisFilename, type NoesisOptions } from './noesis';
 import { ChannelLibraries, type ChannelLibrariesOptions } from './channelLibraries';
 import { NoesisNames, type NamesOptions } from './names';
+import type { AuthClient } from './auth';
 import {
   formatTranscript,
   MEDIA_LABEL,
@@ -355,6 +356,12 @@ export interface BuildOptions {
    * channel has one and nothing is filed; `CHANNEL_LIBRARIES` switches it on.
    */
   channelLibraries?: ChannelLibrariesOptions;
+  /**
+   * auth (auth.ts), which signs people in for noesis and the rest: here, what
+   * checks noesis's own token when it asks who belongs to a channel's library.
+   * Absent, nobody is noesis.
+   */
+  auth?: AuthClient;
   /**
    * Turns speech into text as it is spoken — the live transcript. Optional
    * for `transcription`'s reason, and needs `media` too: without a room to
@@ -4107,17 +4114,15 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * Whether this request is noesis's: the client pair noesis issued The Floor,
-   * presented back as HTTP Basic — the pair The Floor presents to noesis's
-   * register (names.ts), so one secret answers both ways. Compared as hashes,
-   * so neither half leaks where it first differs.
+   * Whether this request is noesis's: a token auth issued noesis for asking
+   * The Floor who belongs (`thefloor:members`, a scope auth's operator allows
+   * noesis alone), checked against auth's published keys (auth.ts). No secret
+   * is shared between the two.
    */
-  function isNoesis(request: FastifyRequest): boolean {
-    const client = options.names;
+  async function isNoesis(request: FastifyRequest): Promise<boolean> {
     const header = request.headers.authorization;
-    if (!client || !header?.startsWith('Basic ')) return false;
-    const presented = Buffer.from(header.slice('Basic '.length), 'base64').toString('utf8');
-    return hashesEqual(sha256(presented), sha256(`${client.clientId}:${client.clientSecret}`));
+    if (!options.auth || !header?.startsWith('Bearer ')) return false;
+    return (await options.auth.verify(header.slice('Bearer '.length), 'thefloor:members')) !== null;
   }
 
   /** An account's username as noesis keeps it, lowercase; null for none. */
@@ -4137,7 +4142,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * noesis could not name, is left out.
    */
   fastify.get('/noesis/libraries/:handle', async (request, reply) => {
-    if (!isNoesis(request)) return reply.code(401).send({ error: 'Not noesis.' });
+    if (!(await isNoesis(request))) return reply.code(401).send({ error: 'Not noesis.' });
     const { handle } = request.params as { handle: string };
     const channel = channels.byHandle(handle);
     if (!channel) return reply.code(404).send({ error: 'No such channel.' });
@@ -4155,7 +4160,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * only — never an old one, which noesis may have given somebody else.
    */
   fastify.get('/noesis/users/:user/libraries', async (request, reply) => {
-    if (!isNoesis(request)) return reply.code(401).send({ error: 'Not noesis.' });
+    if (!(await isNoesis(request))) return reply.code(401).send({ error: 'Not noesis.' });
     const { user } = request.params as { user: string };
     const account = accounts.byCurrentUsername(user);
     return { libraries: account ? channels.handlesOf(account.id) : [] };

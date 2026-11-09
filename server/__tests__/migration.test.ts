@@ -801,3 +801,29 @@ it('writes the first sitting a channel made with somebody present went without',
   expect(rooms(again)).toEqual(written);
   again.close();
 });
+
+/**
+ * noesis's `import` grant became auth's `noesis:read noesis:import` when sign-in
+ * moved to auth (2026-11-08): auth carried the grants over, and a connection
+ * kept here still says it may send.
+ */
+it('names a noesis grant by auth’s scopes', () => {
+  const path = join(dir, 'noesis-scopes.db');
+  const db = openDb(path);
+  // The rows alone are the fixture: their accounts are beside the point.
+  db.exec('PRAGMA foreign_keys = OFF');
+  const add = db.prepare(
+    `INSERT INTO noesis_connections (account_id, noesis_user, noesis_email, refresh_token, connected_at, scopes)
+     VALUES (?, 'ann', NULL, 'sealed', 0, ?)`
+  );
+  add.run('acc_import', 'import');
+  add.run('acc_none', null);
+  db.close();
+  const again = openDb(path);
+  const scopes = Object.fromEntries(
+    (again.prepare('SELECT account_id, scopes FROM noesis_connections').all() as Array<{ account_id: string; scopes: string | null }>)
+      .map((row) => [row.account_id, row.scopes])
+  );
+  expect(scopes).toEqual({ acc_import: 'noesis:read noesis:import', acc_none: null });
+  again.close();
+});

@@ -153,7 +153,7 @@ export interface PolicyOptions {
  * library, on `CLAUDE_PRIVACY_UPDATED`'s terms: shown only where that
  * paragraph is.
  */
-export const LIBRARY_PRIVACY_UPDATED = '7 November 2026';
+export const LIBRARY_PRIVACY_UPDATED = '8 November 2026';
 
 /**
  * When the page last changed for a reader whose server can transcribe live,
@@ -335,9 +335,10 @@ are not kept by The Floor.</p>
 `;
   const libraryParagraph = `<p>This server can also give Claude a library: one person's own writing,
 kept in noesis, a service the people who run The Floor keep. Anybody with an noesis
-library may connect it on <em>Floor Settings</em>, by signing in to noesis there;
-The Floor then keeps a grant from noesis to read that library, sealed, along with
-the noesis name and address it belongs to, until they disconnect it or delete
+library may connect it on <em>Floor Settings</em>, by signing in there at
+auth.rvanegas.co, the sign-in those same people keep for noesis and their other
+services; The Floor then keeps a grant to read that library, sealed, along with
+the name and address it belongs to, until they disconnect it or delete
 their account. In a channel where that person has switched it on, Claude may
 look things up in it while writing a reply — the words it searches with, drawn
 from the Record, go to that server — and the reply may quote what it finds.

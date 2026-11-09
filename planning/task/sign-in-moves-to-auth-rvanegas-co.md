@@ -20,3 +20,11 @@ The emailed-code routes and the App Review fixed code move to auth
 `noesis:read`. Old builds still call the code routes, so they stay until
 `MIN_SUPPORTED_BUILD` passes them (technosophia `CLIENTS.md`), and a new
 build goes through review.
+
+**Phase 1 built 2026-11-08, not deployed:** branch `auth-sign-in` (server
+only; no app change). `server/src/auth.ts` gets The Floor's own token and
+checks noesis's; `AUTH_URL` joins the box's `server/.env`; the library
+section of the privacy policy says where people sign in now, dated
+8 November 2026. It deploys at the cut-over, after auth and noesis, since
+until then noesis still asks with HTTP Basic, which this server no longer
+takes.

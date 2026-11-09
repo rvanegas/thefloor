@@ -75,13 +75,14 @@ function start(register: boolean) {
     now: () => clock,
     library: {
       url: 'https://noesis.example/mcp',
+      authUrl: 'https://auth.example',
       clientId: 'thefloor',
       clientSecret: SECRET,
       callbackUrl: 'https://floor.example/noesis/callback',
       fetch: fakeNoesis,
     },
     names: register
-      ? { origin: 'https://noesis.example', clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis }
+      ? { origin: 'https://auth.example', clientId: 'thefloor', clientSecret: SECRET, fetch: fakeNoesis }
       : undefined,
   });
 }
