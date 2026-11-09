@@ -20,6 +20,31 @@ deploy removes.
 
 ---
 
+## Where reviewers sign in, from 1.14.0 (build 422)
+
+**At dianoia-auth, not here.** From build 422 the app's *Sign in* opens
+`auth.rvanegas.co` in the system sheet (the task
+`sign-in-moves-to-auth-rvanegas-co.md`), and the reviewer types the demo
+address and the fixed code there. dianoia-auth takes that address with that
+code and mails nothing: `AUTH_REVIEW_ADDRESS` and `AUTH_REVIEW_CODE` in
+`~/dianoia-auth/.env` on `commons`, set on 2026-11-09 from this account's
+`REVIEW_IDENTIFIER` and `REVIEW_CODE`. The callback finds this account by its
+address, so the reviewer lands in it, contact and channels and all.
+
+- **Two copies of the code now, and they must agree**: dianoia-auth's, which
+  the build under review signs in with, and `REVIEW_CODE` here, which
+  `ts set-review-notes` puts in the notes and which builds up to 421 still
+  sign in with (SHIMS.md, gate 422). Changing one is changing both, before
+  the next submission.
+- **The demo account has a dianoia-auth account from its first sign-in
+  there**, made under the name the register reserved for its address, and an
+  empty noesis library with it.
+- **Tearing it down** (below) also means unsetting the two settings at
+  dianoia-auth and disabling its account there
+  (dianoia-auth's `scripts/accounts.py disable`).
+
+---
+
 ## What exists, and why the second account is not a mistake
 
 | | |

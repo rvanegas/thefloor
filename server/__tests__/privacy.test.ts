@@ -239,6 +239,13 @@ describe('The privacy policy', () => {
    */
   describe('Claude', () => {
     const noClient = {} as never;
+    /**
+     * The date a page shows: the latest of the paragraphs it carries, the
+     * base page's among them — newest of all since 2026-11-09, when signing
+     * in moved to dianoia-auth and the page changed for every reader.
+     */
+    const latest = (...dates: string[]) =>
+      dates.reduce((a, b) => (Date.parse(b) > Date.parse(a) ? b : a));
 
     it('names nobody, and changes nothing, without a key', async () => {
       app = buildApp({ dbPath: ':memory:' });
@@ -267,8 +274,7 @@ describe('The privacy policy', () => {
       expect(page).not.toContain('none of them receive your conversations');
       expect(page).toContain('none of them but Anthropic receive your conversations');
       // And one date, the true one for this page.
-      expect(page).toContain(CLAUDE_PRIVACY_UPDATED);
-      expect(page).not.toContain(`last updated ${PRIVACY_UPDATED}`);
+      expect(page).toContain(`last updated ${latest(PRIVACY_UPDATED, CLAUDE_PRIVACY_UPDATED)}`);
     });
 
     const library = {
@@ -282,9 +288,10 @@ describe('The privacy policy', () => {
     it('says nothing of a library without one, and keeps Claude’s date', async () => {
       app = buildApp({ dbPath: ':memory:', claude: noClient });
       const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      // The library's absence is the word's; its date and the page's coincide
+      // since 2026-11-09, so no date can say it.
       expect(page).not.toContain('library');
-      expect(page).toContain(CLAUDE_PRIVACY_UPDATED);
-      expect(page).not.toContain(LIBRARY_PRIVACY_UPDATED);
+      expect(page).toContain(`last updated ${latest(PRIVACY_UPDATED, CLAUDE_PRIVACY_UPDATED)}`);
     });
 
     it('says nothing of a library with no Claude to consult it', async () => {
@@ -307,7 +314,9 @@ describe('The privacy policy', () => {
       expect(page).toContain('the reply may quote what it finds');
       // Nothing about what that server keeps of a search: not checkable here.
       expect(page).not.toMatch(/(keeps|retains|deletes|stores) (the|your|a) search/);
-      expect(page).toContain(`last updated ${LIBRARY_PRIVACY_UPDATED}`);
+      expect(page).toContain(
+        `last updated ${latest(PRIVACY_UPDATED, CLAUDE_PRIVACY_UPDATED, LIBRARY_PRIVACY_UPDATED)}`
+      );
       expect(page).not.toContain(`last updated ${CLAUDE_PRIVACY_UPDATED}`);
       // What is kept of the lookups beside the reply, and what never is.
       expect(page).toContain('its title, its length and noesis\'s summary of it, but never the writing itself');
@@ -343,7 +352,9 @@ describe('The privacy policy', () => {
       // Past the digest's since 2026-11-07, live text being deletable on its
       // own: the latest paragraph shown dates the page.
       expect(page).not.toContain(`last updated ${DIGEST_PRIVACY_UPDATED}`);
-      expect(page).toContain(`last updated ${LIVE_PRIVACY_UPDATED}`);
+      expect(page).toContain(
+        `last updated ${latest(PRIVACY_UPDATED, CLAUDE_PRIVACY_UPDATED, DIGEST_PRIVACY_UPDATED, LIVE_PRIVACY_UPDATED)}`
+      );
     });
 
     it('says live text can be deleted on its own, where there can be any, with its own date', async () => {
@@ -355,7 +366,7 @@ describe('The privacy policy', () => {
       });
       const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
       expect(page).toContain('or before that on its own, as any transcript can be');
-      expect(page).toContain(`last updated ${LIVE_PRIVACY_UPDATED}`);
+      expect(page).toContain(`last updated ${latest(PRIVACY_UPDATED, LIVE_PRIVACY_UPDATED)}`);
     });
 
     it('dates the page by the latest paragraph shown, the library’s past the digest’s', async () => {
@@ -368,7 +379,10 @@ describe('The privacy policy', () => {
         library,
       });
       const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
-      expect(page).toContain(`last updated ${LIBRARY_PRIVACY_UPDATED}`);
+      expect(page).toContain(
+        `last updated ${latest(PRIVACY_UPDATED, CLAUDE_PRIVACY_UPDATED, DIGEST_PRIVACY_UPDATED,
+          LIVE_PRIVACY_UPDATED, LIBRARY_PRIVACY_UPDATED)}`
+      );
     });
 
     it('names both processors where both are configured', async () => {

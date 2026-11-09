@@ -18,7 +18,7 @@ import { escapeHtml, page, socialCard } from './html';
  * Changed when the substance changes, not when the wording does. It is the date
  * a reader uses to decide whether they have seen this version.
  */
-export const PRIVACY_UPDATED = '19 October 2026';
+export const PRIVACY_UPDATED = '9 November 2026';
 
 /**
  * How long a deleted channel or recording survives the mark before the sweep
@@ -153,7 +153,7 @@ export interface PolicyOptions {
  * library, on `CLAUDE_PRIVACY_UPDATED`'s terms: shown only where that
  * paragraph is.
  */
-export const LIBRARY_PRIVACY_UPDATED = '8 November 2026';
+export const LIBRARY_PRIVACY_UPDATED = '9 November 2026';
 
 /**
  * When the page last changed for a reader whose server can transcribe live,
@@ -334,12 +334,11 @@ notification, to the channel's members who are not in the conversation, and
 are not kept by The Floor.</p>
 `;
   const libraryParagraph = `<p>This server can also give Claude a library: one person's own writing,
-kept in noesis, a service the people who run The Floor keep. Anybody with an noesis
-library may connect it on <em>Floor Settings</em>, by signing in there at
-auth.rvanegas.co, the sign-in those same people keep for noesis and their other
-services; The Floor then keeps a grant to read that library, sealed, along with
-the name and address it belongs to, until they disconnect it or delete
-their account. In a channel where that person has switched it on, Claude may
+kept in noesis, a service the people who run The Floor keep. Since version 1.14,
+signing in to The Floor at auth.rvanegas.co connects your noesis library; in
+earlier versions you connect it on <em>Floor Settings</em>, by signing in there.
+The Floor then keeps a grant to read that library, sealed, along with the name
+and address it belongs to, until you disconnect it or delete your account. In a channel where that person has switched it on, Claude may
 look things up in it while writing a reply — the words it searches with, drawn
 from the Record, go to that server — and the reply may quote what it finds.
 Beside each such reply The Floor also keeps a record of the lookups made for
@@ -396,13 +395,19 @@ application collects little.</p>
 <ul>
   <li><strong>Your email address.</strong> It is how you sign in — a six-digit
   code is sent to it — and it is how somebody who knows your address can send
-  you a contact request. It is shown to your contacts, on your profile, and to
+  you a contact request. Since version 1.14 you sign in at auth.rvanegas.co,
+  the sign-in the people who run The Floor keep for it and their other
+  services, which keeps your address, your username and when you signed in,
+  and keeps you signed in in that browser for thirty days so that their other
+  services do not ask again; earlier versions send the code from here. It is shown to your contacts, on your profile, and to
   nobody else — not to somebody you share a channel with. Removing a contact
   removes it from their screen, and cannot recover a copy they have already
   written down. You can change it from
   your own profile: a code is sent to the new address, and nothing changes
   until that code comes back, so the address this account signs in with is
-  always one somebody has proved they can read.</li>
+  always one somebody has proved they can read. Once you have signed in at
+  auth.rvanegas.co the address is that account's too, and it cannot be
+  changed from the app; write to the support address.</li>
   <li><strong>Your display name.</strong> It is shown to people you share a
   channel or a contact relationship with.</li>
   <li><strong>A phone number, and a WhatsApp, Telegram or Signal handle, if
