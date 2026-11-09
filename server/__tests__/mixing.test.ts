@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DELETED_RETENTION_MS } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
 import { mixKeyFor } from '../src/mixes';
 import { openDb } from '../src/db';
@@ -532,7 +533,7 @@ describe('the sweep', () => {
       url: `/recordings/${recording.id}`,
       headers: auth(alice.token),
     });
-    await app.channels.sweepDeleted(clock + 8 * 24 * 60 * 60 * 1000);
+    await app.channels.sweepDeleted(clock + DELETED_RETENTION_MS + 24 * 60 * 60 * 1000);
 
     expect(store.keys()).not.toContain(mixKeyFor(channelId, recording.id));
     expect(store.keys()).toHaveLength(0);

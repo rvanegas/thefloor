@@ -1,6 +1,7 @@
 import { buildApp, type App } from '../src/app';
 import { ChannelLibraries, SETTLE_MS, segmentFilename, segmentText } from '../src/channelLibraries';
 import type { RoomView } from '../../core/protocol';
+import { DELETED_RETENTION_MS } from '../../core/constants';
 import { MemoryMailer } from '../src/mail';
 import { finished } from '../src/noesis';
 import { AUTH_ORIGIN, OWN_TOKEN, fakeAuth } from '../__stubs__/fakeAuth';
@@ -236,8 +237,8 @@ describe('a channel library, filed into by itself', () => {
   });
 });
 
-describe('deleting what a channel library holds, a week on', () => {
-  const WEEK = 7 * 24 * 60 * 60 * 1000;
+describe('deleting what a channel library holds, thirty days on', () => {
+  const WINDOW = DELETED_RETENTION_MS;
 
   async function filed() {
     const { channelId, ertaId } = await bookClub();
@@ -251,24 +252,24 @@ describe('deleting what a channel library holds, a week on', () => {
 
   const channelRow = (id: string) => app.db.prepare('SELECT library_cleared_at FROM channels WHERE id = ?').get(id);
 
-  it("deletes a deleted channel's library a week after, and only then the row", async () => {
+  it("deletes a deleted channel's library thirty days after, and only then the row", async () => {
     const { channelId, handle } = await filed();
     app.db.prepare('UPDATE channels SET deleted_at = ? WHERE id = ?').run(clock, channelId);
-    await app.channels.sweepDeleted(clock + WEEK - 1);
+    await app.channels.sweepDeleted(clock + WINDOW - 1);
     expect(sent).toEqual([]);
 
     noesisDown = true;
-    await app.channels.sweepDeleted(clock + WEEK);
+    await app.channels.sweepDeleted(clock + WINDOW);
     expect(channelRow(channelId)).toEqual({ library_cleared_at: null });
 
     noesisDown = false;
-    await app.channels.sweepDeleted(clock + WEEK);
+    await app.channels.sweepDeleted(clock + WINDOW);
     expect(sent.map((s) => [s.method, s.path])).toEqual([['DELETE', `/libraries/thefloor/${handle}`]]);
     expect(sent[0].auth).toBe(OWNER);
     expect(channelRow(channelId)).toBeUndefined();
   });
 
-  it("deletes a deleted recording's document a week after, and only then the recording", async () => {
+  it("deletes a deleted recording's document thirty days after, and only then the recording", async () => {
     const { channelId, ertaId, handle } = await filed();
     app.db
       .prepare(
@@ -283,7 +284,7 @@ describe('deleting what a channel library holds, a week on', () => {
          VALUES ('seg_r', ?, ?, ?, 'rec_1', 0, ?, '2026/x.chat.md')`
       )
       .run(channelId, START, START + 1, clock);
-    await app.channels.sweepDeleted(clock + WEEK);
+    await app.channels.sweepDeleted(clock + WINDOW);
     expect(sent.map((s) => [s.method, s.path])).toEqual([
       ['GET', `/libraries/thefloor/${handle}/files`],
       ['DELETE', `/libraries/thefloor/${handle}/files/2026/x.chat.md`],
@@ -292,7 +293,7 @@ describe('deleting what a channel library holds, a week on', () => {
     expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_r'").get()).toEqual({ filed_file: null });
   });
 
-  // Not a week on: a copy elsewhere, which members can still open there, goes
+  // Not thirty days on: a copy elsewhere, which members can still open there, goes
   // when the text is deleted, as the transcription provider's does.
   const settle = async () => {
     for (let i = 0; i < 20; i++) await new Promise((resolve) => setImmediate(resolve));

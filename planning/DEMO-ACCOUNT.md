@@ -147,7 +147,7 @@ step 3 and not after.
 **Delete both, not one.** The channel has two members: removing the first is an
 ordinary leave and the second survives as the last member, keeping the channel
 alive. Removing the second takes the last member out, which ends the channel and
-marks it for the week-long sweep that already exists. Stopping halfway leaves a
+marks it for the thirty-day sweep that already exists. Stopping halfway leaves a
 live channel with one occupant in it forever.
 
 **3. Only then unset `REVIEW_IDENTIFIER`, `REVIEW_CODE` and

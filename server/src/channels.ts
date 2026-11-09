@@ -171,7 +171,7 @@ export type SilenceNotice =
       forMs: number;
     };
 
-/** How often deleted rows past their week are looked for. */
+/** How often deleted rows past their thirty days are looked for. */
 export const SWEEP_INTERVAL_MS = 60 * 60 * 1000;
 
 /**
@@ -4501,7 +4501,7 @@ export class ChannelRegistry {
 
   /**
    * Deletes one recording, on the same terms as deleting the channel deletes
-   * all of them: marked now, swept a week later, and gone from every list in
+   * all of them: marked now, swept thirty days later, and gone from every list in
    * the meantime.
    *
    * Anybody who can reach it may, which is everybody in its channel. That is
@@ -4739,7 +4739,7 @@ export class ChannelRegistry {
    * Nothing is removed here, and the delay is not politeness: `channel_id` is
    * a real foreign key, so a recording outliving its channel by even an
    * instant would be a broken row. Marking both at once keeps every row valid
-   * for the whole week and lets one sweep take them together, in the order the
+   * for the whole window and lets one sweep take them together, in the order the
    * key requires.
    */
   private markDeleted(channelId: string, now: number): void {
@@ -4749,8 +4749,8 @@ export class ChannelRegistry {
     this.db
       .prepare('UPDATE channels SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL')
       .run(now, channelId);
-    // Immediately, unlike everything else here. The week is a recovery window
-    // for rows and objects; a link is a door, and a door to a deleted channel
+    // Immediately, unlike everything else here. The thirty days are a recovery
+    // window for rows and objects; a link is a door, and a door to a deleted channel
     // stops opening when it is deleted rather than when the sweep gets to it.
     this.guests.revokeChannel(channelId, now);
   }
@@ -4821,7 +4821,7 @@ export class ChannelRegistry {
       // record of which keys belong to it — has gone.
       //
       // Nothing is serving it by now. A recording leaves the page and the
-      // feed the moment it is *marked* deleted, a week before this runs;
+      // feed the moment it is *marked* deleted, thirty days before this runs;
       // see `publicChannel` in app.ts, where that ordering is stated as the
       // constraint it is. A subscriber never meets a dead enclosure.
       const keys = [
@@ -4990,7 +4990,7 @@ export class ChannelRegistry {
   }
 
   /**
-   * Deleted recordings past their week that nobody has confirmed emptied —
+   * Deleted recordings past their thirty days that nobody has confirmed emptied —
    * each one audio still in the bucket and a row the sweep is holding.
    *
    * Only a person clears these, with `ts orphans --delete`, and a person

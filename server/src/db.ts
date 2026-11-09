@@ -1172,7 +1172,7 @@ CREATE TABLE IF NOT EXISTS channels (
   -- Null only on rows that predate persistence, all of which are ended.
   state TEXT,
   -- When its last member deleted it. The row and its recordings survive the
-  -- mark by a week so that a mistake is recoverable and the foreign key stays
+  -- mark by thirty days so that a mistake is recoverable and the foreign key stays
   -- pointing at something; the sweep is what actually removes them. Distinct
   -- from ended_at, which pre-dates deletion existing.
   deleted_at INTEGER,
@@ -1904,7 +1904,7 @@ CREATE INDEX IF NOT EXISTS silence_notices_at ON silence_notices (at);
 -- second charge for an answer we already hold.
 CREATE TABLE IF NOT EXISTS transcripts (
   -- ON DELETE CASCADE on all three of these tables, and it is load-bearing
-  -- rather than tidy: the sweep really does DELETE a recordings row a week
+  -- rather than tidy: the sweep really does DELETE a recordings row thirty days
   -- after it was marked, and with foreign keys on, a row pointing at it would
   -- refuse that delete outright — a recording nobody could finish deleting
   -- because it had once been transcribed. The cascade is the backstop, not the
@@ -2224,7 +2224,7 @@ CREATE INDEX IF NOT EXISTS claude_usage_at ON claude_usage(at);
 --
 -- ON DELETE CASCADE on the channel, because a channel that has been swept is
 -- one whose settings are meaningless — and the sweep in channels.ts really
--- does DELETE the row, a week after the last member marked it. No cascade is
+-- does DELETE the row, thirty days after the last member marked it. No cascade is
 -- needed on the account side: Accounts.erase anonymises the row in place
 -- rather than deleting it, so that reference cannot dangle.
 CREATE TABLE IF NOT EXISTS channel_notification_levels (
@@ -3110,7 +3110,7 @@ function migrate(db: Db): void {
   }
   /*
     The document a segment was filed as, by its path in the channel's library,
-    so a deleted recording's goes with it a week later (`sweepDeleted`);
+    so a deleted recording's goes with it thirty days later (`sweepDeleted`);
     nulled once it has. And on a channel, when its library was confirmed
     deleted at noesis, which the sweep waits for before dropping a row that
     names it — `objects_cleared_at`'s part for recordings, set by the sweep

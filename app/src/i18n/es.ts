@@ -786,7 +786,7 @@ export const es: Strings = {
     deleteAccount: () => 'Borrar la cuenta',
     deleteAccountAsk: () => '\u00bfBorrar tu cuenta?',
     deleteAccountBody: () =>
-      'Tu direcci\u00f3n, tu nombre, lo que escribiste sobre ti y tus contactos se eliminan de inmediato.\n\nLos canales que compartes con otras personas siguen sin ti, y tambi\u00e9n las grabaciones hechas en ellos: son del canal. Los canales en los que eres el \u00fanico miembro se borran con todo lo que hay dentro.\n\nEsto no se puede deshacer.',
+      'Tu direcci\u00f3n, tu nombre, lo que escribiste sobre ti y tus contactos se eliminan de inmediato.\n\nLos canales que compartes con otras personas siguen sin ti, y tambi\u00e9n las grabaciones hechas en ellos: son del canal. Los canales en los que eres el \u00fanico miembro se borran con todo lo que hay dentro.\n\nTu cuenta en auth.rvanegas.co, con la que entras aqu\u00ed y en noesis, se conserva: se borra en auth.rvanegas.co/account.\n\nEsto no se puede deshacer.',
     deleteConfirm: () => 'Borrar',
   },
   channelSettings: {

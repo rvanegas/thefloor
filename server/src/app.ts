@@ -4262,31 +4262,55 @@ export function buildApp(options: BuildOptions = {}): App {
   fastify.delete('/me', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
+    await deleteAccount(account.id);
+    return reply.code(204).send();
+  });
 
-    const contacts = accounts.audienceFor(account.id);
-    const left = channels.removeMember(account.id);
-    devices.forgetAccount(account.id);
+  /**
+   * auth's word that somebody deleted their account there (dianoia-auth's
+   * departures.py), which deletes The Floor's too, exactly as `DELETE /me`
+   * would. Only auth itself says so: a token it signed as itself, carrying
+   * `thefloor:erase`, a scope no client is ever granted. The person is named
+   * by the username auth and The Floor share (names.ts). 204 whether or not
+   * there was such an account, so auth may say it again.
+   */
+  fastify.delete('/users/:user', async (request, reply) => {
+    const header = request.headers.authorization;
+    const claims =
+      options.auth && header?.startsWith('Bearer ')
+        ? await options.auth.verify(header.slice('Bearer '.length), 'thefloor:erase')
+        : null;
+    if (!claims || claims.client_id !== 'dianoia-auth') return reply.code(401).send({ error: 'Not auth.' });
+    const { user } = request.params as { user: string };
+    const account = accounts.byCurrentUsername(user);
+    if (account) await deleteAccount(account.id);
+    return reply.code(204).send();
+  });
+
+  async function deleteAccount(accountId: string): Promise<void> {
+    const contacts = accounts.audienceFor(accountId);
+    const left = channels.removeMember(accountId);
+    devices.forgetAccount(accountId);
     // Named here beside the other three owners rather than folded into
     // `erase`, on the same reasoning that keeps devices out of it: this class
     // owns identity, that one owns addresses, the registry owns what the box
-    // carried, and the route is what knows all of them.
+    // carried, and this is what knows all of them.
     //
     // After `removeMember`, so the spans it closes on the way out are removed
     // too rather than written a moment later.
-    channels.usage.forget(account.id);
+    channels.usage.forget(accountId);
     // Their library leaves every room with them, and the grant at noesis goes.
     if (noesis) {
-      channels.dropLibraryOf(account.id);
-      await noesis.disconnect(account.id);
+      channels.dropLibraryOf(accountId);
+      await noesis.disconnect(accountId);
     }
-    excess.forget(account.id);
-    diagnostics.forget(account.id);
-    accounts.erase(account.id);
+    excess.forget(accountId);
+    diagnostics.forget(accountId);
+    accounts.erase(accountId);
     // Contacts lose a contact and the rest lose somebody from a channel; both
     // are looking at a Home that now says something untrue.
     homeNotifier.notify([...new Set([...contacts, ...left])]);
-    return reply.code(204).send();
-  });
+  }
 
   /**
    * Somebody's profile.
@@ -5149,9 +5173,10 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * Marks one recording for deletion. The audio and the row go in the sweep a
-   * week later, exactly as a deleted channel's do — this only sets the mark,
-   * which is what makes the week a recovery window rather than a formality.
+   * Marks one recording for deletion. The audio and the row go in the sweep
+   * thirty days later, exactly as a deleted channel's do — this only sets the
+   * mark, which is what makes the thirty days a recovery window rather than a
+   * formality.
    */
   fastify.delete('/recordings/:id', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -5988,7 +6013,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * `aac_state` and `published_bytes` are the same readiness test the page
    * and the feed apply, and `deleted_at IS NULL` is the same ordering
    * constraint: a recording leaves every public surface the moment it is
-   * marked, a week before the sweep takes its bytes.
+   * marked, thirty days before the sweep takes its bytes.
    */
   function publicChannels(): Array<{
     id: string;
@@ -6600,7 +6625,7 @@ export function buildApp(options: BuildOptions = {}): App {
       drops: connectivity.dropped,
       dropsRecovered: connectivity.recovered,
       dropsExpired: connectivity.expired,
-      // Deleted recordings past their week whose audio nobody has cleared:
+      // Deleted recordings past their thirty days whose audio nobody has cleared:
       // the number that says `ts orphans --delete` is due, since nothing
       // runs it but a person. See Channels.awaitingOrphans.
       awaitingOrphans: channels.awaitingOrphans(now()),

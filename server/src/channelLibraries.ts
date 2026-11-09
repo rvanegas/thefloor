@@ -224,7 +224,7 @@ export class ChannelLibraries {
   }
 
   /**
-   * Deletes a channel's library whole, a week after the channel was deleted
+   * Deletes a channel's library whole, thirty days after the channel was deleted
    * (`ChannelRegistry.sweepDeleted`). True once it is gone, which a library
    * noesis no longer has already is; false leaves the channel's row held for
    * the next sweep, or for `ts library-orphans`.
@@ -244,7 +244,7 @@ export class ChannelLibraries {
   }
 
   /**
-   * Deletes one document a segment was filed as, a week after its recording
+   * Deletes one document a segment was filed as, thirty days after its recording
    * was deleted: noesis asks for the file's hash to delete it, so it is read
    * from the library's listing first. True once it is gone.
    */

@@ -77,11 +77,18 @@ phone, a tablet or a computer.</p>
 <strong>Delete account</strong>.</p>
 
 <h2>What is deleted</h2>
-<p>Your address, your name, your contacts and every sign-in are removed, and you
-are taken out of every channel you were in. Channels you shared with other
-people carry on without you, because they are those people’s conversations too;
-channels you were the last member of are deleted with everything recorded in
-them.</p>
+<p>Your address, your name, your contacts and every sign-in to The Floor are
+removed, and you are taken out of every channel you were in. Channels you shared
+with other people carry on without you, because they are those people’s
+conversations too; channels you were the last member of are deleted with
+everything recorded in them.</p>
+<p><strong>Your account at auth.rvanegas.co is separate.</strong> Since version
+1.14 you sign in there, and the same account signs you in to noesis and the
+other services run alongside The Floor, so deleting The Floor’s account leaves
+it. To delete that too, and everything every one of those services keeps for
+it, The Floor’s account included, use
+<a href="https://auth.rvanegas.co/account/delete">Delete my account at
+auth.rvanegas.co</a>.</p>
 <p><a href="/privacy">The privacy policy</a> says the rest — what is kept, what
 that means for recordings other people were part of, and how long the
 underlying data survives the deletion before it is removed. It is the

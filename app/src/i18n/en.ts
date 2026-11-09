@@ -1037,7 +1037,7 @@ export const en = {
      * that channels are not yours to take with you.
      */
     deleteAccountBody: () =>
-      'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nThis cannot be undone.',
+      'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nYour account at auth.rvanegas.co, which signs you in here and to noesis, stays: it is deleted at auth.rvanegas.co/account.\n\nThis cannot be undone.',
     deleteConfirm: () => 'Delete',
   },
   channelSettings: {
@@ -1154,7 +1154,7 @@ export const en = {
     channelLibraryNote: () =>
       'Every transcript made here goes into this channel’s own library at noesis, which every member can open and nobody else can. The channel’s Pro members pay for it; while none is Pro, nothing new goes in.',
     channelLibraryNotYet: () => 'It is made with the first transcript while somebody here is Pro.',
-    /** What deleting does to it: `sweepDeleted`'s week, as *Delete for good* says it. */
+    /** What deleting does to it: `sweepDeleted`'s thirty days, as *Delete for good* says it. */
     channelLibraryDeleting: (days: number) =>
       `Deleting the channel deletes its library, and deleting a recording deletes its transcript there. Either can be recovered for ${days} days.`,
     channelLibraryOpen: () => 'Open in noesis',

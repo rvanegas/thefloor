@@ -23,10 +23,10 @@ export const PRIVACY_UPDATED = '9 November 2026';
 /**
  * How long a deleted channel or recording survives the mark before the sweep
  * removes it. Mirrors DELETED_RETENTION_MS in core/constants.ts — stated in the
- * policy because "deleted" meaning "in a week" is exactly the sort of thing a
+ * policy because "deleted" meaning "in a month" is exactly the sort of thing a
  * policy exists to say out loud.
  */
-const RETENTION_DAYS = 7;
+const RETENTION_DAYS = 30;
 
 /**
  * How long a transcript deleted on its own survives the mark. Mirrors
@@ -301,11 +301,7 @@ stored here.</p>
   }
 <p>A transcript can also be deleted on its own, leaving any recording. That
 works the same way: it disappears for everyone at once, and the text is removed
-about ${TRANSCRIPT_RETENTION_DAYS} days later. Longer than the week a deleted
-recording gets, and for a reason worth saying: deleting a recording by mistake
-is obvious, because the conversation goes from everybody's list, while deleting
-a transcript by mistake leaves everything else exactly where it was and can go
-unnoticed for far longer.</p>
+about ${TRANSCRIPT_RETENTION_DAYS} days later.</p>
 `;
 
   /*
@@ -576,7 +572,7 @@ mistake can be recovered by asking.</p>
 <p><strong>Your account is deleted under Settings</strong>, in the app or
 <a href="/delete-account">in a browser</a> — you do not need anything
 installed — and it happens immediately. Your address, your name, your contacts
-and every sign-in are removed. You are taken out
+and every sign-in to The Floor are removed. You are taken out
 of every channel you were in: channels you shared with other people carry on
 without you, since they are those people’s conversations too, and channels you
 were the last member of are deleted with everything recorded in them. Recordings
@@ -584,6 +580,14 @@ made in a channel that other people are still in stay with that channel, along
 with the name you had when each one was made — they are other people’s copies of
 a conversation they were in, and they are not ours to take away. Nothing that
 remains identifies you or can be signed in to.</p>
+
+<p><strong>Your account at auth.rvanegas.co is separate</strong>, and deleting
+The Floor’s leaves it: it is the one sign-in for The Floor and the other
+services run alongside it, noesis among them. It is deleted at
+<a href="https://auth.rvanegas.co/account/delete">auth.rvanegas.co</a>, which
+deletes this account too and whatever each of those services keeps for you; your
+noesis libraries are kept 30 days after that, so that a mistake
+can be undone by asking, and are then removed.</p>
 
 <h2>Donations</h2>
 <p>Donating is entirely optional and unlocks nothing — the application behaves

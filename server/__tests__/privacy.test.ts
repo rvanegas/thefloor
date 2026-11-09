@@ -7,6 +7,7 @@ import {
   DIAGNOSTICS_RETENTION_MS,
   TRANSCRIPT_DELETED_RETENTION_MS,
   USAGE_RETENTION_MS,
+  DELETED_RETENTION_MS,
 } from '../../core/constants';
 import { NOTIFY_HEADER } from '../src/release';
 import { buildApp, type App } from '../src/app';
@@ -98,8 +99,10 @@ describe('The privacy policy', () => {
     // being true the moment there were two — the assertion exists so the next
     // such counter has to come back and fix the prose again.
     expect(page).not.toContain('the only measurement here that is attached');
-    // Deleting is a mark swept later, and saying so is the point.
-    expect(page).toContain('7 days later');
+    // Deleting is a mark swept later, and saying so is the point: the window
+    // the sweep keeps.
+    const deletedDays = DELETED_RETENTION_MS / (24 * 60 * 60 * 1000);
+    expect(page).toContain(`removed about ${deletedDays} days later`);
     // And the meter's horizon is a published promise, so it has to be the one
     // the sweep actually keeps. These were both seven days until 2026-08-19,
     // which is how a single number came to stand for two different claims;
@@ -107,7 +110,7 @@ describe('The privacy policy', () => {
     const usageDays = USAGE_RETENTION_MS / (24 * 60 * 60 * 1000);
     expect(page).toContain(`kept for ${usageDays} days`);
     // And the transcript window, which is a different promise about a
-    // different thing and is longer for a reason the page gives.
+    // different thing, though the same thirty days since 2026-11-09.
     const transcriptDays =
       TRANSCRIPT_DELETED_RETENTION_MS / (24 * 60 * 60 * 1000);
     expect(page).toContain(`the text is removed about ${transcriptDays} days later`);

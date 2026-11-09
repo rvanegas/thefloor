@@ -1681,7 +1681,7 @@ export function RecordingRow({
       // is the only action in the app that destroys somebody else's copy of
       // something — a recording belongs to the channel, so every member loses
       // it, not just whoever tapped. Deleting is marking: it leaves every list
-      // at once, and the sweep removes the audio a week later.
+      // at once, and the sweep removes the audio thirty days later.
       onPress: () =>
         Alert.alert(t.deleteAsk(), t.deleteBody(), [
           { text: t.keep(), style: 'cancel' },

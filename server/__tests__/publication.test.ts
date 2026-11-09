@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DELETED_RETENTION_MS } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
@@ -686,7 +687,7 @@ describe('going private again', () => {
 });
 
 describe('a deleted recording', () => {
-  it('leaves the feed at once, a week before its bytes go', async () => {
+  it('leaves the feed at once, thirty days before its bytes go', async () => {
     const { alice, bob, channelId, recordingId } = await recorded();
     await goPublic(alice.token, channelId);
     await consent(alice.token, recordingId);
@@ -721,7 +722,7 @@ describe('a deleted recording', () => {
     await transcoded(recordingId);
 
     app.channels.deleteRecording(recordingId, alice.account.id);
-    clock += 8 * 24 * 60 * 60 * 1000;
+    clock += DELETED_RETENTION_MS + 24 * 60 * 60 * 1000;
     await app.channels.sweepDeleted(clock);
 
     expect(store.keys()).not.toContain(publishedKeyFor(channelId, recordingId));

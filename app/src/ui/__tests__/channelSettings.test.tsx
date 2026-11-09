@@ -592,7 +592,7 @@ describe('the channel library', () => {
     await open({ on: true, url: null });
     expect(textOf(tree)).toContain('Every transcript made here goes into this channel’s own library');
     expect(textOf(tree)).toContain('It is made with the first transcript');
-    expect(textOf(tree)).toContain('Either can be recovered for 7 days.');
+    expect(textOf(tree)).toContain('Either can be recovered for 30 days.');
     expect(findButton(tree, 'Open in noesis')).toBeUndefined();
   });
 

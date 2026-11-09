@@ -6,13 +6,14 @@ published promises that cannot be changed quietly. Written 2026-08-27 from a
 sweep of the constants; the code is the authority and the line numbers here
 will drift, so grep the constant name rather than trusting the reference.
 
-There are seven: one day-long, one week-long and five thirty-day. **The point of
-this file is that they are seven separate numbers rather than one number used
-seven times.** Five of them landing on thirty days is a coincidence of five
-separate judgements, not a derivation from each other, and one pair has already
-been pulled apart — `USAGE_RETENTION_MS` was seven days until 2026-08-19, and the
-day it moved is the day a single constant stopped being able to serve two
-promises. So each entry below says what its own argument was, and tidying them
+There are seven: one day-long and six thirty-day. **The point of this file is
+that they are seven separate numbers rather than one number used seven times.**
+Six of them landing on thirty days is a coincidence of separate judgements, not
+a derivation from each other, and one pair has already been pulled apart —
+`USAGE_RETENTION_MS` was seven days until 2026-08-19, and the day it moved is
+the day a single constant stopped being able to serve two promises. (The two
+recovery windows were made to agree on 2026-11-09, with noesis's: that is one
+judgement about recovery, still kept as two constants.) So each entry below says what its own argument was, and tidying them
 into one shared `RETENTION_MS` would be collapsing arguments that have already
 been shown to diverge.
 
@@ -43,28 +44,31 @@ It is not published anywhere and is stated in the app instead — *they have a d
 to* — so changing it is a copy change in `en.ts` and `es.ts` in the same commit,
 and not a `PRIVACY_UPDATED` move.
 
-## The one seven-day window
+## The six thirty-day windows
 
 **`DELETED_RETENTION_MS`**, `core/constants.ts`. How long a deleted channel and
 its recordings survive the tap that deleted them, before the hourly sweep drops
-the rows and the objects in the bucket.
+the rows and the objects in the bucket. A week until 2026-11-09, when it was
+made thirty days so that one recovery window holds across The Floor and noesis
+(whose deleted files and libraries keep the same thirty days): a person asking
+for something back should not need to know which project kept it.
 
 It is **not an undo.** The channel is unreachable the instant it goes — there
 are no members left to reach it — and nothing in the app can bring it back.
-What the week buys is that a mistake is still recoverable *by hand*, the rows
+What the window buys is that a mistake is still recoverable *by hand*, the rows
 being marked rather than gone. It lives in `core/` because the client states it
 in the delete confirmation, and a warning that disagrees with what the server
 does is worse than no warning. The privacy page states it too.
 
-## The five thirty-day windows
-
 **`TRANSCRIPT_DELETED_RETENTION_MS`**, `core/constants.ts`. A transcript
-deleted *on its own*. Longer than the recording's week deliberately: deleting a
-recording by mistake is unmistakable, because the conversation vanishes from
-every list, where deleting a transcript leaves the recording exactly where it
-was and the mistake can go unnoticed for far longer. A transcript whose
-*recording* is deleted goes with the recording on the seven-day clock instead —
-it belongs to the conversation rather than the other way round.
+deleted *on its own*. It was longer than the recording's week deliberately,
+until both became thirty days: deleting a recording by mistake is unmistakable,
+because the conversation vanishes from every list, where deleting a transcript
+leaves the recording exactly where it was and the mistake can go unnoticed for
+far longer. That reason is still its own, so it is still its own constant. A
+transcript whose *recording* is deleted goes with the recording on
+`DELETED_RETENTION_MS` instead — it belongs to the conversation rather than the
+other way round.
 
 **`USAGE_RETENTION_MS`**, `core/constants.ts`. The horizon past which nobody is
 entitled to know what anybody did: minutes with the microphone open, bytes
@@ -113,7 +117,7 @@ deleting anything — and `REMOVAL_MOTION_WINDOW_MS` above is in this file on th
 strength of its scale rather than its kind, being the one entry that is not
 about deleting anything either.
 
-## Three of them are published promises, and only two are guarded
+## Three of them are published promises, and all three are guarded
 
 `DELETED_RETENTION_MS`, `TRANSCRIPT_DELETED_RETENTION_MS` and
 `USAGE_RETENTION_MS` are stated as numbers on the privacy page, which restates
@@ -125,22 +129,18 @@ the number and decide whether the promise still sounds honest at the new one,
 which is not a thing an interpolation can do. **Changing any of the three moves
 `PRIVACY_UPDATED` in the same commit.**
 
-What stops the restatement drifting is `privacy.test.ts` — **for two of the
-three.** It computes the day counts from `USAGE_RETENTION_MS` and
-`TRANSCRIPT_DELETED_RETENTION_MS` and asserts the page contains them, so moving
-either constant without the page fails the suite. The seven-day one is not
-guarded that way: the page says `7 days later` as a literal and the test
-asserts that same literal, so **`DELETED_RETENTION_MS` can be changed and the
-published promise will go on saying seven days with a green suite.** That is
-`backlog/the-seven-day-retention-promise-is-not-guarded-by-the-privacy-test.md`. The client
-copy is safe — `ChannelSettingsView` derives its wording from the constant — so
-the failure mode is specifically the app and the policy disagreeing.
+What stops the restatement drifting is `privacy.test.ts`. It computes the day
+counts from all three constants and asserts the page contains them, so moving
+any of them without the page fails the suite. `DELETED_RETENTION_MS` was
+asserted as a literal until 2026-11-09, when moving it to thirty days made the
+test compute it like the other two. The client copy derives its wording from
+the constant (`ChannelSettingsView`).
 
 ## What has no expiry at all, which is the surprise
 
 **Nothing in S3 expires by age.** There is no bucket lifecycle rule, and
 nothing in `ts provision` ever creates one. The only deletion path is a person
-deleting a channel or recording, which starts the seven-day clock above; a
+deleting a channel or recording, which starts the thirty-day clock above; a
 recording nobody deletes lives for ever, by design.
 
 Two consequences, measured against production on 2026-08-27, when the bucket

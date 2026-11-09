@@ -413,6 +413,12 @@ Deliberately separate, so no single leak is worse than it has to be:
   and read and write every channel library. A rotation reaches noesis by
   itself, since noesis minted the secret.
 
+  **auth deletes accounts here the same way, with no secret**: when somebody
+  deletes their account at auth.rvanegas.co, auth calls `DELETE /users/:user`
+  (`server/src/app.ts`) with a token it signed as itself, scope
+  `thefloor:erase`, which no client can be granted, checked against auth's
+  keys like noesis's. Since 2026-11-09.
+
   **What it holds up: every person's grant**, in `noesis_connections`, one
   refresh token per account that connected a library, sealed with a key
   derived from `NOESIS_CLIENT_SECRET` (HKDF, AES-256-GCM; `server/src/noesis.ts`),
