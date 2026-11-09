@@ -1,0 +1,3 @@
+Connecting your noesis library in Floor Settings now signs in in the same sheet as signing in to The Floor, so if you are already signed in at auth.rvanegas.co, it connects without a code — whichever browser is your default.
+
+Signing back in after you signed out asks once whose account it is, and no code.
