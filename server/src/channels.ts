@@ -369,7 +369,7 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_DESCRIPTION',
   'SET_AUTO_RECORD',
   'SET_TRANSCRIPTION_MODEL',
-  // `debug` only, refused in `dispatch` beside the transcription model.
+  // *Pro* only, refused in `dispatch` beside the transcription model.
   'SET_RESPONSE_MODEL',
   // The library's owner only, refused in `dispatch` beside the response model.
   'SET_LIBRARY',
@@ -1092,6 +1092,13 @@ export class ChannelRegistry {
    * second audible notification is a conversation, which this is not.
    */
   private pingAnsweredFor = new Map<string, number>();
+
+  /**
+   * Whether this account is *Pro (the subscription)* now, which is what may
+   * choose a channel's two model grades. Set by the composition root on
+   * `onGuestConsentChanged`'s terms; absent, nobody is Pro.
+   */
+  isPro?: (userId: string) => boolean;
 
   /**
    * Told what `SilenceNotice` describes. Set by the composition root, which
@@ -3003,20 +3010,21 @@ export class ChannelRegistry {
       }
     }
 
-    // **A `debug` account's alone**, and here because the reducer knows
-    // nothing about accounts. The grade is a cost somebody else's transcript
-    // would carry, offered while the difference between the two is measured;
-    // the app shows the control only to `debug` sessions, so reaching here
-    // without it is a client asking directly.
+    // **A *Pro* account's alone, since 2026-11-08**, and here because the
+    // reducer knows nothing about accounts. The grade is a cost somebody
+    // else's transcript would carry, so it is offered to the people paying
+    // for transcription; it was `debug`'s until then. The app greys the
+    // control for everybody else, so reaching here without it is a client
+    // asking directly — or an older build, which offered it to `debug`.
     if (action.type === 'SET_TRANSCRIPTION_MODEL') {
       const model = (action as { transcriptionModel?: unknown }).transcriptionModel;
       if (model !== 'standard' && model !== 'pro') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
       }
-      if (this.accounts.byId(userId)?.debug !== 1) {
+      if (!this.isPro?.(userId)) {
         return {
           ok: false,
-          error: 'Only a debug account can choose the transcription model.',
+          error: 'Only a Pro account can choose the transcription model.',
           code: 'forbidden',
         };
       }
@@ -3024,18 +3032,17 @@ export class ChannelRegistry {
 
     // The same rule for the same reason: *Pro* costs about twenty times what
     // *Standard* does a press, *Max* at least twice *Pro*, and the grade is
-    // the channel's whoever presses. Unlike
-    // the transcription model, the app draws this one for everybody — greyed
-    // for those it would refuse here.
+    // the channel's whoever presses. A choice outlives its chooser's Pro:
+    // it stays until somebody who is Pro changes it.
     if (action.type === 'SET_RESPONSE_MODEL') {
       const model = (action as { responseModel?: unknown }).responseModel;
       if (model !== 'standard' && model !== 'pro' && model !== 'max') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
       }
-      if (this.accounts.byId(userId)?.debug !== 1) {
+      if (!this.isPro?.(userId)) {
         return {
           ok: false,
-          error: 'Only a debug account can choose the response model.',
+          error: 'Only a Pro account can choose the response model.',
           code: 'forbidden',
         };
       }

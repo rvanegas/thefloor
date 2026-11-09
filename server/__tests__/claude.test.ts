@@ -81,6 +81,17 @@ function sources(rooms: RoomView[], lines: Array<{ displayName: string; startAt:
   };
 }
 
+
+/** Makes an account *Pro*, with a subscription that runs to 2100. */
+const makePro = (id: string, expiresAt = 4_102_444_800_000) =>
+  app.db
+    .prepare(
+      `INSERT INTO pro_subscriptions (original_transaction_id, account_id, product_id, environment,
+         expires_at, latest_transaction_id, updated_at, raw) VALUES (?, ?, 'pro', 'Sandbox', ?, ?, 0, '{}')
+         ON CONFLICT DO NOTHING`
+    )
+    .run(`t-${id}`, id, expiresAt, `t-${id}`);
+
 describe('the Record as Claude reads it', () => {
   it('is nothing at all for a channel that has kept nothing readable', () => {
     expect(composeRecord(sources([]), 'c', T0)).toBeNull();
@@ -954,7 +965,7 @@ describe('a press with the library', () => {
     const people = await room2();
     const { alice, channelId } = people;
     await connect(alice.account.id);
-    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
+    makePro(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_RESPONSE_MODEL',
       responseModel: grade,
@@ -1060,7 +1071,7 @@ describe('a press with the library', () => {
     );
     boot(fake.client, undefined, LIBRARY);
     const { alice, bob, channelId } = await room2();
-    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
+    makePro(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_RESPONSE_MODEL',
       responseModel: 'pro',
@@ -1500,7 +1511,7 @@ describe('the library switch', () => {
     const fake = fakeClient(() => reply('Plain.', { model: 'claude-sonnet-5-5' }));
     boot(fake.client, undefined, NOESIS);
     const { alice, bob, channelId } = await room2();
-    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
+    makePro(alice.account.id);
     set(channelId, alice.account.id, false);
     app.channels.dispatch(channelId, alice.account.id, { type: 'SET_RESPONSE_MODEL', responseModel: 'pro' } as never);
     await connect(alice.account.id);
@@ -1727,29 +1738,27 @@ describe('sending a room’s text to noesis', () => {
 });
 
 describe('the response model', () => {
-  const makeDebug = (id: string) =>
-    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(id);
-
   const choose = (channelId: string, userId: string, responseModel: unknown) =>
     app.channels.dispatch(channelId, userId, { type: 'SET_RESPONSE_MODEL', responseModel } as never);
 
-  it('is refused to an account without debug, and changes nothing', async () => {
+  it('is refused to an account without Pro, debug or not, and changes nothing', async () => {
     boot(fakeClient(() => reply('x')).client);
     const { alice, channelId } = await room2();
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
     for (const grade of ['pro', 'max']) {
       expect(choose(channelId, alice.account.id, grade)).toMatchObject({
         ok: false,
         code: 'forbidden',
-        error: 'Only a debug account can choose the response model.',
+        error: 'Only a Pro account can choose the response model.',
       });
     }
     expect(app.channels.get(channelId)!.responseModel).toBe('standard');
   });
 
-  it('refuses anything but the three grades, even from debug', async () => {
+  it('refuses anything but the three grades, even from Pro', async () => {
     boot(fakeClient(() => reply('x')).client);
     const { alice, channelId } = await room2();
-    makeDebug(alice.account.id);
+    makePro(alice.account.id);
     for (const value of ['opus', undefined, 1]) {
       expect(choose(channelId, alice.account.id, value)).toMatchObject({ ok: false, code: 'invalid' });
     }
@@ -1759,10 +1768,10 @@ describe('the response model', () => {
     const { client, calls } = fakeClient(() => reply('Pro answer.', { model: 'claude-sonnet-5-5' }));
     boot(client);
     const { alice, bob, channelId } = await room2();
-    makeDebug(alice.account.id);
+    makePro(alice.account.id);
     expect(choose(channelId, alice.account.id, 'pro')).toMatchObject({ ok: true });
 
-    // Bob has no debug; the grade is the channel's, not the presser's.
+    // Bob is not Pro; the grade is the channel's, not the presser's.
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
     expect(calls[0].beta).toBe(true);
     expect(calls[0].body).toMatchObject({
@@ -1786,7 +1795,7 @@ describe('the response model', () => {
     const { client, calls } = fakeClient(() => reply('Max answer.', { model: 'claude-opus-5-5' }));
     boot(client);
     const { alice, bob, channelId } = await room2();
-    makeDebug(alice.account.id);
+    makePro(alice.account.id);
     expect(choose(channelId, alice.account.id, 'max')).toMatchObject({ ok: true });
 
     expect((await press(channelId, bob.token, 'extended')).statusCode).toBe(200);
@@ -1813,7 +1822,7 @@ describe("a press with the channel's own library", () => {
     boot(fake.client, undefined, NOESIS, undefined, true);
     const people = await room2();
     const { alice, channelId } = people;
-    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
+    makePro(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, { type: 'SET_RESPONSE_MODEL', responseModel: grade } as never);
     const handle = withLibrary ? app.channels.handleFor(channelId) : null;
     return { ...fake, ...people, handle };

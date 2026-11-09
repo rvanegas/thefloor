@@ -536,47 +536,48 @@ export function ChannelSettingsView({
 
       {/*
         Which grade of speech model this channel's transcripts are asked for,
-        drawn only for an account with `debug` set — the server refuses
-        everybody else, so offering it to them would be a button that always
-        fails. Beside *Record automatically* because it is the same kind of
-        thing: a setting about what the channel keeps, on the same terms.
+        drawn for everybody since 2026-11-08 on the response model's terms
+        below: which grade a transcript is asked of is something everybody in
+        the channel may know, and only a *Pro* account may change it, which
+        the server enforces. It was drawn for `debug` alone until then. Beside
+        *Record automatically* because it is the same kind of thing: a
+        setting about what the channel keeps, on the same terms.
       */}
-      {app.debug ? (
-        <Card style={styles.stack}>
-          <Text style={type.heading}>{t.transcriptionModel()}</Text>
-          <View style={styles.choices}>
-            {(
-              [
-                ['standard', t.transcriptionStandard()],
-                ['pro', t.transcriptionPro()],
-              ] as Array<[TranscriptionModel, string]>
-            ).map(([value, label]) => (
-              <Button
-                key={value}
-                label={label}
-                style={styles.choice}
-                disabled={!mayEdit}
-                variant={transcriptionModel === value ? 'primary' : 'default'}
-                onPress={() => app.act(channel.id, {
-                  type: 'SET_TRANSCRIPTION_MODEL',
-                  transcriptionModel: value,
-                })}
-              />
-            ))}
-          </View>
-          <Text style={type.muted}>{t.transcriptionModelNote()}</Text>
-        </Card>
-      ) : null}
+      <Card style={styles.stack}>
+        <Text style={type.heading}>{t.transcriptionModel()}</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              ['standard', t.transcriptionStandard()],
+              ['pro', t.transcriptionPro()],
+            ] as Array<[TranscriptionModel, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              label={label}
+              style={styles.choice}
+              disabled={!mayEdit || !app.pro}
+              variant={transcriptionModel === value ? 'primary' : 'default'}
+              onPress={() => app.act(channel.id, {
+                type: 'SET_TRANSCRIPTION_MODEL',
+                transcriptionModel: value,
+              })}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>{t.transcriptionModelNote()}</Text>
+        {app.pro ? null : <Text style={type.muted}>{t.modelWho()}</Text>}
+      </Card>
 
       {/*
-        **Which model *Ask Claude* asks, since 2026-10-22** — the
-        transcription model's shape, with the one difference that it is drawn
-        for everybody: which model is answering in a channel is something
-        everybody in it may know. Settable only by `debug`, which the server
-        enforces; for anybody else it is grey, with the sentence that says
-        why, STYLE.md's case of a refusal a rule can name against you. Drawn
-        only where this server can ask Claude at all, since a choice of model
-        for nothing is a control the state overrules.
+        **Which model *Ask Claude* asks, since 2026-10-22** — drawn for
+        everybody: which model is answering in a channel is something
+        everybody in it may know. Settable only by a *Pro* account since
+        2026-11-08 (`debug` until then), which the server enforces; for
+        anybody else it is grey, with the sentence that says why, STYLE.md's
+        case of a refusal a rule can name against you. Drawn only where this
+        server can ask Claude at all, since a choice of model for nothing is a
+        control the state overrules.
       */}
       {view?.claude ? (
         <Card style={styles.stack}>
@@ -593,7 +594,7 @@ export function ChannelSettingsView({
                 key={value}
                 label={label}
                 style={styles.choice}
-                disabled={!mayEdit || !app.debug}
+                disabled={!mayEdit || !app.pro}
                 variant={responseModel === value ? 'primary' : 'default'}
                 onPress={() => app.act(channel.id, {
                   type: 'SET_RESPONSE_MODEL',
@@ -603,7 +604,7 @@ export function ChannelSettingsView({
             ))}
           </View>
           <Text style={type.muted}>{t.responseModelNote()}</Text>
-          {app.debug ? null : <Text style={type.muted}>{t.responseModelWho()}</Text>}
+          {app.pro ? null : <Text style={type.muted}>{t.modelWho()}</Text>}
         </Card>
       ) : null}
 

@@ -597,6 +597,8 @@ export function registerWebsocket(deps: {
    * everybody outside the developer's own set. See switching.ts.
    */
   switchTargets?: (identifier: string) => string[];
+  /** Whether this account is *Pro (the subscription)*, for `hello`. */
+  isPro?: (userId: string) => boolean;
 }): void {
   const {
     fastify,
@@ -1899,6 +1901,10 @@ export function registerWebsocket(deps: {
       // per connection, so setting the column by hand takes effect at the next
       // reconnect rather than needing a restart.
       ...(account.leaderboard === 1 ? { leaderboard: true } : {}),
+      // The same shape again, computed rather than a column: whether the
+      // subscription is current at connect. The server asks again on every
+      // model change, so this only says what to offer.
+      ...(deps.isPro?.(account.id) ? { pro: true } : {}),
       // Absent unless there is somewhere to go, like the two flags above. The
       // set is configuration rather than a column, so this changes at a
       // restart; `/auth/switch` checks it again rather than trusting a client.

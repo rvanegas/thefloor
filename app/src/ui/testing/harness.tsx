@@ -294,6 +294,8 @@ export const mockApp = {
   leaderboard: false,
   // Nobody is in the switchable set by default, matching an unset server.
   switchAccounts: [] as string[],
+  // Nobody is Pro by default, matching an account that has bought nothing.
+  pro: false,
   switchAccount: jest.fn(async (_identifier: string) => {}),
   loadLeaderboard: jest.fn(async () => [
     { account: { id: 'acct_a', displayName: 'Ada' }, invited: 4 },
@@ -1128,6 +1130,7 @@ export function resetHarness(): void {
   mockApp.hideControlCards = false;
   mockApp.labs = false;
   mockApp.debug = false;
+  mockApp.pro = false;
   mockApp.loadHelp = emptyHelp();
   mockApp.askHelp = takesQuestion();
   uploads.length = 0;

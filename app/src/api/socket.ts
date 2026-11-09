@@ -42,14 +42,16 @@ export interface RealtimeHandlers {
    * roster carries: see `ServerMessage` in core/protocol.ts.
    *
    * `switchAccounts` is the same kind of thing, a list rather than a flag:
-   * the developer's other accounts, empty for everybody else.
+   * the developer's other accounts, empty for everybody else. `pro` is a
+   * third flag on the first two's terms: whether the subscription is current.
    */
   onHello?: (
     account: { id: string; displayName: string },
     debug: boolean,
     leaderboard: boolean,
     settings: AccountSettings | null,
-    switchAccounts?: string[]
+    switchAccounts?: string[],
+    pro?: boolean
   ) => void;
   /**
    * This account's settings, as the server now holds them — sent on every
@@ -487,7 +489,8 @@ export class Realtime {
             message.debug === true,
             message.leaderboard === true,
             message.settings ?? null,
-            message.switchAccounts ?? []
+            message.switchAccounts ?? [],
+            message.pro === true
           );
           break;
         case 'settings':

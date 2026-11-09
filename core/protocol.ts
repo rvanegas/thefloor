@@ -2299,6 +2299,15 @@ export type ServerMessage =
        */
       switchAccounts?: string[];
       /**
+       * Whether this account is *Pro (the subscription)* at connect, which
+       * is what may choose a channel's transcription and response models.
+       *
+       * Optional-when-true on the terms of the three above. Like
+       * `leaderboard` it only says what to offer: the server checks Pro
+       * again on each change, so a lapse mid-connection is refused there.
+       */
+      pro?: boolean;
+      /**
        * What this account has chosen: the scheme and the tap. Complete, with
        * the server's defaults filled in, so a client can apply it without
        * knowing what a default is.

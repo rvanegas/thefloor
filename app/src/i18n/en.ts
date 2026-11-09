@@ -960,7 +960,7 @@ export const en = {
      */
     pro: () => 'Pro',
     proPitch: (freeMinutes: number) =>
-      `Transcription without the weekly limit of ${freeMinutes} free minutes. Nothing else changes, and nothing else is for sale.`,
+      `Transcription without the weekly limit of ${freeMinutes} free minutes, and the choice of a channel's transcription and response models. Nothing else is for sale.`,
     /** `price` is the App Store's own, already in the buyer's currency. */
     proSubscribe: (price: string) => `Subscribe for ${price} a month`,
     proUntil: (until: number) =>
@@ -1111,7 +1111,10 @@ export const en = {
       'Switching either off in the Record tab lasts until everybody has left the channel and come back.',
     autoRecordStepIn: () =>
       'Step in to change this. What is kept from a conversation is for whoever is in it.',
-    /** Shown only to an account with `debug` set. See `transcriptionModel`. */
+    /**
+     * Drawn for everybody, greyed with `modelWho` for anybody without *Pro*
+     * since 2026-11-08. See `transcriptionModel`.
+     */
     transcriptionModel: () => 'Transcription model',
     transcriptionStandard: () => 'Standard',
     transcriptionPro: () => 'Pro',
@@ -1119,7 +1122,7 @@ export const en = {
       'Standard is Universal-2. Pro is Universal-3.5 Pro, which costs about 40% more and handles a change of language mid-sentence. It applies to transcripts asked for from now on.',
     /**
      * The model *Ask Claude* asks, since 2026-10-22: drawn for everybody, and
-     * greyed with `responseModelWho` for anybody without `debug`. *Pro* here
+     * greyed with `modelWho` for anybody without *Pro*. *Pro* here
      * is a grade of model, not *Pro (the subscription)*; *Max*, the third
      * since the same day, is the largest model, thinking harder.
      */
@@ -1129,7 +1132,12 @@ export const en = {
     responseMax: () => 'Max',
     responseModelNote: () =>
       'Standard: faster and cheaper. Pro: a larger model, a little slower. Max: the largest model, thinking harder, and the slowest. It applies to whoever asks Claude.',
-    responseModelWho: () => 'Only the people who run The Floor can change it.',
+    /**
+     * Under both model cards for anybody not *Pro (the subscription)*, which
+     * is what may change them. Says *subscribed* because the grades on the
+     * buttons above are called *Pro* too.
+     */
+    modelWho: () => 'Only somebody subscribed to Pro can change it.',
     /**
      * Whether *Ask Claude* may consult the server's library, since
      * 2026-10-27: drawn for everybody, greyed with `libraryWho` for anybody

@@ -67,7 +67,7 @@ caused; the list carries the meaning.
 - **Email notifications** — A *Floor Settings* switch, `emailNotifications`: every notification also sent as email to the address you sign in with, arrivals included and paused with them. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
-- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and changes nothing else; not the *Pro* grade of *Transcription model*
+- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-08, chooses a channel's *Transcription model* and *Response model*; not the *Pro* grade of either
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who can be told — push granted, or email notifications on for an email address — at the moment they become so, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
@@ -134,8 +134,8 @@ caused; the list carries the meaning.
 - **Free minutes** — What an account without the `transcripts_unlimited` mark may spend on transcription each calendar week, from Monday 00:00 UTC: `FREE_TRANSCRIPT_MINUTES`, 60 unless set, shared between a recording's *transcript* (length times stems, held when asked for) and the *live transcript* (each session's open time, billed to whoever switched it on), and kept in `transcript_usage`. Since 2026-10-10, replacing one free transcript per account
 - **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10, and with a server restart since 2026-10-28; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes; a finished *segment*'s deleted on its own by *Delete text* since 2026-11-07. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
-- **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a `debug` account chose otherwise, and the only accounts shown it. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by a `debug` account. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
+- **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a *Pro* account chose otherwise; shown to every member, changeable only by *Pro*. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
+- **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by *Pro*. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown to every member where the server offers libraries, switched on only by somebody with one connected, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, with *Send to noesis*
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up — except where noesis decides it — wherever The Floor's noesis client is configured — when it is their noesis user name too; and **fixed, with the address, while a noesis library is connected**
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
@@ -3210,12 +3210,18 @@ the text.
 **A monthly App Store subscription that makes an account's transcription
 unmetered** — the hand-set `transcripts_unlimited` mark, bought rather than
 granted. Offered in a card on *Floor Settings*, on an iPhone only; being Pro
-shows on every platform. It lifts the weekly free minutes and changes nothing
-else, and it is the only thing The Floor sells.
+shows on every platform. It lifts the weekly free minutes, and **since
+2026-11-08 it is what may choose a channel's *Transcription model* and
+*Response model*** — `debug`'s until then, moved because both grades are a
+cost carried by the channel, and Pro is the people paying for transcription.
+It is the only thing The Floor sells. Pro here is the subscription alone: the
+hand-set `transcripts_unlimited` mark meters nothing, but chooses nothing
+either.
 
 **Not the *Pro* transcription model**, which is a grade of speech model a
-channel asks for, shown only to `debug` accounts — being Pro does not choose
-it, and choosing it does not need Pro. In code the subscription is never a
+channel asks for — being Pro is what may choose it, and a channel on it costs
+its members nothing more. The refusal under the two cards says *subscribed to
+Pro* for that reason. In code the subscription is never a
 bare `'pro'`, which is the model's value: it is `ProView`, `ProSubscriptions`,
 `pro_subscriptions`, `GET /pro`. **Not a donation either**: *Chip in* is still
 the Ko-fi link and unlocks nothing. See the 2026-10-19 decision.
@@ -3227,8 +3233,10 @@ there. `server/src/pro.ts` and `app/src/state/purchases.ts` have the rest.
 
 ## Transcription model
 
-**A channel setting, and drawn only for an account with `debug` set**, since
-2026-10-09. *Standard* is the cheap grade and every channel's default; *Pro*
+**A channel setting, shown to every member and changeable only by a *Pro*
+account**, since 2026-11-08 — drawn for `debug` alone from 2026-10-09 until
+then. A choice outlives its chooser's Pro, and stays until somebody who is Pro
+changes it. *Standard* is the cheap grade and every channel's default; *Pro*
 is the flagship. `transcriptionModel` on `ChannelState`, of type
 `TranscriptionModel`, whose values are `'standard'` and `'pro'`.
 
@@ -3254,8 +3262,8 @@ independently. *Max* is said beside *Ask Claude* as *Pro* is.
 
 **The channel's, whoever presses**, for the transcription model's reason, and
 written to the press's ledger row so a change never rewrites an earlier
-reply. **Shown to every member, changeable only by a `debug` account** — the
-one way it differs from the transcription model, which only `debug` sees:
+reply. **Shown to every member, changeable only by a *Pro* account**, since
+2026-11-08 and `debug`'s until then, on the transcription model's terms:
 which model is answering in a channel is something everybody in it may know.
 Its *Pro* is a grade of model, as that one's is, and never *Pro (the
 subscription)*; *Max* is a grade too, and the same word in Spanish.

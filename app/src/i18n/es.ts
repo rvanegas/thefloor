@@ -733,7 +733,7 @@ export const es: Strings = {
       'Qu\u00e9 se guarda, por qu\u00e9 y durante cu\u00e1nto tiempo. Se abre en tu navegador.',
     pro: () => 'Pro',
     proPitch: (freeMinutes: number) =>
-      `Transcripci\u00f3n sin el l\u00edmite semanal de ${freeMinutes} minutos gratis. Nada m\u00e1s cambia, y no hay nada m\u00e1s a la venta.`,
+      `Transcripci\u00f3n sin el l\u00edmite semanal de ${freeMinutes} minutos gratis, y la elecci\u00f3n de los modelos de transcripci\u00f3n y de respuesta de un canal. No hay nada m\u00e1s a la venta.`,
     proSubscribe: (price: string) => `Suscribirse por ${price} al mes`,
     proUntil: (until: number) =>
       `Eres Pro hasta el ${new Date(until).toLocaleDateString('es', {
@@ -865,7 +865,7 @@ export const es: Strings = {
     responseMax: () => 'Max',
     responseModelNote: () =>
       'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
-    responseModelWho: () => 'Solo pueden cambiarlo quienes llevan The Floor.',
+    modelWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.

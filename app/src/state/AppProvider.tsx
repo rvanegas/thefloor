@@ -251,6 +251,14 @@ interface AppState {
    * for everybody else.
    */
   switchAccounts: string[];
+  /**
+   * Whether this account is *Pro (the subscription)*, which is what may
+   * choose a channel's transcription and response models. From `hello` on
+   * `debug`'s terms, and from a purchase or a `loadPro` as they arrive, so
+   * buying Pro offers the controls without a reconnect. The server asks
+   * again on every change, so this only says what to offer.
+   */
+  pro: boolean;
   home: HomeView | null;
   /**
    * The latest snapshot of each channel this client is watching, by id.
@@ -1368,6 +1376,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     debug: false,
     leaderboard: false,
     switchAccounts: [],
+    pro: false,
     home: null,
     channelViews: {},
     seatViews: {},
@@ -1502,13 +1511,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // only thing that tells a relaunched app who it is. Without it `me`
         // stays null, and every screen that compares against the current user
         // — the whole floor mechanic — silently compares against nothing.
-        onHello: (account, debug, leaderboard, settings, switchAccounts = []) => {
+        onHello: (account, debug, leaderboard, settings, switchAccounts = [], pro = false) => {
           setState((s) => ({
             ...s,
             me: account,
             debug,
             leaderboard,
             switchAccounts,
+            pro,
           }));
           // Null from a server that predates the field, which is not the same
           // as one saying the defaults — this device keeps what it cached.
@@ -2166,6 +2176,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return watchPurchases(async (signed) => {
       try {
         const { pro } = await api.uploadAppStore(token, signed);
+        setState((s) => ({ ...s, pro: pro.until !== null }));
         return { kind: 'recorded', pro };
       } catch (error) {
         return error instanceof ApiError && error.status === 422
@@ -2334,6 +2345,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         debug: false,
         leaderboard: false,
         switchAccounts: [],
+        pro: false,
         screens: [],
         screensElsewhere: [],
         standingElsewhere: [],
@@ -2703,6 +2715,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           debug: false,
           leaderboard: false,
           switchAccounts: [],
+          pro: false,
           home: null,
           channelViews: {},
           seatViews: {},
@@ -2767,6 +2780,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           debug: false,
           leaderboard: false,
           switchAccounts: [],
+          pro: false,
           home: null,
           channelViews: {},
           seatViews: {},
@@ -2813,6 +2827,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           debug: false,
           leaderboard: false,
           switchAccounts: [],
+          pro: false,
           home: null,
           channelViews: {},
           seatViews: {},
@@ -2943,7 +2958,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       loadPro: async () => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        return api.pro(state.token);
+        const view = await api.pro(state.token);
+        setState((s) => ({ ...s, pro: view.until !== null }));
+        return view;
       },
 
       loadNoesis: async () => {

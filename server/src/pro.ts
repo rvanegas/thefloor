@@ -5,8 +5,9 @@ import type { Db } from './db';
 /**
  * *Pro*: a monthly App Store subscription that makes an account's
  * transcription unmetered — what the hand-set `transcripts_unlimited` mark
- * does, bought rather than granted. It changes nothing else, and is not the
- * *Pro* transcription model a channel can choose (GLOSSARY.md, *Pro*).
+ * does, bought rather than granted — and, since 2026-11-08, what may choose
+ * a channel's transcription and response models, which the hand-set mark
+ * does not. It is not the *Pro* grade of either (GLOSSARY.md, *Pro*).
  *
  * Donations are a separate thing and stay on the Ko-fi link; giving unlocks
  * nothing, and Pro is the one thing here that is sold.

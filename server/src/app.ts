@@ -1165,6 +1165,10 @@ export function buildApp(options: BuildOptions = {}): App {
   channels.onGuestConsentChanged = (channelId, guestId, consented) =>
     publication.guestConsentChanged(channelId, guestId, consented);
 
+  // Pro chooses a channel's model grades. Asked per action, so a lapse is
+  // felt at once rather than at the next reconnect.
+  channels.isPro = (userId) => pro.isPro(userId, now());
+
   // Kept where `ts diagnostics` lays them on the phones' timeline, and where
   // they expire — see diagnostics.ts. The journal still gets the kind and the
   // channel, so somebody following it live sees one happen, and no account id:
@@ -6904,6 +6908,7 @@ export function buildApp(options: BuildOptions = {}): App {
         liveActivities.endOtherDevices(userId, deviceKey),
       heartbeatIntervalMs: options.heartbeatIntervalMs,
       switchTargets: (identifier) => switchTargets(identifier, switchable),
+      isPro: (userId) => pro.isPro(userId, now()),
     });
   });
 

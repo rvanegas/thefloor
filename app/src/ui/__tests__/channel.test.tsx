@@ -3606,9 +3606,9 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('offers the transcription model to a debug account and nobody else', () => {
-    // The server refuses the change from anybody without `debug`, so offering
-    // it to them would be a control that always fails.
+  it('shows the transcription model to everybody and lets only Pro change it', () => {
+    // The server refuses the change from anybody without Pro, so for them it
+    // is drawn grey with the sentence that says why — `debug` included.
     const open = () => {
       const tree = render(<ChannelView
           channelId="sess_1"
@@ -3619,21 +3619,27 @@ describe('Channel', () => {
       act(() => findButton(tree, 'Settings')!.props.onPress());
       return tree;
     };
+    const disabled = (button: ReturnType<typeof findButton>) =>
+      button!.props.accessibilityState?.disabled ?? button!.props.disabled;
     showChannel(channelOf());
 
+    mockApp.debug = true;
     const plain = open();
-    expect(textOf(plain)).not.toContain('Transcription model');
+    expect(textOf(plain)).toContain('Transcription model');
+    expect(textOf(plain)).toContain('Only somebody subscribed to Pro can change it.');
+    expect(disabled(findButton(plain, 'Pro'))).toBe(true);
     act(() => plain.unmount());
 
-    mockApp.debug = true;
-    const debug = open();
-    expect(textOf(debug)).toContain('Transcription model');
-    act(() => findButton(debug, 'Pro')!.props.onPress());
+    mockApp.pro = true;
+    const pro = open();
+    expect(textOf(pro)).not.toContain('Only somebody subscribed to Pro');
+    expect(disabled(findButton(pro, 'Pro'))).toBeFalsy();
+    act(() => findButton(pro, 'Pro')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_TRANSCRIPTION_MODEL',
       transcriptionModel: 'pro',
     });
-    act(() => debug.unmount());
+    act(() => pro.unmount());
   });
 
   /*

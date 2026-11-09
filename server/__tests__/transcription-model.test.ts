@@ -8,7 +8,8 @@ import { MemoryRecordingStore } from '../src/storage';
  *
  * The reducer's half — that it is guarded like the other channel settings — is
  * in core. What is here is the half only the server can answer, since the
- * reducer knows nothing of accounts: a `debug` account may, nobody else may,
+ * reducer knows nothing of accounts: a *Pro* account may, nobody else may —
+ * `debug` included, since 2026-11-08 —
  * and nothing but the two grades gets through.
  */
 
@@ -88,17 +89,23 @@ const choose = (channelId: string, userId: string, transcriptionModel: unknown) 
     transcriptionModel,
   } as never);
 
-const makeDebug = (id: string) =>
-  app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(id);
-
+/** Makes an account *Pro*, with a subscription that runs to 2100. */
+const makePro = (id: string, expiresAt = 4_102_444_800_000) =>
+  app.db
+    .prepare(
+      `INSERT INTO pro_subscriptions (original_transaction_id, account_id, product_id, environment,
+         expires_at, latest_transaction_id, updated_at, raw) VALUES (?, ?, 'pro', 'Sandbox', ?, ?, 0, '{}')`
+    )
+    .run(`t-${id}`, id, expiresAt, `t-${id}`);
 describe('choosing the transcription model', () => {
   it('is standard until somebody chooses otherwise', async () => {
     const { channelId } = await channelOfTwo();
     expect(channel(channelId).transcriptionModel).toBe('standard');
   });
 
-  it('is refused to an account without debug, and changes nothing', async () => {
+  it('is refused to an account without Pro, debug or not, and changes nothing', async () => {
     const { alice, channelId } = await channelOfTwo();
+    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.id);
     app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
 
     const result = choose(channelId, alice.id, 'pro');
@@ -107,9 +114,18 @@ describe('choosing the transcription model', () => {
     expect(channel(channelId).transcriptionModel).toBe('standard');
   });
 
-  it('is taken from a debug account in the room, and back again', async () => {
+  it('is refused once Pro has lapsed', async () => {
     const { alice, channelId } = await channelOfTwo();
-    makeDebug(alice.id);
+    makePro(alice.id, clock - 2 * 86_400_000);
+    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
+
+    expect(choose(channelId, alice.id, 'pro')).toMatchObject({ ok: false, code: 'forbidden' });
+    expect(channel(channelId).transcriptionModel).toBe('standard');
+  });
+
+  it('is taken from a Pro account in the room, and back again', async () => {
+    const { alice, channelId } = await channelOfTwo();
+    makePro(alice.id);
     app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
 
     expect(choose(channelId, alice.id, 'pro')).toMatchObject({ ok: true });
@@ -118,9 +134,9 @@ describe('choosing the transcription model', () => {
     expect(channel(channelId).transcriptionModel).toBe('standard');
   });
 
-  it('refuses anything but the two grades, even from debug', async () => {
+  it('refuses anything but the two grades, even from Pro', async () => {
     const { alice, channelId } = await channelOfTwo();
-    makeDebug(alice.id);
+    makePro(alice.id);
     app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
 
     for (const value of ['universal-3-5-pro', undefined, true]) {

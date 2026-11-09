@@ -34,7 +34,7 @@ jest.mock('../../state/AppProvider', () =>
  * three buttons only where the server can answer and only on *Record* — never as a
  * card on *People* — *Responding…* on every screen while anybody's press is
  * out, the reason when a press fails, and the model on show to everybody but
- * settable by `debug` alone.
+ * settable by *Pro* alone (`debug` until 2026-11-08).
  */
 
 beforeEach(resetHarness);
@@ -164,11 +164,12 @@ describe('the response model', () => {
     ));
   };
 
-  it('is drawn for everybody where the server can ask Claude, and greyed without debug', () => {
+  it('is drawn for everybody where the server can ask Claude, and greyed without Pro', () => {
+    mockApp.debug = true;
     showChannel(here(), [], { claude: true });
     open();
     expect(textOf(tree!)).toContain('Response model');
-    expect(textOf(tree!)).toContain('Only the people who run The Floor can change it.');
+    expect(textOf(tree!)).toContain('Only somebody subscribed to Pro can change it.');
     for (const label of ['Pro', 'Max']) {
       const button = findButton(tree!, label);
       expect(button).toBeDefined();
@@ -176,18 +177,18 @@ describe('the response model', () => {
     }
   });
 
-  it('is settable by debug, and sends the choice', () => {
-    mockApp.debug = true;
+  it('is settable by Pro, and sends the choice', () => {
+    mockApp.pro = true;
     showChannel(here(), [], { claude: true });
     open();
-    expect(textOf(tree!)).not.toContain('Only the people who run The Floor');
+    expect(textOf(tree!)).not.toContain('Only somebody subscribed to Pro');
     const buttons = tree!.root.findAll(
       (n) =>
         n.props?.accessibilityRole === 'button' &&
         typeof n.props?.onPress === 'function' &&
         labelOf(n).trim() === 'Pro'
     );
-    // The transcription model's Pro is drawn for debug too; the response
+    // The transcription model's Pro is drawn too; the response
     // model's is the last.
     const pro = buttons[buttons.length - 1];
     act(() => pro.props.onPress());

@@ -341,6 +341,29 @@ describe('websocket', () => {
   });
 
   /**
+   * Whether the account is *Pro*, which offers the channel's model grades —
+   * absent rather than false, on `debug`'s terms above.
+   */
+  it('tells a Pro account it is Pro, and nobody else', async () => {
+    const { token, account } = await signIn('user1@example.com', 'Alice');
+    const plain = new Client(token, baseUrl);
+    await plain.open();
+    expect((await plain.next('hello')).pro).toBeUndefined();
+    plain.close();
+
+    app.db
+      .prepare(
+        `INSERT INTO pro_subscriptions (original_transaction_id, account_id, product_id, environment,
+           expires_at, latest_transaction_id, updated_at, raw) VALUES ('t', ?, 'pro', 'Sandbox', ?, 't', 0, '{}')`
+      )
+      .run(account.id, 4_102_444_800_000);
+    const pro = new Client(token, baseUrl);
+    await pro.open();
+    expect((await pro.next('hello')).pro).toBe(true);
+    pro.close();
+  });
+
+  /**
    * The account's settings, on the one message that is about you and goes only
    * to you. Always present, unlike `debug` beside it: a setting is not a grant,
    * so there is no "absent means no" for a client to lean on — it has to be

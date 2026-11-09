@@ -594,7 +594,8 @@ ${
     ? `<h2>Pro</h2>
 <p>Pro is a monthly subscription, bought on an iPhone through Apple under
 Apple’s own privacy policy, that lifts the weekly limit on free transcription
-and changes nothing else. The Floor never sees your card or your Apple ID.
+and lets you choose which models a channel’s transcripts and replies are asked
+of. The Floor never sees your card or your Apple ID.
 Apple tells this server when your subscription begins, renews, ends or is
 refunded, along with a random identifier this server gave your account so the
 subscription can be connected to you.</p>
