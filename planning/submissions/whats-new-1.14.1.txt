@@ -1,3 +1,11 @@
-Connecting your noesis library in Floor Settings now signs in in the same sheet as signing in to The Floor, so if you are already signed in at auth.rvanegas.co, it connects without a code — whichever browser is your default.
+One account for The Floor, noesis and Roxana. Sign in at auth.rvanegas.co: if you are already signed in there, you are in without a code, and after you sign out, coming back asks only whose account it is. A new account picks its name and whether to hear from us by email.
 
-Signing back in after you signed out asks once whose account it is, and no code.
+Your noesis library is connected when you sign in, and connecting it again on Floor Settings uses the same sign-in. A channel can have a library of its own: its conversations are filed there, Ask Claude consults it, and Open noesis on Channel Settings shows it.
+
+Members who are away get a short digest of a conversation's first five minutes.
+
+Nearby can say when: in the flow, in a few minutes, or free at a time.
+
+A segment's actions on the Record tab are one menu, with Delete audio and Delete text.
+
+Choosing the transcription and response models is part of Pro.
