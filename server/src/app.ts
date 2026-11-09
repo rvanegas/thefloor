@@ -1523,8 +1523,10 @@ export function buildApp(options: BuildOptions = {}): App {
    * sheet; auth comes back to `/noesis/callback`, which makes or finds the
    * account, connects its library, and hands the app a one-time ticket that
    * `/auth/ticket` trades for this server's session token — never the token
-   * itself in a URL. `prompt: 'login'` asks for the code whatever the session,
-   * which the app sends after somebody signed out here. The web app says which
+   * itself in a URL. The app sends `prompt: 'login'` after somebody signed out
+   * here, and it is asked of auth as `prompt=consent`: auth names the session
+   * it holds and offers another address, without a code (build 422 named it
+   * for the code it was first asked for, 2026-11-09). The web app says which
    * train it is (`path`), to be sent back to it.
    *
    * The old sign-in by this server's own code (`/auth/request-code`,
@@ -1536,7 +1538,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const returnTo = body?.returnTo === 'web' ? 'web' : 'app';
     const webPath = returnTo === 'web' ? (body?.path === '/beta' ? '/beta' : '/app') : undefined;
     return {
-      url: noesis.startSignIn(returnTo, { prompt: body?.prompt === 'login' ? 'login' : undefined, webPath }),
+      url: noesis.startSignIn(returnTo, { prompt: body?.prompt === 'login' ? 'consent' : undefined, webPath }),
     };
   });
 

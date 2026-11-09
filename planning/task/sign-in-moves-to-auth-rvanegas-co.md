@@ -15,8 +15,8 @@ session is shared; Custom Tabs on Android); the server exchanges the code as
 client `thefloor` and gives the app its session as now. Accounts are keyed
 by auth's user, matched by address (the names register already pairs them).
 The emailed-code routes and the App Review fixed code move to auth
-(`planning/DEMO-ACCOUNT.md` changes with it); switching accounts is
-`prompt=login`; *Connect noesis* goes, since the sign-in grant carries
+(`planning/DEMO-ACCOUNT.md` changes with it); signing in as somebody else
+is dianoia-auth's *Use another address*; *Connect noesis* goes, since the sign-in grant carries
 `noesis:read`. Old builds still call the code routes, so they stay until
 `MIN_SUPPORTED_BUILD` passes them (technosophia `CLIENTS.md`), and a new
 build goes through review.
@@ -58,9 +58,13 @@ takes.
   dianoia-auth; then they go.
 - **Unchanged:** the developer's account switching (`/auth/switch`), guests,
   sessions on several devices, signing out here. After somebody signs out,
-  the app's next sign-in asks for `prompt=login`, so that it asks for the
-  code whatever the session in Safari, and somebody else can sign in; the
-  app does not open a second sheet just to end that session.
+  the app's next sign-in says so, and the server asks dianoia-auth for
+  `prompt=consent`: it names the session it holds and offers another address,
+  one tap to come back as yourself and no code, and a way in for somebody
+  else. (Build 422 first asked for `prompt=login`, the code whatever the
+  session, which the operator found undid signing in once, 2026-11-09; the
+  server now translates what that build sends.) The app does not open a
+  second sheet just to end the session.
 - **Costs:** a native module, so a new build, an upload, a review and a
   release; the privacy policy says where people sign in, dated with it.
 

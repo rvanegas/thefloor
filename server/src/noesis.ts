@@ -142,11 +142,13 @@ export class NoesisConnections {
    * The URL to open for signing in to The Floor itself, since 2026-11-09:
    * auth's sign-in, which a session there finishes without a code, asking
    * also for the person's library, so that signing in connects it.
-   * `prompt=login` asks for the code whatever the session — what the app
-   * sends after somebody signed out here, so that they can sign in as
-   * somebody else.
+   * `prompt=consent`, after somebody signed out here, has auth say whose
+   * session it is and offer another address — one tap to come back as
+   * yourself, and a way in for somebody else — rather than finishing
+   * silently. Never `prompt=login`, which asked for the code whatever the
+   * session and undid the point of signing in once (2026-11-09).
    */
-  startSignIn(returnTo: NoesisReturn, options: { prompt?: 'login'; webPath?: string } = {}): string {
+  startSignIn(returnTo: NoesisReturn, options: { prompt?: 'consent'; webPath?: string } = {}): string {
     return this.authorize({ accountId: null, returnTo, webPath: options.webPath }, SIGN_IN_SCOPES, options.prompt);
   }
 

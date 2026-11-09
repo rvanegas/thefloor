@@ -167,8 +167,9 @@ export const api = {
    * Where to sign in: dianoia-auth's page (`auth.rvanegas.co`), since
    * 2026-11-09 the one sign-in for The Floor, noesis and the rest. The app
    * opens it in the system sheet; a web train goes there and comes back to
-   * `path`. `prompt: 'login'` asks for the code whatever the browser's
-   * session there — sent after somebody signed out on this install.
+   * `path`. `prompt: 'login'` says somebody signed out on this install; the
+   * server asks dianoia-auth to name its session and offer another address,
+   * one tap and no code (the name is build 422's, kept for it).
    */
   startSignIn: (body: { returnTo: 'app' | 'web'; prompt?: 'login'; path?: string }) =>
     request<{ url: string }>('/auth/start', { method: 'POST', body }),

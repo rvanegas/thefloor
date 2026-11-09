@@ -83,9 +83,10 @@ export const INSTALL_KEYS: readonly string[] = [
   // so that *Forget this phone* would take it too, being the one key that ever
   // named a person.
   'thefloor.lastIdentifier',
-  // Whether somebody signed out here, so the next sign-in asks dianoia-auth for
-  // the code — `SIGNED_OUT_KEY` in `AppProvider`. Signing out sets it, which is
-  // why it is this list's and not signing out's to clear.
+  // Whether somebody signed out here, so that the next sign-in has
+  // dianoia-auth name its session and offer another address —
+  // `SIGNED_OUT_KEY` in `AppProvider`. Signing out sets it, which is why it is
+  // this list's and not signing out's to clear.
   'thefloor.signedOut',
   'thefloor.seat.channel',
   // The seat's own credential, which the app writes for the guest page to

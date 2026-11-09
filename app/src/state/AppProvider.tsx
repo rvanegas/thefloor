@@ -102,9 +102,12 @@ const TOKEN_KEY = 'thefloor.token';
  */
 const LAST_IDENTIFIER_KEY = 'thefloor.lastIdentifier';
 /**
- * Set by signing out here, cleared by signing in: the next sign-in asks
- * dianoia-auth for the code (`prompt=login`) whatever its session in the
- * browser, so that somebody else can sign in on this install.
+ * Set by signing out here, cleared by signing in: the next sign-in says so
+ * (`prompt: 'login'`), and dianoia-auth then names the session it holds and
+ * offers another address — one tap to come back as yourself, without a code,
+ * and a way in for somebody else on this install. The server makes it
+ * `prompt=consent`; asking for the code was build 422's first reading, which
+ * undid signing in once.
  */
 const SIGNED_OUT_KEY = 'thefloor.signedOut';
 

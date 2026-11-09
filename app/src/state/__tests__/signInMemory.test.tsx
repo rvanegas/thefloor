@@ -137,7 +137,7 @@ describe('signing in, as this install remembers it', () => {
     expect(mockStored['thefloor.token']).toBe('fresh-token');
   });
 
-  it('asks for the code after somebody signed out here, and stops asking once signed in', async () => {
+  it('says somebody signed out here at the next sign-in, and stops saying it once signed in', async () => {
     await mount();
     await act(async () => {
       await latest!.signIn();

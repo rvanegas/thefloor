@@ -81,13 +81,14 @@ async function ticketFor(location: string) {
 }
 
 describe('signing in through dianoia-auth', () => {
-  it('asks auth for who and their library, and passes prompt=login on', async () => {
+  it('asks auth for who and their library, and after a sign-out asks whose session, not for a code', async () => {
     const url = await start();
     expect(url.origin + url.pathname).toBe('https://auth.example/authorize');
     expect(url.searchParams.get('scope')).toBe('identity noesis:read noesis:import');
     expect(url.searchParams.get('redirect_uri')).toBe('https://floor.example/noesis/callback');
     expect(url.searchParams.get('prompt')).toBeNull();
-    expect((await start({ returnTo: 'app', prompt: 'login' })).searchParams.get('prompt')).toBe('login');
+    // The app says somebody signed out here; auth is asked to name its session, never for the code.
+    expect((await start({ returnTo: 'app', prompt: 'login' })).searchParams.get('prompt')).toBe('consent');
   });
 
   it('makes the account, connects its library, and trades a ticket for a token once', async () => {
