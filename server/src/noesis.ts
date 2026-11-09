@@ -80,11 +80,23 @@ export const NOESIS_IMPORT_SCOPE = 'noesis:import';
 export const NOESIS_SCOPES = `noesis:read ${NOESIS_IMPORT_SCOPE}`;
 
 interface Pending {
-  accountId: string;
+  /** The account connecting a library; null for somebody signing in to The Floor itself. */
+  accountId: string | null;
   verifier: string;
   returnTo: NoesisReturn;
   expiresAt: number;
+  /** For a web sign-in, the train it came from and goes back to (`/app` or `/beta`). */
+  webPath?: string;
 }
+
+/** Who auth says signed in, for a sign-in to The Floor itself (`startSignIn`). */
+export interface SignedIn {
+  user: string;
+  email: string;
+}
+
+/** What a sign-in to The Floor asks for: who the person is, and their library, connected in the same breath. */
+export const SIGN_IN_SCOPES = `identity ${NOESIS_SCOPES}`;
 
 interface Row {
   account_id: string;
@@ -123,11 +135,27 @@ export class NoesisConnections {
 
   /** The URL to open: auth's sign-in, for this account, coming back to `returnTo`. */
   start(accountId: string, returnTo: NoesisReturn): string {
+    return this.authorize({ accountId, returnTo }, NOESIS_SCOPES);
+  }
+
+  /**
+   * The URL to open for signing in to The Floor itself, since 2026-11-09:
+   * auth's sign-in, which a session there finishes without a code, asking
+   * also for the person's library, so that signing in connects it.
+   * `prompt=login` asks for the code whatever the session — what the app
+   * sends after somebody signed out here, so that they can sign in as
+   * somebody else.
+   */
+  startSignIn(returnTo: NoesisReturn, options: { prompt?: 'login'; webPath?: string } = {}): string {
+    return this.authorize({ accountId: null, returnTo, webPath: options.webPath }, SIGN_IN_SCOPES, options.prompt);
+  }
+
+  private authorize(entry: Omit<Pending, 'verifier' | 'expiresAt'>, scope: string, prompt?: string): string {
     const now = this.now();
-    for (const [state, entry] of this.pending) if (entry.expiresAt < now) this.pending.delete(state);
+    for (const [state, pending] of this.pending) if (pending.expiresAt < now) this.pending.delete(state);
     const state = randomBytes(24).toString('base64url');
     const verifier = randomBytes(48).toString('base64url');
-    this.pending.set(state, { accountId, verifier, returnTo, expiresAt: now + NOESIS_SIGN_IN_TTL_MS });
+    this.pending.set(state, { ...entry, verifier, expiresAt: now + NOESIS_SIGN_IN_TTL_MS });
     const url = new URL('/authorize', this.authOrigin);
     url.search = new URLSearchParams({
       response_type: 'code',
@@ -135,37 +163,55 @@ export class NoesisConnections {
       redirect_uri: this.options.callbackUrl,
       code_challenge: createHash('sha256').update(verifier).digest('base64url'),
       code_challenge_method: 'S256',
-      scope: NOESIS_SCOPES,
+      scope,
       state,
+      ...(prompt ? { prompt } : {}),
     }).toString();
     return url.toString();
   }
 
   /**
-   * noesis's answer at the callback: the code traded, the connection kept. The
+   * auth's answer at the callback: the code traded, the connection kept. The
    * state is what names the account — the callback carries no session — and
    * is spent whatever happens, so it cannot be replayed.
+   *
+   * **A sign-in** (`startSignIn`) has no account yet: `accountFor` makes or
+   * finds it from who auth says signed in, and the connection is kept for it.
    */
   async finish(
     state: string,
     code: string | undefined,
-    error: string | undefined
-  ): Promise<{ ok: true; accountId: string; returnTo: NoesisReturn } | { ok: false; returnTo: NoesisReturn; reason: string }> {
+    error: string | undefined,
+    accountFor?: (who: SignedIn) => string | null
+  ): Promise<
+    | { ok: true; accountId: string; returnTo: NoesisReturn; signIn: boolean; webPath?: string }
+    | { ok: false; returnTo: NoesisReturn; reason: string; signIn: boolean; webPath?: string }
+  > {
     const entry = this.pending.get(state);
     this.pending.delete(state);
     if (!entry || entry.expiresAt < this.now()) {
-      return { ok: false, returnTo: 'web', reason: 'expired' };
+      return { ok: false, returnTo: 'web', reason: 'expired', signIn: false };
     }
-    if (error || !code) return { ok: false, returnTo: entry.returnTo, reason: error ?? 'no_code' };
+    const signIn = entry.accountId === null;
+    const failed = (reason: string) => ({ ok: false as const, returnTo: entry.returnTo, reason, signIn, webPath: entry.webPath });
+    if (error || !code) return failed(error ?? 'no_code');
     const tokens = await this.token({
       grant_type: 'authorization_code',
       code,
       redirect_uri: this.options.callbackUrl,
       code_verifier: entry.verifier,
     });
-    if (!tokens) return { ok: false, returnTo: entry.returnTo, reason: 'token' };
+    if (!tokens) return failed('token');
     const me = await this.whoIs(tokens.access_token);
-    if (!me) return { ok: false, returnTo: entry.returnTo, reason: 'me' };
+    if (!me) return failed('me');
+    if (signIn) {
+      const accountId = me.email && accountFor ? accountFor({ user: me.user, email: me.email }) : null;
+      if (!accountId) {
+        await this.post('/revoke', { token: tokens.refresh_token }).catch(() => undefined);
+        return failed('account');
+      }
+      entry.accountId = accountId;
+    }
     /*
       The noesis account has to be this account's own: the same address, and
       so — noesis deciding names (names.ts) — the same username. Somebody who
@@ -177,8 +223,9 @@ export class NoesisConnections {
       .get(entry.accountId) as { identifier: string } | undefined;
     if (!mine || !me.email || mine.identifier.trim().toLowerCase() !== me.email.trim().toLowerCase()) {
       await this.post('/revoke', { token: tokens.refresh_token }).catch(() => undefined);
-      return { ok: false, returnTo: entry.returnTo, reason: 'address' };
+      return failed('address');
     }
+    const accountId = entry.accountId!;
     this.db
       .prepare(
         `INSERT INTO noesis_connections (account_id, noesis_user, noesis_email, refresh_token, connected_at, libraries, scopes)
@@ -188,7 +235,7 @@ export class NoesisConnections {
            connected_at = excluded.connected_at, libraries = excluded.libraries, scopes = excluded.scopes`
       )
       .run(
-        entry.accountId,
+        accountId,
         me.user,
         me.email,
         this.seal(tokens.refresh_token),
@@ -196,11 +243,11 @@ export class NoesisConnections {
         JSON.stringify(me.libraries),
         tokens.scope ?? ''
       );
-    this.access.set(entry.accountId, {
+    this.access.set(accountId, {
       token: tokens.access_token,
       expiresAt: this.now() + tokens.expires_in * 1000,
     });
-    return { ok: true, accountId: entry.accountId, returnTo: entry.returnTo };
+    return { ok: true, accountId, returnTo: entry.returnTo, signIn, webPath: entry.webPath };
   }
 
   status(accountId: string): NoesisStatus {

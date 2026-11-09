@@ -1,4 +1,5 @@
 import { access, readFile, rm, writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import { basename, extname, join } from 'node:path';
 import Fastify, {
   type FastifyInstance,
@@ -1500,6 +1501,60 @@ export function buildApp(options: BuildOptions = {}): App {
 
   // --- Auth ---------------------------------------------------------------
 
+  /**
+   * A signup that resolved invitations owes each pair a channel, and the
+   * sender is told — the follow-ups `/auth/verify` and a sign-in through
+   * auth share. `request` rather than a third body: the sender did send a
+   * contact request, and under the rule that an invitation to an address
+   * accepts when that address signs up, signing up *is* the acceptance.
+   */
+  function welcomeResolved(account: AccountRow, resolved: string[]): void {
+    for (const requesterId of resolved) {
+      const pair = channels.ensurePairChannel(requesterId, account.id);
+      tellTheInviter(requesterId, account, pair, 'request');
+    }
+    if (resolved.length > 0) homeNotifier.notify([account.id, ...resolved]);
+  }
+
+  /**
+   * Signing in through auth (`auth.rvanegas.co`), since 2026-11-09: the one
+   * sign-in for The Floor, noesis and the rest, which a session there
+   * finishes without a code. The app opens the URL this returns in the system
+   * sheet; auth comes back to `/noesis/callback`, which makes or finds the
+   * account, connects its library, and hands the app a one-time ticket that
+   * `/auth/ticket` trades for this server's session token — never the token
+   * itself in a URL. `prompt: 'login'` asks for the code whatever the session,
+   * which the app sends after somebody signed out here. The web app says which
+   * train it is (`path`), to be sent back to it.
+   *
+   * The old sign-in by this server's own code (`/auth/request-code`,
+   * `/auth/verify`) stays for the builds that know nothing else: SHIMS.md.
+   */
+  fastify.post('/auth/start', async (request, reply) => {
+    const body = request.body as { returnTo?: unknown; prompt?: unknown; path?: unknown } | undefined;
+    if (!noesis) return reply.code(503).send({ error: 'Sign-in is temporarily unavailable.' });
+    const returnTo = body?.returnTo === 'web' ? 'web' : 'app';
+    const webPath = returnTo === 'web' ? (body?.path === '/beta' ? '/beta' : '/app') : undefined;
+    return {
+      url: noesis.startSignIn(returnTo, { prompt: body?.prompt === 'login' ? 'login' : undefined, webPath }),
+    };
+  });
+
+  /** One-time tickets from a finished sign-in, each good once, for two minutes. */
+  const tickets = new Map<string, { token: string; accountId: string; created: boolean; expiresAt: number }>();
+  const TICKET_TTL_MS = 2 * 60 * 1000;
+
+  fastify.post('/auth/ticket', async (request, reply) => {
+    const body = request.body as { ticket?: unknown } | undefined;
+    const ticket = typeof body?.ticket === 'string' ? body.ticket : '';
+    const entry = tickets.get(ticket);
+    tickets.delete(ticket);
+    const account = entry && entry.expiresAt > now() ? accounts.byId(entry.accountId) : undefined;
+    if (!entry || !account) return reply.code(401).send({ error: 'That sign-in has expired; sign in again.' });
+    // `created` tells the app to ask the new account's name and marketing consent (POST /me, /me/settings).
+    return { token: entry.token, account: toPublic(account), created: entry.created };
+  });
+
   fastify.post('/auth/request-code', async (request, reply) => {
     const body = request.body as { identifier?: string } | undefined;
     const identifier = body?.identifier?.trim();
@@ -1623,17 +1678,7 @@ export function buildApp(options: BuildOptions = {}): App {
     //
     // The sender is told, exactly as they are when a link is followed — they
     // wrote to an address days ago and have had nothing to check since.
-    for (const requesterId of result.resolved) {
-      const pair = channels.ensurePairChannel(requesterId, result.account.id);
-      // `request` rather than a third body: the sender did send a contact
-      // request, and under the rule above signing up with the address it went
-      // to *is* the acceptance. "Accepted your contact request" is therefore
-      // exactly what happened, said to the person who asked.
-      tellTheInviter(requesterId, result.account, pair, 'request');
-    }
-    if (result.resolved.length > 0) {
-      homeNotifier.notify([result.account.id, ...result.resolved]);
-    }
+    welcomeResolved(result.account, result.resolved);
 
     // Nothing is revoked and nothing is forgotten here, which is the whole of
     // what changed on 2026-08-24. Signing in used to end every other session
@@ -3998,12 +4043,40 @@ export function buildApp(options: BuildOptions = {}): App {
    */
   fastify.get('/noesis/callback', async (request, reply) => {
     const query = request.query as { state?: string; code?: string; error?: string };
+    // A sign-in to The Floor itself (`/auth/start`): the account made or found from who auth says it is.
+    let signedIn: { token: string; created: boolean } | null = null;
+    const accountFor = ({ user, email }: { user: string; email: string }): string | null => {
+      const made = accounts.establish(email, undefined, now(), false, user);
+      if (made.account.username && made.account.username.toLowerCase() !== user.toLowerCase()) {
+        request.log.warn({ accountId: made.account.id }, 'auth: a sign-in whose username differs here');
+      }
+      welcomeResolved(made.account, made.resolved);
+      signedIn = { token: made.token, created: made.created };
+      return made.account.id;
+    };
     const result = noesis
-      ? await noesis.finish(query.state ?? '', query.code, query.error).catch((error) => {
+      ? await noesis.finish(query.state ?? '', query.code, query.error, accountFor).catch((error) => {
           request.log.warn({ err: error }, 'noesis: the sign-in could not be finished');
-          return { ok: false as const, returnTo: 'web' as const, reason: 'unreachable' };
+          return { ok: false as const, returnTo: 'web' as const, reason: 'unreachable', signIn: false, webPath: undefined };
         })
-      : { ok: false as const, returnTo: 'web' as const, reason: 'unavailable' };
+      : { ok: false as const, returnTo: 'web' as const, reason: 'unavailable', signIn: false, webPath: undefined };
+    if (result.signIn) {
+      const back = (params: Record<string, string>) =>
+        result.returnTo === 'app'
+          ? `thefloor://auth?${new URLSearchParams(params)}`
+          : `${result.webPath ?? '/app'}/?${new URLSearchParams(params)}`;
+      const done = signedIn as { token: string; created: boolean } | null;
+      if (!result.ok) {
+        if (result.reason !== 'access_denied') request.log.warn({ reason: result.reason }, 'auth: a sign-in was not finished');
+        return reply.redirect(back({ error: result.reason === 'access_denied' ? 'declined' : 'failed' }));
+      }
+      if (!done) return reply.redirect(back({ error: 'failed' }));
+      channels.libraryConnectionChanged(result.accountId);
+      for (const [key, entry] of tickets) if (entry.expiresAt < now()) tickets.delete(key);
+      const ticket = randomBytes(24).toString('base64url');
+      tickets.set(ticket, { token: done.token, accountId: result.accountId, created: done.created, expiresAt: now() + TICKET_TTL_MS });
+      return reply.redirect(back({ ticket }));
+    }
     if (result.ok) channels.libraryConnectionChanged(result.accountId);
     else if (result.reason !== 'access_denied') {
       request.log.warn({ reason: result.reason }, 'noesis: a library was not connected');

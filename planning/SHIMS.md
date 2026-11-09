@@ -38,6 +38,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | — | `declaredNearbyAt` optionality | `core/channel.ts` |
 | — | `nearbyWhen` optionality | `core/types.ts`, `core/channel.ts` |
 | 175 | The pre-attention fallback | `server/src/channels.ts`, `server/src/release.ts`, `app/src/ui/ChannelView.tsx` |
+| 422 | Sign-in by this server's own code | `server/src/app.ts`, `server/src/accounts.ts`, `app/src/ui/AuthView.tsx` |
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 195 | `ChannelView.pingedWith` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
@@ -184,6 +185,40 @@ What goes, once `oldestBuild` has passed 363:
 channel, which its own core allowed, and the reducer now refuses it silently.
 That is a refusal of something that is no longer permitted rather than a
 shape kept for compatibility, and it goes away by itself as those builds do.
+
+---
+
+## Gate 422 — sign-in by this server's own code
+
+Since 2026-11-09 the app signs in through dianoia-auth (`auth.rvanegas.co`,
+`/auth/start` → `/noesis/callback` → `/auth/ticket`; the task
+`sign-in-moves-to-auth-rvanegas-co.md`). Every build up to 421 knows only The
+Floor's own emailed code, so `POST /auth/request-code` and `POST /auth/verify`
+go on answering them, and a person on one of those builds still signs up and
+in that way.
+
+What goes, once `oldestBuild` has passed 421:
+
+- `POST /auth/request-code` and `POST /auth/verify` in `server/src/app.ts`
+- `Accounts.verifyCode`, and `REVIEW_IDENTIFIER` with its fixed code (App
+  Review signs in at dianoia-auth by then: `AUTH_REVIEW_ADDRESS`)
+- in the app, the code screen in `AuthView.tsx` and `requestCode`/`verify` in
+  `app/src/api/http.ts`
+
+**What must not be deleted alongside it:**
+
+- **`Accounts.establish` stays**: the sign-in through dianoia-auth makes and
+  finds accounts with it, and `welcomeResolved` is what both paths share.
+- **`/auth/sign-out`, `/auth/sign-out-others` and `/auth/switch` stay**: they
+  end and trade this server's own sessions, which dianoia-auth's sign-in
+  still mints.
+- **`Accounts.issueCode`, `consumeCode`, the `otp_codes` table, its throttle
+  and the mailer's `sendCode` stay**: `POST /me/email` and its confirmation,
+  changing an account's address from the profile, send and spend codes
+  through them. (That change cannot strand an account from dianoia-auth: it
+  is refused while a library is connected, which signing in through
+  dianoia-auth always does, and the register refuses to move an address
+  that is a dianoia-auth account's.)
 
 ---
 
