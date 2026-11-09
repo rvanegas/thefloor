@@ -16,6 +16,8 @@ const SECRET = 'client-secret';
 /** noesis's register: address → name, and which addresses are noesis accounts. */
 let register: Map<string, string>;
 let noesisAccounts: Set<string>;
+/** The display names auth keeps, by user name (since 2026-11-09). */
+let displayNames: Map<string, string>;
 let noesisDown: boolean;
 let asked: Array<{ method: string; path: string; body: Record<string, unknown> }>;
 /** Who noesis's `/me` says signed in at a Connect. */
@@ -32,6 +34,13 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
       return Response.json({ detail: 'not an application that keeps names' }, { status: 401 });
     }
     const taken = (name: string) => [...register.values()].includes(name);
+    if (url.pathname === '/names/display') {
+      if (![...register.values()].includes(body.user)) {
+        return Response.json({ detail: `${body.user} is not an account or a reservation` }, { status: 400 });
+      }
+      displayNames.set(body.user, body.display_name);
+      return Response.json({ display_name: body.display_name });
+    }
     if (url.pathname === '/names/address') {
       if (noesisAccounts.has(body.email)) {
         return Response.json({ detail: 'Your address is also how you sign in to noesis.' }, { status: 409 });
@@ -91,6 +100,7 @@ beforeEach(() => {
   clock = 1_700_000_000_000;
   register = new Map();
   noesisAccounts = new Set();
+  displayNames = new Map();
   noesisDown = false;
   asked = [];
   signedIn = { user: 'alice', email: 'alice@example.com' };
@@ -121,6 +131,8 @@ describe('signing up', () => {
     const alice = await signIn('Alice@example.com', 'Alice');
     expect(asked).toEqual([
       { method: 'POST', path: '/names', body: { email: 'alice@example.com', suggest: ['alice'] } },
+      // The name chosen at signup is auth's too.
+      { method: 'PUT', path: '/names/display', body: { user: 'alice', display_name: 'Alice' } },
     ]);
     expect(app.accounts.byId(alice.account.id)!.username).toBe('alice');
     // The address already named at noesis keeps its name, whatever the display name.
@@ -185,6 +197,18 @@ describe('renaming here', () => {
     noesisDown = true;
     expect((await rename(alice.token, 'alice_two')).statusCode).toBe(503);
     expect(app.accounts.byId(alice.account.id)!.username).toBe('alice');
+  });
+
+  it('sets a display name at auth first, and changes nothing when auth cannot take it', async () => {
+    const alice = await signIn('alice@example.com', 'Alice');
+    const named = (displayName: string) =>
+      app.fastify.inject({ method: 'POST', url: '/me', headers: auth(alice.token), payload: { displayName } });
+    expect((await named('Alice Example')).statusCode).toBe(200);
+    expect(displayNames.get('alice')).toBe('Alice Example');
+    expect(app.accounts.byId(alice.account.id)!.display_name).toBe('Alice Example');
+    noesisDown = true;
+    expect((await named('Al')).statusCode).toBe(503);
+    expect(app.accounts.byId(alice.account.id)!.display_name).toBe('Alice Example');
   });
 
   it('keeps the old name answering for the renamed person until somebody takes it', async () => {

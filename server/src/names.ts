@@ -76,6 +76,14 @@ export class NoesisNames {
     return this.call('PUT', '/names/address', { email, new_email: newEmail });
   }
 
+  /**
+   * Sets the name `user` is shown by in every application, at auth, which keeps
+   * display names since 2026-11-09: asked before a rename is written here.
+   */
+  setDisplayName(user: string, displayName: string): Promise<NamesAnswer> {
+    return this.call('PUT', '/names/display', { user: user.toLowerCase(), display_name: displayName });
+  }
+
   private async call(method: string, path: string, body: object): Promise<NamesAnswer> {
     let response: Response;
     try {

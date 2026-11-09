@@ -17,8 +17,10 @@ import { MemoryMailer } from '../src/mail';
 
 let app: App;
 let clock = 1_700_000_000_000;
-let who: { user: string; email: string };
+let who: { user: string; email: string; display_name?: string | null };
 let calls: string[];
+/** What The Floor offered auth as the person's display name, with their own token. */
+let offered: Array<{ authorization: string; display_name: string }>;
 
 const fakeAuthAndNoesis = (async (input: unknown, init?: { body?: unknown }) => {
   const url = new URL(String(input));
@@ -28,6 +30,11 @@ const fakeAuthAndNoesis = (async (input: unknown, init?: { body?: unknown }) => 
     if (fields.code === 'bad') return new Response('{"error":"invalid_grant"}', { status: 400 });
     return Response.json({ access_token: 'access', refresh_token: 'refresh', expires_in: 900,
       scope: 'identity noesis:read noesis:import' });
+  }
+  if (url.pathname === '/me/display_name') {
+    const headers = (init as { headers?: Record<string, string> }).headers ?? {};
+    offered.push({ authorization: headers.Authorization, ...JSON.parse(String(init?.body)) });
+    return Response.json({ display_name: 'taken' });
   }
   if (url.pathname === '/me') {
     // auth's /me says who; noesis's, whose libraries. Both answer here.
@@ -39,6 +46,7 @@ const fakeAuthAndNoesis = (async (input: unknown, init?: { body?: unknown }) => 
 beforeEach(() => {
   clock = 1_700_000_000_000;
   calls = [];
+  offered = [];
   who = { user: 'erta_example', email: 'erta@example.com' };
   app = buildApp({
     dbPath: ':memory:',
@@ -112,6 +120,8 @@ describe('signing in through dianoia-auth', () => {
     expect(named.statusCode).toBe(200);
     expect(app.accounts.byId(account.id)!.display_name).toBe('Erta Example');
     expect(app.noesis!.status(account.id)).toMatchObject({ connected: true, user: 'erta_example', canSend: true });
+    // A new account's name is a placeholder until chosen, so nothing was offered to auth.
+    expect(offered).toEqual([]);
     // Good once.
     expect((await ticketFor(location)).statusCode).toBe(401);
   });
@@ -127,6 +137,19 @@ describe('signing in through dianoia-auth', () => {
     expect(traded.created).toBe(false);
     expect(traded.account.id).toBe(before);
     expect(traded.account.displayName).toBe('Erta');
+    // auth had no name for her, so it is offered hers, with her own token.
+    expect(offered).toEqual([{ authorization: 'Bearer access', display_name: 'Erta' }]);
+  });
+
+  it('takes the display name auth keeps, in place of the one here', async () => {
+    const code = app.accounts.issueCode('erta@example.com', clock)!;
+    const verified = await app.fastify.inject({
+      method: 'POST', url: '/auth/verify', payload: { identifier: 'erta@example.com', code, displayName: 'Erta' },
+    });
+    who = { ...who, display_name: 'Erta Q. Example' };
+    await ticketFor(await callback((await start()).searchParams.get('state')!));
+    expect(app.accounts.byId(verified.json().account.id)!.display_name).toBe('Erta Q. Example');
+    expect(offered).toEqual([]);
   });
 
   it('signs nobody in when the person declines, auth refuses, or the ticket is late', async () => {

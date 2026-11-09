@@ -14,7 +14,7 @@ import type {
   PublicAccount,
   RecordingView,
 } from '../../core/protocol';
-import { MAX_TRACK_BYTES } from '../../core/constants';
+import { MAX_DISPLAY_NAME_LENGTH, MAX_TRACK_BYTES } from '../../core/constants';
 import {
   IM_SERVICES,
   IM_SERVICE_NAMES,
@@ -648,6 +648,19 @@ export function buildApp(options: BuildOptions = {}): App {
 
   // Filled in once the websocket plugin loads; no-ops until then.
   const homeNotifier = createHomeNotifier();
+  /**
+   * Contacts see the name, so a rename has to reach their home screens. An
+   * outgoing request to an address with no account yet carries an empty id by
+   * design, so those are dropped rather than notified.
+   */
+  const notifyRenamed = (accountId: string): void =>
+    homeNotifier.notify([
+      accountId,
+      ...accounts
+        .contactsFor(accountId)
+        .map((entry) => entry.account.id)
+        .filter(Boolean),
+    ]);
   const settingsNotifier = createSettingsNotifier();
   const reachability = createReachability();
   const devices = new Devices(db);
@@ -1646,6 +1659,13 @@ export function buildApp(options: BuildOptions = {}): App {
         body.marketingEmail === true,
         username
       );
+      // The name chosen at signup is auth's too, best effort: a reservation's until they sign in there.
+      const chosen = result.account.display_name;
+      if (username && body.displayName?.trim()) {
+        void names!.setDisplayName(username, chosen).then((answer) => {
+          if (!answer.ok) request.log.warn({ reason: answer.reason }, 'names: auth did not take a display name');
+        });
+      }
     } else {
       result = accounts.verifyCode(
         body.identifier,
@@ -3692,6 +3712,20 @@ export function buildApp(options: BuildOptions = {}): App {
         return reply.code(status).send({ error: answer.message });
       }
     }
+    /*
+      The display name is auth's (noesis.ts), so it is set there first, as a
+      username is: auth refusing it, or not answering, leaves it unchanged
+      here rather than different in the two places. An account auth has no
+      name for keeps its display name here alone.
+    */
+    const renamedTo = changes.displayName?.trim().slice(0, MAX_DISPLAY_NAME_LENGTH);
+    if (renamedTo && renamedTo !== account.display_name && registered(account.identifier) && account.username) {
+      const answer = await names!.setDisplayName(account.username, renamedTo);
+      if (!answer.ok) {
+        const status = answer.reason === 'invalid' ? 400 : 503;
+        return reply.code(status).send({ error: answer.message });
+      }
+    }
     let updated;
     try {
       updated = accounts.updateProfile(account.id, changes, now());
@@ -3702,16 +3736,7 @@ export function buildApp(options: BuildOptions = {}): App {
       throw e;
     }
     if (!updated) return reply.code(404).send({ error: 'No such account.' });
-    // Contacts see the name, so a rename has to reach their home screens.
-    // An outgoing request to an address with no account yet carries an empty
-    // id by design, so those are dropped rather than notified.
-    homeNotifier.notify([
-      account.id,
-      ...accounts
-        .contactsFor(account.id)
-        .map((entry) => entry.account.id)
-        .filter(Boolean),
-    ]);
+    notifyRenamed(account.id);
     return accounts.profile(account.id, account.id);
   });
 
@@ -4047,14 +4072,14 @@ export function buildApp(options: BuildOptions = {}): App {
     const query = request.query as { state?: string; code?: string; error?: string };
     // A sign-in to The Floor itself (`/auth/start`): the account made or found from who auth says it is.
     let signedIn: { token: string; created: boolean } | null = null;
-    const accountFor = ({ user, email }: { user: string; email: string }): string | null => {
+    const accountFor = ({ user, email }: { user: string; email: string }) => {
       const made = accounts.establish(email, undefined, now(), false, user);
       if (made.account.username && made.account.username.toLowerCase() !== user.toLowerCase()) {
         request.log.warn({ accountId: made.account.id }, 'auth: a sign-in whose username differs here');
       }
       welcomeResolved(made.account, made.resolved);
       signedIn = { token: made.token, created: made.created };
-      return made.account.id;
+      return { accountId: made.account.id, created: made.created };
     };
     const result = noesis
       ? await noesis.finish(query.state ?? '', query.code, query.error, accountFor).catch((error) => {
@@ -4062,6 +4087,8 @@ export function buildApp(options: BuildOptions = {}): App {
           return { ok: false as const, returnTo: 'web' as const, reason: 'unreachable', signIn: false, webPath: undefined };
         })
       : { ok: false as const, returnTo: 'web' as const, reason: 'unavailable', signIn: false, webPath: undefined };
+    // The name auth keeps took the place of the one here (noesis.ts): contacts see it.
+    if (result.ok && result.renamed) notifyRenamed(result.accountId);
     if (result.signIn) {
       const back = (params: Record<string, string>) =>
         result.returnTo === 'app'

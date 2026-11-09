@@ -33,6 +33,8 @@ const fakeNoesis = (async (input: unknown, init?: { method?: string; headers?: u
     const body = JSON.parse(String(init?.body)) as { suggest: string[] };
     return Response.json({ user: body.suggest[0], account: false });
   }
+  // A signup's display name, given to auth (names.ts): the register's, not a library's.
+  if (url.pathname === '/names/display') return Response.json({ display_name: 'x' });
   if (noesisDown) throw new Error('connect ECONNREFUSED');
   sent.push({
     method: init?.method ?? 'GET',

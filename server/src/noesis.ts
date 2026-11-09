@@ -1,4 +1,5 @@
 import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from 'node:crypto';
+import { MAX_DISPLAY_NAME_LENGTH } from '../../core/constants';
 import type { Db } from './db';
 
 /**
@@ -40,6 +41,11 @@ import type { Db } from './db';
  *   again to have it. Before sending, the person's display name here is added
  *   to the names noesis keeps as their voice, so their lines are filed as
  *   their own words and everybody else's as context.
+ * - **The display name is auth's** (since 2026-11-09, auth's
+ *   `display-names-are-stored-here`): at every sign-in and connecting,
+ *   `finish` takes the name auth has for the person, or, where auth has none,
+ *   gives auth the one they have here, with the grant's own token. A rename
+ *   here is set at auth first (names.ts, app.ts's `POST /me`).
  */
 export interface NoesisOptions {
   /** noesis's MCP endpoint, which Anthropic's servers call; its origin answers /me and the import. */
@@ -93,6 +99,12 @@ interface Pending {
 export interface SignedIn {
   user: string;
   email: string;
+}
+
+/** The account a sign-in made or found, and whether it was just made. */
+export interface SignedInAs {
+  accountId: string;
+  created: boolean;
 }
 
 /** What a sign-in to The Floor asks for: who the person is, and their library, connected in the same breath. */
@@ -184,9 +196,9 @@ export class NoesisConnections {
     state: string,
     code: string | undefined,
     error: string | undefined,
-    accountFor?: (who: SignedIn) => string | null
+    accountFor?: (who: SignedIn) => SignedInAs | null
   ): Promise<
-    | { ok: true; accountId: string; returnTo: NoesisReturn; signIn: boolean; webPath?: string }
+    | { ok: true; accountId: string; returnTo: NoesisReturn; signIn: boolean; webPath?: string; renamed: boolean }
     | { ok: false; returnTo: NoesisReturn; reason: string; signIn: boolean; webPath?: string }
   > {
     const entry = this.pending.get(state);
@@ -206,13 +218,15 @@ export class NoesisConnections {
     if (!tokens) return failed('token');
     const me = await this.whoIs(tokens.access_token);
     if (!me) return failed('me');
+    let created = false;
     if (signIn) {
-      const accountId = me.email && accountFor ? accountFor({ user: me.user, email: me.email }) : null;
-      if (!accountId) {
+      const made = me.email && accountFor ? accountFor({ user: me.user, email: me.email }) : null;
+      if (!made) {
         await this.post('/revoke', { token: tokens.refresh_token }).catch(() => undefined);
         return failed('account');
       }
-      entry.accountId = accountId;
+      entry.accountId = made.accountId;
+      created = made.created;
     }
     /*
       The noesis account has to be this account's own: the same address, and
@@ -249,7 +263,46 @@ export class NoesisConnections {
       token: tokens.access_token,
       expiresAt: this.now() + tokens.expires_in * 1000,
     });
-    return { ok: true, accountId, returnTo: entry.returnTo, signIn, webPath: entry.webPath };
+    // A new account's name is a placeholder until they choose one (POST /me), so not offered to auth.
+    const renamed = await this.agreeOnName(accountId, me.displayName, tokens.access_token, !created);
+    return { ok: true, accountId, returnTo: entry.returnTo, signIn, webPath: entry.webPath, renamed };
+  }
+
+  /**
+   * The display name auth and this account agree on: auth's where it has one,
+   * taken here; else this account's, offered to auth with the person's own
+   * token (`identity`), best effort. Whether the name here changed.
+   */
+  private async agreeOnName(
+    accountId: string,
+    theirs: string | null,
+    accessToken: string,
+    offer: boolean
+  ): Promise<boolean> {
+    const row = this.db.prepare('SELECT display_name FROM accounts WHERE id = ?').get(accountId) as
+      | { display_name: string }
+      | undefined;
+    if (!row) return false;
+    const name = theirs?.trim().slice(0, MAX_DISPLAY_NAME_LENGTH);
+    if (name) {
+      if (name === row.display_name) return false;
+      this.db.prepare('UPDATE accounts SET display_name = ? WHERE id = ?').run(name, accountId);
+      return true;
+    }
+    if (offer && row.display_name) {
+      const doFetch = this.options.fetch ?? fetch;
+      await doFetch(new URL('/me/display_name', this.authOrigin), {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${accessToken}`, 'content-type': 'application/json' },
+        body: JSON.stringify({ display_name: row.display_name }),
+        signal: AbortSignal.timeout(10_000),
+      })
+        .then((response) => {
+          if (!response.ok) this.log?.warn({ accountId, status: response.status }, 'auth: a display name was not taken');
+        })
+        .catch((error) => this.log?.warn({ accountId, err: error }, 'auth: a display name could not be offered'));
+    }
+    return false;
   }
 
   status(accountId: string): NoesisStatus {
@@ -432,7 +485,13 @@ export class NoesisConnections {
 
   private async whoIs(
     accessToken: string
-  ): Promise<{ user: string; email: string | null; libraries: string[]; names: string[] } | null> {
+  ): Promise<{
+    user: string;
+    email: string | null;
+    displayName: string | null;
+    libraries: string[];
+    names: string[];
+  } | null> {
     const doFetch = this.options.fetch ?? fetch;
     const headers = { Authorization: `Bearer ${accessToken}` };
     // noesis says whose libraries the grant reaches; auth, the address they sign in with.
@@ -447,7 +506,11 @@ export class NoesisConnections {
       names?: unknown;
     };
     if (!body.user) return null;
-    const email = identity.ok ? (((await identity.json()) as { email?: string | null }).email ?? null) : null;
+    const said = identity.ok
+      ? ((await identity.json()) as { email?: string | null; display_name?: unknown })
+      : {};
+    const email = said.email ?? null;
+    const displayName = typeof said.display_name === 'string' ? said.display_name : null;
     // The person's own only: since 2026-11-07 noesis lists a channel's library
     // too, `thefloor/<handle>`, to each member, and that is the channel's, not
     // theirs to consult or file into as their own.
@@ -455,6 +518,7 @@ export class NoesisConnections {
     return {
       user: body.user,
       email,
+      displayName,
       libraries: parseLibraries(body.libraries).filter((id) => id.toLowerCase().startsWith(own)),
       names: parseLibraries(body.names),
     };

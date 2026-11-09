@@ -62,7 +62,7 @@ caused; the list carries the meaning.
 - **Icon badge** — The number on the app's icon, since 2026-10-18: contact requests you can answer, plus *invitations*, plus *contacts* who are *present* or *nearby* in at least one channel you belong to or hold a *seat* in — each counted once, and the room you are standing in included. Live rooms until later the same day. A state rather than a tally, so it falls as each is answered or leaves. iOS only. `badgeCount` in core, sent by `BadgeKeeper`; not the `badge` prop, which draws a *Dab*
 - **Dab** — The soft rose disc carrying an `!`, in the top-right corner of the control it is about, a Home tab or a button: something is waiting behind it. Never a count, and on *Contacts* it clears itself while on *Support* it has to be read — where it is drawn twice, on the tab and on the *Help* card that tab meant
 - **Description** — One line or two of plain text saying what a channel is, written on *Channel Settings* by anybody with the room and offered only to a *public channel* and a *community*, whose pages (and the podcast's *feed*) are where it is read. It was the *notepad*, on a tab of the channel screen, from 2026-09-12 to 2026-09-27. `description` in the code, which never moved
-- **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one
+- **Display name** — What somebody is called everywhere: rosters, invitations, recordings. Not unique, holds anything a keyboard produces, and derived from the local part of the sign-in address when nobody types one; kept at auth since 2026-11-09, so noesis and Roxana show the same name
 - **Floor, the** — The thing the app is named after
 - **Email notifications** — A *Floor Settings* switch, `emailNotifications`: every notification also sent as email to the address you sign in with, arrivals included and paused with them. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
@@ -1037,6 +1037,13 @@ nobody's name: it is the private half of an identity, drawn to strangers.
 
 Typing one at signup replaces it, on an existing account as much as a new one,
 and so does the Contact screen.
+
+**It is auth's, since 2026-11-09**, so that noesis and Roxana call somebody
+what The Floor does (auth's `display-names-are-stored-here`). A rename on the
+Contact screen is set at auth first and refused when auth cannot take it, as a
+username is. Every sign-in and library connection takes the name auth has, or
+gives auth the one here when auth has none (`noesis.ts`). An account with no
+username keeps its name here alone.
 
 ## Email notifications
 
