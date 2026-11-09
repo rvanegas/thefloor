@@ -134,7 +134,8 @@ describe('switching account', () => {
     expect(tokensSeen).toEqual(['me-token', null, 'rtest1-token']);
     expect(latest!.me?.id).toBe('acct_rtest1');
     expect(mockStored['thefloor.token']).toBe('rtest1-token');
-    expect(mockStored['thefloor.lastIdentifier']).toBe('rtest1@example.co');
+    // No address is kept on the device any more (LAST_IDENTIFIER_KEY).
+    expect(mockStored['thefloor.lastIdentifier']).toBeUndefined();
     // The account left took its checklist with it.
     expect(mockStored['thefloor.intro.dismissed']).toBeUndefined();
   });

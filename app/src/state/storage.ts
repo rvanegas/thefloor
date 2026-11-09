@@ -77,13 +77,16 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.help.seenAnsweredAt',
   'thefloor.cohort.dismissed',
   'thefloor.handover',
-  // The address last signed in here — `AppProvider`. **The only key in this
-  // list that names a person**, which is why it is worth saying twice that it
-  // is cleared by *Forget this phone*: that control exists to make a handset
-  // look like a fresh install, and this is the one thing that would otherwise
-  // still know who used it. Signing out does not touch it, deliberately —
-  // signing out is not becoming somebody else.
+  // The address old builds kept for the sign-in screen's opt-in —
+  // `LAST_IDENTIFIER_KEY` in `AppProvider`. Nothing reads it since sign-in
+  // moved to dianoia-auth (2026-11-09), and the app deletes it at start; listed
+  // so that *Forget this phone* would take it too, being the one key that ever
+  // named a person.
   'thefloor.lastIdentifier',
+  // Whether somebody signed out here, so the next sign-in asks dianoia-auth for
+  // the code — `SIGNED_OUT_KEY` in `AppProvider`. Signing out sets it, which is
+  // why it is this list's and not signing out's to clear.
+  'thefloor.signedOut',
   'thefloor.seat.channel',
   // The seat's own credential, which the app writes for the guest page to
   // read — `handover.leaveSeat`, for an invitation taken up in a browser.

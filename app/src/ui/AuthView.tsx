@@ -4,72 +4,38 @@ import { API_URL, describeMissingConfig } from '../api/config';
 import { copyText } from '../clipboard';
 import { useText } from '../i18n';
 import { useApp } from '../state/AppProvider';
-import { Button, Card, Checkbox, Field, Screen } from './components';
+import { Button, Card, Screen } from './components';
 import { currentLink, inEmbeddedBrowser } from './embedded';
 import { colors, spacing, type } from './theme';
 
 /**
- * Signed-out state. Identity is an email address plus a one-time code — no
- * password. A display name is offered alongside the code: it names a new
- * account, and renames an existing one, so signing out and back in is how a
- * name gets corrected. Left blank, the current name stands — and a new account
- * is named out of its address rather than after it, along with a username
- * derived from that name. See `core/derivedNames.ts`; both are suggestions,
- * replaced by typing here or on the Contact screen.
+ * Signed-out state, since 2026-11-09: one button, which signs in through
+ * dianoia-auth (`auth.rvanegas.co`), the sign-in The Floor shares with noesis
+ * and the rest. Identity is still an email address plus a one-time code, and
+ * no password, but the code is asked on dianoia-auth's page, in the system
+ * sheet — and not at all when the person is already signed in there, from
+ * noesis or Roxana, in the same browser. A new account's name and marketing
+ * consent are asked afterwards, on `WelcomeView`, since dianoia-auth's page
+ * asks only who somebody is.
+ *
+ * Builds up to 421 signed in with this server's own code on this screen; the
+ * server keeps answering them (planning/SHIMS.md, gate 422).
  */
 export function AuthView() {
-  const { requestCode, verify, lastError, clearError, signedInHere } = useApp();
+  const { signIn, lastError, clearError } = useApp();
   const t = useText().auth;
-  const [step, setStep] = useState<'identify' | 'verify'>('identify');
-  const [identifier, setIdentifier] = useState('');
-  const [code, setCode] = useState('');
-  const [displayName, setDisplayName] = useState('');
-  /**
-   * Permission to send mail that is not a sign-in code. Starts clear, is only
-   * ever sent as a grant, and is asked for only on an install that has never
-   * been signed in: see the checkbox below, and `api.verify`. Floor Settings
-   * is where it is answered afterwards, in both directions.
-   */
-  const [marketingEmail, setMarketingEmail] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   const missingConfig = describeMissingConfig();
 
-  async function sendCode() {
-    if (!identifier.trim()) {
-      setError(t.enterEmail());
-      return;
-    }
+  async function start() {
     setBusy(true);
     setError(null);
     // Acting on the sign-out notice is what retires it.
     clearError();
     try {
-      await requestCode(identifier.trim());
-      setStep('verify');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function submitCode() {
-    if (!code.trim()) {
-      setError(t.enterCode());
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    clearError();
-    try {
-      await verify(
-        identifier.trim(),
-        code.trim(),
-        displayName.trim() || undefined,
-        marketingEmail
-      );
+      await signIn();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -108,108 +74,17 @@ export function AuthView() {
         */}
         {inEmbeddedBrowser() ? <EmbeddedNotice /> : null}
 
-        {step === 'identify' ? (
-          <>
-            <Field
-              value={identifier}
-              onChangeText={setIdentifier}
-              placeholder={t.emailPlaceholder()}
-              keyboardType="email-address"
-              autoFocus
-              onSubmit={sendCode}
-              submitLabel="send"
-            />
-            <Button
-              label={busy ? t.sending() : t.sendCode()}
-              variant="primary"
-              disabled={busy}
-              onPress={sendCode}
-            />
-          </>
-        ) : (
-          <>
-            <Text style={[type.muted, styles.sentTo]}>
-              {t.emailedCodeTo(identifier.trim())}
-            </Text>
-            <Field
-              value={code}
-              onChangeText={setCode}
-              placeholder={t.codePlaceholder()}
-              keyboardType="number-pad"
-              autoFocus
-              onSubmit={submitCode}
-              submitLabel="go"
-            />
-            <Field
-              value={displayName}
-              onChangeText={setDisplayName}
-              placeholder={t.displayNamePlaceholder()}
-              autoCapitalize="words"
-              onSubmit={submitCode}
-              submitLabel="go"
-            />
-            {/*
-              **Offered to somebody signing up, and to nobody else.** A person
-              coming back has answered this once and has it on Floor Settings,
-              where it can also be turned off; asking them again at the door
-              would be asking a question whose answer we already hold.
-
-              `signedInHere` is a guess and is the only signal there is:
-              nothing here can know whether this address has an account,
-              because `/auth/request-code` answers identically either way so
-              that sign-in cannot be used to ask which addresses exist — and by
-              the time the server could say, the code has been spent. What the
-              app can know is the address that last signed in on this install,
-              and whether the one being typed is it. **So the question it
-              answers is about the person and not merely about the handset**: a
-              phone that has held somebody else's account offers the box to the
-              next person to sign up on it, which a bare "somebody has signed
-              in here" flag did not. What it still cannot see is a second
-              device, which has no record and asks again — harmless, this being
-              a grant and never a withdrawal. See `LAST_IDENTIFIER_KEY` in
-              state/AppProvider.tsx, which carries what keeping that address
-              costs.
-
-              **It is on this step rather than the first, and inline rather
-              than a step of its own.** This is the step that creates the
-              account, and a box ticked beside an address that then fails to
-              verify is a permission granted by nobody. A screen of its own
-              after the code would be a screen between somebody and the app
-              they just signed in to, which is a worse trade than the question
-              is worth.
-
-              Clear by default, and nothing pre-ticks it: an opt-in that
-              arrives ticked is not one.
-            */}
-            {signedInHere(identifier) ? null : (
-              <Checkbox
-                label={t.marketingConsent()}
-                checked={marketingEmail}
-                onChange={setMarketingEmail}
-              />
-            )}
-            <Button
-              label={busy ? t.checking() : t.signIn()}
-              variant="primary"
-              disabled={busy}
-              onPress={submitCode}
-            />
-            <Button
-              label={t.useDifferentAddress()}
-              onPress={() => {
-                setStep('identify');
-                setCode('');
-                setError(null);
-              }}
-            />
-          </>
-        )}
+        <Button
+          label={busy ? t.signingIn() : t.signIn()}
+          variant="primary"
+          disabled={busy}
+          onPress={start}
+        />
+        <Text style={[type.muted, styles.signInHint]}>{t.signInHint()}</Text>
 
         {/*
           Whatever this attempt just went wrong with wins; the sign-out notice
-          is what got the user here and stays until they act on it. Before
-          this, `lastError` was set in several places and rendered in none, so
-          being told why you were signed out was impossible.
+          is what got the user here and stays until they act on it.
         */}
         {error ?? lastError ? (
           <Text style={styles.error}>{error ?? lastError}</Text>
@@ -279,7 +154,7 @@ const styles = StyleSheet.create({
   },
   brand: { marginBottom: spacing(2) },
   tagline: { marginTop: spacing(1), lineHeight: 20 },
-  sentTo: { marginBottom: spacing(0.5) },
+  signInHint: { lineHeight: 20 },
   error: { color: colors.danger, fontSize: 13, marginTop: spacing(0.5) },
   hint: {
     color: colors.textFaint,

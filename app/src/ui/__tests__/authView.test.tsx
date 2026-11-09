@@ -44,20 +44,9 @@ jest.mock('../../api/config', () => ({
 }));
 
 const mockApp = {
-  requestCode: jest.fn(async () => {}),
-  verify: jest.fn(
-    async (
-      _identifier: string,
-      _code: string,
-      _displayName?: string,
-      _marketingEmail?: boolean
-    ) => {}
-  ),
+  signIn: jest.fn(async () => {}),
   lastError: null as string | null,
   clearError: jest.fn(),
-  // Nobody has signed in on this install, which is the state the opt-in is
-  // drawn for. Individual tests give it an address to recognise.
-  signedInHere: jest.fn((_identifier: string) => false),
 };
 
 jest.mock('../../state/AppProvider', () => ({
@@ -103,23 +92,6 @@ function findButton(
     .find((n) => labelOf(n).includes(label));
 }
 
-function findCheckbox(tree: ReactTestRenderer): ReactTestInstance | undefined {
-  return tree.root.findAll((n) => n.props?.accessibilityRole === 'checkbox')[0];
-}
-
-/** Gets past the first step, which is where the opt-in is not. */
-async function reachTheCodeStep(tree: ReactTestRenderer): Promise<void> {
-  const field = tree.root.findAll(
-    (n) => n.props?.placeholder === 'Email address'
-  )[0];
-  await act(async () => {
-    field.props.onChangeText('anna.k@example.com');
-  });
-  await act(async () => {
-    findButton(tree, 'Send code')!.props.onPress();
-  });
-}
-
 function render(): ReactTestRenderer {
   let tree!: ReactTestRenderer;
   act(() => {
@@ -131,7 +103,7 @@ function render(): ReactTestRenderer {
 beforeEach(() => {
   embedded.value = false;
   jest.clearAllMocks();
-  mockApp.signedInHere.mockReturnValue(false);
+  mockApp.lastError = null;
 });
 
 describe('the embedded-browser notice', () => {
@@ -140,7 +112,7 @@ describe('the embedded-browser notice', () => {
     expect(text).not.toContain('built-in browser');
     expect(findButton(render(), 'Copy the link')).toBeUndefined();
     // The screen it is absent from is still the screen.
-    expect(text).toContain('Send code');
+    expect(text).toContain('Sign in');
   });
 
   it('says what is wrong and what to do instead', () => {
@@ -190,104 +162,38 @@ describe('the embedded-browser notice', () => {
     embedded.value = true;
     const tree = render();
     expect(textOf(tree)).toContain('built-in browser');
-    expect(findButton(tree, 'Send code')).toBeDefined();
+    expect(findButton(tree, 'Sign in')).toBeDefined();
   });
 });
 
 /**
- * The opt-in, which is the one thing this screen asks rather than requires.
- *
- * It is a permission, so what is tested is the shape a permission has to have:
- * clear unless somebody touched it, sent as a grant when they did, and absent
- * from the step where an address has not been proved yet. The server's half —
- * that a clear box never withdraws a consent already given — is
- * `server/__tests__/marketing-opt-in.test.ts`.
+ * The one thing this screen does since 2026-11-09: sign in through
+ * dianoia-auth. The sheet, the ticket and the welcome are the provider's
+ * (state/__tests__/signInMemory.test.tsx); here, the button and what it says.
  */
-describe('the marketing email opt-in', () => {
-  it('is not asked before the address is proved', () => {
-    expect(findCheckbox(render())).toBeUndefined();
+describe('signing in', () => {
+  it('asks no address here: the code is dianoia-auth\'s', () => {
+    const tree = render();
+    expect(tree.root.findAll((n) => n.props?.placeholder !== undefined && typeof n.type === 'string')).toEqual([]);
+    expect(textOf(tree)).toContain('auth.rvanegas.co');
   });
 
-  /**
-   * The rule the box exists under: a person coming back has answered this
-   * once, and has it on Floor Settings where it can also be turned off.
-   */
-  it('is not offered to the address that last signed in here', async () => {
-    mockApp.signedInHere.mockImplementation(
-      (identifier: string) => identifier === 'anna.k@example.com'
-    );
+  it('signs in at a press, and says why when it cannot', async () => {
     const tree = render();
-    await reachTheCodeStep(tree);
-    expect(mockApp.signedInHere).toHaveBeenCalledWith('anna.k@example.com');
-    expect(findCheckbox(tree)).toBeUndefined();
-    // The step it is missing from is still the step: nothing else moved.
-    expect(findButton(tree, 'Sign in')).toBeDefined();
-  });
-
-  /**
-   * The case one address buys over a bare "somebody signed in here" flag: a
-   * handset that has held another account is a new person's handset too.
-   */
-  it('is offered to a different address on a phone that has held one', async () => {
-    mockApp.signedInHere.mockImplementation(
-      (identifier: string) => identifier === 'somebody.else@example.com'
-    );
-    const tree = render();
-    await reachTheCodeStep(tree);
-    expect(findCheckbox(tree)).toBeDefined();
-  });
-
-  it('is offered with the code, and starts clear', async () => {
-    const tree = render();
-    await reachTheCodeStep(tree);
-    const box = findCheckbox(tree);
-    expect(box).toBeDefined();
-    expect(box!.props.accessibilityState.checked).toBe(false);
-    expect(box!.props.accessibilityLabel).toContain('Email me');
-  });
-
-  it('signs in without permission when nobody touches it', async () => {
-    const tree = render();
-    await reachTheCodeStep(tree);
-    const code = tree.root.findAll(
-      (n) => n.props?.placeholder === 'Six-digit code'
-    )[0];
-    await act(async () => {
-      code.props.onChangeText('123456');
-    });
     await act(async () => {
       findButton(tree, 'Sign in')!.props.onPress();
     });
-    expect(mockApp.verify).toHaveBeenCalledWith(
-      'anna.k@example.com',
-      '123456',
-      undefined,
-      false
-    );
-  });
-
-  it('sends the grant when it is ticked', async () => {
-    const tree = render();
-    await reachTheCodeStep(tree);
-    await act(async () => {
-      findCheckbox(tree)!.props.onPress();
-    });
-    expect(findCheckbox(tree)!.props.accessibilityState.checked).toBe(true);
-
-    const code = tree.root.findAll(
-      (n) => n.props?.placeholder === 'Six-digit code'
-    )[0];
-    await act(async () => {
-      code.props.onChangeText('123456');
-    });
+    expect(mockApp.signIn).toHaveBeenCalledTimes(1);
+    expect(mockApp.clearError).toHaveBeenCalled();
+    mockApp.signIn.mockRejectedValueOnce(new Error('Signing in did not finish. Try again in a moment.'));
     await act(async () => {
       findButton(tree, 'Sign in')!.props.onPress();
     });
-    expect(mockApp.verify).toHaveBeenCalledWith(
-      'anna.k@example.com',
-      '123456',
-      undefined,
-      true
-    );
+    expect(textOf(tree)).toContain('Signing in did not finish');
+  });
+
+  it('shows why somebody was signed out until they act on it', () => {
+    mockApp.lastError = 'Your session ended. Sign in again.';
+    expect(textOf(render())).toContain('Your session ended');
   });
 });

@@ -49,6 +49,7 @@ import { Realtime, type ConnectionStatus } from '../api/socket';
 import { traceSocket } from '../api/socketTrace';
 import { shouldReport } from './attention';
 import { storage } from './storage';
+import * as WebBrowser from 'expo-web-browser';
 import {
   cancelNearbyReminder,
   onNotificationTap,
@@ -88,50 +89,25 @@ import {
 
 const TOKEN_KEY = 'thefloor.token';
 /**
- * The address most recently signed in on this install.
+ * The address that last signed in here, which the old sign-in screen read to
+ * decide whether to offer the marketing opt-in.
  *
- * Written when a sign-in succeeds and **never removed** except by *Forget this
- * phone*: signing out does not make somebody a new user, and this is the only
- * signal the sign-in screen has about which kind of person is looking at it.
- * The server cannot tell it — `/auth/request-code` deliberately answers the
- * same whether or not an address has an account, so that sign-in cannot be
- * used to ask which addresses exist, and by the time the answer is knowable
- * the code has already been spent.
- *
- * **One address rather than a list, and the most recent one.** What it buys
- * over a bare "somebody has signed in here" flag is the phone that has held
- * two accounts: a person signing up on a friend's handset types an address
- * this key does not match and is offered the opt-in, where a flag would have
- * taken them for a returning user and asked nothing. A list would extend that
- * to every account a device has ever held, which is more addresses at rest for
- * a case that is rarer than the one this covers.
- *
- * **It is the one piece of data this app keeps on a device that identifies a
- * person**, so it is worth knowing where it sits: the keychain on iOS, which
- * outlives deleting the app, and `localStorage` in a browser. Plaintext, and
- * deliberately — it is somebody's own address on somebody's own device, which
- * is no secret from them, and hashing would only have obscured it from the one
- * reader it could never be hidden from anyway. *Forget this phone* is what
- * clears it; see `INSTALL_KEYS`.
- *
- * **What it cannot do is the reason it is affordable.** It decides whether one
- * checkbox is drawn. A second phone has no record of any address and so asks
- * again, which is harmless: that box is a grant and never a withdrawal, so
- * ticking it twice keeps the first date and leaving it clear takes nothing
- * away. See `marketingEmail` in core/settings.ts.
+ * **Kept only to be deleted off devices that still hold it.** Since 2026-11-09
+ * the address is typed on dianoia-auth's page, never here, and a new account
+ * is asked on `WelcomeView`, so nothing reads it — but it was the one piece of
+ * data this app kept on a device that identifies a person, in the keychain,
+ * which outlives deleting the app. Removed at start, and by *Forget this
+ * phone* (`INSTALL_KEYS`); both may go once no install can plausibly still be
+ * carrying it.
  */
 const LAST_IDENTIFIER_KEY = 'thefloor.lastIdentifier';
-
 /**
- * Whether two addresses name the same person, matched the way the server
- * matches them — trimmed, and case-insensitively, since `byIdentifier` looks
- * up `COLLATE NOCASE`. `sameIdentifier` in server/src/accounts.ts is the same
- * rule; a stricter one here would re-ask somebody who typed their own address
- * with a capital letter this time.
+ * Set by signing out here, cleared by signing in: the next sign-in asks
+ * dianoia-auth for the code (`prompt=login`) whatever its session in the
+ * browser, so that somebody else can sign in on this install.
  */
-function sameIdentifier(x: string, y: string): boolean {
-  return x.trim().toLowerCase() === y.trim().toLowerCase();
-}
+const SIGNED_OUT_KEY = 'thefloor.signedOut';
+
 /**
  * The two keys the tap setting used to be cached under.
  *
@@ -507,6 +483,12 @@ interface AppState {
   offline: boolean;
   lastError: string | null;
   /**
+   * An account made by the sign-in that just finished: the app asks its name
+   * and its marketing consent before anything else (`WelcomeView`), which
+   * dianoia-auth's sign-in page does not, being every application's.
+   */
+  welcoming: boolean;
+  /**
    * The last channel action the server refused in each channel, as the
    * sentence it gave, until somebody dismisses it.
    *
@@ -539,13 +521,15 @@ interface AppValue extends AppState {
    * room it was attention to. Null on the way out.
    */
   lookAt: (channelId: string | null) => void;
-  requestCode: (identifier: string) => Promise<void>;
-  verify: (
-    identifier: string,
-    code: string,
-    displayName?: string,
-    marketingEmail?: boolean
-  ) => Promise<void>;
+  /**
+   * Signs in through dianoia-auth (`auth.rvanegas.co`): the system sheet on a
+   * phone, which a session in Safari finishes without a code; on the web, a
+   * visit that comes back to this page. Resolves without signing in when the
+   * person closes the sheet; rejects with what to say when it fails.
+   */
+  signIn: () => Promise<void>;
+  /** The new account's name, and its marketing consent if given: the end of `welcoming`. */
+  finishWelcome: (displayName: string | undefined, marketingEmail: boolean) => Promise<void>;
   signOut: () => Promise<void>;
   /**
    * Signs out every other device, and stays signed in here.
@@ -1028,21 +1012,6 @@ interface AppValue extends AppState {
   pushNotificationsOff: boolean;
   setPushNotificationsOff: (value: boolean) => void;
   /**
-   * Whether this address is the one that last signed in on this install.
-   *
-   * Read by the sign-in screen and by nothing else: the marketing opt-in is
-   * offered to somebody signing up and not to somebody coming back, who has
-   * answered it once already and has it on Floor Settings. **A guess, and the
-   * only one available** — see `LAST_IDENTIFIER_KEY`, which carries why the
-   * server cannot answer this, what it costs to keep, and why being wrong
-   * about it is affordable.
-   *
-   * A predicate rather than the address itself, so that the one place holding
-   * somebody's address stays this file: a screen that could read it could draw
-   * it, and nothing should.
-   */
-  signedInHere: (identifier: string) => boolean;
-  /**
    * Whether this install should be asked to turn notifications on, and what it
    * takes to do it.
    *
@@ -1243,26 +1212,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pushNotificationsOff, setPushNotificationsOffState] = useState(
     DEFAULT_ACCOUNT_SETTINGS.pushNotificationsOff
   );
-  /**
-   * The address last signed in here, read once at start.
-   *
-   * Null until the read comes back, which is the right way round for what
-   * reads it: the sign-in screen shows the opt-in to somebody it takes for
-   * new, and a box appearing a frame late on a returning person's screen is a
-   * smaller wrong than one that flickers away under a thumb.
-   */
-  const [lastIdentifier, setLastIdentifier] = useState<string | null>(null);
+  // The address old builds kept for the opt-in; nothing reads it now. See `LAST_IDENTIFIER_KEY`.
   useEffect(() => {
-    void (async () => {
-      const stored = await storage.get(LAST_IDENTIFIER_KEY);
-      if (stored) setLastIdentifier(stored);
-    })();
-  }, []);
-  /** Called where a sign-in succeeds, which is the one place the address is known. */
-  const rememberIdentifier = useCallback((identifier: string) => {
-    const trimmed = identifier.trim();
-    setLastIdentifier(trimmed);
-    void storage.set(LAST_IDENTIFIER_KEY, trimmed);
+    void storage.remove(LAST_IDENTIFIER_KEY);
   }, []);
   /**
    * Takes the account's settings as the server states them, whichever device
@@ -1395,6 +1347,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     status: 'closed',
     offline: false,
     lastError: null,
+    welcoming: false,
     refusals: {},
   });
 
@@ -2005,6 +1958,44 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [state.token]);
 
   /**
+   * The end of a sign-in through dianoia-auth: the ticket it came back with,
+   * traded for this server's session. `error` is said, not thrown away: a
+   * declined sign-in is the person's choice and says nothing.
+   */
+  const adoptSignIn = useCallback(
+    async (params: URLSearchParams) => {
+      const error = params.get('error');
+      if (error) {
+        if (error === 'declined') return;
+        throw new Error(words.signInFailed());
+      }
+      const ticket = params.get('ticket');
+      if (!ticket) return;
+      const { token, account, created } = await api.redeemTicket(ticket);
+      await storage.set(TOKEN_KEY, token);
+      await storage.remove(SIGNED_OUT_KEY);
+      setState((s) => ({ ...s, token, me: account, lastError: null, welcoming: created }));
+      connect(token);
+    },
+    [connect, words]
+  );
+
+  /**
+   * A web train comes back from dianoia-auth to its own address with the
+   * ticket in the query: taken once, on load, and the address cleaned so that
+   * a reload does not try to spend it again.
+   */
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has('ticket') && !params.has('error')) return;
+    window.history.replaceState(null, '', window.location.pathname);
+    adoptSignIn(params).catch((e) =>
+      setState((s) => ({ ...s, lastError: e instanceof Error ? e.message : String(e) }))
+    );
+  }, [adoptSignIn]);
+
+  /**
    * The second half of `switchAccount`: adopting the session it was handed,
    * once the signed-out state has actually been drawn.
    *
@@ -2021,11 +2012,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     pendingSwitch.current = null;
     void (async () => {
       await storage.set(TOKEN_KEY, pending.token);
-      rememberIdentifier(pending.identifier);
       setState((s) => ({ ...s, token: pending.token, me: pending.account }));
       connect(pending.token);
     })();
-  }, [state.token, rememberIdentifier, connect]);
+  }, [state.token, connect]);
 
   /**
    * Whether a conversation is happening — you, in a channel, with somebody
@@ -2366,6 +2356,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         lastError:
           words.signedOut(),
         refusals: {},
+        welcoming: false,
       });
     });
     return () => onSignedOut(null);
@@ -2654,8 +2645,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
-      signedInHere: (identifier) =>
-        lastIdentifier !== null && sameIdentifier(identifier, lastIdentifier),
       marketingEmail,
       setMarketingEmail: (value) => {
         setMarketingEmailState(value);
@@ -2684,21 +2673,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
-      requestCode: async (identifier) => {
-        await api.requestCode(identifier);
+      signIn: async () => {
+        const prompt = (await storage.get(SIGNED_OUT_KEY)) ? ('login' as const) : undefined;
+        if (Platform.OS === 'web') {
+          const path = window.location.pathname.startsWith('/beta') ? '/beta' : '/app';
+          const { url } = await api.startSignIn({ returnTo: 'web', prompt, path });
+          window.location.assign(url);
+          return;
+        }
+        const { url } = await api.startSignIn({ returnTo: 'app', prompt });
+        const result = await WebBrowser.openAuthSessionAsync(url, 'thefloor://auth');
+        if (result.type !== 'success') return;
+        await adoptSignIn(new URL(result.url).searchParams);
       },
 
-      verify: async (identifier, code, displayName, marketingEmail) => {
-        const { token, account } = await api.verify(
-          identifier,
-          code,
-          displayName,
-          marketingEmail
-        );
-        await storage.set(TOKEN_KEY, token);
-        rememberIdentifier(identifier);
-        setState((s) => ({ ...s, token, me: account, lastError: null }));
-        connect(token);
+      finishWelcome: async (displayName, marketingEmail) => {
+        if (!state.token) return;
+        if (displayName?.trim()) {
+          const profile = await api.saveProfile(state.token, { displayName: displayName.trim() });
+          setState((s) => ({ ...s, me: profile.account }));
+        }
+        if (marketingEmail) {
+          setMarketingEmailState(true);
+          await api.saveSettings(state.token, { marketingEmail: true }).catch(() => {});
+        }
+        setState((s) => ({ ...s, welcoming: false }));
       },
 
       signOut: async () => {
@@ -2735,11 +2734,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           offline: false,
           lastError: null,
           refusals: {},
+          welcoming: false,
         });
         // Best effort: the local channel is already gone either way. The
         // device travels with it so the server forgets where to reach this
         // phone while the credential authorising that is still good.
         if (token) await api.signOut(token, device ?? undefined).catch(() => {});
+        void storage.set(SIGNED_OUT_KEY, '1');
       },
 
       signOutOthers: async () => {
@@ -2800,6 +2801,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           offline: false,
           lastError: null,
           refusals: {},
+          welcoming: false,
         });
       },
 
@@ -2847,6 +2849,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           offline: false,
           lastError: null,
           refusals: {},
+          welcoming: false,
         });
       },
 
@@ -3438,8 +3441,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       marketingEmail,
       emailNotifications,
       pushNotificationsOff,
-      lastIdentifier,
-      rememberIdentifier,
       forgetSettings,
       expiry,
     ]

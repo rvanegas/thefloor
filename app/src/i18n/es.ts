@@ -148,21 +148,10 @@ export const es: Strings = {
     tagline: () =>
       'Canales de audio donde cualquiera de las dos partes puede pedir tiempo sin interrupciones.',
     notConfigured: () => 'Sin configurar',
-    enterEmail: () => 'Escribe tu direcci\u00f3n de correo.',
-    enterCode: () => 'Escribe el c\u00f3digo que te lleg\u00f3 por correo.',
-    emailPlaceholder: () => 'Direcci\u00f3n de correo',
-    sending: () => 'Enviando\u2026',
-    sendCode: () => 'Enviar c\u00f3digo',
-    emailedCodeTo: (address: string) =>
-      `Enviamos un c\u00f3digo de seis d\u00edgitos a ${address}`,
-    codePlaceholder: () => 'C\u00f3digo de seis d\u00edgitos',
-    displayNamePlaceholder: () =>
-      'Nombre visible (en blanco se mantiene el actual)',
-    marketingConsent: () =>
-      'Escr\u00edbeme de vez en cuando sobre The Floor: c\u00f3mo usarlo y qu\u00e9 hay de nuevo.',
-    checking: () => 'Comprobando\u2026',
     signIn: () => 'Entrar',
-    useDifferentAddress: () => 'Usar otra direcci\u00f3n',
+    signingIn: () => 'Entrando\u2026',
+    signInHint: () =>
+      'Una sola cuenta para The Floor, noesis y Roxana: entras en auth.rvanegas.co con un c\u00f3digo que llega a tu correo, o sin \u00e9l si ya hab\u00edas entrado.',
     serverHint: (url: string) => `Servidor: ${url}`,
     embeddedLead: () => 'Est\u00e1s en el navegador integrado de una app.',
     embeddedWhy: () =>
@@ -1483,7 +1472,17 @@ export const es: Strings = {
     microphoneOpen: () => 'Tu micr\u00f3fono est\u00e1 abierto',
     out: () => 'Fuera',
   },
+  welcome: {
+    title: () => 'Te damos la bienvenida a The Floor',
+    lead: () => 'El nombre que ven los dem\u00e1s aqu\u00ed. Puedes cambiarlo cuando quieras en tu perfil.',
+    namePlaceholder: () => 'Nombre visible',
+    marketingConsent: () =>
+      'Escr\u00edbeme de vez en cuando sobre The Floor: c\u00f3mo usarlo y qu\u00e9 hay de nuevo.',
+    continue: () => 'Continuar',
+    saving: () => 'Guardando\u2026',
+  },
   provider: {
+    signInFailed: () => 'No se pudo terminar de iniciar sesión. Inténtalo de nuevo en un momento.',
     couldNotAcceptInvitation: () => 'No se ha podido aceptar la invitaci\u00f3n.',
     pingAnswerSoon: () => 'Unos minutos',
     pingAnswerIn20: () => 'En 20 minutos',

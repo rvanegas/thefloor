@@ -3,19 +3,20 @@ import { Text } from 'react-native';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
 import type { RealtimeHandlers } from '../../api/socket';
 import { AppProvider, useApp } from '../AppProvider';
+import { api } from '../../api/http';
+import * as WebBrowser from 'expo-web-browser';
 
 /**
- * What this install remembers about who has signed in on it.
+ * What this install remembers about signing in, since sign-in moved to
+ * dianoia-auth (2026-11-09).
  *
- * One address, the most recent, kept so the sign-in screen can tell somebody
- * signing up from somebody coming back — which nothing else can tell it. The
- * server deliberately cannot: `/auth/request-code` answers the same whether or
- * not an address has an account, so that sign-in cannot be used to ask which
- * addresses exist. See `LAST_IDENTIFIER_KEY` in AppProvider.tsx.
- *
- * The three cases below are the three the guess has to get right; the fourth,
- * a second device, has no record at all and is covered by the sign-in screen's
- * own tests, where the box simply appears.
+ * - **No address.** The one the old screen kept for its opt-in is deleted at
+ *   start: nothing reads it, and it identified a person. See
+ *   `LAST_IDENTIFIER_KEY` in AppProvider.tsx.
+ * - **Whether somebody signed out here**, so that the next sign-in asks
+ *   dianoia-auth for the code whatever its session in the browser.
+ * - **The ticket a sign-in came back with**, traded for the session; a new
+ *   account is welcomed, and a declined one is nothing.
  */
 
 let handlers: RealtimeHandlers = {};
@@ -42,10 +43,11 @@ jest.mock('../../api/http', () => ({
       contacts: [],
       recordings: [],
     })),
-    requestCode: jest.fn(async () => {}),
-    verify: jest.fn(async () => ({
+    startSignIn: jest.fn(async () => ({ url: 'https://auth.example/authorize?state=s' })),
+    redeemTicket: jest.fn(async () => ({
       token: 'fresh-token',
       account: { id: 'acct_me', displayName: 'Anna' },
+      created: true,
     })),
     signOut: jest.fn(async () => {}),
     saveSettings: jest.fn(async () => ({
@@ -57,6 +59,11 @@ jest.mock('../../api/http', () => ({
       marketingEmail: false,
     })),
   },
+}));
+
+const mockSheet = { result: { type: 'success', url: 'thefloor://auth?ticket=t1' } as { type: string; url?: string } };
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: jest.fn(async () => mockSheet.result),
 }));
 
 jest.mock('../../api/socket', () => ({
@@ -92,12 +99,13 @@ async function mount(): Promise<void> {
   });
 }
 
-describe('the address this install last signed in as', () => {
+describe('signing in, as this install remembers it', () => {
   beforeEach(() => {
     handlers = {};
-    // No token: this is the signed-out install the sign-in screen is drawn on.
     mockStored = {};
     latest = null;
+    mockSheet.result = { type: 'success', url: 'thefloor://auth?ticket=t1' };
+    jest.clearAllMocks();
   });
 
   afterEach(async () => {
@@ -107,54 +115,60 @@ describe('the address this install last signed in as', () => {
     mounted = null;
   });
 
-  it('is nobody on a fresh install, so everybody is new', async () => {
+  it('deletes the address old builds kept', async () => {
+    mockStored['thefloor.lastIdentifier'] = 'anna.k@example.com';
     await mount();
-    expect(latest!.signedInHere('anna.k@example.com')).toBe(false);
+    expect(mockStored['thefloor.lastIdentifier']).toBeUndefined();
   });
 
-  it('is remembered when a sign-in succeeds', async () => {
+  it('signs in in the sheet, trades the ticket, and welcomes a new account', async () => {
     await mount();
     await act(async () => {
-      await latest!.verify('anna.k@example.com', '123456');
+      await latest!.signIn();
     });
-    expect(mockStored['thefloor.lastIdentifier']).toBe('anna.k@example.com');
-    expect(latest!.signedInHere('anna.k@example.com')).toBe(true);
+    expect(api.startSignIn).toHaveBeenCalledWith({ returnTo: 'app', prompt: undefined });
+    expect(WebBrowser.openAuthSessionAsync).toHaveBeenCalledWith(
+      'https://auth.example/authorize?state=s',
+      'thefloor://auth'
+    );
+    expect(api.redeemTicket).toHaveBeenCalledWith('t1');
+    expect(latest!.token).toBe('fresh-token');
+    expect(latest!.welcoming).toBe(true);
+    expect(mockStored['thefloor.token']).toBe('fresh-token');
   });
 
-  /**
-   * Matched the way the server matches, which looks up `COLLATE NOCASE`. A
-   * stricter comparison here would re-ask somebody who typed their own address
-   * with a capital letter this time.
-   */
-  it('recognises the same address typed differently', async () => {
+  it('asks for the code after somebody signed out here, and stops asking once signed in', async () => {
     await mount();
     await act(async () => {
-      await latest!.verify(' anna.k@example.com ', '123456');
-    });
-    expect(latest!.signedInHere('Anna.K@Example.com')).toBe(true);
-  });
-
-  /**
-   * The case one address buys over a bare "somebody has signed in here" flag:
-   * a handset that has held another account is a new person's handset too.
-   */
-  it('does not recognise anybody else', async () => {
-    mockStored['thefloor.lastIdentifier'] = 'somebody.else@example.com';
-    await mount();
-    expect(latest!.signedInHere('anna.k@example.com')).toBe(false);
-    expect(latest!.signedInHere('somebody.else@example.com')).toBe(true);
-  });
-
-  /** Signing out is not becoming somebody else. */
-  it('survives signing out', async () => {
-    await mount();
-    await act(async () => {
-      await latest!.verify('anna.k@example.com', '123456');
+      await latest!.signIn();
     });
     await act(async () => {
       await latest!.signOut();
     });
-    expect(mockStored['thefloor.lastIdentifier']).toBe('anna.k@example.com');
-    expect(latest!.signedInHere('anna.k@example.com')).toBe(true);
+    await act(async () => {
+      await latest!.signIn();
+    });
+    expect(api.startSignIn).toHaveBeenLastCalledWith({ returnTo: 'app', prompt: 'login' });
+    expect(mockStored['thefloor.signedOut']).toBeUndefined();
+  });
+
+  it('is nothing when the sheet is closed or the sign-in declined, and says so when it fails', async () => {
+    await mount();
+    mockSheet.result = { type: 'cancel' };
+    await act(async () => {
+      await latest!.signIn();
+    });
+    mockSheet.result = { type: 'success', url: 'thefloor://auth?error=declined' };
+    await act(async () => {
+      await latest!.signIn();
+    });
+    expect(api.redeemTicket).not.toHaveBeenCalled();
+    expect(latest!.token).toBeNull();
+    mockSheet.result = { type: 'success', url: 'thefloor://auth?error=failed' };
+    await expect(
+      act(async () => {
+        await latest!.signIn();
+      })
+    ).rejects.toThrow();
   });
 });

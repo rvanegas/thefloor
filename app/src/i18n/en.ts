@@ -172,20 +172,10 @@ export const en = {
     tagline: () =>
       'Audio channels where either party can claim uninterrupted time.',
     notConfigured: () => 'Not configured',
-    enterEmail: () => 'Enter your email address.',
-    enterCode: () => 'Enter the code from your email.',
-    emailPlaceholder: () => 'Email address',
-    sending: () => 'Sending\u2026',
-    sendCode: () => 'Send code',
-    emailedCodeTo: (address: string) =>
-      `We emailed a six-digit code to ${address}`,
-    codePlaceholder: () => 'Six-digit code',
-    displayNamePlaceholder: () => 'Display name (blank keeps your current one)',
-    marketingConsent: () =>
-      'Email me occasionally about The Floor — how to use it, and what is new.',
-    checking: () => 'Checking\u2026',
     signIn: () => 'Sign in',
-    useDifferentAddress: () => 'Use a different address',
+    signingIn: () => 'Signing in\u2026',
+    signInHint: () =>
+      'One account for The Floor, noesis and Roxana: you sign in at auth.rvanegas.co, by a code sent to your email — or not at all, if you already are.',
     serverHint: (url: string) => `Server: ${url}`,
     /**
      * **Returned in pieces because two of them are italic.** A sentence with
@@ -1895,7 +1885,18 @@ export const en = {
    * screen, and an `ApiError`'s message is what a catch block puts in front
    * of somebody — so they are messages like any other.
    */
+  /** A new account's first screen (`WelcomeView`): its name, and its marketing consent. */
+  welcome: {
+    title: () => 'Welcome to The Floor',
+    lead: () => 'The name people see here. You can change it any time on your profile.',
+    namePlaceholder: () => 'Display name',
+    marketingConsent: () =>
+      'Email me occasionally about The Floor — how to use it, and what is new.',
+    continue: () => 'Continue',
+    saving: () => 'Saving\u2026',
+  },
   provider: {
+    signInFailed: () => 'Signing in did not finish. Try again in a moment.',
     couldNotAcceptInvitation: () => 'Could not accept the invitation.',
     /**
      * A ping's three buttons, on a long press of the notification. See

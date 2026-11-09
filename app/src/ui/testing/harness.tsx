@@ -247,8 +247,9 @@ export const mockApp = {
   serverNow: () => NOW,
   reportAttentive: jest.fn(),
   lookAt: jest.fn(),
-  requestCode: jest.fn(),
-  verify: jest.fn(),
+  signIn: jest.fn(),
+  finishWelcome: jest.fn(),
+  welcoming: false,
   signOut: jest.fn(),
   deleteAccount: jest.fn(async () => {}),
   // Null by default, which is the account with no username: the invite section

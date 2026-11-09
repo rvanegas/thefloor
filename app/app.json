@@ -104,7 +104,8 @@
       "expo-iap",
       "./plugins/with-google-services",
       "./plugins/with-live-activity",
-      "./plugins/with-localizations"
+      "./plugins/with-localizations",
+      "expo-web-browser"
     ]
   }
 }

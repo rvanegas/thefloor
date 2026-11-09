@@ -163,28 +163,25 @@ export const api = {
       body: { build, lines },
     }),
 
-  requestCode: (identifier: string) =>
-    request<{ sent: true }>('/auth/request-code', {
-      method: 'POST',
-      body: { identifier },
-    }),
+  /**
+   * Where to sign in: dianoia-auth's page (`auth.rvanegas.co`), since
+   * 2026-11-09 the one sign-in for The Floor, noesis and the rest. The app
+   * opens it in the system sheet; a web train goes there and comes back to
+   * `path`. `prompt: 'login'` asks for the code whatever the browser's
+   * session there — sent after somebody signed out on this install.
+   */
+  startSignIn: (body: { returnTo: 'app' | 'web'; prompt?: 'login'; path?: string }) =>
+    request<{ url: string }>('/auth/start', { method: 'POST', body }),
 
   /**
-   * `marketingEmail` is a grant and never a withdrawal — only `true` says
-   * anything, and the server records the first one and leaves it alone
-   * afterwards. The box on the sign-in screen starts clear on every device and
-   * cannot be shown what this account already answered, so a clear one is
-   * somebody who did not opt in just now rather than somebody taking it back.
+   * Trades the one-time ticket a finished sign-in came back with for this
+   * server's session token. `created` is a new account, whose name and
+   * marketing consent the app asks next.
    */
-  verify: (
-    identifier: string,
-    code: string,
-    displayName?: string,
-    marketingEmail?: boolean
-  ) =>
-    request<{ token: string; account: PublicAccount }>('/auth/verify', {
+  redeemTicket: (ticket: string) =>
+    request<{ token: string; account: PublicAccount; created: boolean }>('/auth/ticket', {
       method: 'POST',
-      body: { identifier, code, displayName, marketingEmail },
+      body: { ticket },
     }),
 
   /**
@@ -297,7 +294,7 @@ export const api = {
   /**
    * Asks for a code at an address you would like to sign in with instead.
    *
-   * `requestCode` with a session behind it, and the same answer either way —
+   * The server's emailed code, with a session behind it, and the same answer either way —
    * whether the address is already somebody's is not settled here. See the
    * route.
    */

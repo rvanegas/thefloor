@@ -32,6 +32,7 @@ import { liveChannelHere } from './src/state/live';
 import { useAttention } from './src/state/useAttention';
 import { useNearby } from './src/state/useNearby';
 import { AuthView } from './src/ui/AuthView';
+import { WelcomeView } from './src/ui/WelcomeView';
 import { HomeView } from './src/ui/HomeView';
 import { HomeSettingsView } from './src/ui/HomeSettingsView';
 import { ProfileView } from './src/ui/ProfileView';
@@ -856,6 +857,8 @@ function Root() {
   }
 
   if (!token) return <AuthView />;
+  // An account the sign-in just made: its name and consent before anything else.
+  if (app.welcoming) return <WelcomeView />;
 
   /** Nothing open, which is the way out of everything the pane can hold. */
   const close = () => setDetail(NO_DETAIL);
