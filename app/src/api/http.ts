@@ -422,6 +422,10 @@ export const api = {
       body: { consult },
     }),
 
+  /** A link that opens `url`, noesis's web client, in a browser signed in on the way: one use, a minute long. */
+  noesisHandoff: (token: string, url: string) =>
+    request<{ url: string }>('/me/noesis/handoff', { method: 'POST', token, body: { url } }),
+
   /** noesis's sign-in URL, to open in a browser; it comes back to `returnTo`. */
   connectNoesis: (token: string, returnTo: 'app' | 'web') =>
     request<{ url: string }>('/me/noesis/connect', { method: 'POST', token, body: { returnTo } }),

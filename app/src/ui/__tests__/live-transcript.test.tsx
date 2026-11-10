@@ -453,9 +453,11 @@ describe('rooms on the Record tab', () => {
     expect(findButton(tree, 'Open in noesis')).toBeUndefined();
     // The other, kept as text with nothing said in it, has nothing to offer.
     expect(menuGlyphs(tree)[1].props.accessibilityState.disabled).toBe(true);
+    mockApp.noesisLink.mockResolvedValueOnce('https://auth.example/handoff?code=c1');
     openMenu(tree, 0).choose('Open in noesis');
     await settle();
-    expect(opened).toHaveBeenCalledWith(url);
+    expect(mockApp.noesisLink).toHaveBeenCalledWith(url);
+    expect(opened).toHaveBeenCalledWith('https://auth.example/handoff?code=c1');
     opened.mockRestore();
     noesis.mockRestore();
     act(() => tree.unmount());

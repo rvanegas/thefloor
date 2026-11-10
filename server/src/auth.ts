@@ -7,7 +7,7 @@ import { createPublicKey, verify, type KeyObject } from 'node:crypto';
  * was the authorization server before it, and The Floor's client there (its id
  * and secret, `NOESIS_CLIENT_ID` / `NOESIS_CLIENT_SECRET`) moved over as it was.
  *
- * Two things here, both for talking to noesis without a shared secret:
+ * Three things here, the first two for talking to noesis without a shared secret:
  *
  * - **The Floor's own token** (`ownToken`): auth's `client_credentials` grant,
  *   for the scopes the operator allowed this client (`noesis:keep`, keeping
@@ -17,6 +17,9 @@ import { createPublicKey, verify, type KeyObject } from 'node:crypto';
  *   belongs to a channel. Checked against auth's published keys
  *   (`/.well-known/jwks.json`, kept five minutes, asked again at most every
  *   half minute for a key not known) by issuer, audience and expiry.
+ * - **Handing a sign-in to a browser** (`handoff`): *Open noesis* opens the
+ *   person's own browser, which knows nobody at auth; the link this makes signs
+ *   it in on the way, so noesis does not ask again.
  */
 export interface AuthOptions {
   /** auth's origin, its issuer. */
@@ -74,6 +77,27 @@ export class AuthClient {
     if (!body.access_token || typeof body.expires_in !== 'number') throw new Error('auth /token answered without a token');
     this.own.set(scope, { token: body.access_token, until: this.now() + (body.expires_in - 60) * 1000 });
     return body.access_token;
+  }
+
+  /**
+   * A one-use link that signs the person's own browser in to auth on its way
+   * to `next` (auth's `/handoff`, since 2026-11-10): The Floor's pair, as
+   * HTTP Basic, with `personToken`, a token auth issued to The Floor for that
+   * person. A minute long. Throws where auth refuses or cannot be reached.
+   */
+  async handoff(personToken: string, next: string): Promise<string> {
+    const pair = Buffer.from(`${this.options.clientId}:${this.options.clientSecret}`).toString('base64');
+    const response = await (this.options.fetch ?? fetch)(new URL('/handoff', this.origin), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Basic ${pair}` },
+      body: JSON.stringify({ token: personToken, next }),
+    });
+    if (!response.ok) throw new Error(`auth /handoff answered ${response.status}`);
+    const body = (await response.json()) as { url?: string };
+    if (typeof body.url !== 'string' || new URL(body.url).origin !== this.origin) {
+      throw new Error('auth /handoff answered without a link');
+    }
+    return body.url;
   }
 
   /** The token's claims, if auth signed it for this audience, it has not expired, and it carries `scope`. */

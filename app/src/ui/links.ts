@@ -1,4 +1,4 @@
-import { Alert, Linking } from 'react-native';
+import { Alert, Linking, Platform } from 'react-native';
 import type { Strings } from '../i18n';
 
 /**
@@ -52,8 +52,8 @@ export function isSafeUrl(url: string): boolean {
  * the system sheet instead, which shares Safari's cookies and so the session
  * at auth that signed somebody in to The Floor; the default browser may know
  * nobody (Chrome did) and ask them to sign in once more. That was undone:
- * what is wanted is their own browser, independent of the app, and the price
- * is that sign-in, once per browser.
+ * what is wanted is their own browser, independent of the app — and the
+ * sign-in with it, which `openNoesis` below carries.
  */
 export async function openUrl(
   url: string,
@@ -66,4 +66,20 @@ export async function openUrl(
     // dead link rather than a refusal by the OS.
     Alert.alert(words.couldNotOpenLink(), url);
   }
+}
+
+/**
+ * Opens noesis's web client in the person's own browser, signed in: `link`
+ * (AppProvider's `noesisLink`) trades the URL for one through auth's
+ * `/handoff`, which signs that browser in on its way, since 2026-11-10, so
+ * noesis does not ask for an address and a code. Where the server cannot make
+ * one, the URL itself, and noesis asks. On the web, the URL itself: the tab
+ * opens in the browser that signed in to The Floor, whose session it shares.
+ */
+export async function openNoesis(
+  url: string,
+  words: Strings['links'],
+  link: (url: string) => Promise<string>
+): Promise<void> {
+  return openUrl(Platform.OS === 'web' ? url : await link(url), words);
 }

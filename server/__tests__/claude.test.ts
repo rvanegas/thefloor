@@ -36,6 +36,7 @@ import { openDb } from '../src/db';
 import { noesisFilename, type NoesisOptions } from '../src/noesis';
 import { MemoryMailer } from '../src/mail';
 import { fakeAuth } from '../__stubs__/fakeAuth';
+import { AuthClient } from '../src/auth';
 
 /**
  * *Ask Claude* on the *Record* bar: the Record read as text, one request, and the
@@ -546,7 +547,8 @@ function boot(
   timeoutMs?: number,
   library?: NoesisOptions,
   libraryTimeoutMs?: number,
-  channelLibraries = false
+  channelLibraries = false,
+  authClient?: AuthClient
 ): App {
   app = buildApp({
     ...(channelLibraries
@@ -566,6 +568,7 @@ function boot(
     claudeTimeoutMs: timeoutMs,
     claudeLibraryTimeoutMs: libraryTimeoutMs,
     library,
+    auth: authClient,
   });
   return app;
 }
@@ -1635,6 +1638,40 @@ describe('connecting an noesis library', () => {
     noesisRefuses = true;
     expect(await app.noesis!.accessToken(alice.account.id)).toBeNull();
     expect(app.noesis!.connected(alice.account.id)).toBe(false);
+  });
+
+  it('hands the sign-in to the browser that opens noesis, by the connection’s token and The Floor’s pair', async () => {
+    const asked: Array<{ authorization: string; body: { token: string; next: string } }> = [];
+    let refuses = false;
+    const handing = new AuthClient({
+      origin: 'https://auth.example',
+      clientId: 'thefloor',
+      clientSecret: 'client-secret',
+      fetch: (async (_input: unknown, init?: { body?: unknown; headers?: Record<string, string> }) => {
+        asked.push({ authorization: init!.headers!.Authorization, body: JSON.parse(String(init!.body)) });
+        if (refuses) return new Response(null, { status: 403 });
+        return Response.json({ url: 'https://auth.example/handoff?code=c1', expires_in: 60 });
+      }) as typeof fetch,
+    });
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS, undefined, false, handing);
+    const { alice, bob } = await room2();
+    const hand = (token: string, url: unknown) =>
+      app.fastify.inject({ method: 'POST', url: '/me/noesis/handoff', headers: auth(token), payload: { url } });
+    const web = 'https://noesis.example/web/?library=alice%2Fphilosophy';
+    // Nothing to make it from before connecting.
+    expect((await hand(alice.token, web)).statusCode).toBe(409);
+    await connect(alice.account.id);
+    const handed = await hand(alice.token, web);
+    expect(handed.json()).toEqual({ url: 'https://auth.example/handoff?code=c1' });
+    expect(asked.at(-1)).toEqual({
+      authorization: `Basic ${Buffer.from('thefloor:client-secret').toString('base64')}`,
+      body: { token: 'secret', next: web },
+    });
+    // Only to noesis's web client, and only for somebody connected.
+    expect((await hand(alice.token, 'https://elsewhere.example/web/')).statusCode).toBe(400);
+    expect((await hand(bob.token, web)).statusCode).toBe(409);
+    refuses = true;
+    expect((await hand(alice.token, web)).statusCode).toBe(502);
   });
 
   it('disconnecting switches off every channel consulting it, and revokes at noesis', async () => {

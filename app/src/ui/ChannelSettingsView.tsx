@@ -29,7 +29,7 @@ import { pickAndUploadArtwork } from '../api/upload';
 import { ITUNES_CATEGORIES } from '../../../core/publication';
 import { useText } from '../i18n';
 import { shareText } from '../share';
-import { openUrl } from './links';
+import { openNoesis, openUrl } from './links';
 import { useApp } from '../state/AppProvider';
 import {
   Button,
@@ -635,7 +635,7 @@ export function ChannelSettingsView({
           nameOf={(id) => view.participants.find((p) => p.id === id)?.displayName ?? null}
           mine={noesis?.libraries ?? []}
           web={noesis?.web ?? null}
-          onOpen={(url) => void openUrl(url, linkWords)}
+          onOpen={(url) => void openNoesis(url, linkWords, app.noesisLink)}
           mayEdit={mayEdit}
           mayChangeLibrary={mayChangeLibrary}
           refusedWhy={community && !owner ? t.ownerOnly() : t.libraryStepIn()}
@@ -666,7 +666,7 @@ export function ChannelSettingsView({
           {channelLibrary.url ? (
             <Button
               label={t.channelLibraryOpen()}
-              onPress={() => void openUrl(channelLibrary.url!, linkWords)}
+              onPress={() => void openNoesis(channelLibrary.url!, linkWords, app.noesisLink)}
             />
           ) : (
             <Text style={type.muted}>{t.channelLibraryNotYet()}</Text>
@@ -1016,7 +1016,7 @@ function LibraryCard({
   mine: string[];
   /** noesis's web client, for *Open noesis*; null from a server that does not say. */
   web: string | null;
-  /** Opens it, in the person's own browser (`openUrl`). */
+  /** Opens it, in the person's own browser, signed in on the way (`openNoesis`). */
   onOpen: (url: string) => void;
   mayEdit: boolean;
   mayChangeLibrary: boolean;

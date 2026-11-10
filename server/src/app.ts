@@ -4162,6 +4162,36 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * A link that opens `url`, noesis's web client, in the person's own browser
+   * already signed in (auth's `/handoff`, since 2026-11-10): that browser
+   * shares no cookie with the sheet they signed in through, and noesis would
+   * otherwise ask again. Made from the connection's token, which auth issued
+   * to The Floor for this person; only to noesis's web client. 409 when there
+   * is no connection to make it from, 502 when auth will not, and the app then
+   * opens `url` as it is.
+   */
+  fastify.post('/me/noesis/handoff', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    if (!noesis || !options.auth || !channels.libraryAvailable()) {
+      return reply.code(503).send({ error: 'This server offers no library.' });
+    }
+    const body = request.body as { url?: unknown } | undefined;
+    const web = noesisWeb(options.library!.url);
+    if (typeof body?.url !== 'string' || !body.url.startsWith(web)) {
+      return reply.code(400).send({ error: `url must be at ${web}.` });
+    }
+    const token = await noesis.accessToken(account.id);
+    if (!token) return reply.code(409).send({ error: 'Your library is not connected.' });
+    try {
+      return { url: await options.auth.handoff(token, body.url) };
+    } catch (error) {
+      request.log.warn({ err: error }, 'auth would not hand a sign-in to a browser');
+      return reply.code(502).send({ error: 'auth did not answer.' });
+    }
+  });
+
+  /**
    * Disconnects: every channel consulting your library stops, the grant is
    * revoked at noesis, and nothing of it is kept here.
    */

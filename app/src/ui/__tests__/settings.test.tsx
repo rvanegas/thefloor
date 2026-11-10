@@ -1355,11 +1355,14 @@ describe("noesis library", () => {
     const tree = await openSettings();
     expect(textOf(tree)).toContain("You have no library in noesis yet.");
     mockSheet.mockClear();
+    mockApp.noesisLink.mockResolvedValueOnce("https://auth.example/handoff?code=c1");
     await act(async () => {
       await findButton(tree, "Open noesis")!.props.onPress();
     });
-    // The person's own browser, as an app of its own, since 2026-11-10.
-    expect(open).toHaveBeenCalledWith("https://noesis.example/web/");
+    // The person's own browser, as an app of its own, signed in on the way
+    // through auth's handoff, since 2026-11-10.
+    expect(mockApp.noesisLink).toHaveBeenCalledWith("https://noesis.example/web/");
+    expect(open).toHaveBeenCalledWith("https://auth.example/handoff?code=c1");
     expect(mockSheet).not.toHaveBeenCalled();
     mockApp.loadNoesis.mockResolvedValue({
       available: true,

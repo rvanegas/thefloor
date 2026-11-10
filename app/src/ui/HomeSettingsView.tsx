@@ -28,7 +28,7 @@ import {
   SectionLabel,
 } from './components';
 import { CloseIcon } from './icons';
-import { openUrl } from './links';
+import { openNoesis } from './links';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 import type { LanguagePreference } from '../../../core/settings';
@@ -801,8 +801,8 @@ const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes
  * the default browser is, so a session there connects without a code, where
  * handing the URL to iOS opened the default browser, which may know nobody
  * (Chrome did, 2026-11-09). The sheet ends at the server's `thefloor://noesis`
- * and says how it went. *Open noesis* opens the browser itself (`openUrl`),
- * and a library made there shows when the app comes back to the front. On the web the sign-in still opens in a tab, closed
+ * and says how it went. *Open noesis* opens the browser itself, signed in on
+ * the way (`openNoesis`), and a library made there shows when the app comes back to the front. On the web the sign-in still opens in a tab, closed
  * by hand, and the status is read again whenever the app comes back to the
  * front; *Connecting…* lasts until then. Disconnect confirms, being the one direction that takes something
  * away from rooms other people are in.
@@ -906,7 +906,7 @@ function NoesisCard() {
             />
             <Text style={type.muted}>{t.noesisConnectedNote()}</Text>
             {view.web ? (
-              <Button label={t.noesisOpen()} onPress={() => void openUrl(view.web!, linkWords)} />
+              <Button label={t.noesisOpen()} onPress={() => void openNoesis(view.web!, linkWords, app.noesisLink)} />
             ) : null}
             {view.canSend === false ? (
               <>

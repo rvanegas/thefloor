@@ -413,6 +413,17 @@ Deliberately separate, so no single leak is worse than it has to be:
   and read and write every channel library. A rotation reaches noesis by
   itself, since noesis minted the secret.
 
+  **Since 2026-11-10 the pair also signs a person's own browser in to auth**
+  (`/me/noesis/handoff`, `AuthClient.handoff`): *Open noesis* opens noesis's
+  web client in the default browser, which shares no cookie with the sheet
+  they signed in through, so the server trades the pair *with* that person's
+  access token, issued to this client, for a one-use, one-minute link that
+  makes that browser's thirty-day session at auth. auth refuses either half
+  alone, so a leak of the pair signs in nobody whose grant the holder does
+  not also have, and the grants are sealed with a key derived from it (below)
+  — which means **a leak of the pair and the database together signs in
+  every connected person anywhere**, not just reads their libraries.
+
   **auth deletes accounts here the same way, with no secret**: when somebody
   deletes their account at auth.rvanegas.co, auth calls `DELETE /users/:user`
   (`server/src/app.ts`) with a token it signed as itself, scope

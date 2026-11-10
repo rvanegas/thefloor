@@ -340,6 +340,8 @@ export const mockApp = {
     mayChange: false,
   })),
   setChannelLibraryConsult: jest.fn(async (_channelId: string, _consult: boolean) => {}),
+  // The handoff link, which the tests that open noesis replace.
+  noesisLink: jest.fn(async (url: string) => url),
   connectNoesis: jest.fn(async (_returnTo: 'app' | 'web') => 'https://noesis.example/authorize?state=s'),
   disconnectNoesis: jest.fn(async () => {}),
   // No questions asked yet and a slot free, which is the state everybody is

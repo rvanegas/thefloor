@@ -519,8 +519,12 @@ describe('the library, a toggle per library', () => {
     const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
     await openLibrary({}, []);
     expect(textOf(tree)).toContain('You have no library in noesis yet.');
-    act(() => findButton(tree, 'Open noesis')!.props.onPress());
-    expect(open).toHaveBeenCalledWith('https://noesis.example/web/');
+    mockApp.noesisLink.mockResolvedValueOnce('https://auth.example/handoff?code=c1');
+    await act(async () => {
+      findButton(tree, 'Open noesis')!.props.onPress();
+    });
+    expect(mockApp.noesisLink).toHaveBeenCalledWith('https://noesis.example/web/');
+    expect(open).toHaveBeenCalledWith('https://auth.example/handoff?code=c1');
     mockApp.loadNoesis.mockResolvedValue({
       available: true,
       connected: true,
@@ -639,7 +643,11 @@ describe('the channel library', () => {
     const url = 'https://noesis.example/web/?library=thefloor%2Fbook-club-k3x9';
     await open({ on: true, url });
     const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-    act(() => findButton(tree, 'Open in noesis')!.props.onPress());
+    await act(async () => {
+      findButton(tree, 'Open in noesis')!.props.onPress();
+    });
+    // Where the server makes no handoff link, the URL itself.
+    expect(mockApp.noesisLink).toHaveBeenCalledWith(url);
     expect(opened).toHaveBeenCalledWith(url);
     opened.mockRestore();
   });
