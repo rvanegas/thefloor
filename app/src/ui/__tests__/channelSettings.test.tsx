@@ -523,13 +523,17 @@ describe('the library, a toggle per library', () => {
     open.mockRestore();
   });
 
-  it('offers no Open noesis while not connected', async () => {
-    await openLibrary({}, null);
+  it('is not drawn for somebody whose own library is not connected', async () => {
+    // Not even with somebody else's on: a card about libraries is nothing
+    // to somebody with none there, since 2026-11-09.
+    await openLibrary({ library: true, libraries: { [THEM]: ['dana/essays'] } }, null, true);
+    expect(textOf(tree)).not.toContain('Consulting Dana Chu’s library');
+    expect(toggle('Consult')).toBeUndefined();
     expect(findButton(tree, 'Open noesis')).toBeUndefined();
   });
 
   it('shows somebody else’s on as whose and which, with the one switch to stop theirs', async () => {
-    await openLibrary({ library: true, libraries: { [THEM]: ['dana/essays'] } }, null, true);
+    await openLibrary({ library: true, libraries: { [THEM]: ['dana/essays'] } }, []);
     expect(textOf(tree)).toContain('Consulting Dana Chu’s library: essays.');
     expect(toggle('essays')).toBeUndefined();
     act(() => toggle('Consult').props.onValueChange(false));
@@ -554,22 +558,29 @@ describe('the library, a toggle per library', () => {
       libraries: ['me/philosophy'],
     });
   });
-
-  it('points somebody without a library connected at Floor Settings', async () => {
-    await openLibrary({}, null, false);
-    expect(toggle('Consult').props.disabled).toBe(true);
-    expect(textOf(tree)).toContain('Connect your noesis library on Floor Settings');
-  });
 });
 
 type ChannelStateLike = typeof channel;
 
 describe('the channel library', () => {
   const none = mockApp.loadChannelLibrary.getMockImplementation()!;
-  afterEach(() => mockApp.loadChannelLibrary.mockImplementation(none));
+  const noLibrary = mockApp.loadNoesis.getMockImplementation()!;
+  afterEach(() => {
+    mockApp.loadChannelLibrary.mockImplementation(none);
+    mockApp.loadNoesis.mockImplementation(noLibrary);
+  });
 
-  async function open(view: { on: boolean; url: string | null; consult?: boolean | null; mayChange?: boolean }) {
+  /** The card, for a reader whose own noesis library is connected unless `connected` says not. */
+  async function open(
+    view: { on: boolean; url: string | null; consult?: boolean | null; mayChange?: boolean },
+    connected = true
+  ) {
     mockApp.loadChannelLibrary.mockImplementation(async () => ({ consult: null, mayChange: false, ...view }));
+    mockApp.loadNoesis.mockImplementation(async () =>
+      connected
+        ? ({ available: true, connected: true, user: 'me', email: null, libraries: [] } as never)
+        : { available: true, connected: false, user: undefined, email: undefined }
+    );
     tree = render(
       <ChannelSettingsView
         publicAt={null}
@@ -586,6 +597,12 @@ describe('the channel library', () => {
   it('is not drawn where the server files no transcripts', async () => {
     await open({ on: false, url: null });
     expect(textOf(tree)).not.toContain('Channel library');
+  });
+
+  it('is not drawn for somebody whose own library is not connected', async () => {
+    await open({ on: true, url: 'https://noesis.example/web/?library=thefloor%2Fbook-club-k3x9' }, false);
+    expect(textOf(tree)).not.toContain('Channel library');
+    expect(findButton(tree, 'Open in noesis')).toBeUndefined();
   });
 
   it('tells the members where their transcripts go, before there is a library', async () => {

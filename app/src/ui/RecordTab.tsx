@@ -180,10 +180,14 @@ export function RecordTab({
   const roomsHeld = React.useRef<RoomView[] | null>(null);
   roomsHeld.current = rooms;
   /**
-   * Your noesis libraries that Share may send a segment's text to: none
-   * unless this server offers libraries and yours is connected with sending
-   * granted. Asked once as the tab opens; an older server, or a failure, is none.
+   * Whether your noesis library is connected, which every noesis action in a
+   * segment's menu waits on — *Open in noesis* too, since 2026-11-09, the
+   * channel's library being one a member opens with their own sign-in there —
+   * and your libraries that *Send to noesis* may file into: none unless this
+   * server offers libraries and yours is connected with sending granted.
+   * Asked once as the tab opens; an older server, or a failure, is neither.
    */
+  const [connected, setConnected] = React.useState(false);
   const [libraries, setLibraries] = React.useState<readonly string[]>([]);
   React.useEffect(() => {
     const token = app.token;
@@ -192,7 +196,9 @@ export function RecordTab({
     api
       .noesis(token)
       .then((view) => {
-        if (current && view.available && view.connected && view.canSend) setLibraries(view.libraries ?? []);
+        if (!current || !view.available || !view.connected) return;
+        setConnected(true);
+        if (view.canSend) setLibraries(view.libraries ?? []);
       })
       .catch(() => {});
     return () => {
@@ -413,6 +419,7 @@ export function RecordTab({
               channelId={channelId}
               name={name}
               item={item}
+              connected={connected}
               libraries={libraries}
               manageable={manageable}
               renderRecording={renderRecording}
@@ -432,6 +439,7 @@ function Segment({
   channelId,
   name,
   item,
+  connected,
   libraries,
   manageable,
   renderRecording,
@@ -439,6 +447,7 @@ function Segment({
   channelId: string;
   name: string;
   item: SegmentItem;
+  connected: boolean;
   libraries: readonly string[];
   manageable: boolean;
   renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
@@ -453,6 +462,7 @@ function Segment({
         channelId={channelId}
         name={name}
         item={item}
+        connected={connected}
         libraries={libraries}
         manageable={manageable}
         renderRecording={renderRecording}
@@ -515,7 +525,8 @@ export function RoomLine({ room }: { room: RoomView }) {
  * noesis* under the line. Sharing asks no second question now — *Share
  * audio* and *Share text* are each an action — and an action the segment
  * cannot have is left out, save its audio while it is still being filed or
- * mixed, which is greyed. **It opens under the line rather than over the
+ * mixed, which is greyed. **noesis's two are left out for somebody whose
+ * library is not connected**, since 2026-11-09. **It opens under the line rather than over the
  * screen**, since the day after: a column of buttons the glyph opens and
  * closes, and *Send to noesis* asking which library the same way.
  */
@@ -523,6 +534,7 @@ export function SegmentLine({
   channelId,
   name,
   item,
+  connected = false,
   libraries = [],
   manageable = true,
   renderRecording,
@@ -532,6 +544,8 @@ export function SegmentLine({
   channelId: string;
   name: string;
   item: SegmentItem;
+  /** Whether your noesis library is connected; not, and the menu has nothing of noesis's. */
+  connected?: boolean;
   /** Your noesis libraries the menu may send the text to; none leaves it out. */
   libraries?: readonly string[];
   /** Whether you may delete its text; see `RecordTab`. */
@@ -553,8 +567,9 @@ export function SegmentLine({
   const audio = !!recording && !recording.mixing;
   // Pastes count: they are text, and are shared with the lines around them.
   const text = item.lines.length > 0 || item.pastes.length > 0;
-  const noesis = text && libraries.length > 0;
-  const filed = segment.filed?.url && isSafeUrl(segment.filed.url) ? segment.filed.url : null;
+  const noesis = connected && text && libraries.length > 0;
+  const filed =
+    connected && segment.filed?.url && isSafeUrl(segment.filed.url) ? segment.filed.url : null;
   const span = t.roomSpan(segment.startedAt, segment.endedAt);
   const kept =
     segment.recordingId !== null && (segment.text || recording?.transcript?.state === 'ready')
@@ -653,7 +668,15 @@ export function SegmentLine({
   // said in it. Its pastes are not its text, and are never deleted.
   const remove =
     segment.text && segment.endedAt !== null && item.lines.length > 0
-      ? [{ label: said.deleteText(), destructive: true, disabled: !manageable, onPress: removeText }]
+      ? [
+          {
+            label: said.deleteText(),
+            group: 'delete' as const,
+            destructive: true,
+            disabled: !manageable,
+            onPress: removeText,
+          },
+        ]
       : [];
 
   const menu: SegmentHead['menu'] = {
@@ -662,12 +685,27 @@ export function SegmentLine({
       // Greyed rather than left out while its recording is being filed or
       // mixed, both of which end on their own.
       ...(segment.recordingId !== null
-        ? [{ label: t.shareAudio(), disabled: !audio, onPress: () => void share('audio') }]
+        ? [
+            {
+              label: t.shareAudio(),
+              group: 'share' as const,
+              disabled: !audio,
+              onPress: () => void share('audio'),
+            },
+          ]
         : []),
-      ...(text ? [{ label: t.shareText(), onPress: () => void share('text') }] : []),
-      ...(noesis ? [{ label: t.sendToNoesis(), onPress: chooseLibrary }] : []),
+      ...(text
+        ? [{ label: t.shareText(), group: 'share' as const, onPress: () => void share('text') }]
+        : []),
+      ...(noesis ? [{ label: t.sendToNoesis(), group: 'noesis' as const, onPress: chooseLibrary }] : []),
       ...(filed
-        ? [{ label: t.openFiledInNoesis(), onPress: () => void openUrl(filed, linkWords) }]
+        ? [
+            {
+              label: t.openFiledInNoesis(),
+              group: 'noesis' as const,
+              onPress: () => void openUrl(filed, linkWords),
+            },
+          ]
         : []),
     ],
     remove,

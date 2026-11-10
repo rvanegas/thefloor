@@ -186,13 +186,15 @@ export function ChannelSettingsView({
   const library = channel.library ?? false;
   const mayChangeLibrary = view?.mayChangeLibrary ?? false;
   /**
-   * Your own libraries at noesis, for the toggles: read when the card is drawn,
-   * since a library made or deleted at noesis is news only noesis has. Null until
-   * read, and on a server that answers nothing.
+   * Your own libraries at noesis, for the toggles: read when the screen is
+   * drawn, since a library made or deleted at noesis is news only noesis has.
+   * Null until read, and on a server that answers nothing. **Whether you are
+   * connected decides whether either noesis card is drawn at all**, since
+   * 2026-11-09: neither is anything to somebody who has no library there.
    */
   const [noesis, setNoesis] = useState<NoesisView | null>(null);
+  const connected = !!noesis?.connected;
   useEffect(() => {
-    if (!view?.libraryAvailable) return;
     let cancelled = false;
     (async () => {
       try {
@@ -205,7 +207,7 @@ export function ChannelSettingsView({
     return () => {
       cancelled = true;
     };
-  }, [view?.libraryAvailable, app.token]);
+  }, [app.token]);
   /** The channel's own library at noesis; null until read, and on an older server. */
   const [channelLibrary, setChannelLibrary] = useState<ChannelLibraryView | null>(null);
   useEffect(() => {
@@ -615,15 +617,16 @@ export function ChannelSettingsView({
         the channel may know, and switchable only by the library's owner,
         which the server enforces; anybody else gets it grey with the sentence
         that says why. One `KeepSwitch`, as *Record automatically* draws its
-        pair. Drawn only where the server has a library and Claude to read it.
+        pair. Drawn only where the server has a library and Claude to read it,
+        and only for somebody whose own is connected, since 2026-11-09.
       */}
-      {view?.libraryAvailable ? (
+      {view?.libraryAvailable && connected ? (
         <LibraryCard
           channel={channel}
           me={app.me?.id ?? ''}
           nameOf={(id) => view.participants.find((p) => p.id === id)?.displayName ?? null}
-          mine={noesis?.connected ? (noesis.libraries ?? []) : null}
-          web={noesis?.connected ? (noesis.web ?? null) : null}
+          mine={noesis?.libraries ?? []}
+          web={noesis?.web ?? null}
           mayEdit={mayEdit}
           mayChangeLibrary={mayChangeLibrary}
           refusedWhy={community && !owner ? t.ownerOnly() : t.libraryStepIn()}
@@ -643,9 +646,11 @@ export function ChannelSettingsView({
         **The channel's own library at noesis, since 2026-11-07** — where every
         transcript made here goes by itself: no switch, so this card is how
         the members are told. Drawn wherever the server files them, with the
-        library opened in the browser once there is one.
+        library opened in the browser once there is one — for somebody whose
+        own library is connected, since 2026-11-09, which is also what the
+        channel files on: a Pro member connected.
       */}
-      {channelLibrary?.on ? (
+      {channelLibrary?.on && connected ? (
         <Card style={styles.stack}>
           <Text style={type.heading}>{t.channelLibrary()}</Text>
           <Text style={type.body}>{t.channelLibraryNote()}</Text>
@@ -971,10 +976,11 @@ const styles = StyleSheet.create({
  *
  * **Somebody else's on is a readout and one switch**: whose libraries, and
  * *Consult* to turn them all off — which anybody who may edit the channel
- * may do, since it withdraws rather than exposes. Not connected, and nobody's
- * on: the one switch, grey, with the sentence pointing at Floor Settings. A
- * library is named by what follows the owner in its id, the owner being the
- * same for every toggle.
+ * may do, since it withdraws rather than exposes. **Drawn only for somebody
+ * whose own library is connected**, since 2026-11-09, which retired the grey
+ * switch and the sentence pointing at Floor Settings that stood for anybody
+ * else. A library is named by what follows the owner in its id, the owner
+ * being the same for every toggle.
  *
  * ***Open noesis*, since 2026-11-07**, as on *Floor Settings*' noesis card and
  * on the same condition, connected: this is the other place somebody is
@@ -996,9 +1002,9 @@ function LibraryCard({
   me: string;
   /** Somebody's name as the room knows them, or null once they have left. */
   nameOf: (id: string) => string | null;
-  /** Your library ids at noesis, or null when you have none connected. */
-  mine: string[] | null;
-  /** noesis's web client, for *Open noesis*; null when not connected. */
+  /** Your library ids at noesis, the card being drawn only once yours is connected. */
+  mine: string[];
+  /** noesis's web client, for *Open noesis*; null from a server that does not say. */
   web: string | null;
   mayEdit: boolean;
   mayChangeLibrary: boolean;
@@ -1037,13 +1043,7 @@ function LibraryCard({
           </Text>
         </View>
       ))}
-      {mine === null ? (
-        theirs.length ? null : (
-          <View style={styles.autoSwitches}>
-            <KeepSwitch label={t.libraryConsult()} on={false} refused onChange={() => {}} />
-          </View>
-        )
-      ) : mine.length === 0 ? (
+      {mine.length === 0 ? (
         <Text style={type.body}>{t.libraryNoneYet()}</Text>
       ) : (
         <>
@@ -1064,11 +1064,7 @@ function LibraryCard({
         </>
       )}
       <Text style={type.muted}>{t.libraryNote()}</Text>
-      {mine === null && !mayChangeLibrary ? (
-        <Text style={type.muted}>{t.libraryWho()}</Text>
-      ) : !mayEdit ? (
-        <Text style={type.muted}>{refusedWhy}</Text>
-      ) : null}
+      {!mayEdit ? <Text style={type.muted}>{refusedWhy}</Text> : null}
       {web ? <Button label={home.noesisOpen()} onPress={() => void Linking.openURL(web)} /> : null}
     </Card>
   );

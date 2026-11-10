@@ -6,7 +6,7 @@ import renderer, {
 } from 'react-test-renderer';
 import { Alert, Text } from 'react-native';
 import type { RecordingView } from '../../../../core/protocol';
-import { Button, RecordingRow, Screen } from '../components';
+import { MenuRow, RecordingRow, Screen } from '../components';
 
 /**
  * A recording's transcript, from the menu that starts one. Its lines are
@@ -125,7 +125,7 @@ describe("a recording's menu, on its transcript", () => {
     });
     act(() => findButton(tree, 'Actions for')!.props.onPress());
     const menu = tree.root.findAll((n) => n.props?.accessibilityRole === 'menu')[0];
-    const buttons = menu.findAll((n) => n.type === Button);
+    const buttons = menu.findAll((n) => n.type === MenuRow);
     const inButtons = new Set(buttons.flatMap((b) => b.findAll(() => true)));
     const button = (label: string) => buttons.find((b) => b.props.label === label)!;
     return {

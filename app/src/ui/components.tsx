@@ -21,7 +21,7 @@ import { MAX_RECORDING_NAME_LENGTH } from '../../../core/constants';
 import type { RecordingView } from '../../../core/protocol';
 import { api } from '../api/http';
 import { useApp } from '../state/AppProvider';
-import { CheckIcon, MenuIcon, RecordingsIcon } from './icons';
+import { CheckIcon, MoreIcon, RecordingsIcon } from './icons';
 import { BodyHeightContext, segmentRowsFor, usePane } from './layout';
 import { offsetToReveal } from './reveal';
 import { colors, formatDuration, measure, radius, spacing, type } from './theme';
@@ -305,6 +305,12 @@ export interface MenuItem {
   disabled?: boolean;
   /** Red, for what cannot be undone; it still confirms on its own. */
   destructive?: boolean;
+  /**
+   * Which kind of act it is, a hairline drawn wherever the kind changes:
+   * listening, handing a copy elsewhere, noesis, changing it, destroying it.
+   * The caller orders the items; this only draws the seams between them.
+   */
+  group?: 'play' | 'share' | 'noesis' | 'edit' | 'delete';
 }
 
 /**
@@ -312,15 +318,26 @@ export interface MenuItem {
  * the *Record* tab, which were three things — a share glyph's sheet, a row of
  * wide buttons in the open segment, and *Open in noesis* under its line.
  *
- * **A column of buttons under the line, opened and closed by the glyph** —
- * part of the view, everywhere, rather than a sheet over it. It was iOS's
- * action sheet for its first day, which can grey an action and has a message
- * for why; Rodrigo asked for it in the page instead, a sheet taking the
- * screen away from the segment it is about. The column greys what is refused
- * with `notes` under it, the sentences saying why, as a disabled control is
- * accompanied everywhere else (STYLE.md § *Words on controls*). Returned as
- * two pieces, `button` for the line's end and `panel` for under it, since
- * only the caller knows where under it is. Choosing an action closes it.
+ * **A list under the line, opened and closed by the glyph** — part of the
+ * view, everywhere, rather than a sheet over it. It was iOS's action sheet
+ * for its first day, which can grey an action and has a message for why;
+ * Rodrigo asked for it in the page instead, a sheet taking the screen away
+ * from the segment it is about. The list greys what is refused with `notes`
+ * under it, the sentences saying why, as a disabled control is accompanied
+ * everywhere else (STYLE.md § *Words on controls*). Returned as two pieces,
+ * `button` for the line's end and `panel` for under it, since only the
+ * caller knows where under it is. Choosing an action closes it.
+ *
+ * **Rows on one surface, in groups, since 2026-11-09** (`MenuRow`), where it
+ * had been a column of full `Button`s: nine of those, a recording's whole
+ * menu, came to some 500 points — more than the log shows on a 375-point
+ * phone, so the segment it was about scrolled away under it. A row is 40,
+ * and a hairline between groups (`MenuItem.group`) says which acts are of a
+ * kind, which the column's even spacing could not.
+ *
+ * **The glyph is the ellipsis**, since 2026-11-09 — `lucide/menu`'s three
+ * bars for two days, which at the end of a row on iOS is the handle that
+ * drags it, and anywhere is the app's own menu rather than one item's.
  *
  * `busy`, while something it started is under way, is the word for what —
  * *Preparing…* — and greys the glyph, a screen reader hearing the word in
@@ -354,25 +371,28 @@ export function useActionMenu({
       onPress={() => setOpen(!open)}
       style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >
-      <MenuIcon color={available ? colors.text : colors.textFaint} />
+      <MoreIcon color={available ? colors.text : colors.textFaint} />
     </Pressable>
   );
 
   const panel =
     open && available ? (
-      <View accessibilityRole="menu" accessibilityLabel={label} style={styles.menuPanel}>
-        {items.map((item) => (
-          <Button
-            key={item.label}
-            label={item.label}
-            variant={item.destructive ? 'danger' : 'default'}
-            disabled={item.disabled}
-            onPress={() => {
-              setOpen(false);
-              item.onPress();
-            }}
-          />
-        ))}
+      <View accessibilityRole="menu" accessibilityLabel={label} style={styles.menuStack}>
+        <View style={styles.menuPanel}>
+          {items.map((item, index) => (
+            <MenuRow
+              key={item.label}
+              label={item.label}
+              destructive={item.destructive}
+              disabled={item.disabled}
+              seam={index > 0 && item.group !== items[index - 1].group}
+              onPress={() => {
+                setOpen(false);
+                item.onPress();
+              }}
+            />
+          ))}
+        </View>
         {notes.map((note) => (
           <Text key={note} style={type.muted}>
             {note}
@@ -382,6 +402,50 @@ export function useActionMenu({
     ) : null;
 
   return { button, panel };
+}
+
+/**
+ * One of `useActionMenu`'s actions: its word on the menu's surface, left
+ * aligned, in a `Button`'s 15-point `600` — `text`, `danger` where it cannot be
+ * undone, `textFaint` refused — with a hairline over it where its group
+ * begins (`seam`).
+ */
+export function MenuRow({
+  label,
+  onPress,
+  disabled,
+  destructive,
+  seam = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+  destructive?: boolean;
+  seam?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ disabled: !!disabled }}
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.menuRow,
+        seam ? styles.menuSeam : undefined,
+        pressed ? styles.pressed : undefined,
+      ]}
+    >
+      <Text
+        style={[
+          styles.buttonLabel,
+          { color: disabled ? colors.textFaint : destructive ? colors.danger : colors.text },
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
 }
 
 /**
@@ -1335,8 +1399,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pressed: { opacity: 0.7 },
-  /** `useActionMenu`'s column, where there is no action sheet. */
-  menuPanel: { gap: spacing(1) },
+  /** `useActionMenu`'s list and the notes under it. */
+  menuStack: { gap: spacing(1) },
+  /** The list's one surface, which the rows divide rather than each being a pill. */
+  menuPanel: {
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.md,
+    overflow: 'hidden',
+  },
+  menuRow: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingVertical: spacing(1),
+    paddingHorizontal: spacing(2),
+  },
+  /** Where a group begins: the border the card and the pinned bars use. */
+  menuSeam: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
   checkRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1551,7 +1632,9 @@ const styles = StyleSheet.create({
  *
  * **Its actions are the segment's menu since 2026-11-07** (`useActionMenu`):
  * Play, Rename, Transcribe and Delete join the segment's own — its audio, its
- * text, noesis — in one list. They were a column of wide buttons in the open
+ * text, noesis — in one list, in that order of groups. **Play is the
+ * caller's since 2026-11-09** (`onPlay`): it loads the recording into
+ * *Listen*, opens that tab, and starts it once it is there. They were a column of wide buttons in the open
  * row, under a share glyph offering the audio a second time. The sentences
  * that stood beside them saying why one is greyed are the menu's notes.
  *
@@ -1563,7 +1646,7 @@ const styles = StyleSheet.create({
 export function RecordingRow({
   recording,
   head,
-  playable = false,
+  onPlay,
   playDisabled = false,
   playDisabledReason,
   manageable = true,
@@ -1575,8 +1658,12 @@ export function RecordingRow({
    * the row and the lines under it together. See `SegmentLine`.
    */
   head: SegmentHead;
-  /** Whether this row can be played into the room. */
-  playable?: boolean;
+  /**
+   * *Play*, where this row can be played into the room: the caller loads it
+   * into *Listen* and takes you there, which this row, being on another tab,
+   * does not outlive. Absent, the menu has no Play.
+   */
+  onPlay?: () => void;
   /** Whoever holds the floor decides what plays, and this says when that is not you. */
   playDisabled?: boolean;
   playDisabledReason?: string;
@@ -1641,21 +1728,20 @@ export function RecordingRow({
 
   const transcript = transcriptActions(recording, manageable, run, t, said);
   const items: MenuItem[] = [
-    ...(playable
+    ...(onPlay
       ? [
           {
             label: t.play(),
+            group: 'play' as const,
             disabled: playDisabled || !!recording.mixing,
-            onPress: () =>
-              void run(t.loading(), t.couldNotPlay(), (token) =>
-                api.playRecording(token, recording.id)
-              ),
+            onPress: onPlay,
           },
         ]
       : []),
     ...head.menu.items,
     {
       label: t.rename(),
+      group: 'edit',
       disabled: !manageable,
       onPress: () => {
         // The field is taller than the name it replaces, and the keyboard
@@ -1668,13 +1754,16 @@ export function RecordingRow({
         setRenaming(true);
       },
     },
-    ...transcript.items.filter((item) => !item.destructive),
+    ...transcript.items
+      .filter((item) => !item.destructive)
+      .map((item) => ({ ...item, group: 'edit' as const })),
     // *Delete audio*, then *Delete text*, since 2026-11-07, when *Delete
     // recording* became the first: a segment is both, and either may go
     // alone. The text is the batch transcript's, or the segment's own where
     // it was kept live; only one of the two is ever offered.
     {
       label: t.deleteAudio(),
+      group: 'delete',
       destructive: true,
       disabled: !manageable,
       // Confirmed first, and the confirmation says what the week is for. This
@@ -1695,7 +1784,9 @@ export function RecordingRow({
           },
         ]),
     },
-    ...transcript.items.filter((item) => item.destructive),
+    ...transcript.items
+      .filter((item) => item.destructive)
+      .map((item) => ({ ...item, group: 'delete' as const })),
     ...(head.menu.remove ?? []),
   ];
   const notes = [
@@ -1703,7 +1794,7 @@ export function RecordingRow({
     // and deleting are about the row rather than the audio, so a recording
     // that has only just stopped is not one you can do nothing with.
     ...(recording.mixing ? [t.stillBeingPrepared()] : []),
-    ...(playable && playDisabled && playDisabledReason
+    ...(onPlay && playDisabled && playDisabledReason
       ? [t.playUnavailable(playDisabledReason)]
       : []),
     ...transcript.notes,

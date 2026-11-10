@@ -1290,6 +1290,7 @@ export function buildApp(options: BuildOptions = {}): App {
           handleFor: (id) => channels.handleFor(id),
           channel: (id) => channels.nameAndMembers(id),
           isPro: (id) => pro.isPro(id, now()),
+          connected: (id) => noesis?.connected(id) ?? false,
           displayName: (id) => accounts.byId(id)?.display_name ?? null,
           transcriptLines: (id) => transcripts.linesFor(id),
           now,

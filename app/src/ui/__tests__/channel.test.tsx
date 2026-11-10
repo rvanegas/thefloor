@@ -3143,6 +3143,48 @@ describe('Channel', () => {
     act(() => theirs.unmount());
   });
 
+  it('plays one in Listen: that tab at once, and the track started once it is loaded', async () => {
+    // Since 2026-11-09. It went into the room from the Record tab and was
+    // left there stopped, with nothing on that tab to say so.
+    const recording: RecordingView = {
+      id: 'rec_1',
+      channelId: 'sess_1',
+      name: 'Tuesday',
+      others: [{ id: THEM, displayName: 'Dana Chu' }],
+      startedAt: NOW - 60_000,
+      endedAt: NOW - 30_000,
+      durationMs: 30_000,
+    };
+    const { api } = require('../../api/http');
+    let loaded!: () => void;
+    const load = jest.spyOn(api, 'playRecording').mockImplementation(
+      (): Promise<unknown> =>
+        new Promise((resolve) => {
+          loaded = () => resolve({ track: { id: 't1', title: 'Tuesday', durationMs: 30_000 } });
+        })
+    );
+    showChannel(channelOf(), [recording]);
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+    showRecord(tree);
+    openMenu(tree).choose('Play');
+
+    // On Listen while it loads, saying so, and nothing played yet.
+    expect(load).toHaveBeenCalledWith('token', 'rec_1');
+    expect(textOf(tree)).toContain('Loading…');
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', { type: 'PLAY' });
+
+    await act(async () => loaded());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PLAY' });
+    expect(textOf(tree)).not.toContain('Loading…');
+    load.mockRestore();
+    act(() => tree.unmount());
+  });
+
   /**
    * The consent checkbox, which is offered to the people whose voice is in the
    * recording and to nobody else.

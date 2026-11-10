@@ -10,7 +10,7 @@ import { readableLines } from './transcripts';
  * filed into it by itself — task/a-channel-has-its-own-noesis-library.md.
  *
  * - **Made the first time a channel has a transcript to file** while somebody
- *   in it is Pro: the handle minted (`ChannelRegistry.handleFor`), and the
+ *   in it is Pro and has connected their own noesis library: the handle minted (`ChannelRegistry.handleFor`), and the
  *   library made at noesis, where The Floor is the owner and signs in with a
  *   token of its own from auth (`noesis:keep`, auth.ts). Nothing else makes one.
  * - **Each segment is one document**, its text as *Share* hands it
@@ -19,8 +19,11 @@ import { readableLines } from './transcripts';
  * - **When it is final**: a segment with *Text* a minute after it closes, the
  *   live lines having had time to land; one with *Audio* alone once its
  *   recording's transcript is ready, which somebody has to ask for.
- * - **A channel with no Pro member files nothing**, and what closed then is
- *   never filed later: it stops taking transcripts, and otherwise works.
+ * - **A channel with no Pro member who has connected their own library
+ *   files nothing**, since 2026-11-09 — any Pro member before — and what
+ *   closed then is never filed later: it stops taking transcripts, and
+ *   otherwise works. A member is shown the channel's library only once their
+ *   own is connected, so one that files is one at least somebody there sees.
  * - **Kept on the segment** (`segments.filed_at`), so a restart neither loses
  *   nor repeats one: null is owed, a time is filed, -1 was passed over, and 0
  *   is a segment from before this existed, never owed.
@@ -45,6 +48,8 @@ export interface ChannelLibrariesDeps {
   /** The channel's name and members, from the database; null for none, or one deleted. */
   channel(channelId: string): { name: string | null; participants: string[] } | null;
   isPro(accountId: string): boolean;
+  /** Whether the account has connected its own noesis library (noesis.ts). */
+  connected(accountId: string): boolean;
   displayName(accountId: string): string | null;
   /** A recording's batch transcript, as held. */
   transcriptLines(recordingId: string): TranscriptLine[];
@@ -123,7 +128,7 @@ export class ChannelLibraries {
       const final = row.text ? row.ended_at + SETTLE_MS <= now : row.transcript === 'ready';
       if (!final) continue;
       const channel = this.deps.channel(row.channel_id);
-      if (!channel || !channel.participants.some((id) => this.deps.isPro(id))) {
+      if (!channel || !channel.participants.some((id) => this.deps.isPro(id) && this.deps.connected(id))) {
         this.mark(row.id, -1);
         continue;
       }

@@ -475,16 +475,18 @@ export function TranscriptIcon({
 }
 
 /**
- * Three bars, the menu: a segment's actions in the *Record* tab, at the end
- * of its line, since 2026-11-07. `lucide/menu`.
+ * Three dots, *more*: a segment's actions in the *Record* tab, at the end of
+ * its line, since 2026-11-09. `lucide/ellipsis`, iOS's `ellipsis` — the
+ * glyph that says *what else can be done with this one*.
  *
- * It took the place of `lucide/share` — the arrow leaving a box open at the
- * top, iOS's own share glyph, here from 2026-10-09 — when a segment's
- * actions, which were that glyph's sheet, a row of wide buttons in the open
- * segment and *Open in noesis* under its line, became the one list. A share
- * glyph opening *Rename* and *Delete* would say less than what it opens.
+ * It was `lucide/menu`'s three bars from 2026-11-07, which at the end of a
+ * row is iOS's handle for dragging it, and anywhere is an app's own menu
+ * rather than one item's. Those had taken the place of `lucide/share`, iOS's
+ * share glyph, here from 2026-10-09, when a segment's actions became one
+ * list: a share glyph opening *Rename* and *Delete* would say less than what
+ * it opens.
  */
-export function MenuIcon({
+export function MoreIcon({
   color,
   size = 22,
 }: {
@@ -493,9 +495,9 @@ export function MenuIcon({
 }) {
   return (
     <Glyph color={color} size={size}>
-      <Path d="M4 5h16" />
-      <Path d="M4 12h16" />
-      <Path d="M4 19h16" />
+      <Circle cx="12" cy="12" r="1" />
+      <Circle cx="19" cy="12" r="1" />
+      <Circle cx="5" cy="12" r="1" />
     </Glyph>
   );
 }

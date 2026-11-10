@@ -68,6 +68,7 @@ import { isHere, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
+import { api } from '../api/http';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
@@ -277,6 +278,7 @@ export function ChannelView({
   const t = useText().channel;
   const namingWords = useText().naming;
   const linkWords = useText().links;
+  const recordingWords = useText().recordings;
   // Up here with the others, never inline below: there are early returns
   // between here and its use, and a hook after one changes the hook count
   // between a render without the channel and the next one with it.
@@ -335,6 +337,12 @@ export function ChannelView({
   } | null>(null);
   const uploading = upload !== null;
   const [uploadError, setUploadError] = useState<string | null>(null);
+  /**
+   * A recording being made ready to play from the *Record* tab's menu, which
+   * this card says while it is: the press has brought you here already, and
+   * the mix takes a moment to fetch.
+   */
+  const [preparingRecording, setPreparingRecording] = useState(false);
   /**
    * A copy of the track being fetched, which is a wait and not an upload.
    *
@@ -2175,6 +2183,29 @@ export function ChannelView({
     act({ type: 'PASTE_CLIP', text });
   };
 
+  /**
+   * A recording's *Play*, since 2026-11-09: loaded as the channel's track,
+   * which is what *Listen* plays — so this opens that tab at once, and
+   * starts it the moment the server has it. Until then it went into the room
+   * from the *Record* tab and was left there stopped, with nothing on that
+   * tab to say so or to start it.
+   */
+  const playRecording = async (recordingId: string) => {
+    if (!app.token || preparingRecording) return;
+    chooseTab('listen');
+    setPreparingRecording(true);
+    try {
+      await api.playRecording(app.token, recordingId);
+      // The load is done once the request answers, the server having set
+      // the track before it did, so this Play reaches it after it.
+      act({ type: 'PLAY' });
+    } catch (e) {
+      Alert.alert(recordingWords.couldNotPlay(), e instanceof Error ? e.message : String(e));
+    } finally {
+      setPreparingRecording(false);
+    }
+  };
+
   const loadTrack = async () => {
     setUploadError(null);
     setUpload({ percent: null, cancel: null });
@@ -3768,6 +3799,7 @@ export function ChannelView({
             </Text>
           ) : null}
           {uploadError ? <Text style={styles.warning}>{uploadError}</Text> : null}
+          {preparingRecording ? <Text style={type.muted}>{recordingWords.loading()}</Text> : null}
 
           {track ? (
             <>
@@ -3975,8 +4007,8 @@ export function ChannelView({
               // Playing one loads it as the channel's shared track, so it is
               // governed by exactly what governs a track somebody uploaded —
               // including the floor-holder's say over what plays.
-              playable
-              playDisabled={!mayControlPlayback}
+              onPlay={() => void playRecording(r.id)}
+              playDisabled={!mayControlPlayback || preparingRecording}
               playDisabledReason={
                 ownersAlone
                   ? t.ownerDecidesWhatPlaysShort()

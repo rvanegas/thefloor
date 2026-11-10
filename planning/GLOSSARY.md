@@ -36,7 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
-- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro*, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro nothing new goes in. Told on *Channel Settings*' card, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis*. Deleted a week after the channel is. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
+- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro* and has connected their own *library* — since 2026-11-09; Pro alone before —, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro and connected nothing new goes in. Told on *Channel Settings*' card, to a member whose own library is connected, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis* to a member whose own library is connected. Deleted a week after the channel is. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
@@ -136,7 +136,7 @@ caused; the list carries the meaning.
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a *Pro* account chose otherwise; shown to every member, changeable only by *Pro*. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by *Pro*. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown to every member where the server offers libraries, switched on only by somebody with one connected, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, with *Send to noesis*
+- **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown, since 2026-11-09, only to a member whose own is connected — to every member before — where the server offers libraries, switched on only by somebody with one connected, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, with *Send to noesis*
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up — except where noesis decides it — wherever The Floor's noesis client is configured — when it is their noesis user name too; and **fixed, with the address, while a noesis library is connected**
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
@@ -220,7 +220,7 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
-- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, with every action on it and its recording in one menu at the line's end since 2026-11-07. The user's word, not drawn on screen, where a segment is named by its hours — and once filed in the *channel library*, since 2026-11-07, by the title noesis gave it there too, under them. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
+- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, with every action on it and its recording in one menu at the line's end since 2026-11-07, behind the ellipsis and in groups since 2026-11-09; its *Play* loads the recording into *Listen*, opens that tab and starts it. The user's word, not drawn on screen, where a segment is named by its hours — and once filed in the *channel library*, since 2026-11-07, by the title noesis gave it there too, under them. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
 - **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in, holding one *segment* or more. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — being reachable, by push or by email, being the other — and deliberately **not** the *island* of `ts growth`, which walks accepted edges alone
@@ -310,14 +310,18 @@ plane's word for the audio underneath a channel and is a different thing.
 *library*, which is one person's own writing that they let a channel consult.
 Every transcript the channel makes goes into it by itself, one document per
 *segment*, with no switch; it is made at noesis with the first of them while
-somebody in the channel is *Pro*, under the channel's *handle*,
+somebody in the channel is *Pro* **and has connected their own library**,
+since 2026-11-09 — Pro alone before —, under the channel's *handle*,
 `thefloor/<handle>`. **Every member opens it and nobody else does** — not a
 *guest*, whatever their seat — because noesis asks The Floor who the members
 are each time rather than being told. **Its Pro members pay**, divided among
-them; while none is, the channel stops taking transcripts and otherwise works,
-and what was said meanwhile never goes in later. There being no switch, the
-members are told on *Channel Settings*' *Channel library* card, which opens it
-in the browser with *Open in noesis* once it exists. **Ask Claude consults
+them; while none of them has connected their own library, the channel stops
+taking transcripts and otherwise works, and what was said meanwhile never
+goes in later. There being no switch, the members are told on *Channel
+Settings*' *Channel library* card, which opens it in the browser with *Open
+in noesis* once it exists — **drawn only for a member whose own library is
+connected**, since 2026-11-09, as is the *Library* card above it: somebody
+with nothing at noesis has nothing there to open. **Ask Claude consults
 it**, on *Pro* and *Max* as a library, by a token noesis confines to it —
 needing nobody's connection — unless *Claude consults it* on the card is
 switched off, by anybody who may edit the channel; Claude is told it holds the
@@ -1550,10 +1554,14 @@ in the channel. **Which of their libraries is a toggle each**, since
 of them, and each toggle is consent for that one library in that room.
 **Several people's at once**, also since 2026-11-01: each owner's consent is
 their own, and a press hands Claude a server per owner and says whose each is.
-`ChannelState.library` is on while anybody's is. Shown to every member, since what a reply
-may quote is something everybody in the channel may know; switched on only by
-a library's owner, since that is consent to their writing reaching the room's
-*Record*, and off by anybody who may edit the channel — one owner's, or
+`ChannelState.library` is on while anybody's is. Shown to every member
+until 2026-11-09, since what a reply may quote is something everybody in the
+channel may know; **since then only to a member whose own library is
+connected**, Rodrigo's call that a card about noesis is nothing to somebody
+with nothing there — so what a reply may quote is no longer told on this
+screen to anybody else. Switched on only by a library's owner, since that is
+consent to their writing reaching the room's *Record*, and off by anybody
+who may edit the channel and has their own connected — one owner's, or
 everybody's — which withdraws rather than exposes. Disconnecting, or deleting
 the account, stops that person's in every channel and leaves anybody else's.
 A reply that draws on it names the piece, and whose it is, in plain words.
@@ -2787,14 +2795,23 @@ tab opens at its foot.
 **A sequence of segments, since 2026-10-10.** Each *segment* — a stretch
 kept one way throughout — is one muted line: the record dot where it kept
 audio and a ring where it did not, its hours, what it kept (*Audio*, *Text*,
-*Audio + Text*), and the menu glyph, with its text under it. A segment with
+*Audio + Text*), and the menu glyph — the ellipsis since 2026-11-09, three
+bars for two days before —, with its text under it. A segment with
 audio is its recording's line, and opened to that recording's name until
 2026-11-07, when the name — the channel's unless renamed — stopped being
 drawn. **Every
 action is in the menu since 2026-11-07** — *Share audio*, *Share text*,
 *Send to noesis*, *Open in noesis*, and a recording's *Play*, *Rename*,
-*Transcribe* and *Delete audio*, then *Delete text* — a column of buttons the glyph opens
-under the line, in the view rather than as a sheet over it. **A segment's
+*Transcribe* and *Delete audio*, then *Delete text* — a list the glyph opens
+under the line, in the view rather than as a sheet over it: rows on one
+surface since 2026-11-09, a hairline between its groups — play, share,
+noesis, edit, delete —, where it had been a column of full buttons taller
+than a phone shows. **noesis's two are offered only to somebody whose own
+library is connected**, since 2026-11-09. **And *Play* plays in *Listen***,
+since the same day: it opens that tab at once, saying *Loading…* there
+while the recording becomes the channel's track, and starts it once it
+has. Until then it loaded the track and left it stopped, out of sight on
+another tab. **A segment's
 audio and its text are deleted apart since 2026-11-07**: *Delete recording*
 became *Delete audio*, and *Delete text* takes the batch transcript or, where
 the text was kept live, its lines — offered once the segment has finished and

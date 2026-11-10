@@ -12,8 +12,8 @@ import { AUTH_ORIGIN, OWN_TOKEN, fakeAuth } from '../__stubs__/fakeAuth';
  *
  * - A text segment is filed a minute after it closes, as *Share*'s text, into
  *   a library made the first time — once.
- * - Nothing is filed for a channel with nobody Pro, and what closed then is
- *   never filed later.
+ * - Nothing is filed for a channel with nobody Pro and connected to their own
+ *   noesis library, and what closed then is never filed later.
  * - noesis failing leaves it owed, and it is filed at the next sweep.
  * - An audio segment waits for its transcript.
  * - Segments from before the column are never owed.
@@ -64,6 +64,16 @@ beforeEach(() => {
     now: () => clock,
     names: NAMES,
     channelLibraries: NOESIS,
+    // Each account's own library, which a channel needs a Pro member to have
+    // connected before it files anything (`connect`).
+    library: {
+      url: 'https://noesis.example/mcp',
+      authUrl: AUTH_ORIGIN,
+      clientId: 'thefloor',
+      clientSecret: SECRET,
+      callbackUrl: 'https://floor.example/noesis/callback',
+      fetch: fakeNoesis,
+    },
   });
 });
 
@@ -105,6 +115,25 @@ function makePro(accountId: string) {
     .run(`t-${accountId}`, accountId, START + 30 * 86_400_000, `t-${accountId}`, clock);
 }
 
+/**
+ * The account's own noesis library, connected: the row the callback writes,
+ * which is all that being connected is asked of here.
+ */
+function connect(accountId: string) {
+  app.db
+    .prepare(
+      `INSERT INTO noesis_connections (account_id, noesis_user, refresh_token, connected_at)
+       VALUES (?, 'erta', 'sealed', ?)`
+    )
+    .run(accountId, clock);
+}
+
+/** Pro, and connected: what a channel needs one member to be to file. */
+function makeFiling(accountId: string) {
+  makePro(accountId);
+  connect(accountId);
+}
+
 const START = Date.UTC(2026, 10, 7, 14, 5);
 
 /** A closed text segment with two lines of Erta's and a paste of Claude's. */
@@ -132,7 +161,7 @@ const filedAt = (id: string) =>
 describe('a channel library, filed into by itself', () => {
   it('files a text segment a minute after it closes, into a library made once', async () => {
     const { channelId, ertaId } = await bookClub();
-    makePro(ertaId);
+    makeFiling(ertaId);
     textSegment(channelId);
     clock = START + 45 * 60_000 + SETTLE_MS - 1;
     await app.channelLibraries!.sweep();
@@ -177,14 +206,25 @@ describe('a channel library, filed into by itself', () => {
     expect(filedAt('seg_1')).toBe(-1);
     expect(app.channels.handleOf(channelId)).toBeNull();
 
-    makePro(ertaId);
+    makeFiling(ertaId);
     await app.channelLibraries!.sweep();
     expect(sent).toEqual([]);
   });
 
-  it('leaves a segment owed while noesis cannot take it', async () => {
+  it('files nothing for a channel whose Pro member has not connected their library', async () => {
     const { channelId, ertaId } = await bookClub();
     makePro(ertaId);
+    textSegment(channelId);
+    clock = START + 2 * 3_600_000;
+    await app.channelLibraries!.sweep();
+    expect(sent).toEqual([]);
+    expect(filedAt('seg_1')).toBe(-1);
+    expect(app.channels.handleOf(channelId)).toBeNull();
+  });
+
+  it('leaves a segment owed while noesis cannot take it', async () => {
+    const { channelId, ertaId } = await bookClub();
+    makeFiling(ertaId);
     textSegment(channelId);
     clock = START + 2 * 3_600_000;
     noesisDown = true;
@@ -197,7 +237,7 @@ describe('a channel library, filed into by itself', () => {
 
   it('files an audio segment once its transcript is ready', async () => {
     const { channelId, ertaId } = await bookClub();
-    makePro(ertaId);
+    makeFiling(ertaId);
     app.db
       .prepare(
         `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id, participants, started_at,
@@ -214,6 +254,7 @@ describe('a channel library, filed into by itself', () => {
         handleFor: (id) => app.channels.handleFor(id),
         channel: (id) => app.channels.nameAndMembers(id),
         isPro: () => true,
+        connected: () => true,
         displayName: () => 'Erta Example',
         transcriptLines: () => [
           { identity: ertaId, startMs: 30_000, endMs: 31_000, text: 'Recorded.', confidence: null },
@@ -244,7 +285,7 @@ describe('deleting what a channel library holds, thirty days on', () => {
 
   async function filed() {
     const { channelId, ertaId } = await bookClub();
-    makePro(ertaId);
+    makeFiling(ertaId);
     textSegment(channelId);
     clock = START + 2 * 3_600_000;
     await app.channelLibraries!.sweep();
@@ -365,7 +406,7 @@ describe('deleting what a channel library holds, thirty days on', () => {
 
   it("tells the channel when a segment is filed, so the Record fetches again for its title", async () => {
     const { channelId, ertaId } = await bookClub();
-    makePro(ertaId);
+    makeFiling(ertaId);
     textSegment(channelId);
     expect(app.channels.lastFiledAt(channelId)).toBeNull();
     const told: string[][] = [];
@@ -406,7 +447,7 @@ describe("Channel Settings' card", () => {
       app.fastify.inject({ method: 'GET', url: `/channels/${channelId}/noesis-library`, headers });
     expect((await card(erta)).json()).toMatchObject({ on: true, url: null });
 
-    makePro(ertaId);
+    makeFiling(ertaId);
     textSegment(channelId);
     clock = START + 2 * 3_600_000;
     await app.channelLibraries!.sweep();

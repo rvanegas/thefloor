@@ -860,7 +860,6 @@ export const es: Strings = {
     // *Dueño*, as for a community's owner: see `ownerSuffix`.
     libraryNote: () =>
       'Si está activada, Claude puede apoyarse en los escritos del dueño de cada biblioteca al responder, y nombra cualquier texto que cite y de quién es. Se aplica en Pro y Max, a quien pregunte a Claude.',
-    libraryWho: () => 'Conecta tu biblioteca de noesis en Ajustes de The Floor para ofrecerla aquí.',
     libraryChoose: () =>
       'Activa las bibliotecas que Claude puede consultar aquí. Cada una que actives es tu consentimiento para que sus escritos lleguen al Grabado de este canal.',
     libraryNoneYet: () => 'Todavía no tienes ninguna biblioteca en noesis. Crea una allí y aparecerá aquí.',

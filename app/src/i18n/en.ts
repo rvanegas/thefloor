@@ -1130,16 +1130,14 @@ export const en = {
     modelWho: () => 'Only somebody subscribed to Pro can change it.',
     /**
      * Whether *Ask Claude* may consult the server's library, since
-     * 2026-10-27: drawn for everybody, greyed with `libraryWho` for anybody
-     * but the library's owner. A *library* of writing, not the app's own
-     * recordings; see GLOSSARY.md.
+     * 2026-10-27: drawn, since 2026-11-09, only for somebody whose own is
+     * connected. A *library* of writing, not the app's own recordings; see
+     * GLOSSARY.md.
      */
     library: () => 'Library',
     libraryConsult: () => 'Consult',
     libraryNote: () =>
       'When on, Claude may draw on each library owner’s own writing while it answers, and names any piece it quotes and whose it is. It applies on Pro and Max, to whoever asks Claude.',
-    /** Since 2026-11-01, when each account began connecting its own library. */
-    libraryWho: () => 'Connect your noesis library on Floor Settings to offer it here.',
     /** The toggles, one per library of yours: each is consent for that one. */
     libraryChoose: () =>
       'Turn on the libraries Claude may consult here. Each one you turn on is your consent to its writing reaching this channel’s Record.',

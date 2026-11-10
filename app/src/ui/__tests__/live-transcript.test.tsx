@@ -431,7 +431,18 @@ describe('rooms on the Record tab', () => {
         ]),
       ],
     } as never);
-    const tree = render(screen());
+    // Not connected to noesis: the title, and nothing of noesis's in the menu.
+    let tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+    expect(textOf(tree).match(/Bach Reads Kant/g)).toHaveLength(1);
+    expect(openMenu(tree, 0).options).toEqual(['Share text', 'Delete text']);
+    act(() => tree.unmount());
+
+    const noesis = jest
+      .spyOn(api, 'noesis')
+      .mockResolvedValue({ available: true, connected: true, canSend: false, libraries: [] });
+    tree = render(screen());
     showTab(tree, 'Record');
     await settle();
 
@@ -446,6 +457,7 @@ describe('rooms on the Record tab', () => {
     await settle();
     expect(opened).toHaveBeenCalledWith(url);
     opened.mockRestore();
+    noesis.mockRestore();
     act(() => tree.unmount());
   });
 

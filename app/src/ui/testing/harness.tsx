@@ -651,7 +651,7 @@ export function openMenu(tree: ReactTestRenderer, which = 0): OpenedMenu {
       .join('\n'),
     options: buttons().map((b) => b.props.label),
     disabled: (label) => !!button(label).props.disabled,
-    destructive: (label) => button(label).props.variant === 'danger',
+    destructive: (label) => !!button(label).props.destructive,
     choose: (label) => {
       const pressed = button(label);
       if (pressed.props.disabled) throw new Error(`"${label}" is greyed`);

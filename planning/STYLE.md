@@ -632,9 +632,12 @@ platform's grey and its word goes to `textFaint`.
 
 **One alone on *Channel Settings*' *Library* card, since 2026-10-27**:
 *Consult*, under *Response model*, the same `KeepSwitch` in the same row
-style as *Record automatically*'s pair. Drawn for everybody where the server
-has a library, refused — the platform's grey, its word `textFaint` — for
-anybody but the library's owner, with the sentence that says so under it.
+style as *Record automatically*'s pair. Drawn where the server has a
+library, refused — the platform's grey, its word `textFaint` — for anybody
+but the library's owner, with the sentence that says so under it; and since
+2026-11-09 drawn only for somebody whose own library is connected, as the
+*Channel library* card under it is, which retired the grey switch shown to
+anybody else.
 
 **A third under the pair, since 2026-10-16**: *Several voices on my
 microphone*, the same `KeepSwitch` on a line of its own under the row — a
@@ -1363,12 +1366,20 @@ open, it is its lines — and until 2026-11-07, for one with audio, its
 recording's name above them, which unless renamed was the channel's and
 said again what the header over the screen says. Segments start closed
 except the one still being kept, so talk arriving is seen arriving. **Every
-action on a segment is one menu since 2026-11-07**: the menu glyph at the
-header's end, where the share glyph was, opening a column of `Button`s under
-the line and closing it again — in the view, never a sheet over it — with
-*Share audio*, *Share text*, *Send to noesis*, *Open in noesis*, and a
-recording's *Play*, *Rename*, *Transcribe*, *Delete audio* and *Delete text* (the two destructive ones last), greyed
-where refused with the sentences saying why under them (`useActionMenu`).
+action on a segment is one menu since 2026-11-07**: the ellipsis at the
+header's end, where the share glyph was, opening a list under the line and
+closing it again — in the view, never a sheet over it — with a recording's
+*Play*, then *Share audio*, *Share text*, *Send to noesis*, *Open in
+noesis*, then *Rename* and *Transcribe*, then *Delete audio* and *Delete
+text*, greyed where refused with the sentences saying why under them
+(`useActionMenu`). **Rows on one `surfaceRaised` surface at `radius.md`**,
+since 2026-11-09 (`MenuRow`): each 40 points, its word at the left in a
+`Button`'s 15-point `600` — `text`, `danger` for the destructive pair,
+`textFaint` refused — and a hairline in `border` where a group begins
+(`MenuItem.group`: play, share, noesis, edit, delete). It had been a column
+of full `Button`s, which for a recording's nine came to some 500 points,
+more than the log shows on a 375-point phone. noesis's two are left out for
+somebody whose own library is not connected.
 On iOS it was the action sheet for its first day, until Rodrigo asked for it
 in the page, since a sheet takes the screen away from the segment. They
 had been three forms — the share glyph's sheet, a column of wide buttons in
@@ -1648,13 +1659,16 @@ the copy.
   the recording transport's buttons until 2026-10-09, when they became
   switches with words and their glyphs (`lucide/pause`, `lucide/square`) left
   this file. The word survives as the accessibility label. See § *Button*.
-- **A segment's menu, since 2026-11-07**, which is `lucide/menu`'s three bars
-  alone at the end of the segment's line, in `text`, `textFaint` while there
-  is nothing in it to press. It took the share glyph's place there — the
-  share was the room's from 2026-10-09 and each segment's from the next day —
-  when a segment's actions became one list, since a share glyph opening
-  *Rename* and *Delete audio* would say less than what it opens. Its
-  accessible name is *Actions for* the segment's hours.
+- **A segment's menu, since 2026-11-07**, which is `lucide/ellipsis`'s three
+  dots since 2026-11-09 (`MoreIcon`), alone at the end of the segment's
+  line, in `text`, `textFaint` while there is nothing in it to press. It was
+  `lucide/menu`'s three bars for two days, which at the end of a row is
+  iOS's handle for dragging it, and anywhere is an app's own menu rather
+  than one item's. Those took the share glyph's place there — the share was
+  the room's from 2026-10-09 and each segment's from the next day — when a
+  segment's actions became one list, since a share glyph opening *Rename*
+  and *Delete audio* would say less than what it opens. Its accessible name
+  is *Actions for* the segment's hours.
 - **The *Invite card*, since 2026-10-16**, is *Add a contact*'s row on the
   People tab, the `+` and its word in the floor's colour, and so the third
   place that shape stands for *make something new* — the two existing ones
@@ -1770,7 +1784,7 @@ rules.
   custom modal dialogs and no `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
   **And no action sheets: a menu opens in the view.** A segment's actions
-  (`useActionMenu`) are a column of buttons the glyph opens under its line
+  (`useActionMenu`) are a list of rows the glyph opens under its line
   and closes, the refused ones greyed with their sentences under them, and
   *Send to noesis* asks which library the same way, of somebody with
   several. iOS's action sheet asked a room's share, *Audio* or *Text*, from
