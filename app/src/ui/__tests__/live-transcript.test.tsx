@@ -33,6 +33,11 @@ jest.mock('../../api/upload', () => require('../testing/harness').uploadMock());
 jest.mock('../../state/AppProvider', () =>
   require('../testing/harness').appProviderMock()
 );
+/** The system sheet that *Open in noesis* opens (links.ts's `openNoesis`). */
+const mockSheet = jest.fn(async (_url: string, _back: string) => ({ type: 'cancel' }));
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: (url: string, back: string) => mockSheet(url, back),
+}));
 
 /**
  * The live transcript on the app's side: the tab that holds it, the pill that
@@ -455,7 +460,9 @@ describe('rooms on the Record tab', () => {
     expect(menuGlyphs(tree)[1].props.accessibilityState.disabled).toBe(true);
     openMenu(tree, 0).choose('Open in noesis');
     await settle();
-    expect(opened).toHaveBeenCalledWith(url);
+    // In the system sheet, whose session at auth signs them in to noesis too.
+    expect(mockSheet).toHaveBeenCalledWith(url, 'thefloor://noesis');
+    expect(opened).not.toHaveBeenCalled();
     opened.mockRestore();
     noesis.mockRestore();
     act(() => tree.unmount());

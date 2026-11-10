@@ -46,7 +46,7 @@ import {
   type MenuItem,
 } from './components';
 import { ClipboardIcon, PauseIcon, RecordingsIcon, StopIcon } from './icons';
-import { isSafeUrl, openUrl } from './links';
+import { isSafeUrl, openNoesis, openUrl } from './links';
 import { colors, formatDuration, measure, spacing, type } from './theme';
 
 /**
@@ -703,7 +703,7 @@ export function SegmentLine({
             {
               label: t.openFiledInNoesis(),
               group: 'noesis' as const,
-              onPress: () => void openUrl(filed, linkWords),
+              onPress: () => void openNoesis(filed, linkWords),
             },
           ]
         : []),

@@ -1,4 +1,5 @@
-import { Alert, Linking } from 'react-native';
+import * as WebBrowser from 'expo-web-browser';
+import { Alert, Linking, Platform } from 'react-native';
 import type { Strings } from '../i18n';
 
 /**
@@ -55,6 +56,26 @@ export async function openUrl(
   } catch {
     // Nothing in the app can fix this, and failing silently would look like a
     // dead link rather than a refusal by the OS.
+    Alert.alert(words.couldNotOpenLink(), url);
+  }
+}
+
+/**
+ * Opens noesis's web client — the list of somebody's libraries, one library,
+ * or a file filed there — in the system sheet on a phone, since 2026-11-09,
+ * as *Connect* and signing in do. The sheet shares Safari's cookies whatever
+ * the default browser is, so the session at auth that signed somebody in to
+ * The Floor signs them in to noesis too; the default browser may know nobody
+ * (Chrome did) and asked for an address and a code — most of all of somebody
+ * just signed in with no library yet, whom *Make one there* sends straight
+ * to it. noesis never sends the sheet back to the app, so it closes by its own
+ * button. On the web, a tab in the same browser, whose session it shares.
+ */
+export async function openNoesis(url: string, words: Strings['links']): Promise<void> {
+  if (Platform.OS === 'web') return openUrl(url, words);
+  try {
+    await WebBrowser.openAuthSessionAsync(url, 'thefloor://noesis');
+  } catch {
     Alert.alert(words.couldNotOpenLink(), url);
   }
 }

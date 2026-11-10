@@ -28,6 +28,7 @@ import {
   SectionLabel,
 } from './components';
 import { CloseIcon } from './icons';
+import { openNoesis } from './links';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 import type { LanguagePreference } from '../../../core/settings';
@@ -800,7 +801,9 @@ const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes
  * the default browser is, so a session there connects without a code, where
  * handing the URL to iOS opened the default browser, which may know nobody
  * (Chrome did, 2026-11-09). The sheet ends at the server's `thefloor://noesis`
- * and says how it went. On the web the sign-in still opens in a tab, closed
+ * and says how it went. *Open noesis* opens there too, for the same session
+ * (`openNoesis`), which matters most to somebody just signed in with no
+ * library yet, sent to noesis to make one. On the web the sign-in still opens in a tab, closed
  * by hand, and the status is read again whenever the app comes back to the
  * front; *Connecting…* lasts until then. Disconnect confirms, being the one direction that takes something
  * away from rooms other people are in.
@@ -808,6 +811,7 @@ const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes
 function NoesisCard() {
   const app = useApp();
   const t = useText().homeSettings;
+  const linkWords = useText().links;
   const [view, setView] = useState<NoesisView | null>(null);
   const [busy, setBusy] = useState<'connecting' | 'disconnecting' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -861,6 +865,16 @@ function NoesisCard() {
     }
   };
 
+  /** noesis in the system sheet (`openNoesis`), and the card read again once it closes, for a library made there. */
+  const openYours = async (url: string) => {
+    await openNoesis(url, linkWords);
+    try {
+      setView(await app.loadNoesis());
+    } catch {
+      // The card stays as it was.
+    }
+  };
+
   const disconnect = () =>
     Alert.alert(t.noesisDisconnectAsk(), t.noesisDisconnectBody(), [
       { text: t.cancel(), style: 'cancel' },
@@ -903,7 +917,7 @@ function NoesisCard() {
             />
             <Text style={type.muted}>{t.noesisConnectedNote()}</Text>
             {view.web ? (
-              <Button label={t.noesisOpen()} onPress={() => void Linking.openURL(view.web!)} />
+              <Button label={t.noesisOpen()} onPress={() => void openYours(view.web!)} />
             ) : null}
             {view.canSend === false ? (
               <>

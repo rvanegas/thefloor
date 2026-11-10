@@ -28,6 +28,11 @@ jest.mock('../../api/upload', () => require('../testing/harness').uploadMock());
 jest.mock('../../state/AppProvider', () =>
   require('../testing/harness').appProviderMock()
 );
+/** The system sheet that *Open noesis* opens (links.ts's `openNoesis`). */
+const mockSheet = jest.fn(async (_url: string, _back: string) => ({ type: 'cancel' }));
+jest.mock('expo-web-browser', () => ({
+  openAuthSessionAsync: (url: string, back: string) => mockSheet(url, back),
+}));
 
 /**
  * What this screen concludes from a dispatch, which until 2026-09-16 was more
@@ -515,11 +520,22 @@ describe('the library, a toggle per library', () => {
     });
   });
 
-  it('opens noesis in the browser, once connected', async () => {
+  it('opens noesis in the system sheet, once connected, and shows a library made there', async () => {
     const open = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-    await openLibrary({}, ['me/notes']);
-    act(() => findButton(tree, 'Open noesis')!.props.onPress());
-    expect(open).toHaveBeenCalledWith('https://noesis.example/web/');
+    await openLibrary({}, []);
+    expect(textOf(tree)).toContain('You have no library in noesis yet.');
+    mockApp.loadNoesis.mockResolvedValue({
+      available: true,
+      connected: true,
+      libraries: ['me/notes'],
+      web: 'https://noesis.example/web/',
+    } as never);
+    await act(async () => {
+      findButton(tree, 'Open noesis')!.props.onPress();
+    });
+    expect(mockSheet).toHaveBeenCalledWith('https://noesis.example/web/', 'thefloor://noesis');
+    expect(open).not.toHaveBeenCalled();
+    expect(toggle('notes')).toBeDefined();
     open.mockRestore();
   });
 
@@ -623,12 +639,15 @@ describe('the channel library', () => {
     expect(mockApp.setChannelLibraryConsult).toHaveBeenCalledWith(channel.id, false);
   });
 
-  it('opens the library in the browser once there is one', async () => {
+  it('opens the library in the system sheet once there is one', async () => {
     const url = 'https://noesis.example/web/?library=thefloor%2Fbook-club-k3x9';
     await open({ on: true, url });
     const opened = jest.spyOn(Linking, 'openURL').mockResolvedValue(true);
-    act(() => findButton(tree, 'Open in noesis')!.props.onPress());
-    expect(opened).toHaveBeenCalledWith(url);
+    await act(async () => {
+      findButton(tree, 'Open in noesis')!.props.onPress();
+    });
+    expect(mockSheet).toHaveBeenCalledWith(url, 'thefloor://noesis');
+    expect(opened).not.toHaveBeenCalled();
     opened.mockRestore();
   });
 });

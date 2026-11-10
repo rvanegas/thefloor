@@ -1342,7 +1342,7 @@ describe("noesis library", () => {
     act(() => tree.unmount());
   });
 
-  it("opens noesis in the browser, once connected", async () => {
+  it("opens noesis in the system sheet, so the session that signed you in signs you in there", async () => {
     mockApp.loadNoesis.mockResolvedValue({
       available: true,
       connected: true,
@@ -1353,8 +1353,23 @@ describe("noesis library", () => {
     } as never);
     const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
     const tree = await openSettings();
-    act(() => findButton(tree, "Open noesis")!.props.onPress());
-    expect(open).toHaveBeenCalledWith("https://noesis.example/web/");
+    expect(textOf(tree)).toContain("You have no library in noesis yet.");
+    mockSheet.mockClear();
+    // A library made there shows once the sheet closes.
+    mockApp.loadNoesis.mockResolvedValue({
+      available: true,
+      connected: true,
+      user: "rodvandur",
+      email: null,
+      libraries: ["rodvandur/notes"],
+      web: "https://noesis.example/web/",
+    } as never);
+    await act(async () => {
+      await findButton(tree, "Open noesis")!.props.onPress();
+    });
+    expect(mockSheet).toHaveBeenCalledWith("https://noesis.example/web/", "thefloor://noesis");
+    expect(open).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain("Your library there: notes.");
     open.mockRestore();
     act(() => tree.unmount());
   });

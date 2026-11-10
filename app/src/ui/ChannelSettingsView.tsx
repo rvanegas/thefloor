@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, Linking, StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, View } from 'react-native';
 import {
   DELETED_RETENTION_MS,
   MAX_CHANNEL_DESCRIPTION_LENGTH,
@@ -29,7 +29,7 @@ import { pickAndUploadArtwork } from '../api/upload';
 import { ITUNES_CATEGORIES } from '../../../core/publication';
 import { useText } from '../i18n';
 import { shareText } from '../share';
-import { openUrl } from './links';
+import { openNoesis, openUrl } from './links';
 import { useApp } from '../state/AppProvider';
 import {
   Button,
@@ -208,6 +208,19 @@ export function ChannelSettingsView({
       cancelled = true;
     };
   }, [app.token]);
+  const linkWords = useText().links;
+  /**
+   * noesis in the system sheet (`openNoesis`), and your libraries read again
+   * once it closes: one made there shows among the toggles at once.
+   */
+  const openYours = async (url: string) => {
+    await openNoesis(url, linkWords);
+    try {
+      setNoesis(await app.loadNoesis());
+    } catch {
+      // The toggles stay as they were.
+    }
+  };
   /** The channel's own library at noesis; null until read, and on an older server. */
   const [channelLibrary, setChannelLibrary] = useState<ChannelLibraryView | null>(null);
   useEffect(() => {
@@ -627,6 +640,7 @@ export function ChannelSettingsView({
           nameOf={(id) => view.participants.find((p) => p.id === id)?.displayName ?? null}
           mine={noesis?.libraries ?? []}
           web={noesis?.web ?? null}
+          onOpen={(url) => void openYours(url)}
           mayEdit={mayEdit}
           mayChangeLibrary={mayChangeLibrary}
           refusedWhy={community && !owner ? t.ownerOnly() : t.libraryStepIn()}
@@ -657,7 +671,7 @@ export function ChannelSettingsView({
           {channelLibrary.url ? (
             <Button
               label={t.channelLibraryOpen()}
-              onPress={() => void Linking.openURL(channelLibrary.url!)}
+              onPress={() => void openNoesis(channelLibrary.url!, linkWords)}
             />
           ) : (
             <Text style={type.muted}>{t.channelLibraryNotYet()}</Text>
@@ -992,6 +1006,7 @@ function LibraryCard({
   nameOf,
   mine,
   web,
+  onOpen,
   mayEdit,
   mayChangeLibrary,
   refusedWhy,
@@ -1006,6 +1021,8 @@ function LibraryCard({
   mine: string[];
   /** noesis's web client, for *Open noesis*; null from a server that does not say. */
   web: string | null;
+  /** Opens it, in the system sheet on a phone (`openNoesis`). */
+  onOpen: (url: string) => void;
   mayEdit: boolean;
   mayChangeLibrary: boolean;
   /** Why it is grey for somebody who may not edit the channel. */
@@ -1065,7 +1082,7 @@ function LibraryCard({
       )}
       <Text style={type.muted}>{t.libraryNote()}</Text>
       {!mayEdit ? <Text style={type.muted}>{refusedWhy}</Text> : null}
-      {web ? <Button label={home.noesisOpen()} onPress={() => void Linking.openURL(web)} /> : null}
+      {web ? <Button label={home.noesisOpen()} onPress={() => onOpen(web)} /> : null}
     </Card>
   );
 }
