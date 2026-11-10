@@ -191,9 +191,13 @@ export function ChannelSettingsView({
    * Null until read, and on a server that answers nothing. **Whether you are
    * connected decides whether either noesis card is drawn at all**, since
    * 2026-11-09: neither is anything to somebody who has no library there.
+   * **The toggles are Pro's too, since 2026-11-10**, noesis being read-only
+   * for everybody else: the channel's library still opens for them.
    */
   const [noesis, setNoesis] = useState<NoesisView | null>(null);
   const connected = !!noesis?.connected;
+  /** Absent from an older server, which offered the toggles to everybody connected. */
+  const consults = connected && noesis?.pro !== false;
   useEffect(() => {
     let cancelled = false;
     const read = async () => {
@@ -626,9 +630,10 @@ export function ChannelSettingsView({
         which the server enforces; anybody else gets it grey with the sentence
         that says why. One `KeepSwitch`, as *Record automatically* draws its
         pair. Drawn only where the server has a library and Claude to read it,
-        and only for somebody whose own is connected, since 2026-11-09.
+        and only for somebody whose own is connected, since 2026-11-09, and
+        who is Pro, since 2026-11-10.
       */}
-      {view?.libraryAvailable && connected ? (
+      {view?.libraryAvailable && consults ? (
         <LibraryCard
           channel={channel}
           me={app.me?.id ?? ''}

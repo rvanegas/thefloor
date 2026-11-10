@@ -859,11 +859,18 @@ export interface NoesisView {
   /**
    * Whether the connection may send a room's text to those libraries — the
    * *Record* tab's *Send to noesis*. False for one made before 2026-11-02,
-   * which connects again to have it; absent from an older server.
+   * which connects again to have it. Read only by builds up to 428, which
+   * offer Send (SHIMS.md, gate 429).
    */
   canSend?: boolean;
   /** noesis's web client, which *Open noesis* opens in a browser; absent from an older server. */
   web?: string;
+  /**
+   * Whether more of noesis than reading is yours: switching your own library
+   * on in a channel, which is *Pro*'s since 2026-11-10. Absent from an older
+   * server, read as yes, as it then was.
+   */
+  pro?: boolean;
 }
 
 /**

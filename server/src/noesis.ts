@@ -40,7 +40,9 @@ import type { Db } from './db';
  *   connecting; a connection made before it lacks it (`canSend`) and connects
  *   again to have it. Before sending, the person's display name here is added
  *   to the names noesis keeps as their voice, so their lines are filed as
- *   their own words and everybody else's as context.
+ *   their own words and everybody else's as context. **A shim since
+ *   2026-11-10**, answering builds up to 428 (SHIMS.md, gate 429): build 429
+ *   offers no Send, a member copying the channel library's transcript at noesis.
  * - **The display name is auth's** (since 2026-11-09, auth's
  *   `display-names-are-stored-here`): at every sign-in and connecting,
  *   `finish` takes the name auth has for the person, or, where auth has none,

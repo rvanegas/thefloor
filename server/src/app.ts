@@ -510,6 +510,15 @@ export function buildApp(options: BuildOptions = {}): App {
     options.kofi?.verificationToken
   );
   const pro = new ProSubscriptions(db, options.pro);
+  /**
+   * Whether an account is *Pro* now: a subscription, bought, or **the
+   * `transcripts_unlimited` mark, set by hand, since 2026-11-10** — the
+   * accounts it marks (the operator's, testers', App Review's) are Pro
+   * everywhere Pro decides, rather than only where transcription is metered.
+   * `ProView.until` still says what was bought. Asked per call, so a lapse is
+   * felt at once.
+   */
+  const isPro = (accountId: string) => accounts.transcribesUnlimited(accountId) || pro.isPro(accountId, now());
   const help = new Help(db);
   // Never the review accounts, whatever `.env` says — see switching.ts. A
   // refusal is logged once, at startup, which is when somebody is looking.
@@ -1139,10 +1148,12 @@ export function buildApp(options: BuildOptions = {}): App {
       return byPush || emailReachable(account);
     },
     // A library with no Claude to consult it is no library: nobody may switch
-    // one on that no press could reach.
+    // one on that no press could reach. **Switching your own on is Pro's,
+    // since 2026-11-10** — noesis is read-only for everybody else — so a
+    // connection without Pro counts as none here.
     options.claude && noesis
       ? {
-          connected: (userId) => noesis.connected(userId),
+          connected: (userId) => noesis.connected(userId) && isPro(userId),
           librariesOf: (userId) => noesis.librariesOf(userId),
         }
       : null
@@ -1188,7 +1199,7 @@ export function buildApp(options: BuildOptions = {}): App {
 
   // Pro chooses a channel's model grades. Asked per action, so a lapse is
   // felt at once rather than at the next reconnect.
-  channels.isPro = (userId) => pro.isPro(userId, now());
+  channels.isPro = isPro;
 
   // Kept where `ts diagnostics` lays them on the phones' timeline, and where
   // they expire — see diagnostics.ts. The journal still gets the kind and the
@@ -1234,7 +1245,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * `meterLive` switches it off when the minutes are gone.
    */
   const mayTranscribeLive = (userId: string): boolean =>
-    live !== null && (transcribesFreely(userId) || freeMsLeft(userId) > 0);
+    live !== null && (isPro(userId) || freeMsLeft(userId) > 0);
 
   /**
    * Whether this account may set *Record automatically*'s Text. Only on the
@@ -1242,7 +1253,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * there is nobody whose minutes it could spend.
    */
   const mayAutoTranscribe = (userId: string): boolean =>
-    live !== null && transcribesFreely(userId);
+    live !== null && isPro(userId);
 
   /**
    * Switches off every live transcript whose payer has run out of free
@@ -1289,7 +1300,7 @@ export function buildApp(options: BuildOptions = {}): App {
         {
           handleFor: (id) => channels.handleFor(id),
           channel: (id) => channels.nameAndMembers(id),
-          isPro: (id) => pro.isPro(id, now()),
+          isPro,
           connected: (id) => noesis?.connected(id) ?? false,
           displayName: (id) => accounts.byId(id)?.display_name ?? null,
           transcriptLines: (id) => transcripts.linesFor(id),
@@ -1316,7 +1327,12 @@ export function buildApp(options: BuildOptions = {}): App {
         libraryTimeoutMs: options.claudeLibraryTimeoutMs,
         library:
           noesis && options.library
-            ? { url: options.library.url, tokenFor: (accountId) => noesis.accessToken(accountId) }
+            ? {
+                url: options.library.url,
+                // An owner whose Pro lapsed is passed over, their switch left as it was,
+                // so renewing brings their library back without anybody turning it on.
+                tokenFor: async (accountId) => (isPro(accountId) ? noesis.accessToken(accountId) : null),
+              }
             : undefined,
         // Whose library it is, by the name the room knows them by.
         libraryOwner: (accountId) => accounts.byId(accountId)?.display_name ?? null,
@@ -4042,8 +4058,9 @@ export function buildApp(options: BuildOptions = {}): App {
       const current = await noesis.refreshLibraries(account.id);
       if (current) channels.pruneLibrariesOf(account.id, current);
     }
-    // noesis's own web client, which *Open noesis* opens in a browser.
-    return { available: true, web: noesisWeb(options.library!.url), ...noesis.status(account.id) };
+    // noesis's own web client, which *Open noesis* opens in a browser; and
+    // whether more than reading it is theirs, which is Pro's (since 2026-11-10).
+    return { available: true, web: noesisWeb(options.library!.url), pro: isPro(account.id), ...noesis.status(account.id) };
   });
 
   /**
@@ -4131,17 +4148,22 @@ export function buildApp(options: BuildOptions = {}): App {
 
   /**
    * Sends a room's text to one of your libraries at noesis — the *Record*
-   * tab's *Send to noesis*, since 2026-11-02. The text is what *Share* hands
+   * tab's *Send to noesis*, from 2026-11-02 until build 429 dropped it for
+   * noesis's own copy (SHIMS.md, gate 429). The text is what *Share* hands
    * over, made by the app as it is for Share, so the two never disagree;
    * noesis files it as a conversation, your lines as yours by your display
    * name here. `filename` is Share's, made safe for noesis, which takes a
-   * name and never a path.
+   * name and never a path. Pro's alone since 2026-11-10, refused with 402,
+   * which those builds show as its message.
    */
   fastify.post('/me/noesis/send', async (request, reply) => {
     const account = await requireAccount(request, reply);
     if (!account) return;
     if (!noesis || !channels.libraryAvailable()) {
       return reply.code(503).send({ error: 'This server offers no library.' });
+    }
+    if (!isPro(account.id)) {
+      return reply.code(402).send({ error: 'Sending to noesis comes with Pro.', reason: 'not_pro' });
     }
     const body = request.body as { library?: unknown; filename?: unknown; text?: unknown } | undefined;
     if (typeof body?.library !== 'string' || typeof body.text !== 'string' || !body.text.trim()) {
@@ -4279,10 +4301,9 @@ export function buildApp(options: BuildOptions = {}): App {
     const { handle } = request.params as { handle: string };
     const channel = channels.byHandle(handle);
     if (!channel) return reply.code(404).send({ error: 'No such channel.' });
-    const at = now();
     const members = channel.participants.flatMap((id) => {
       const user = noesisUser(id);
-      return user ? [{ user, pro: pro.isPro(id, at), name: accounts.byId(id)?.display_name ?? null }] : [];
+      return user ? [{ user, pro: isPro(id), name: accounts.byId(id)?.display_name ?? null }] : [];
     });
     return { handle, name: channel.name, members };
   });
@@ -5398,7 +5419,7 @@ export function buildApp(options: BuildOptions = {}): App {
       // and must not spend free minutes either. The upper bound, as
       // `billed_ms` starts at, and not corrected down when the jobs land:
       // the free minutes are a ceiling, so they are spent as one.
-      if (!transcribesFreely(account.id)) {
+      if (!isPro(account.id)) {
         accounts.spendTranscriptMs(account.id, estimate, now(), { recordingId: id });
       }
     } catch (error) {
@@ -5603,7 +5624,7 @@ export function buildApp(options: BuildOptions = {}): App {
       id,
       account.id,
       { audio: body.audio, text: body.text },
-      transcribesFreely(account.id) ? undefined : account.id
+      isPro(account.id) ? undefined : account.id
     );
     if (!result.ok) {
       return reply.code(statusFor(result.code)).send({ error: result.error });
@@ -5628,7 +5649,7 @@ export function buildApp(options: BuildOptions = {}): App {
     const result = channels.playKeeping(
       id,
       account.id,
-      transcribesFreely(account.id) ? undefined : account.id
+      isPro(account.id) ? undefined : account.id
     );
     if (!result.ok) {
       return reply.code(statusFor(result.code)).send({ error: result.error });
@@ -5650,7 +5671,7 @@ export function buildApp(options: BuildOptions = {}): App {
     }
     // Switching it off spends nothing, so it is anybody's who may change what
     // the channel keeps; switching it on is for whoever has minutes to spend.
-    const unlimited = transcribesFreely(account.id);
+    const unlimited = isPro(account.id);
     if (on && !mayTranscribeLive(account.id)) {
       return reply.code(403).send({ error: freeMinutesSpentMessage() });
     }
@@ -6807,7 +6828,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // rather than understating them.
     const estimate = transcripts.costEstimateMs(row.id);
     const spendsFreeUse =
-      gate.ok && !transcribesFreely(viewerId)
+      gate.ok && !isPro(viewerId)
         ? {
             spendsFreeUse: true,
             freeMinutes: {
@@ -6865,17 +6886,6 @@ export function buildApp(options: BuildOptions = {}): App {
     };
   }
 
-  /**
-   * Whether this account's transcribing is unmetered: the
-   * `transcripts_unlimited` mark, set by hand, or *Pro*, bought. Nothing else
-   * since 2026-10-10, when `TRANSCRIBE_IDENTIFIER` was retired. Resolved on
-   * each call, so setting the mark takes effect without a restart and Pro
-   * lapses on time.
-   */
-  function transcribesFreely(userId: string): boolean {
-    return accounts.transcribesUnlimited(userId) || pro.isPro(userId, now());
-  }
-
   /** This week's free transcription minutes, in milliseconds. */
   const freeAllowanceMs =
     (options.freeTranscriptMinutes ?? FREE_TRANSCRIPT_MINUTES_DEFAULT) * 60_000;
@@ -6921,7 +6931,7 @@ export function buildApp(options: BuildOptions = {}): App {
     userId: string,
     recordingId: string
   ): { ok: true } | { ok: false; message: string } {
-    if (transcribesFreely(userId)) return { ok: true };
+    if (isPro(userId)) return { ok: true };
     const left = freeMsLeft(userId);
     if (left <= 0) return { ok: false, message: freeMinutesSpentMessage() };
     const estimate = transcripts.costEstimateMs(recordingId);
@@ -6954,7 +6964,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * unlimited supply of free transcripts.
    */
   function mayRemoveTranscript(userId: string, recordingId: string): boolean {
-    if (transcribesFreely(userId)) return true;
+    if (isPro(userId)) return true;
     const view = transcripts.viewFor(recordingId);
     // Nothing to protect, and the answer the caller is owed is the 404 that
     // comes later — being told "not yours" about a transcript that does not
@@ -7071,7 +7081,7 @@ export function buildApp(options: BuildOptions = {}): App {
         liveActivities.endOtherDevices(userId, deviceKey),
       heartbeatIntervalMs: options.heartbeatIntervalMs,
       switchTargets: (identifier) => switchTargets(identifier, switchable),
-      isPro: (userId) => pro.isPro(userId, now()),
+      isPro,
     });
   });
 

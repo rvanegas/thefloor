@@ -31,8 +31,8 @@ import type {
 } from '../../../core/protocol';
 import { intoBlocks, lettered, type TranscriptBlock } from '../../../core/transcript';
 import type { ChannelState, Keep, ReplyLength } from '../../../core/types';
-import { exportName, shareRecording, shareTextFile } from '../api/download';
-import { api, ApiError } from '../api/http';
+import { shareRecording, shareTextFile } from '../api/download';
+import { api } from '../api/http';
 import { copyText } from '../clipboard';
 import { subscribeLiveLines } from '../live/lines';
 import { useApp } from '../state/AppProvider';
@@ -180,15 +180,13 @@ export function RecordTab({
   const roomsHeld = React.useRef<RoomView[] | null>(null);
   roomsHeld.current = rooms;
   /**
-   * Whether your noesis library is connected, which every noesis action in a
-   * segment's menu waits on — *Open in noesis* too, since 2026-11-09, the
-   * channel's library being one a member opens with their own sign-in there —
-   * and your libraries that *Send to noesis* may file into: none unless this
-   * server offers libraries and yours is connected with sending granted.
-   * Asked once as the tab opens; an older server, or a failure, is neither.
+   * Whether your noesis library is connected, which a segment's *Open in
+   * noesis* waits on, since 2026-11-09: the channel's library is one a member
+   * opens with their own sign-in there. Reading is everybody's; a copy of
+   * their own is made at noesis since 2026-11-10, where *Send to noesis* was.
+   * Asked once as the tab opens; an older server, or a failure, is not.
    */
   const [connected, setConnected] = React.useState(false);
-  const [libraries, setLibraries] = React.useState<readonly string[]>([]);
   React.useEffect(() => {
     const token = app.token;
     if (!token) return;
@@ -196,9 +194,7 @@ export function RecordTab({
     api
       .noesis(token)
       .then((view) => {
-        if (!current || !view.available || !view.connected) return;
-        setConnected(true);
-        if (view.canSend) setLibraries(view.libraries ?? []);
+        if (current && view.available && view.connected) setConnected(true);
       })
       .catch(() => {});
     return () => {
@@ -420,7 +416,6 @@ export function RecordTab({
               name={name}
               item={item}
               connected={connected}
-              libraries={libraries}
               manageable={manageable}
               renderRecording={renderRecording}
             />
@@ -440,7 +435,6 @@ function Segment({
   name,
   item,
   connected,
-  libraries,
   manageable,
   renderRecording,
 }: {
@@ -448,7 +442,6 @@ function Segment({
   name: string;
   item: SegmentItem;
   connected: boolean;
-  libraries: readonly string[];
   manageable: boolean;
   renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
 }) {
@@ -463,7 +456,6 @@ function Segment({
         name={name}
         item={item}
         connected={connected}
-        libraries={libraries}
         manageable={manageable}
         renderRecording={renderRecording}
         open={open}
@@ -525,17 +517,18 @@ export function RoomLine({ room }: { room: RoomView }) {
  * noesis* under the line. Sharing asks no second question now — *Share
  * audio* and *Share text* are each an action — and an action the segment
  * cannot have is left out, save its audio while it is still being filed or
- * mixed, which is greyed. **noesis's two are left out for somebody whose
+ * mixed, which is greyed. ***Open in noesis* is left out for somebody whose
  * library is not connected**, since 2026-11-09. **It opens under the line rather than over the
  * screen**, since the day after: a column of buttons the glyph opens and
- * closes, and *Send to noesis* asking which library the same way.
+ * closes. *Send to noesis*, beside it from 2026-11-02, went on 2026-11-10:
+ * the same transcript is already in the channel's library, and a copy of
+ * one's own is made at noesis.
  */
 export function SegmentLine({
   channelId,
   name,
   item,
   connected = false,
-  libraries = [],
   manageable = true,
   renderRecording,
   open = false,
@@ -546,8 +539,6 @@ export function SegmentLine({
   item: SegmentItem;
   /** Whether your noesis library is connected; not, and the menu has nothing of noesis's. */
   connected?: boolean;
-  /** Your noesis libraries the menu may send the text to; none leaves it out. */
-  libraries?: readonly string[];
   /** Whether you may delete its text; see `RecordTab`. */
   manageable?: boolean;
   renderRecording?: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
@@ -561,13 +552,10 @@ export function SegmentLine({
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
-  /** Everywhere but iOS, whether which library is being chosen. */
-  const [choosing, setChoosing] = React.useState(false);
   const { segment, recording } = item;
   const audio = !!recording && !recording.mixing;
   // Pastes count: they are text, and are shared with the lines around them.
   const text = item.lines.length > 0 || item.pastes.length > 0;
-  const noesis = connected && text && libraries.length > 0;
   const filed =
     connected && segment.filed?.url && isSafeUrl(segment.filed.url) ? segment.filed.url : null;
   const span = t.roomSpan(segment.startedAt, segment.endedAt);
@@ -578,39 +566,6 @@ export function SegmentLine({
         ? t.audio()
         : t.keepText();
   const label = `${span} · ${kept}`;
-
-  /**
-   * Files the text in `library` at noesis — what *Share text* would hand
-   * over, under the name it would give the file — and says where it went, or
-   * why not.
-   */
-  const send = async (library: string) => {
-    if (!app.token || busy) return;
-    setBusy(true);
-    try {
-      await api.sendToNoesis(app.token, {
-        library,
-        filename: exportName(name, recording?.endedAt ?? segment.endedAt ?? Date.now()),
-        text: await segmentText(app.token, channelId, item, name, t),
-      });
-      Alert.alert(t.sentToNoesis(libraryName(library)));
-    } catch (e) {
-      Alert.alert(
-        t.couldNotSendToNoesis(),
-        e instanceof ApiError && e.status === 403
-          ? t.noesisSendNotGranted()
-          : e instanceof Error
-            ? e.message
-            : String(e)
-      );
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  // Asked under the line, as the menu is, and only of somebody with several.
-  const chooseLibrary = () =>
-    libraries.length === 1 ? void send(libraries[0]) : setChoosing(true);
 
   const share = async (what: 'audio' | 'text') => {
     if (!app.token || busy) return;
@@ -697,7 +652,6 @@ export function SegmentLine({
       ...(text
         ? [{ label: t.shareText(), group: 'share' as const, onPress: () => void share('text') }]
         : []),
-      ...(noesis ? [{ label: t.sendToNoesis(), group: 'noesis' as const, onPress: chooseLibrary }] : []),
       ...(filed
         ? [
             {
@@ -724,25 +678,6 @@ export function SegmentLine({
   // no hours to give it and nothing to do with it but what Copy already does.
   if (segment.paste) return null;
 
-  const library = choosing ? (
-    <View style={styles.libraryChoice}>
-      <Text style={type.muted}>{t.sendToWhichLibrary()}</Text>
-      <View style={styles.libraryOptions}>
-        {libraries.map((library) => (
-          <Button
-            key={library}
-            label={libraryName(library)}
-            onPress={() => {
-              setChoosing(false);
-              void send(library);
-            }}
-          />
-        ))}
-        <Button label={t.cancel()} onPress={() => setChoosing(false)} />
-      </View>
-    </View>
-  ) : null;
-
   const title = segment.filed?.title ? <FiledTitle title={segment.filed.title} /> : null;
 
   if (recording && renderRecording) {
@@ -750,7 +685,6 @@ export function SegmentLine({
       <>
         {renderRecording(recording, { label, menu, open, onToggle })}
         {title}
-        {library}
       </>
     );
   }
@@ -777,7 +711,6 @@ export function SegmentLine({
       </View>
       {own.panel}
       {title}
-      {library}
     </>
   );
 }
@@ -800,11 +733,6 @@ function FiledTitle({ title }: { title: string }) {
       </Text>
     </View>
   );
-}
-
-/** A library's own name, without its owner's: `alice/essays` is *essays*. */
-function libraryName(id: string): string {
-  return id.split('/').slice(1).join('/') || id;
 }
 
 /**
@@ -1435,8 +1363,6 @@ const styles = StyleSheet.create({
   filedTitle: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '600' },
   // Which library to send to, where there is no action sheet. Wraps: a
   // library's name is as long as its owner made it, and there may be several.
-  libraryChoice: { gap: spacing(1), paddingBottom: spacing(0.5) },
-  libraryOptions: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', gap: spacing(1) },
   // A ring the record dot's size: kept, and not as audio.
   ring: {
     width: 12,

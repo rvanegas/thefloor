@@ -1342,6 +1342,21 @@ describe("noesis library", () => {
     act(() => tree.unmount());
   });
 
+  it("says, to somebody connected without Pro, that consulting their own comes with Pro", async () => {
+    mockApp.loadNoesis.mockResolvedValue({
+      available: true,
+      connected: true,
+      user: "rodvandur",
+      email: null,
+      libraries: ["rodvandur/notes"],
+      pro: false,
+    } as never);
+    const tree = await openSettings();
+    expect(textOf(tree)).toContain("Letting Claude consult your own library in a channel comes with Pro.");
+    expect(textOf(tree)).not.toContain("Choose which a channel may consult");
+    act(() => tree.unmount());
+  });
+
   it("opens noesis in the browser, and shows a library made there on coming back", async () => {
     mockApp.loadNoesis.mockResolvedValue({
       available: true,

@@ -1016,6 +1016,16 @@ describe('a press with the library', () => {
     for (const tool of LIBRARY_TOOLS) expect(configs[tool]).toEqual({ enabled: true });
   });
 
+  it('passes over an owner whose Pro lapsed, their switch left on for when it returns', async () => {
+    const { calls, alice, bob, channelId } = await setUp('pro');
+    // Bob chose the grade; Alice's subscription ended a day ago.
+    makePro(bob.account.id);
+    app.db.prepare('UPDATE pro_subscriptions SET expires_at = ? WHERE account_id = ?').run(clock - 86_400_000, alice.account.id);
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls[0].body).not.toHaveProperty('mcp_servers');
+    expect(app.channels.get(channelId)).toMatchObject({ libraries: { [alice.account.id]: ['alice/philosophy'] } });
+  });
+
   it('tells Claude whose library it is, whoever presses', async () => {
     const { calls, bob, channelId } = await setUp('pro');
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
@@ -1028,6 +1038,7 @@ describe('a press with the library', () => {
     const { calls, alice, bob, channelId } = await setUp('pro');
     noesisLibraries = ['bob/essays'];
     await connect(bob.account.id);
+    makePro(bob.account.id);
     app.channels.dispatch(channelId, bob.account.id, {
       type: 'SET_LIBRARY',
       library: true,
@@ -1323,6 +1334,7 @@ describe('the library switch', () => {
     boot(client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
     expect(app.channels.get(channelId)).toMatchObject({
       library: true,
@@ -1341,6 +1353,21 @@ describe('the library switch', () => {
     expect(app.channels.get(channelId)!.library).toBe(false);
   });
 
+  it('is refused on to somebody connected without Pro, noesis being read-only for them', async () => {
+    const { client } = fakeClient(() => reply('x'));
+    boot(client, undefined, NOESIS);
+    const { alice, channelId } = await room2();
+    await connect(alice.account.id);
+    expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: false });
+    const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
+    expect(status.json()).toMatchObject({ connected: true, pro: false });
+    // The mark set by hand is Pro, since 2026-11-10, here as everywhere.
+    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.account.id);
+    expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
+    const again = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
+    expect(again.json()).toMatchObject({ connected: true, pro: true });
+  });
+
   it('is refused on, by name, to anybody without a library connected, and is anybody’s to switch off', async () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, bob, channelId } = await room2();
@@ -1351,6 +1378,7 @@ describe('the library switch', () => {
     });
     expect(app.channels.get(channelId)!.library).toBe(false);
     await connect(alice.account.id);
+    makePro(alice.account.id);
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
     expect(set(channelId, bob.account.id, false)).toMatchObject({ ok: true });
     expect(app.channels.get(channelId)).toMatchObject({ library: false });
@@ -1361,6 +1389,7 @@ describe('the library switch', () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     for (const value of ['yes', undefined, 1]) {
       expect(set(channelId, alice.account.id, value)).toMatchObject({ ok: false, code: 'invalid' });
     }
@@ -1404,6 +1433,7 @@ describe('the library switch', () => {
     await app.fastify.listen({ port: 0, host: '127.0.0.1' });
     let { alice, bob, channelId } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     expect(await firstView(alice.token, channelId)).toMatchObject({
       libraryAvailable: true,
       mayChangeLibrary: true,
@@ -1434,6 +1464,7 @@ describe('the library switch', () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     const bare = app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_LIBRARY',
       library: true,
@@ -1447,6 +1478,7 @@ describe('the library switch', () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, bob, channelId } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     const choose = (userId: string, libraries: unknown) =>
       app.channels.dispatch(channelId, userId, { type: 'SET_LIBRARY', library: true, libraries } as never);
     expect(choose(alice.account.id, ['alice/notes'])).toMatchObject({ ok: true });
@@ -1460,6 +1492,7 @@ describe('the library switch', () => {
     // Bob, with his own library, puts it on beside Alice's — and not hers.
     noesisLibraries = ['bob/essays'];
     await connect(bob.account.id);
+    makePro(bob.account.id);
     expect(choose(bob.account.id, ['alice/notes'])).toMatchObject({ ok: false, code: 'invalid' });
     expect(choose(bob.account.id, ['bob/essays'])).toMatchObject({ ok: true });
     const both = {
@@ -1493,6 +1526,7 @@ describe('the library switch', () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_LIBRARY',
       library: true,
@@ -1519,6 +1553,7 @@ describe('the library switch', () => {
     set(channelId, alice.account.id, false);
     app.channels.dispatch(channelId, alice.account.id, { type: 'SET_RESPONSE_MODEL', responseModel: 'pro' } as never);
     await connect(alice.account.id);
+    makePro(alice.account.id);
     set(channelId, alice.account.id, true);
     // Bob stays, and Alice's library leaves with her: the state still says on.
     const raw = app.channels.get(channelId)!;
@@ -1624,6 +1659,7 @@ describe('connecting an noesis library', () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     expect(await app.noesis!.accessToken(alice.account.id)).toBe('secret');
     clock += 3600 * 1000;
     const both = await Promise.all([
@@ -1661,6 +1697,7 @@ describe('connecting an noesis library', () => {
     // Nothing to make it from before connecting.
     expect((await hand(alice.token, web)).statusCode).toBe(409);
     await connect(alice.account.id);
+    makePro(alice.account.id);
     const handed = await hand(alice.token, web);
     expect(handed.json()).toEqual({ url: 'https://auth.example/handoff?code=c1' });
     expect(asked.at(-1)).toEqual({
@@ -1678,6 +1715,7 @@ describe('connecting an noesis library', () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
     const gone = await app.fastify.inject({
       method: 'POST',
@@ -1694,6 +1732,7 @@ describe('connecting an noesis library', () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, channelId } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
     const deleted = await app.fastify.inject({ method: 'DELETE', url: '/me', headers: auth(alice.token) });
     expect(deleted.statusCode).toBe(204);
@@ -1712,6 +1751,7 @@ describe('sending a room’s text to noesis', () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
     expect(status.json()).toMatchObject({ connected: true, canSend: true });
     noesisNames = ['Prompt'];
@@ -1736,8 +1776,10 @@ describe('sending a room’s text to noesis', () => {
   it('refuses a library not yours, a grant made before sending was asked for, and says why noesis did', async () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice, bob } = await room2();
+    makePro(bob.account.id);
     expect((await send(bob.token, { library: 'alice/philosophy', text: TEXT })).statusCode).toBe(409);
     await connect(alice.account.id);
+    makePro(alice.account.id);
     expect((await send(alice.token, { library: 'bob/notes', text: TEXT })).statusCode).toBe(404);
     expect((await send(alice.token, { library: 'alice/philosophy', text: ' ' })).statusCode).toBe(400);
     noesisImport = () =>
@@ -1750,6 +1792,7 @@ describe('sending a room’s text to noesis', () => {
 
     noesisScope = '';
     await connect(alice.account.id);
+    makePro(alice.account.id);
     const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
     expect(status.json()).toMatchObject({ connected: true, canSend: false });
     const before = noesisCalls.length;
@@ -1758,10 +1801,22 @@ describe('sending a room’s text to noesis', () => {
     expect(noesisCalls.slice(before).some((call) => call.path.endsWith('/import'))).toBe(false);
   });
 
+  it('is Pro’s alone since 2026-11-10, said as the reason builds that offer it show', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
+    const { alice } = await room2();
+    await connect(alice.account.id);
+    const before = noesisCalls.length;
+    const refused = await send(alice.token, { library: 'alice/philosophy', text: TEXT });
+    expect(refused.statusCode).toBe(402);
+    expect(refused.json()).toEqual({ error: 'Sending to noesis comes with Pro.', reason: 'not_pro' });
+    expect(noesisCalls.slice(before).some((call) => call.path.endsWith('/import'))).toBe(false);
+  });
+
   it('keeps the grant’s scopes across a refresh', async () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice } = await room2();
     await connect(alice.account.id);
+    makePro(alice.account.id);
     clock += 3600 * 1000;
     noesisScope = '';
     expect(await app.noesis!.accessToken(alice.account.id)).toBe('secret-2');

@@ -806,6 +806,12 @@ const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes
  * by hand, and the status is read again whenever the app comes back to the
  * front; *Connecting…* lasts until then. Disconnect confirms, being the one direction that takes something
  * away from rooms other people are in.
+ *
+ * **Without Pro, noesis is read-only, since 2026-11-10**: connecting is
+ * everybody's, since it is what opens a channel's library, but letting Claude
+ * consult your own is Pro's, and the card says so — and, where Pro cannot be
+ * bought, where it can. A connection whose Pro lapses is kept, so renewing
+ * asks nothing again.
  */
 function NoesisCard() {
   const app = useApp();
@@ -904,19 +910,11 @@ function NoesisCard() {
               disabled={busy !== null}
               onPress={disconnect}
             />
-            <Text style={type.muted}>{t.noesisConnectedNote()}</Text>
+            <Text style={type.muted}>
+              {view.pro === false ? t.noesisReadOnlyNote() : t.noesisConnectedNote()}
+            </Text>
             {view.web ? (
               <Button label={t.noesisOpen()} onPress={() => void openNoesis(view.web!, linkWords, app.noesisLink)} />
-            ) : null}
-            {view.canSend === false ? (
-              <>
-                <Text style={type.muted}>{t.noesisSendNeedsReconnect()}</Text>
-                <Button
-                  label={busy === 'connecting' ? t.noesisConnecting() : t.noesisReconnect()}
-                  disabled={busy !== null}
-                  onPress={() => void connect()}
-                />
-              </>
             ) : null}
           </>
         ) : (
@@ -929,6 +927,9 @@ function NoesisCard() {
             <Text style={type.muted}>{t.noesisAbout()}</Text>
           </>
         )}
+        {view.pro === false && !purchasesAvailable ? (
+          <Text style={type.muted}>{t.noesisProOnIphone()}</Text>
+        ) : null}
         {message ? <Text style={type.muted}>{message}</Text> : null}
       </Card>
     </>

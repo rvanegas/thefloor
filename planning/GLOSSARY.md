@@ -67,7 +67,7 @@ caused; the list carries the meaning.
 - **Email notifications** — A *Floor Settings* switch, `emailNotifications`: every notification also sent as email to the address you sign in with, arrivals included and paused with them. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
-- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-08, chooses a channel's *Transcription model* and *Response model*; not the *Pro* grade of either
+- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-08, chooses a channel's *Transcription model* and *Response model*, and since 2026-11-10 switches your own *library* on in a channel, noesis being read-only for everybody else; an account marked `transcripts_unlimited` by hand is Pro too, since 2026-11-10; not the *Pro* grade of either
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who can be told — push granted, or email notifications on for an email address — at the moment they become so, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
@@ -125,8 +125,8 @@ caused; the list carries the meaning.
 - **Recording** — Audio kept from a channel, started by anybody present by switching *Audio* on and ended by switching it off, by a Pause, or by *Text* changing under it, since 2026-10-10, or by a film being played over it, since 2026-10-26 — each one the audio of exactly one *segment* of the *Record*
 - **Seat** — A guest's standing in a channel: a place to return to, rather than a membership. A *guest invitation* is a seat nobody has taken up yet. Opened in the app when it has an account behind it, in a browser when it does not
 - **Self-mute** — A microphone closed by hand rather than by the floor; anybody in the room may close yours, and only you can open it again
-- **Share** — Handing a copy of a *segment*'s audio or its text — live or *transcript* — or the channel's track to whatever else is on the device; called *Export* until 2026-09-12. A segment's is *Share audio* and *Share text* in its menu, since 2026-11-07, beside *Send to noesis*, since 2026-11-02, for somebody whose *library* may take it
-- **Send to noesis** — Share's third answer on a *segment*, since 2026-11-02: its text, as Share hands it, filed as a conversation in one of your own noesis libraries — asked which only if you have several — your lines yours by your display name and everybody else's context; offered once your connection includes noesis's `import` grant, which a connection from before asks for by connecting again. `POST /me/noesis/send`
+- **Share** — Handing a copy of a *segment*'s audio or its text — live or *transcript* — or the channel's track to whatever else is on the device; called *Export* until 2026-09-12. A segment's is *Share audio* and *Share text* in its menu, since 2026-11-07
+- **Send to noesis** — Retired 2026-11-10: a *segment*'s text filed in one of your own noesis libraries, from 2026-11-02. A copy of one's own is made at noesis now, from the *channel library*, your lines yours there; the server answers builds up to 428 still, for *Pro* alone (SHIMS.md, gate 429). `POST /me/noesis/send`
 - **Step in / Step out** — Entering and leaving a conversation without leaving the channel; stepping in claims the phone's audio system outright, and stepping out is also how a declared *nearby* ends
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
@@ -136,7 +136,7 @@ caused; the list carries the meaning.
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a *Pro* account chose otherwise; shown to every member, changeable only by *Pro*. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by *Pro*. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown, since 2026-11-09, only to a member whose own is connected — to every member before — where the server offers libraries, switched on only by somebody with one connected, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, with *Send to noesis*
+- **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown, since 2026-11-09, only to a member whose own is connected — to every member before — where the server offers libraries, switched on only by somebody *Pro* with one connected — since 2026-11-10; a connection without Pro reads and nothing more —, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, at noesis, copying a *channel library*'s transcript into it
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up — except where noesis decides it — wherever The Floor's noesis client is configured — when it is their noesis user name too; and **fixed, with the address, while a noesis library is connected**
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
@@ -1566,13 +1566,25 @@ everybody's — which withdraws rather than exposes. Disconnecting, or deleting
 the account, stops that person's in every channel and leaves anybody else's.
 A reply that draws on it names the piece, and whose it is, in plain words.
 
+**Switching one's own on is *Pro*'s, since 2026-11-10**: noesis is read-only
+for everybody else, Rodrigo's call. Connecting stays everybody's, since it is
+what opens a *channel library*; a member connected without Pro is told on
+*Floor Settings* that consulting their own comes with Pro, and *Channel
+Settings*' *Library* card is not drawn for them. An owner whose Pro lapses is
+passed over at each press with their switch left on, so renewing brings their
+library back without anybody turning it on again; the server refuses *on* to
+them meanwhile (`isPro` beside `noesis.connected`, app.ts).
+
 **What a channel writes into it is its owner's choice, never Claude's.**
 Until 2026-11-02 this said a library was *never the app's own recordings or
 transcripts*, a rule written for libraries specific to a channel, a direction
-Rodrigo has since rejected. Now *Send to noesis* files a segment's text in a
-library of the sender's, as a conversation: their own lines are their
-thoughts and everybody else's are context, which is how noesis reads any
-chat of several voices. *Ask Claude* still has only reading tools.
+Rodrigo has since rejected. From then until 2026-11-10 *Send to noesis* filed
+a segment's text in a library of the sender's, as a conversation; since, the
+same transcript already being in the *channel library*, a member copies it
+into their own at noesis, which adds the name they go by in the channel to
+theirs: their own lines are their thoughts and everybody else's are context,
+which is how noesis reads any chat of several voices. *Ask Claude* still has
+only reading tools.
 
 ## Live
 
@@ -2801,12 +2813,12 @@ audio is its recording's line, and opened to that recording's name until
 2026-11-07, when the name — the channel's unless renamed — stopped being
 drawn. **Every
 action is in the menu since 2026-11-07** — *Share audio*, *Share text*,
-*Send to noesis*, *Open in noesis*, and a recording's *Play*, *Rename*,
+*Open in noesis* (and *Send to noesis* until 2026-11-10), and a recording's *Play*, *Rename*,
 *Transcribe* and *Delete audio*, then *Delete text* — a list the glyph opens
 under the line, in the view rather than as a sheet over it: rows on one
 surface since 2026-11-09, a hairline between its groups — play, share,
 noesis, edit, delete —, where it had been a column of full buttons taller
-than a phone shows. **noesis's two are offered only to somebody whose own
+than a phone shows. ***Open in noesis* is offered only to somebody whose own
 library is connected**, since 2026-11-09. **And *Play* plays in *Listen***,
 since the same day: it opens that tab at once, saying *Loading…* there
 while the recording becomes the channel's track, and starts it once it
@@ -3238,9 +3250,12 @@ shows on every platform. It lifts the weekly free minutes, and **since
 2026-11-08 it is what may choose a channel's *Transcription model* and
 *Response model*** — `debug`'s until then, moved because both grades are a
 cost carried by the channel, and Pro is the people paying for transcription.
-It is the only thing The Floor sells. Pro here is the subscription alone: the
-hand-set `transcripts_unlimited` mark meters nothing, but chooses nothing
-either.
+It is the only thing The Floor sells. **Since 2026-11-10 it is also what
+switches one's own *library* on in a channel**, noesis being read-only for
+everybody else. **And the hand-set `transcripts_unlimited` mark is Pro too,
+since 2026-11-10**, everywhere Pro decides (`isPro`, app.ts) — the operator's,
+testers' and App Review's accounts — where until then it metered nothing but
+chose nothing either. `ProView.until` still says only what was bought.
 
 **Not the *Pro* transcription model**, which is a grade of speech model a
 channel asks for — being Pro is what may choose it, and a channel on it costs
@@ -5368,12 +5383,10 @@ are settled:
     Library               Biblioteca — its switch *Consultar*; its owner is
                           *el dueño*, as a community's is; the Floor Settings
                           card *Biblioteca de noesis*, *Conectar* / *Desconectar*,
-                          and *Volver a conectar* where sending is not yet granted,
                           and *Abrir noesis* once connected, on Channel
                           Settings' *Biblioteca* card too
     Channel library       Biblioteca del canal — *Abrir en noesis* its
                           button, *Claude la consulta* its switch
-    Send to noesis        Enviar a noesis — *¿A qué biblioteca?* when several
     Floor Settings        Ajustes de The Floor
     Pro (the subscription) Pro — a name, the same in both
     Push notifications    Notificaciones push

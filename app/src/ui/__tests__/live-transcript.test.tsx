@@ -441,7 +441,7 @@ describe('rooms on the Record tab', () => {
 
     const noesis = jest
       .spyOn(api, 'noesis')
-      .mockResolvedValue({ available: true, connected: true, canSend: false, libraries: [] });
+      .mockResolvedValue({ available: true, connected: true, libraries: [] });
     tree = render(screen());
     showTab(tree, 'Record');
     await settle();
@@ -814,8 +814,7 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
-  it('sends the text to noesis from the menu, asking which library only of somebody with several', async () => {
-    const { Alert } = require('react-native');
+  it('offers no Send to noesis, even to somebody connected with sending granted', async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [line('l1', ME, 'Me', NOW + 1_000, 'worth keeping')],
       more: false,
@@ -829,63 +828,15 @@ describe('rooms on the Record tab', () => {
       canSend: true,
       libraries: ['me/essays'],
     });
-    const sent = jest.spyOn(api, 'sendToNoesis').mockResolvedValue({ file: '2026/x.chat.md' });
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const libraries = () =>
-      tree.root.findAll(
-        (n: { props: { label?: string; onPress?: unknown } }) =>
-          (n.props.label === 'essays' || n.props.label === 'journal') && !!n.props.onPress
-      );
     showChannel(transcribed());
-    let tree = render(screen());
+    const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
-
-    let menu = openMenu(tree);
-    expect(menu.options).toEqual(['Share text', 'Send to noesis', 'Delete text']);
-    menu.choose('Send to noesis');
-    await settle();
-    // One library: no second question.
-    expect(libraries()).toHaveLength(0);
-    expect(sent).toHaveBeenCalledWith(expect.anything(), {
-      library: 'me/essays',
-      filename: expect.any(String),
-      text: expect.stringContaining('worth keeping'),
-    });
-    expect(alert).toHaveBeenLastCalledWith('Sent to essays in noesis.');
-    act(() => tree.unmount());
-
-    // Several: which, by its own name.
-    noesis.mockResolvedValue({
-      available: true,
-      connected: true,
-      canSend: true,
-      libraries: ['me/essays', 'me/journal'],
-    });
-    sent.mockClear();
-    tree = render(screen());
-    showTab(tree, 'Record');
-    await settle();
-    menu = openMenu(tree);
-    menu.choose('Send to noesis');
-    // Asked under the line, as the menu was, and nothing sent until answered.
-    expect(textOf(tree)).toContain('Send to which library?');
-    expect(libraries().map((n) => n.props.label)).toEqual(['essays', 'journal']);
-    expect(sent).not.toHaveBeenCalled();
-    act(() => libraries()[1].props.onPress());
-    await settle();
-    expect(sent.mock.calls[0][1]).toMatchObject({ library: 'me/journal' });
-    expect(libraries()).toHaveLength(0);
-    act(() => tree.unmount());
-
-    // Not granted: not offered at all.
-    noesis.mockResolvedValue({ available: true, connected: true, canSend: false, libraries: ['me/essays'] });
-    tree = render(screen());
-    showTab(tree, 'Record');
-    await settle();
+    // Gone since 2026-11-10: the channel's library holds it, and a copy of
+    // one's own is made at noesis.
     expect(openMenu(tree).options).toEqual(['Share text', 'Delete text']);
     act(() => tree.unmount());
-    for (const spy of [noesis, sent, alert]) spy.mockRestore();
+    noesis.mockRestore();
   });
 
   it('shares the text of a segment whose audio is still being mixed, and says why not the audio', async () => {

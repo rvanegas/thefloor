@@ -39,6 +39,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | — | `nearbyWhen` optionality | `core/types.ts`, `core/channel.ts` |
 | 175 | The pre-attention fallback | `server/src/channels.ts`, `server/src/release.ts`, `app/src/ui/ChannelView.tsx` |
 | 422 | Sign-in by this server's own code | `server/src/app.ts`, `server/src/accounts.ts`, `app/src/ui/AuthView.tsx` |
+| 429 | *Send to noesis* | `server/src/app.ts`, `server/src/noesis.ts`, `core/protocol.ts` |
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 195 | `ChannelView.pingedWith` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
@@ -185,6 +186,35 @@ What goes, once `oldestBuild` has passed 363:
 channel, which its own core allowed, and the reducer now refuses it silently.
 That is a refusal of something that is no longer permitted rather than a
 shape kept for compatibility, and it goes away by itself as those builds do.
+
+---
+
+## Gate 429 — *Send to noesis*
+
+Build 429 drops *Send to noesis* from a segment's menu (2026-11-10,
+`decision/2026-11-10-noesis-is-read-only-without-pro-and-send-to-noesis-goes.md`):
+a member copies the channel library's transcript into their own at noesis
+instead. Builds 404 to 428 still offer it, so the server goes on answering
+them — for *Pro* alone since the same day, refusing everybody else with 402
+and a message those builds show as it is.
+
+What goes, once `oldestBuild` has passed 428:
+
+- `POST /me/noesis/send` in `server/src/app.ts`
+- `NoesisConnections.send` and its `PUT /me/names` call, `NOESIS_IMPORT_SCOPE`
+  in what `start` asks for, and `canSend` in `status`, all in
+  `server/src/noesis.ts`; `noesis_connections.scopes` with them if nothing
+  else reads it by then
+- `NoesisView.canSend` in `core/protocol.ts`
+- at noesis, the `import` grant The Floor's client is marked with
+  (`scripts/client_imports.py`), and then `filer`'s second scope in
+  noesis's `server.py`
+
+**What must not be deleted alongside it:**
+
+- **`noesisFilename` and the import call in `channelLibraries.ts` stay**: the
+  channel library files every transcript through noesis's import, with The
+  Floor's own `noesis:keep` token, which this shim never touched.
 
 ---
 

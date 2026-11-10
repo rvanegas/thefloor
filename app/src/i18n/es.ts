@@ -738,7 +738,7 @@ export const es: Strings = {
     proNotFound: () => 'No se encontr\u00f3 ninguna suscripci\u00f3n Pro para esta cuenta.',
     noesisLibrary: () => 'Biblioteca de noesis',
     noesisAbout: () =>
-      'Conecta tu biblioteca de noesis y podrás dejar que Claude la consulte en los canales que elijas, en Ajustes del canal, y enviarle el texto de una sala desde Compartir en Grabado. Para conectarla entras en auth.rvanegas.co; si ya habías entrado, al instante.',
+      'Conecta tu biblioteca de noesis para abrir allí las bibliotecas de tus canales y, con Pro, dejar que Claude consulte la tuya en los canales que elijas, en Ajustes del canal. Para conectarla entras en auth.rvanegas.co; si ya habías entrado, al instante.',
     noesisConnect: () => 'Conectar',
     noesisConnecting: () => 'Conectando…',
     noesisConnectedAs: (user: string, email: string | null) =>
@@ -748,10 +748,10 @@ export const es: Strings = {
         ? `${libraries.length === 1 ? 'Tu biblioteca' : 'Tus bibliotecas'} allí: ${libraries.join(', ')}.`
         : 'Todavía no tienes ninguna biblioteca en noesis.',
     noesisConnectedNote: () =>
-      'Elige cuáles puede consultar un canal en sus Ajustes del canal. Compartir, en Grabado, envía el texto de una sala a una de ellas. Al desconectarla se desactivan en todos los canales.',
-    noesisSendNeedsReconnect: () =>
-      'Para enviar el texto de una sala a tu biblioteca, vuelve a conectarla: noesis te preguntará si The Floor puede añadirle conversaciones.',
-    noesisReconnect: () => 'Volver a conectar',
+      'Elige cuáles puede consultar un canal en sus Ajustes del canal. Al desconectarla se desactivan en todos los canales.',
+    noesisReadOnlyNote: () =>
+      'Puedes abrir en noesis las bibliotecas de tus canales. Que Claude consulte tu propia biblioteca en un canal viene con Pro.',
+    noesisProOnIphone: () => 'Pro se compra en The Floor desde un iPhone.',
     noesisDisconnect: () => 'Desconectar',
     noesisOpen: () => 'Abrir noesis',
     noesisDisconnecting: () => 'Desconectando…',
@@ -1190,13 +1190,7 @@ export const es: Strings = {
     shareText: () => 'Compartir texto',
     keptBoth: () => 'Audio + Texto',
     roomTextCopied: () => 'El texto est\u00e1 copiado.',
-    sendToNoesis: () => 'Enviar a noesis',
     openFiledInNoesis: () => 'Abrir en noesis',
-    sendToWhichLibrary: () => '\u00bfA qu\u00e9 biblioteca?',
-    sentToNoesis: (library: string) => `Enviado a ${library} en noesis.`,
-    couldNotSendToNoesis: () => 'No se pudo enviar a noesis',
-    noesisSendNotGranted: () =>
-      'Vuelve a conectar tu biblioteca de noesis en Ajustes de The Floor para enviarle textos.',
     keepText: () => 'Texto',
     severalVoices: () => 'Varias voces en mi micr\u00f3fono',
     askClaude: () => 'Preguntar a Claude',

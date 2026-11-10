@@ -977,7 +977,7 @@ export const en = {
      */
     noesisLibrary: () => 'noesis library',
     noesisAbout: () =>
-      'Connect your noesis library and you can let Claude consult it in the channels you choose, on Channel Settings, and send a room’s text to it from Share on the Record tab. Connecting asks you to sign in at auth.rvanegas.co — at once, if you already are.',
+      'Connect your noesis library to open your channels’ own libraries there, and with Pro, to let Claude consult yours in the channels you choose, on Channel Settings. Connecting asks you to sign in at auth.rvanegas.co — at once, if you already are.',
     noesisConnect: () => 'Connect',
     noesisConnecting: () => 'Connecting…',
     noesisConnectedAs: (user: string, email: string | null) =>
@@ -987,11 +987,15 @@ export const en = {
         ? `Your ${libraries.length === 1 ? 'library' : 'libraries'} there: ${libraries.join(', ')}.`
         : 'You have no library in noesis yet.',
     noesisConnectedNote: () =>
-      'Choose which a channel may consult on its Channel Settings. Share on the Record tab sends a room’s text to one. Disconnecting switches them off in every channel.',
-    /** A connection made before sending was asked for, which a new sign-in brings up to date. */
-    noesisSendNeedsReconnect: () =>
-      'To send a room’s text to your library, connect again: noesis will ask whether The Floor may add conversations to it.',
-    noesisReconnect: () => 'Connect again',
+      'Choose which a channel may consult on its Channel Settings. Disconnecting switches them off in every channel.',
+    /**
+     * Connected without Pro, since 2026-11-10: noesis is read-only for them —
+     * their channels' libraries open, their own is consulted nowhere.
+     */
+    noesisReadOnlyNote: () =>
+      'You can open your channels’ libraries in noesis. Letting Claude consult your own library in a channel comes with Pro.',
+    /** Where Pro cannot be bought: the web, and Android. */
+    noesisProOnIphone: () => 'Pro is bought in The Floor on an iPhone.',
     noesisDisconnect: () => 'Disconnect',
     noesisDisconnecting: () => 'Disconnecting…',
     /** Opens noesis's web client in the browser, where the libraries are read and kept. */
@@ -1531,19 +1535,12 @@ export const en = {
      * a library of theirs as a conversation. *noesis* stays lower-case, as it
      * names itself.
      */
-    sendToNoesis: () => 'Send to noesis',
     /**
      * In a segment's menu once it is filed in the channel's library, since
      * 2026-11-07: opens that document in noesis's web client.
      */
     openFiledInNoesis: () => 'Open in noesis',
     /** Which library, asked only of somebody with more than one. */
-    sendToWhichLibrary: () => 'Send to which library?',
-    sentToNoesis: (library: string) => `Sent to ${library} in noesis.`,
-    couldNotSendToNoesis: () => 'Could not send to noesis',
-    /** The grant predates sending, or noesis withdrew it. */
-    noesisSendNotGranted: () =>
-      'Connect your noesis library again on Floor Settings to send to it.',
     /**
      * The *Record* tab's two switches: what this channel keeps of what is
      * said, beside `audio`. Either, both or neither. See `KeepSwitches`.
