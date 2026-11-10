@@ -9,7 +9,7 @@ import { HomeSettingsView } from "../HomeSettingsView";
 import { SupportView } from "../SupportView";
 import { LeaderboardView } from "../LeaderboardView";
 import { Card, SectionLabel } from "../components";
-import { Alert, Linking, StyleSheet } from "react-native";
+import { Alert, AppState, Linking, StyleSheet } from "react-native";
 import { chimeIn, warmChimes } from "../../audio/chime";
 import * as iap from "expo-iap";
 import { watchPurchases } from "../../state/purchases";
@@ -1342,7 +1342,7 @@ describe("noesis library", () => {
     act(() => tree.unmount());
   });
 
-  it("opens noesis in the system sheet, so the session that signed you in signs you in there", async () => {
+  it("opens noesis in the browser, and shows a library made there on coming back", async () => {
     mockApp.loadNoesis.mockResolvedValue({
       available: true,
       connected: true,
@@ -1355,7 +1355,12 @@ describe("noesis library", () => {
     const tree = await openSettings();
     expect(textOf(tree)).toContain("You have no library in noesis yet.");
     mockSheet.mockClear();
-    // A library made there shows once the sheet closes.
+    await act(async () => {
+      await findButton(tree, "Open noesis")!.props.onPress();
+    });
+    // The person's own browser, as an app of its own, since 2026-11-10.
+    expect(open).toHaveBeenCalledWith("https://noesis.example/web/");
+    expect(mockSheet).not.toHaveBeenCalled();
     mockApp.loadNoesis.mockResolvedValue({
       available: true,
       connected: true,
@@ -1365,10 +1370,9 @@ describe("noesis library", () => {
       web: "https://noesis.example/web/",
     } as never);
     await act(async () => {
-      await findButton(tree, "Open noesis")!.props.onPress();
+      // React Native's own mock of AppState, which keeps every listener.
+      for (const [, f] of jest.mocked(AppState.addEventListener).mock.calls) f("active");
     });
-    expect(mockSheet).toHaveBeenCalledWith("https://noesis.example/web/", "thefloor://noesis");
-    expect(open).not.toHaveBeenCalled();
     expect(textOf(tree)).toContain("Your library there: notes.");
     open.mockRestore();
     act(() => tree.unmount());
