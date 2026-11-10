@@ -678,7 +678,7 @@ export function SegmentLine({
   // no hours to give it and nothing to do with it but what Copy already does.
   if (segment.paste) return null;
 
-  const title = segment.filed?.title ? <FiledTitle title={segment.filed.title} /> : null;
+  const title = connected && segment.filed?.title ? <FiledTitle title={segment.filed.title} /> : null;
 
   if (recording && renderRecording) {
     return (
@@ -723,7 +723,10 @@ export function SegmentLine({
  * what it kept. In the style the recording's name had in the open row, which
  * it replaced: that name was the channel's unless somebody renamed it, and
  * said again what the header over the screen says. A segment filed before noesis said has none; *Open in noesis*,
- * which stood at this line's end, is in the segment's menu.
+ * which stood at this line's end, is in the segment's menu. **Drawn only for
+ * somebody whose own library is connected**, since 2026-11-10, as everything
+ * of noesis's in the app is but *Floor Settings*' card, which is where one
+ * connects.
  */
 function FiledTitle({ title }: { title: string }) {
   return (

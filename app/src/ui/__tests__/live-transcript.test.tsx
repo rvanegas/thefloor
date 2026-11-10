@@ -431,11 +431,11 @@ describe('rooms on the Record tab', () => {
         ]),
       ],
     } as never);
-    // Not connected to noesis: the title, and nothing of noesis's in the menu.
+    // Not connected to noesis: nothing of noesis's, the title it gave included.
     let tree = render(screen());
     showTab(tree, 'Record');
     await settle();
-    expect(textOf(tree).match(/Bach Reads Kant/g)).toHaveLength(1);
+    expect(textOf(tree)).not.toContain('Bach Reads Kant');
     expect(openMenu(tree, 0).options).toEqual(['Share text', 'Delete text']);
     act(() => tree.unmount());
 
@@ -464,6 +464,7 @@ describe('rooms on the Record tab', () => {
   });
 
   it("fetches the rooms again when a segment is filed, and draws the title it was given", async () => {
+    const noesis = jest.spyOn(api, 'noesis').mockResolvedValue({ available: true, connected: true, libraries: [] });
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [line('l1', ME, 'Me', NOW + 5_000, 'said and filed')],
       more: false,
@@ -494,6 +495,7 @@ describe('rooms on the Record tab', () => {
     expect(rooms.mock.calls.length).toBeGreaterThan(asked);
     expect(textOf(tree)).toContain('Bach Reads Kant');
     act(() => tree.unmount());
+    noesis.mockRestore();
   });
 
   it('closes each segment to its header, which opens it, its actions with it', async () => {
