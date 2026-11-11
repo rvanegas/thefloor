@@ -4063,11 +4063,38 @@ export function buildApp(options: BuildOptions = {}): App {
     return { available: true, web: noesisWeb(options.library!.url), pro: isPro(account.id), ...noesis.status(account.id) };
   });
 
+  /** The end of connecting: back into the app, or a page the web app's tab can be closed from. */
+  const connectedReply = (reply: FastifyReply, ok: boolean, returnTo: 'app' | 'web') => {
+    if (returnTo === 'app') {
+      return reply.redirect(`thefloor://noesis?result=${ok ? 'connected' : 'failed'}`);
+    }
+    return reply.type('text/html; charset=utf-8').send(
+      page({
+        title: 'noesis library — The Floor',
+        heading: ok ? 'Your library is connected' : 'Your library was not connected',
+        standfirst: ok
+          ? 'Your noesis library is connected to The Floor.'
+          : 'The Floor could not connect your noesis library.',
+        body: ok
+          ? '<p>The Floor can now offer your noesis library to the channels you choose, on ' +
+            '<strong>Channel Settings</strong>. You can close this window.</p>'
+          : '<p>Close this window and try again from <strong>Floor Settings</strong>.</p>',
+      })
+    );
+  };
+
   /**
-   * Begins connecting: the URL of noesis's sign-in, which the app opens in a
-   * browser. `returnTo` is where the callback sends the person afterwards —
-   * `app`, the app's own scheme, which closes the browser; `web`, a page the
-   * web app's tab can be closed from.
+   * Connects, or begins to. Since 2026-11-11 auth is asked first to grant it
+   * on The Floor's word for the account's address (noesis.ts, `vouch`), and
+   * `{ connected: true }` says it did: no browser, nothing asked. Otherwise
+   * the URL of auth's sign-in, which the app opens in a browser; `returnTo`
+   * is where the callback sends the person afterwards — `app`, the app's own
+   * scheme, which closes the browser; `web`, a page the web app's tab can be
+   * closed from.
+   *
+   * **A shim** (SHIMS.md, gate 430): builds up to 429 open whatever `url` is
+   * given, so a vouched connection gives them `/noesis/connected`, which
+   * finishes at once as the callback would.
    */
   fastify.post('/me/noesis/connect', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -4077,7 +4104,25 @@ export function buildApp(options: BuildOptions = {}): App {
     }
     const body = request.body as { returnTo?: unknown } | undefined;
     const returnTo = body?.returnTo === 'web' ? 'web' : 'app';
-    return { url: noesis.start(account.id, returnTo) };
+    const vouched = await noesis.vouch(account.id).catch((error) => {
+      request.log.warn({ err: error }, 'noesis: auth could not be asked to vouch');
+      return null;
+    });
+    if (vouched?.ok) {
+      if (vouched.renamed) notifyRenamed(account.id);
+      channels.libraryConnectionChanged(account.id);
+      return { connected: true, url: noesis.connectedUrl(returnTo) };
+    }
+    if (vouched && vouched.reason !== 'refused') {
+      request.log.warn({ reason: vouched.reason }, 'noesis: a vouched grant was not kept');
+    }
+    return { connected: false, url: noesis.start(account.id, returnTo) };
+  });
+
+  /** Where a build up to 429 is sent once its library connected without a sign-in (above). */
+  fastify.get('/noesis/connected', async (request, reply) => {
+    const query = request.query as { returnTo?: string };
+    return connectedReply(reply, true, query.returnTo === 'web' ? 'web' : 'app');
   });
 
   /**
@@ -4128,22 +4173,7 @@ export function buildApp(options: BuildOptions = {}): App {
     else if (result.reason !== 'access_denied') {
       request.log.warn({ reason: result.reason }, 'noesis: a library was not connected');
     }
-    if (result.returnTo === 'app') {
-      return reply.redirect(`thefloor://noesis?result=${result.ok ? 'connected' : 'failed'}`);
-    }
-    return reply.type('text/html; charset=utf-8').send(
-      page({
-        title: 'noesis library — The Floor',
-        heading: result.ok ? 'Your library is connected' : 'Your library was not connected',
-        standfirst: result.ok
-          ? 'Your noesis library is connected to The Floor.'
-          : 'The Floor could not connect your noesis library.',
-        body: result.ok
-          ? '<p>The Floor can now offer your noesis library to the channels you choose, on ' +
-            '<strong>Channel Settings</strong>. You can close this window.</p>'
-          : '<p>Close this window and try again from <strong>Floor Settings</strong>.</p>',
-      })
-    );
+    return connectedReply(reply, result.ok, result.returnTo);
   });
 
   /**

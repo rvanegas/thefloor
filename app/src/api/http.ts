@@ -426,9 +426,14 @@ export const api = {
   noesisHandoff: (token: string, url: string) =>
     request<{ url: string }>('/me/noesis/handoff', { method: 'POST', token, body: { url } }),
 
-  /** noesis's sign-in URL, to open in a browser; it comes back to `returnTo`. */
+  /**
+   * Connects your library: `connected` where auth took the server's word for
+   * your address, since 2026-11-11, and nothing need be opened; otherwise
+   * auth's sign-in URL, to open in a browser, which comes back to `returnTo`.
+   * An older server says no `connected`, and always means the URL.
+   */
   connectNoesis: (token: string, returnTo: 'app' | 'web') =>
-    request<{ url: string }>('/me/noesis/connect', { method: 'POST', token, body: { returnTo } }),
+    request<{ url: string; connected?: boolean }>('/me/noesis/connect', { method: 'POST', token, body: { returnTo } }),
 
   /** Switches your library off everywhere, and forgets it here. */
   disconnectNoesis: (token: string) =>

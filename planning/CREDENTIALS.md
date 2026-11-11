@@ -382,11 +382,11 @@ Deliberately separate, so no single leak is worse than it has to be:
   --keeps-names`. Where the text below says noesis's sign-in, register or
   `add_client.py`, read auth's.
 
-  **It reads nobody's library by itself.** It lets this server finish a
-  person's sign-in at noesis (`/noesis/callback`) and refresh or revoke the grant
-  that sign-in made. A leak lets somebody pose as The Floor on noesis's sign-in
-  page and refresh grants they also hold, which they cannot read here; it
-  spends nothing.
+  **Until 2026-11-11 it read nobody's library by itself.** It lets this server
+  finish a person's sign-in at noesis (`/noesis/callback`) and refresh or revoke
+  the grant that sign-in made. A leak let somebody pose as The Floor on noesis's
+  sign-in page and refresh grants they also held, which they could not read
+  here; it spends nothing. Vouching, below, ended that.
 
   **Since 2026-11-02 it also speaks for The Floor at noesis's register of
   names** (`server/src/names.ts`), once noesis's operator has marked the
@@ -423,6 +423,19 @@ Deliberately separate, so no single leak is worse than it has to be:
   not also have, and the grants are sealed with a key derived from it (below)
   — which means **a leak of the pair and the database together signs in
   every connected person anywhere**, not just reads their libraries.
+
+  **Since 2026-11-11 the pair alone is granted any person's library**:
+  *Connect* has auth grant `noesis:read noesis:import` on The Floor's word for
+  the account's address, with no page (`NoesisConnections.vouch`; auth's
+  `vouched` grant, decided there as
+  `2026-11-11-the-floor-vouches-for-its-persons-address.md`), allowed this
+  client by auth's operator with `client_scopes.py thefloor --scope "identity
+  noesis:read noesis:import" --credentials noesis:keep --vouches`. So **a leak
+  of the pair alone reads and files into every person's libraries**, for any
+  address, connected here or not — and, with the handoff above, which takes
+  the pair and a token it can now mint for anybody, **signs a browser in to
+  auth as anybody**, which reaches every project. A rotation by `add_client.py`
+  needs `--vouches` again, or *Connect* falls back to the sign-in page.
 
   **auth deletes accounts here the same way, with no secret**: when somebody
   deletes their account at auth.rvanegas.co, auth calls `DELETE /users/:user`

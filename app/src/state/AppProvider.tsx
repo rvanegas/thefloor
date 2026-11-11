@@ -638,8 +638,11 @@ interface AppValue extends AppState {
    * the server cannot make one. Never throws.
    */
   noesisLink: (url: string) => Promise<string>;
-  /** noesis's sign-in URL for connecting yours, coming back to the app or to a page. */
-  connectNoesis: (returnTo: 'app' | 'web') => Promise<string>;
+  /**
+   * Connects yours: null where it is connected already, with nothing asked
+   * (since 2026-11-11); else auth's sign-in URL, coming back to the app or to a page.
+   */
+  connectNoesis: (returnTo: 'app' | 'web') => Promise<string | null>;
   /** Disconnects yours: off in every channel, and forgotten by the server. */
   disconnectNoesis: () => Promise<void>;
   /**
@@ -3002,7 +3005,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       connectNoesis: async (returnTo) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        return (await api.connectNoesis(state.token, returnTo)).url;
+        const started = await api.connectNoesis(state.token, returnTo);
+        return started.connected ? null : started.url;
       },
 
       disconnectNoesis: async () => {

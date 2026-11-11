@@ -33,7 +33,7 @@ import {
   type RecordSources,
 } from '../src/claude';
 import { openDb } from '../src/db';
-import { noesisFilename, type NoesisOptions } from '../src/noesis';
+import { noesisFilename, VOUCHED_GRANT, type NoesisOptions } from '../src/noesis';
 import { MemoryMailer } from '../src/mail';
 import { fakeAuth } from '../__stubs__/fakeAuth';
 import { AuthClient } from '../src/auth';
@@ -455,6 +455,7 @@ beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'thefloor-claude-'));
   noesisCalls.length = 0;
   noesisRefuses = false;
+  authVouches = false;
   noesisLibraries = ['alice/philosophy'];
   noesisScope = 'noesis:read noesis:import';
   noesisNames = [];
@@ -483,6 +484,8 @@ let noesisScope = 'noesis:read noesis:import';
 let noesisNames: string[] = [];
 /** How noesis's import answers. */
 let noesisImport: () => Response = () => new Response(null, { status: 500 });
+/** Whether auth grants on The Floor's word for an address (`vouch`); it refuses unless a test says otherwise. */
+let authVouches = false;
 /** Who noesis's `/me` says signed in: the account connecting, unless a test says otherwise. */
 let noesisWho: { user: string; email: string } = { user: 'alice', email: 'alice@example.com' };
 const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: string }) => {
@@ -497,6 +500,9 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
   });
   if (url.pathname === '/token') {
     if (noesisRefuses) return new Response('{"error":"invalid_grant"}', { status: 400 });
+    if (fields.grant_type === VOUCHED_GRANT && !authVouches) {
+      return new Response('{"error":"unauthorized_client"}', { status: 400 });
+    }
     const n = noesisCalls.filter((call) => call.path === '/token').length;
     return Response.json({
       access_token: fields.grant_type === 'authorization_code' ? 'secret' : `secret-${n}`,
@@ -1603,7 +1609,7 @@ describe('connecting an noesis library', () => {
     });
     expect(back.statusCode).toBe(302);
     expect(back.headers.location).toBe('thefloor://noesis?result=connected');
-    const exchange = noesisCalls.find((call) => call.path === '/token')!.fields;
+    const exchange = noesisCalls.find((call) => call.fields.grant_type === 'authorization_code')!.fields;
     expect(exchange).toMatchObject({
       grant_type: 'authorization_code',
       code: 'abc',
@@ -1644,6 +1650,61 @@ describe('connecting an noesis library', () => {
     const page = await app.fastify.inject({ method: 'GET', url: `/noesis/callback?state=${state}&code=def` });
     expect(page.statusCode).toBe(200);
     expect(page.body).toContain('Your library is connected');
+  });
+
+  it('connects with no sign-in where auth takes The Floor’s word for the address, and old builds still finish', async () => {
+    boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
+    const { alice } = await room2();
+    authVouches = true;
+    const connecting = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/noesis/connect',
+      headers: auth(alice.token),
+      payload: { returnTo: 'app' },
+    });
+    expect(connecting.json()).toEqual({
+      connected: true,
+      url: 'https://floor.example/noesis/connected?returnTo=app',
+    });
+    expect(noesisCalls.find((call) => call.path === '/token')!.fields).toMatchObject({
+      grant_type: VOUCHED_GRANT,
+      email: 'alice@example.com',
+      scope: 'noesis:read noesis:import',
+      client_id: 'thefloor',
+      client_secret: 'client-secret',
+    });
+    const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
+    expect(status.json()).toMatchObject({ connected: true, user: 'alice', email: 'alice@example.com' });
+    // A build up to 429 opens the URL it is given, which ends at once as the callback would.
+    const old = await app.fastify.inject({ method: 'GET', url: '/noesis/connected?returnTo=app' });
+    expect(old.headers.location).toBe('thefloor://noesis?result=connected');
+    const page = await app.fastify.inject({ method: 'GET', url: '/noesis/connected?returnTo=web' });
+    expect(page.body).toContain('Your library is connected');
+
+    // Refused by auth: the sign-in, as before.
+    await app.noesis!.disconnect(alice.account.id);
+    authVouches = false;
+    const refused = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/noesis/connect',
+      headers: auth(alice.token),
+      payload: { returnTo: 'app' },
+    });
+    expect(refused.json().connected).toBe(false);
+    expect(refused.json().url).toMatch(/^https:\/\/auth\.example\/authorize\?/);
+
+    // A grant for somebody else's address is given back, never kept.
+    authVouches = true;
+    noesisWho = { user: 'mallory', email: 'mallory@example.com' };
+    const other = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/noesis/connect',
+      headers: auth(alice.token),
+      payload: { returnTo: 'app' },
+    });
+    expect(other.json().connected).toBe(false);
+    expect(app.noesis!.connected(alice.account.id)).toBe(false);
+    expect(noesisCalls.at(-1)).toMatchObject({ path: '/revoke' });
   });
 
   it('says so, into the app, when the person declines at noesis', async () => {

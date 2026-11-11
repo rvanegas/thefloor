@@ -13,11 +13,15 @@ import type { Db } from './db';
  * `scripts/add_client.py` and holding `NOESIS_CLIENT_ID` / `NOESIS_CLIENT_SECRET`,
  * carried over from noesis as they were — and this is that client:
  *
- * - **Connecting** is *Connect* on *Floor Settings*: `start` makes an
- *   authorization URL (code flow with PKCE), the app opens it in a browser,
- *   the person signs in at auth with their address and an emailed code, and
- *   auth sends the browser back to `/noesis/callback`, where `finish` trades the
- *   code for tokens and asks noesis whose library it is (and auth, their address).
+ * - **Connecting** is *Connect* on *Floor Settings*. Since 2026-11-11 `vouch`
+ *   first: The Floor asks auth for the grant on its own word for the
+ *   account's address, which it verified itself (auth's `vouched` grant,
+ *   which its operator allows this client), and the person sees no page at
+ *   all. Only where auth refuses does `start` make an authorization URL (code
+ *   flow with PKCE), the app opens it in a browser, the person signs in at
+ *   auth, and auth sends the browser back to `/noesis/callback`, where
+ *   `finish` trades the code for tokens. Either way `keep` asks noesis whose
+ *   library it is (and auth, their address).
  * - **What is kept** is the refresh token, encrypted with a key derived from
  *   the client secret, so a copy of the database alone reaches nobody's
  *   library; rotating the secret disconnects everybody, who connect again.
@@ -84,6 +88,8 @@ export type NoesisSent =
 
 /** The scope that lets this client file conversations at noesis, which auth's operator allows it. */
 export const NOESIS_IMPORT_SCOPE = 'noesis:import';
+/** auth's grant by which The Floor vouches for an address it verified itself (`vouch`). */
+export const VOUCHED_GRANT = 'urn:rvanegas:params:oauth:grant-type:vouched';
 /** What a connection asks for: reading the person's libraries through Claude, and filing into them. */
 export const NOESIS_SCOPES = `noesis:read ${NOESIS_IMPORT_SCOPE}`;
 
@@ -230,6 +236,47 @@ export class NoesisConnections {
       entry.accountId = made.accountId;
       created = made.created;
     }
+    const accountId = entry.accountId!;
+    const kept = await this.keep(accountId, tokens, created, me);
+    if (!kept.ok) return failed(kept.reason);
+    return { ok: true, accountId, returnTo: entry.returnTo, signIn, webPath: entry.webPath, renamed: kept.renamed };
+  }
+
+  /**
+   * Connects the account's library with no page: auth grants it on The
+   * Floor's word for the account's address, which The Floor verified itself.
+   * `refused` where auth will not (an older auth, the client not let vouch,
+   * the account disabled there), and Connect then opens the sign-in (`start`).
+   * Throws where auth could not be reached.
+   */
+  async vouch(accountId: string): Promise<{ ok: true; renamed: boolean } | { ok: false; reason: string }> {
+    const mine = this.db.prepare('SELECT identifier FROM accounts WHERE id = ?').get(accountId) as
+      | { identifier: string }
+      | undefined;
+    if (!mine) return { ok: false, reason: 'account' };
+    const tokens = await this.token({ grant_type: VOUCHED_GRANT, email: mine.identifier, scope: NOESIS_SCOPES });
+    if (!tokens) return { ok: false, reason: 'refused' };
+    const me = await this.whoIs(tokens.access_token);
+    if (!me) return { ok: false, reason: 'me' };
+    return this.keep(accountId, tokens, false, me);
+  }
+
+  /** This server's page that ends a connecting at once, for builds that open whatever URL they are given (app.ts). */
+  connectedUrl(returnTo: NoesisReturn): string {
+    return new URL(`/noesis/connected?returnTo=${returnTo}`, this.options.callbackUrl).toString();
+  }
+
+  /**
+   * A grant made for the account kept as its connection, `me` being whose
+   * library noesis says it reaches and the address auth says it is for, when
+   * that is this account's own; otherwise given back.
+   */
+  private async keep(
+    accountId: string,
+    tokens: TokenResponse,
+    created: boolean,
+    me: NonNullable<Awaited<ReturnType<NoesisConnections['whoIs']>>>
+  ): Promise<{ ok: true; renamed: boolean } | { ok: false; reason: string }> {
     /*
       The noesis account has to be this account's own: the same address, and
       so — noesis deciding names (names.ts) — the same username. Somebody who
@@ -238,12 +285,11 @@ export class NoesisConnections {
     */
     const mine = this.db
       .prepare('SELECT identifier FROM accounts WHERE id = ?')
-      .get(entry.accountId) as { identifier: string } | undefined;
+      .get(accountId) as { identifier: string } | undefined;
     if (!mine || !me.email || mine.identifier.trim().toLowerCase() !== me.email.trim().toLowerCase()) {
       await this.post('/revoke', { token: tokens.refresh_token }).catch(() => undefined);
-      return failed('address');
+      return { ok: false, reason: 'address' };
     }
-    const accountId = entry.accountId!;
     this.db
       .prepare(
         `INSERT INTO noesis_connections (account_id, noesis_user, noesis_email, refresh_token, connected_at, libraries, scopes)
@@ -267,7 +313,7 @@ export class NoesisConnections {
     });
     // A new account's name is a placeholder until they choose one (POST /me), so not offered to auth.
     const renamed = await this.agreeOnName(accountId, me.displayName, tokens.access_token, !created);
-    return { ok: true, accountId, returnTo: entry.returnTo, signIn, webPath: entry.webPath, renamed };
+    return { ok: true, renamed };
   }
 
   /**

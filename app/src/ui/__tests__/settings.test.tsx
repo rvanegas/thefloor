@@ -1271,6 +1271,23 @@ describe("noesis library", () => {
     act(() => tree.unmount());
   });
 
+  it("connects without opening anything where the server says it is connected already", async () => {
+    mockApp.loadNoesis.mockResolvedValue({ available: true, connected: false, user: undefined, email: undefined });
+    const open = jest.spyOn(Linking, "openURL").mockResolvedValue(true);
+    mockSheet.mockClear();
+    mockApp.connectNoesis.mockResolvedValueOnce(null);
+    const tree = await openSettings();
+    mockApp.loadNoesis.mockResolvedValue({ available: true, connected: true, user: "rodvandur", email: null, libraries: [] } as never);
+    await act(async () => {
+      findButton(tree, "Connect")!.props.onPress();
+    });
+    expect(mockSheet).not.toHaveBeenCalled();
+    expect(open).not.toHaveBeenCalled();
+    expect(textOf(tree)).toContain("Connected as rodvandur");
+    open.mockRestore();
+    act(() => tree.unmount());
+  });
+
   /**
    * In the system sheet, as signing in is, since build 423: it shares Safari's
    * cookies whatever the default browser, where handing the URL to iOS opened

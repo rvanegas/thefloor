@@ -796,7 +796,10 @@ const APPLE_TERMS_OF_USE = 'https://www.apple.com/legal/internet-services/itunes
  * there. Drawn only where the server offers libraries — an older server
  * answers 404, read as no card, as `ProCard` reads a failure.
  *
- * **Connect opens dianoia-auth's sign-in in the system sheet on a phone**, as
+ * **Connect asks nothing, since 2026-11-11**: the server has auth grant the
+ * library on its word for the address you signed in to The Floor with, and the
+ * card reads the connection at once. Only where auth will not does it open a
+ * sign-in. **That sign-in opens in the system sheet on a phone**, as
  * signing in does, since build 423: the sheet shares Safari's cookies whatever
  * the default browser is, so a session there connects without a code, where
  * handing the URL to iOS opened the default browser, which may know nobody
@@ -855,11 +858,16 @@ function NoesisCard() {
     setMessage(null);
     setBusy('connecting');
     try {
-      if (Platform.OS === 'web') {
-        await Linking.openURL(await app.connectNoesis('web'));
+      const url = await app.connectNoesis(Platform.OS === 'web' ? 'web' : 'app');
+      if (url === null) {
+        setBusy(null);
+        setView(await app.loadNoesis());
         return;
       }
-      const url = await app.connectNoesis('app');
+      if (Platform.OS === 'web') {
+        await Linking.openURL(url);
+        return;
+      }
       const result = await WebBrowser.openAuthSessionAsync(url, 'thefloor://noesis');
       setBusy(null);
       if (result.type === 'success' && result.url.includes('result=failed')) setMessage(t.noesisFailed());

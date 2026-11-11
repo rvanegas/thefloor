@@ -39,6 +39,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | — | `nearbyWhen` optionality | `core/types.ts`, `core/channel.ts` |
 | 175 | The pre-attention fallback | `server/src/channels.ts`, `server/src/release.ts`, `app/src/ui/ChannelView.tsx` |
 | 422 | Sign-in by this server's own code | `server/src/app.ts`, `server/src/accounts.ts`, `app/src/ui/AuthView.tsx` |
+| 430 | `url` from a vouched *Connect* | `server/src/app.ts`, `server/src/noesis.ts` |
 | 429 | *Send to noesis* | `server/src/app.ts`, `server/src/noesis.ts`, `core/protocol.ts` |
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
@@ -186,6 +187,28 @@ What goes, once `oldestBuild` has passed 363:
 channel, which its own core allowed, and the reducer now refuses it silently.
 That is a refusal of something that is no longer permitted rather than a
 shape kept for compatibility, and it goes away by itself as those builds do.
+
+---
+
+## Gate 430 — `url` from a vouched *Connect*
+
+Since 2026-11-11 `POST /me/noesis/connect` first has auth grant the library
+on The Floor's word for the account's address, and says `connected: true`
+when it did; build 430 then opens nothing. Builds up to 429 read only `url`
+and open it in the sheet, or a tab on the web, so a vouched connection still
+gives them one: `/noesis/connected`, which ends at once as the callback does,
+`thefloor://noesis?result=connected` or the *connected* page.
+
+What goes, once `oldestBuild` has passed 429:
+
+- `url` in the vouched answer of `POST /me/noesis/connect`, and the
+  `GET /noesis/connected` route, in `server/src/app.ts`
+- `NoesisConnections.connectedUrl` in `server/src/noesis.ts`
+
+**What must not be deleted alongside it:**
+
+- **`connectedReply` stays**: `/noesis/callback` ends with it, for every
+  connection auth will not vouch for.
 
 ---
 
