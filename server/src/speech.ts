@@ -11,7 +11,7 @@ import { SAMPLE_RATE, type Decoder } from './playback';
  * the number of phones, the key never leaving the box, and the samples
  * published into the room as `room-reader:<channel>` — where everybody hears them
  * and a recording keeps them. See
- * planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
+ * planning/decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md.
  *
  * **The HTTP API, streamed, as raw PCM at 48 kHz**: the reply arrives from
  * Claude whole, which is what HTTP is for; raw PCM needs no decoder; and 48

@@ -6,7 +6,7 @@
  * two languages this app is used in. Every voice speaks all six of
  * AssemblyAI's languages, so one choice covers a channel whatever it speaks;
  * each sounds best in its own, which is why the picker says which that is.
- * See planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
+ * See planning/decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md.
  *
  * Here rather than on the server because the picker draws the same list the
  * server checks a choice against, and two lists are two answers.

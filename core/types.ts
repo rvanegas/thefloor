@@ -475,12 +475,13 @@ export interface Clip {
   voices?: Record<string, string>;
   /**
    * On a reply from Claude only: **the server is speaking it into the room**,
-   * in the channel's `speechVoice`, as the `room-reader:<channel>` participant —
+   * in the asker's *Pro voice*, as the `room-reader:<channel>` participant —
    * so a build that knows this field reads nothing aloud itself. Set when
-   * synthesis starts; absent where the server has no AssemblyAI key, where
-   * the reply's language is not one AssemblyAI speaks, and on every paste
+   * synthesis starts; absent where the channel's *Read aloud* is *Standard*,
+   * where the server has no AssemblyAI key, where the reply's language is
+   * not one AssemblyAI speaks, and on every paste
    * written before 2026-11-13. See
-   * planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
+   * planning/decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md.
    */
   speech?: true;
 }

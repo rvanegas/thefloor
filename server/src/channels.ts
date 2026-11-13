@@ -8055,7 +8055,7 @@ export class ChannelRegistry {
   // A reply synthesised once, here, and published into the room as
   // `room-reader:<channel>` — heard by everybody present through the call and kept
   // by a running recording. See
-  // planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
+  // planning/decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md.
 
   /**
    * The language a reply is spoken in: **the channel's first transcript's**,

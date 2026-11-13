@@ -24,7 +24,7 @@ and § *14. Quick-reference gotchas* before touching
 AssemblyAI-TTS-1: one line in its discovery questions, pointing at the TTS
 quickstart. The reference for that is the *Text to Speech* section files
 linked from `llms.txt` (`/docs/llms-full/text-to-speech-1.txt` to `-4`).
-task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md
+decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md
 records what the parts it uses said on 2026-11-13.
 
 Two cautions about reading it. Its § *0. Operating rules* describe a

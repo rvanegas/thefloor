@@ -29,8 +29,8 @@ either of the other two.
 
 ## Contents
 
-Added 2026-09-07. Read the section you need, not the file: this is ninety-five
-kilobytes and almost no question needs all of it. **The figure had said
+Added 2026-09-07. Read the section you need, not the file: this is a hundred
+and one kilobytes and almost no question needs all of it. **The figure had said
 sixty-two since it was written and was twenty-four kilobytes stale by
 2026-09-26** — correct it in the same commit as anything added here, on
 CLAUDE.md's own rule about the line count it keeps: a number nobody has checked
@@ -784,6 +784,17 @@ parties and the recording alike.
 so it counts toward `othersAudible` and therefore chooses between the two
 non-capturing configurations without anything naming playback explicitly. That
 is why the audio rules need no special case for it.
+
+**Claude's reply, where *Pro* voices read it, is the same kind of thing**, since
+2026-11-13: the server publishes it as the room reader, `room-reader:<channel>`,
+so it too reaches each phone as a remote track, counts toward `othersAudible`
+like the pump, and needs no configuration of its own. *Stop* on the reading bar
+is `setEnabled(false)` on that publication (`quietRoomReader`), which pauses
+delivery to this phone without unsubscribing, so it moves nothing here either.
+The *Standard* reading is not a track at all: the phone's own `Reader` plays
+on the call's engine, or on a player while the engine is not playing out, and
+asks for no configuration. See
+`decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md`.
 
 ---
 

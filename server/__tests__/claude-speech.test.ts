@@ -22,7 +22,7 @@ import { MemoryRecordingStore } from '../src/storage';
  * per paste, as `room-reader:<channel>`, in the asker's voice and the language
  * of its first transcript — and kept an hour so anybody present can have it
  * read again. See
- * planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
+ * planning/decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md.
  */
 
 const T0 = 1_700_000_000_000;
