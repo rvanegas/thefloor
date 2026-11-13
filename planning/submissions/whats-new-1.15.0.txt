@@ -1,0 +1,15 @@
+Claude's replies can be read by Pro voices: said once into the room, so everybody present hears the same reading, and kept in a recording. Read aloud on Channel Settings chooses Standard or Pro voices, and Floor Settings chooses your Standard voice and Pro voice for each language.
+
+Read again, on the reading bar and on Claude's reply in the Record, says the reply into the room once more for everybody.
+
+Name voices, in a segment's menu, gives each separated voice a name in place of its letter.
+
+Play, in a segment's menu, opens Listen and plays it there.
+
+Open noesis signs your browser in on the way. Send to noesis is gone. Switching your own library on in a channel is part of Pro; reading a library stays everybody's.
+
+Your display name is the same in The Floor, noesis and Roxana. Deleting your account at auth.rvanegas.co deletes it here too.
+
+Deleted channels and recordings are kept thirty days before they are gone.
+
+A channel's place on Home is the same for every member.
