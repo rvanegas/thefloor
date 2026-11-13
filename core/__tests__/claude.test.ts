@@ -105,6 +105,32 @@ describe('the response model', () => {
   });
 });
 
+describe("Claude's voice", () => {
+  it('is the default on a new channel', () => {
+    expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).speechVoice).toBeNull();
+  });
+
+  it('is set to a voice in the catalogue, and changes nothing else', () => {
+    const before = bothHere();
+    const after = reduce(before, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-sara' }, T0 + 1);
+    expect(after.speechVoice).toBe('aai-sara');
+    expect({ ...after, speechVoice: null }).toEqual(before);
+  });
+
+  it('reads a slug outside the catalogue as the default', () => {
+    const set = reduce(bothHere(), { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-sara' }, T0 + 1);
+    const after = reduce(set, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-nobody' }, T0 + 2);
+    expect(after.speechVoice).toBeNull();
+  });
+
+  it('is guarded like the other channel settings', () => {
+    // Whether the account is Pro is the server's half of the rule.
+    let s = bothHere();
+    s = reduce(s, { type: 'STEP_OUT', userId: A }, T0 + 1);
+    expect(reduce(s, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-sara' }, T0 + 2)).toBe(s);
+  });
+});
+
 describe('the library', () => {
   it('is off on a new channel', () => {
     expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).library).toBe(false);

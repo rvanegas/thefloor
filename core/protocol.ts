@@ -8,6 +8,7 @@ import type {
   Clip,
   NearbyWhen,
   ResponseModel,
+  SpeechVoice,
   TranscriptionModel,
   UserId,
 } from './types';
@@ -1880,6 +1881,12 @@ export type ClientAction =
    * those who may not change it. Unknown to a server that predates it.
    */
   | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
+  /**
+   * *Claude's voice*, since 2026-11-13: an AssemblyAI slug from
+   * `SPEECH_VOICES`, or null for the default. Refused from an account that is
+   * not *Pro*. Unknown to a server that predates it.
+   */
+  | { type: 'SET_SPEECH_VOICE'; speechVoice: SpeechVoice }
   /**
    * On sets your own libraries here, and is refused from anybody without one
    * connected; off is `owner`'s, or everybody's. Refused from every account

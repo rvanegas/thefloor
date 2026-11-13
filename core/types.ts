@@ -295,6 +295,13 @@ export type TranscriptionModel = 'standard' | 'pro';
 export type ResponseModel = 'standard' | 'pro' | 'max';
 
 /**
+ * The voice Claude's replies are spoken in, in this channel — an AssemblyAI
+ * voice slug from `SPEECH_VOICES` — or null for the default voice of the
+ * language the reply is spoken in (`defaultSpeechVoice`). Since 2026-11-13.
+ */
+export type SpeechVoice = string | null;
+
+/**
  * How long a reply *Ask Claude* asks for, since 2026-10-22: one of three
  * buttons, *Brief*, *Medium* and *Extended*, chosen at each press rather than
  * set on the channel. The word caps are the server's, in
@@ -451,8 +458,22 @@ export interface Clip {
    * phone reads the reply in it where it has that voice installed**, and in
    * its own choice where it has not. Absent where the asker's build predates
    * it, and then each phone reads in its own.
+   *
+   * **Since 2026-11-13 it is read only where the server is not speaking**
+   * (`speech`, below): by a build that predates server speech, and as the
+   * fallback where the server cannot.
    */
   voices?: Record<string, string>;
+  /**
+   * On a reply from Claude only: **the server is speaking it into the room**,
+   * in the channel's `speechVoice`, as the `claude:<channel>` participant —
+   * so a build that knows this field reads nothing aloud itself. Set when
+   * synthesis starts; absent where the server has no AssemblyAI key, where
+   * the reply's language is not one AssemblyAI speaks, and on every paste
+   * written before 2026-11-13. See
+   * planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
+   */
+  speech?: true;
 }
 
 export type PlaybackStatus = 'idle' | 'playing' | 'paused';
@@ -1048,6 +1069,14 @@ export interface ChannelState {
    */
   responseModel: ResponseModel;
   /**
+   * The voice Claude's replies are spoken in, for the whole channel — *Claude's
+   * voice*, since 2026-11-13. See `SpeechVoice`. The channel's, whoever asks,
+   * for `responseModel`'s reason, and **changed only by *Pro***, refused by
+   * the server before dispatch as that one is; drawn for every member. Absent
+   * on a snapshot from a server that predates it, which reads as null.
+   */
+  speechVoice?: SpeechVoice;
+  /**
    * Whether this channel's *Ask Claude* may consult noesis libraries — their
    * owners' own writing — on *Pro* and *Max*; *Standard* never does. Off on
    * every new channel, and true exactly while `libraries` names somebody.
@@ -1449,6 +1478,11 @@ export type ChannelAction =
    * from any account without `debug`.
    */
   | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
+  /**
+   * Chooses *Claude's voice*. Guarded as `SET_RESPONSE_MODEL` is, and refused
+   * by the server, as that one is, from any account that is not *Pro*.
+   */
+  | { type: 'SET_SPEECH_VOICE'; userId: UserId; speechVoice: SpeechVoice }
   /**
    * Switches libraries on or off. Guarded as `SET_RESPONSE_MODEL` is; on,
    * refused by the server from anybody without a library of their own
