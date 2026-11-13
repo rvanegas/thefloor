@@ -25,7 +25,10 @@
 # noesis is asked as The Floor, with `NOESIS_CLIENT_ID` and
 # `NOESIS_CLIENT_SECRET` from the environment, else server/.env, else the copy
 # ts env-pull keeps in ~/.config/thefloor/server.env; `NOESIS_URL` names it,
-# noesis's own unless set. The secret is handed to curl and never printed.
+# noesis's own unless set. The pair is traded at auth (`AUTH_URL`, auth's own
+# unless set) for The Floor's own token, `noesis:keep`, as the server's
+# AuthClient.ownToken does, since noesis takes nothing else from The Floor
+# after 2026-11-08. The secret is handed to curl and never printed.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -59,6 +62,7 @@ setting() {
 client=$(setting NOESIS_CLIENT_ID)
 secret=$(setting NOESIS_CLIENT_SECRET)
 url=$(setting NOESIS_URL)
+auth_url=$(setting AUTH_URL)
 origin=$(printf '%s' "${url:-https://noesis.rvanegas.co/mcp}" | sed -E 's#^(https?://[^/]+).*#\1#')
 [ -n "$client" ] && [ -n "$secret" ] || {
   echo "ts library-orphans: no NOESIS_CLIENT_ID and NOESIS_CLIENT_SECRET (ts env-pull?)" >&2
@@ -66,12 +70,17 @@ origin=$(printf '%s' "${url:-https://noesis.rvanegas.co/mcp}" | sed -E 's#^(http
 }
 
 work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
-# The pair in a file curl reads, so it is in no process's arguments.
-printf 'user = "%s:%s"\n' "$client" "$secret" > "$work/auth"
+# The pair in a file curl reads, so it is in no process's arguments, and the
+# token it is traded for likewise.
+printf 'data-urlencode = "client_id=%s"\ndata-urlencode = "client_secret=%s"\n' "$client" "$secret" > "$work/pair"
+token=$(curl -sS --fail-with-body -K "$work/pair" -d grant_type=client_credentials -d scope=noesis:keep \
+  "${auth_url:-https://auth.rvanegas.co}/token" | jq -r '.access_token // empty')
+[ -n "$token" ] || { echo "ts library-orphans: auth gave no token for noesis:keep" >&2; exit 1; }
+printf 'header = "Authorization: Bearer %s"\n' "$token" > "$work/auth"
 noesis() { curl -sS --fail-with-body -K "$work/auth" "$@"; }
 
 list_libraries() {
-  noesis "$origin/libraries" | jq -r '.libraries[]' | sed -n 's#^thefloor/##p' | sort -u
+  noesis "$origin/libraries" | jq -r '.libraries[].id' | sed -n 's#^thefloor/##p' | sort -u
 }
 
 echo "→ listing The Floor's libraries at $origin"
