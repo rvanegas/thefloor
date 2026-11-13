@@ -360,7 +360,7 @@ as much of a screen as a filled one and merely looks like it does not.
 
 **It is for disclosure, and so far for two controls** — the introduction
 card's *See more*, which expands and collapses the card it is drawn in, and
-since 2026-11-13 the *Pro voice* card's on *Channel Settings*, which shut says
+since 2026-11-13 the *Pro voice* card's on *Floor Settings*, which shut says
 each language's voice in a line and open lists every voice to try. That
 is the case the variant is scoped to: it commits nothing, navigates nowhere,
 and is read after the thing it is attached to rather than instead of it. It
@@ -426,10 +426,11 @@ fill marking the one in force. ChannelSettingsView's `NotificationLevelPicker`
 is the pattern (four, with a `sublabel` each), and since 2026-11-13 *Pro voice* is
 the second: AssemblyAI's voices stacked under a plain line naming
 each language, a group per language as the *Read aloud* card's installed voices
-were. **Its buttons are live for everybody, unlike every other choice on that
-screen**, because a tap plays the voice's sample before it chooses anything —
-trying a voice is what the list is for — and only *Pro*'s tap also chooses;
-the *Response model* card's sentence under it says who may. *Read aloud*
+were — on *Floor Settings* since the evening of that day, under *Read aloud*.
+**Its buttons are live for everybody, unlike every other choice beside it**,
+because a tap plays the voice's sample before it chooses anything — trying a
+voice is what the list is for — and only *Pro*'s tap also chooses; the
+*Response model* card's sentence, in its words, under it says who may. *Read aloud*
 on *Floor Settings*, the same day, is a plain pair in a `choices` row —
 *Standard* and *Pro*, in that order as every grade runs, which are iOS's
 voices and AssemblyAI's, Claude writing only the words — greyed without *Pro*

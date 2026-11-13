@@ -8,7 +8,7 @@ import type {
   Clip,
   NearbyWhen,
   ResponseModel,
-  SpeechVoice,
+
   TranscriptionModel,
   UserId,
 } from './types';
@@ -884,6 +884,13 @@ export interface ChannelLibraryView {
  * reason. Not the *Pro* transcription model, which is a channel setting.
  */
 export interface ProView {
+  /**
+   * Whether this account is *Pro* now, on the terms every Pro control is
+   * offered on: a subscription, or the mark set by hand (`isPro` in app.ts).
+   * Since 2026-11-13; before it the app read Pro from `until`, which a marked
+   * account has none of, and opening *Floor Settings* greyed its Pro choices.
+   */
+  pro: boolean;
   /**
    * When the current period ends, while this account is Pro — renewing then
    * unless it was cancelled with Apple. Null when it is not Pro. An account
@@ -1909,13 +1916,6 @@ export type ClientAction =
    * those who may not change it. Unknown to a server that predates it.
    */
   | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
-  /**
-   * *Pro voice*, since 2026-11-13: an AssemblyAI slug from `SPEECH_VOICES`,
-   * which fills the slot of the language it was recorded in, or null to clear
-   * every language back to its default. Refused from an account that is not
-   * *Pro*. Unknown to a server that predates it.
-   */
-  | { type: 'SET_SPEECH_VOICE'; speechVoice: SpeechVoice }
   /**
    * On sets your own libraries here, and is refused from anybody without one
    * connected; off is `owner`'s, or everybody's. Refused from every account

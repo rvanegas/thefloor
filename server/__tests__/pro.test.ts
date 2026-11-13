@@ -120,6 +120,7 @@ describe('What Floor Settings is told', () => {
   it('offers the product and a token that is a UUID', async () => {
     const me = await signIn('me@example.com');
     expect(await status(me.token)).toEqual({
+      pro: false,
       until: null,
       freeMinutes: 60,
       offer: {
@@ -129,6 +130,12 @@ describe('What Floor Settings is told', () => {
         ),
       },
     });
+  });
+
+  it('says an account marked by hand is Pro, with no period to end', async () => {
+    const me = await signIn('me@example.com');
+    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(me.account.id);
+    expect(await status(me.token)).toMatchObject({ pro: true, until: null });
   });
 
   it('gives each account one token, and the same one every time', async () => {

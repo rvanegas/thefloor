@@ -49,6 +49,8 @@ jest.mock('../../api/http', () => ({
       recordings: [],
     })),
     signOut: jest.fn(async () => {}),
+    // A Pro account with no period to end: one marked by hand.
+    pro: jest.fn(async () => ({ pro: true, until: null, freeMinutes: 60, offer: null })),
     saveSettings: jest.fn(async (_token: string, changes: Record<string, unknown>) => {
       mockSaved.push(changes);
       return {
@@ -120,6 +122,7 @@ function hello(settings: {
       emailNotifications: false,
       pushNotificationsOff: false,
       iosVoices: false,
+      speechVoices: {},
       ...settings,
     }
   );
@@ -269,6 +272,7 @@ describe('the settings that follow the account', () => {
         emailNotifications: false,
         pushNotificationsOff: false,
         iosVoices: false,
+        speechVoices: {},
       })
     );
     expect(textOf(tree)).toContain('light/es/bare/labs');
@@ -318,6 +322,50 @@ describe('the settings that follow the account', () => {
       { hideControlCards: true },
       { labs: true },
     ]);
+  });
+
+  it('chooses a Pro voice for its own language, and sends them all', async () => {
+    await mount();
+    await act(async () =>
+      hello({
+        appearance: 'system',
+        language: 'system',
+        hideControlCards: false,
+        labs: false,
+        marketingEmail: false,
+      })
+    );
+    await act(async () => latest!.setSpeechVoice('aai-sara'));
+    await act(async () => latest!.setSpeechVoice('aai-oriol'));
+    expect(latest!.speechVoices).toEqual({ en: 'aai-sara', es: 'aai-oriol' });
+    expect(mockSaved).toEqual([
+      { speechVoices: { en: 'aai-sara' } },
+      { speechVoices: { en: 'aai-sara', es: 'aai-oriol' } },
+    ]);
+  });
+
+  /**
+   * Opening Floor Settings asks `loadPro`, and until 2026-11-13 its answer
+   * counted only a bought period — so an account marked Pro by hand, Pro on
+   * `hello`, lost every Pro choice the moment the screen opened.
+   */
+  it('keeps an account marked Pro by hand Pro when Floor Settings asks', async () => {
+    await mount();
+    await act(async () =>
+      handlers.onHello?.(
+        { id: 'acct_me', displayName: 'Me' },
+        false,
+        false,
+        null,
+        [],
+        true
+      )
+    );
+    expect(latest!.pro).toBe(true);
+    await act(async () => {
+      await latest!.loadPro();
+    });
+    expect(latest!.pro).toBe(true);
   });
 
   /**

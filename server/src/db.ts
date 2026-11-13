@@ -291,6 +291,11 @@ export interface AccountRow {
    * core/settings.ts.
    */
   ios_voices: number | null;
+  /**
+   * The *Pro voices* this account chose, by language, as JSON; null until it
+   * chooses. See `speechVoices` in core/settings.ts.
+   */
+  speech_voices: string | null;
 }
 
 export interface ContactRow {
@@ -823,7 +828,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   push_off           INTEGER,
   -- Claude's replies read by the phones' own voices rather than the server's,
   -- null until somebody *Pro* says; since 2026-11-13. See core/settings.ts.
-  ios_voices INTEGER
+  ios_voices INTEGER,
+  -- The Pro voices chosen, by language, as JSON; null until somebody *Pro*
+  -- chooses; since 2026-11-13. See core/settings.ts.
+  speech_voices TEXT
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -2848,6 +2856,9 @@ function migrate(db: Db): void {
   }
   if (!accountColumns.some((c) => c.name === 'ios_voices')) {
     db.exec('ALTER TABLE accounts ADD COLUMN ios_voices INTEGER');
+  }
+  if (!accountColumns.some((c) => c.name === 'speech_voices')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN speech_voices TEXT');
   }
   // Null for every existing account, and emphatically not back-filled from
   // `last_seen_at`. That column is the fact this one exists to stop being read

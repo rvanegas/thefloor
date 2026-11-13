@@ -131,35 +131,11 @@ import {
 import { pairSpan, UsageMeter } from './usage';
 import { SPEECH_MAX_CHARACTERS, type SpeechProvider, type SpeechStore } from './speech';
 import {
-  SPEECH_VOICES,
-  isSpeechVoice,
   speechLanguageOf,
   speechVoiceFor,
   type SpeechLanguage,
+  type SpeechVoices,
 } from '../../core/speech';
-
-/**
- * A channel's *Pro voices* as its stored state has them. **The one-voice row
- * of the first day is migrated here**, on read, since 2026-11-13: a channel
- * that chose one voice for every language between that deploy and the next
- * gets it as the voice of the language it was recorded in, which is the
- * language it sounds best in. Anything outside the catalogue is dropped.
- */
-export function restoredSpeechVoices(
-  voices: unknown,
-  legacy: unknown
-): Partial<Record<string, string>> {
-  const restored: Partial<Record<string, string>> = {};
-  if (voices && typeof voices === 'object') {
-    for (const [language, voice] of Object.entries(voices as Record<string, unknown>)) {
-      const known = SPEECH_VOICES.find((v) => v.id === voice);
-      if (known && known.language === language) restored[language] = known.id;
-    }
-  }
-  const old = SPEECH_VOICES.find((v) => v.id === legacy);
-  if (old && restored[old.language] === undefined) restored[old.language] = old.id;
-  return restored;
-}
 
 export const TICK_INTERVAL_MS = 500;
 
@@ -347,6 +323,11 @@ export interface ClaudeSpeech {
    * 2026-11-13.
    */
   speaksFor(accountId: string): boolean;
+  /**
+   * The *Pro voices* this account chose on *Floor Settings*, by language —
+   * the asker's, since 2026-11-13, and not the channel's.
+   */
+  voicesFor(accountId: string): SpeechVoices;
   /** A synthesis's billed characters, for the ledger. */
   billed(entry: { channelId: string; accountId: string | null; pasteId: string; characters: number }): void;
   log?: { warn(details: object, message: string): void };
@@ -448,8 +429,6 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_TRANSCRIPTION_MODEL',
   // *Pro* only, refused in `dispatch` beside the transcription model.
   'SET_RESPONSE_MODEL',
-  // *Pro* only, refused in `dispatch` beside the response model.
-  'SET_SPEECH_VOICE',
   // The library's owner only, refused in `dispatch` beside the response model.
   'SET_LIBRARY',
   'CLAIM_FLOOR',
@@ -3159,22 +3138,6 @@ export class ChannelRegistry {
         return {
           ok: false,
           error: 'Only a Pro account can choose the response model.',
-          code: 'forbidden',
-        };
-      }
-    }
-
-    // *AssemblyAI voice*, on the same rule as the response model at Rodrigo's
-    // word, 2026-11-13: the channel's whoever asks, chosen only by *Pro*.
-    if (action.type === 'SET_SPEECH_VOICE') {
-      const voice = (action as { speechVoice?: unknown }).speechVoice;
-      if (voice !== null && !isSpeechVoice(voice)) {
-        return { ok: false, error: 'No such voice.', code: 'invalid' };
-      }
-      if (!this.isPro?.(userId)) {
-        return {
-          ok: false,
-          error: 'Only a Pro account can choose the Pro voice.',
           code: 'forbidden',
         };
       }
@@ -8115,7 +8078,7 @@ export class ChannelRegistry {
     if ([...text].length > SPEECH_MAX_CHARACTERS) return false;
     const language = this.speechLanguage(channelId, askerId, askerLanguage);
     if (!language) return false;
-    const voice = speechVoiceFor(channel.speechVoices, language);
+    const voice = speechVoiceFor(speech.voicesFor(askerId), language);
 
     speech.store.begin(pasteId, channelId);
     const abort = new AbortController();
@@ -9141,8 +9104,6 @@ export class ChannelRegistry {
       // request dies with the process, and restoring it would leave the card
       // saying *Responding…* to an answer that is never coming.
       responseModel: channel.responseModel ?? 'standard',
-      // Beside it, for the same reason.
-      speechVoices: channel.speechVoices ?? {},
       // A setting somebody chose, beside the model it applies to, and whose
       // library it is.
       library: channel.library ?? false,
@@ -9532,9 +9493,6 @@ export class ChannelRegistry {
       autoTranscribe?: boolean;
       transcriptionModel?: ChannelState['transcriptionModel'];
       responseModel?: ChannelState['responseModel'];
-      speechVoices?: ChannelState['speechVoices'];
-      /** One voice for every language, as written on 2026-11-13 before it was per language. */
-      speechVoice?: string | null;
       library?: boolean;
       libraries?: Record<string, string[]>;
       initiator?: string;
@@ -9605,8 +9563,8 @@ export class ChannelRegistry {
       // The default on a row written before the field existed.
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       responseModel: durable.responseModel ?? 'standard',
-      // A voice since dropped from the catalogue reads as the default.
-      speechVoices: restoredSpeechVoices(durable.speechVoices, durable.speechVoice),
+      // `speechVoices`, the channel's Pro voices of 2026-11-13, is left
+      // unread on a row that has it: the voice is the asker's since that day.
       // On only with somebody's libraries chosen: off for a channel written
       // before the field, as for a new one, and for one written while a
       // channel held one owner's list, which is switched on again by hand.

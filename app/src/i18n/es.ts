@@ -662,6 +662,13 @@ export const es: Strings = {
       'Qu\u00e9 voces leen en voz alta las respuestas que pides a Claude. Las voces Pro las oyen todos en la llamada y quedan en las grabaciones, y cada respuesta cuesta un poco. Las voces Est\u00e1ndar son las del propio iPhone: gratis, pero cada iPhone lee la respuesta por su cuenta y nunca se graba.',
     readAloudVoicesWho: () =>
       'Solo puede elegir quien est\u00e9 suscrito a Pro. Sin Pro, las voces Est\u00e1ndar leen las respuestas que pides.',
+    proVoice: () => 'Voz Pro',
+    proVoiceNote: () =>
+      'Cuando una voz Pro lee en voz alta las respuestas que pides a Claude, es esta para cada idioma, y la oyen todos en la conversaci\u00f3n. Toca una voz para o\u00edrla.',
+    proVoiceLanguage: (language: 'en' | 'es') => (language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'),
+    proVoiceIs: (language: 'en' | 'es', voice: string) =>
+      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: ${voice}`,
+    proVoiceWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
     chooseWhereSoundComesOut: () => 'Elegir por d\u00f3nde sale el sonido',
     chooseWhereSoundComesOutSub: () =>
       'Auriculares, AirPlay o cualquier cosa emparejada',
@@ -851,12 +858,6 @@ export const es: Strings = {
     responseModelNote: () =>
       'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
     modelWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
-    assemblyVoice: () => 'Voz Pro',
-    assemblyVoiceNote: () =>
-      'Cuando una voz Pro lee en voz alta las respuestas de Claude, es esta para cada idioma, y la oyen todos en la conversaci\u00f3n. Toca una voz para o\u00edrla.',
-    assemblyVoiceLanguage: (language: 'en' | 'es') => (language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'),
-    assemblyVoiceIs: (language: 'en' | 'es', voice: string) =>
-      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: ${voice}`,
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.

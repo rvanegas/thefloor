@@ -125,6 +125,58 @@ describe("Home settings", () => {
   });
 
   /**
+   * *Pro voice*, here since 2026-11-13 (the channel's that morning): every
+   * member sees the voices under their languages and can tap one to hear it;
+   * only *Pro* chooses one by tapping.
+   */
+  describe('Pro voice', () => {
+    const speaking = () => {
+      mockApp.channelViews.sess_1 = { speech: true } as never;
+    };
+    const seeMore = (tree: ReactTestRenderer) =>
+      act(() => findButton(tree, 'See more')!.props.onPress());
+
+    it('is drawn only where the server speaks', async () => {
+      const tree = await openSettings();
+      expect(textOf(tree)).not.toContain('Pro voice');
+    });
+
+    it('is shut on arrival, saying which voice reads each language', async () => {
+      speaking();
+      mockApp.speechVoices = { es: 'aai-oriol' };
+      const tree = await openSettings();
+      expect(textOf(tree)).toContain('English: Kyla');
+      expect(textOf(tree)).toContain('Spanish: Oriol');
+      expect(findButton(tree, 'Sara')).toBeUndefined();
+      seeMore(tree);
+      expect(findButton(tree, 'Sara')).toBeDefined();
+      act(() => findButton(tree, 'See less')!.props.onPress());
+      expect(findButton(tree, 'Sara')).toBeUndefined();
+    });
+
+    it('lists the voices for everybody to hear, and chooses nothing without Pro', async () => {
+      speaking();
+      const tree = await openSettings();
+      seeMore(tree);
+      expect(textOf(tree)).toContain('Only somebody subscribed to Pro can change it.');
+      const sara = findButton(tree, 'Sara')!;
+      expect(sara.props.accessibilityState?.disabled ?? sara.props.disabled).toBeFalsy();
+      act(() => sara.props.onPress());
+      expect(mockApp.setSpeechVoice).not.toHaveBeenCalled();
+    });
+
+    it('chooses the voice tapped, for Pro', async () => {
+      speaking();
+      mockApp.pro = true;
+      mockApp.loadPro.mockResolvedValueOnce({ pro: true, until: null, freeMinutes: 60, offer: null });
+      const tree = await openSettings();
+      seeMore(tree);
+      act(() => findButton(tree, 'Oriol')!.props.onPress());
+      expect(mockApp.setSpeechVoice).toHaveBeenCalledWith('aai-oriol');
+    });
+  });
+
+  /**
    * The privacy policy, which Guideline 5.1.1(i) requires to be reachable from
    * inside the application and not only from the App Store listing.
    *
@@ -1098,6 +1150,7 @@ describe("Pro", () => {
 
   const onSale = (until: number | null = null) =>
     mockApp.loadPro.mockResolvedValueOnce({
+      pro: until !== null,
       until,
       freeMinutes: 60,
       offer: { product: PRODUCT, accountToken: TOKEN },
@@ -1197,7 +1250,7 @@ describe("Pro", () => {
     const tree = await openSettings();
     const upload = jest.fn(async () => ({
       kind: "recorded" as const,
-      pro: { until: NOW + MONTH, freeMinutes: 60, offer: null },
+      pro: { pro: true, until: NOW + MONTH, freeMinutes: 60, offer: null },
     }));
     const stop = watchPurchases(upload);
     await act(async () => storeKitDelivers()(purchase));
@@ -1232,7 +1285,7 @@ describe("Pro", () => {
     (iap.getAvailablePurchases as jest.Mock).mockResolvedValueOnce([purchase]);
     const upload = jest.fn(async () => ({
       kind: "recorded" as const,
-      pro: { until: NOW + MONTH, freeMinutes: 60, offer: null },
+      pro: { pro: true, until: NOW + MONTH, freeMinutes: 60, offer: null },
     }));
     let stop!: () => void;
     await act(async () => {
@@ -1256,6 +1309,7 @@ describe("Pro", () => {
 
   it("shows a subscriber their Pro even where Pro is no longer sold", async () => {
     mockApp.loadPro.mockResolvedValueOnce({
+      pro: true,
       until: NOW + MONTH,
       freeMinutes: 60,
       offer: null,

@@ -86,6 +86,7 @@ import {
   type AccountSettings,
   type LanguagePreference,
 } from '../../../core/settings';
+import { withSpeechVoice, type SpeechVoices } from '../../../core/speech';
 
 const TOKEN_KEY = 'thefloor.token';
 /**
@@ -1037,6 +1038,14 @@ interface AppValue extends AppState {
   iosVoices: boolean;
   setIosVoices: (value: boolean) => void;
   /**
+   * The *Pro voice* this account chose for each language, since 2026-11-13 —
+   * *Pro*'s choice, on *Floor Settings*. See `speechVoices` in
+   * core/settings.ts. `setSpeechVoice` fills the slot of the voice's own
+   * language (`withSpeechVoice`).
+   */
+  speechVoices: SpeechVoices;
+  setSpeechVoice: (voice: string) => void;
+  /**
    * Whether this install should be asked to turn notifications on, and what it
    * takes to do it.
    *
@@ -1240,6 +1249,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [iosVoices, setIosVoicesState] = useState(
     DEFAULT_ACCOUNT_SETTINGS.iosVoices
   );
+  const [speechVoices, setSpeechVoicesState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.speechVoices
+  );
   // The address old builds kept for the opt-in; nothing reads it now. See `LAST_IDENTIFIER_KEY`.
   useEffect(() => {
     void storage.remove(LAST_IDENTIFIER_KEY);
@@ -1287,6 +1299,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setPushNotificationsOffState(settings.pushNotificationsOff ?? false);
     // `?? false` for a server that predates it, on which only phones read.
     setIosVoicesState(settings.iosVoices ?? false);
+    setSpeechVoicesState(settings.speechVoices ?? {});
   }, [adoptLanguage]);
   /**
    * Puts the settings back to what somebody who has never signed in sees, and
@@ -1317,6 +1330,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setEmailNotificationsState(DEFAULT_ACCOUNT_SETTINGS.emailNotifications);
     setPushNotificationsOffState(DEFAULT_ACCOUNT_SETTINGS.pushNotificationsOff);
     setIosVoicesState(DEFAULT_ACCOUNT_SETTINGS.iosVoices);
+    setSpeechVoicesState(DEFAULT_ACCOUNT_SETTINGS.speechVoices);
   }, [forgetLanguage]);
   /**
    * The address this install is registered at, kept so sign-out can hand it
@@ -2197,7 +2211,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return watchPurchases(async (signed) => {
       try {
         const { pro } = await api.uploadAppStore(token, signed);
-        setState((s) => ({ ...s, pro: pro.until !== null }));
+        setState((s) => ({ ...s, pro: pro.pro }));
         return { kind: 'recorded', pro };
       } catch (error) {
         return error instanceof ApiError && error.status === 422
@@ -2712,6 +2726,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
+      speechVoices,
+      setSpeechVoice: (voice) => {
+        const chosen = withSpeechVoice(speechVoices, voice);
+        if (chosen === speechVoices) return;
+        setSpeechVoicesState(chosen);
+        if (state.token) {
+          void api.saveSettings(state.token, { speechVoices: chosen }).catch(() => {});
+        }
+      },
+
       signIn: async () => {
         const prompt = (await storage.get(SIGNED_OUT_KEY)) ? ('login' as const) : undefined;
         if (Platform.OS === 'web') {
@@ -3012,7 +3036,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       loadPro: async () => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
         const view = await api.pro(state.token);
-        setState((s) => ({ ...s, pro: view.until !== null }));
+        setState((s) => ({ ...s, pro: view.pro }));
         return view;
       },
 
@@ -3503,6 +3527,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       emailNotifications,
       pushNotificationsOff,
       iosVoices,
+      speechVoices,
       forgetSettings,
       expiry,
     ]

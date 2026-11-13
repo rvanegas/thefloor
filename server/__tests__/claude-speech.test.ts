@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { CLAUDE_ID } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
-import { restoredSpeechVoices, roomReaderIdentity } from '../src/channels';
+import { roomReaderIdentity } from '../src/channels';
 import type { ClaudeClient } from '../src/claude';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
@@ -19,7 +19,7 @@ import { MemoryRecordingStore } from '../src/storage';
 
 /**
  * Claude's reply spoken into the room by the server, since 2026-11-13: once
- * per paste, as `room-reader:<channel>`, in the channel's voice and the language
+ * per paste, as `room-reader:<channel>`, in the asker's voice and the language
  * of its first transcript — and kept an hour so anybody present can have it
  * read again. See
  * planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
@@ -238,33 +238,32 @@ describe("Claude's reply, spoken", () => {
     expect(speech.requests[0].language).toBe('es');
   });
 
-  it('is in the channel’s Pro voice for its language, which only Pro may choose', async () => {
+  it('is in the asker’s Pro voice for its language, from Floor Settings', async () => {
     boot();
-    const { alice, bob, channelId } = await room2();
-    const refused = app.channels.dispatch(channelId, bob.account.id, {
-      type: 'SET_SPEECH_VOICE',
-      speechVoice: 'aai-sara',
-    } as never);
-    expect(refused.ok).toBe(false);
-
-    for (const speechVoice of ['aai-sara', 'aai-oriol']) {
-      const chosen = app.channels.dispatch(channelId, alice.account.id, {
-        type: 'SET_SPEECH_VOICE',
-        speechVoice,
-      } as never);
-      expect(chosen.ok).toBe(true);
-    }
+    const { alice, channelId } = await room2();
+    const saved = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: auth(alice.token),
+      payload: { speechVoices: { en: 'aai-sara', es: 'aai-oriol' } },
+    });
+    expect(saved.json().speechVoices).toEqual({ en: 'aai-sara', es: 'aai-oriol' });
     // One voice per language: the Spanish reply in the Spanish choice.
     await press(channelId, alice.token, { language: 'es' });
     await settle();
     expect(speech.requests[0]).toMatchObject({ voice: 'aai-oriol', language: 'es' });
   });
 
-  it('restores a channel’s one voice of the first day as its own language’s', () => {
-    expect(restoredSpeechVoices(undefined, 'aai-oriol')).toEqual({ es: 'aai-oriol' });
-    expect(restoredSpeechVoices({ en: 'aai-sara' }, 'aai-peter')).toEqual({ en: 'aai-sara' });
-    // A voice filed under a language it was not recorded in is dropped.
-    expect(restoredSpeechVoices({ es: 'aai-sara', en: 'aai-nobody' }, null)).toEqual({});
+  it('refuses a voice under a language it was not recorded in', async () => {
+    boot();
+    const { alice } = await room2();
+    const refused = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: auth(alice.token),
+      payload: { speechVoices: { es: 'aai-sara' } },
+    });
+    expect(refused.statusCode).toBe(400);
   });
 
   it('is posted without speech, for the phones to read, when synthesis is refused', async () => {

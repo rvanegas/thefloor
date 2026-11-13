@@ -345,10 +345,11 @@ open, or did differently:
   AssemblyAI's, which is all anybody is shown of the engines; **Claude writes
   only the words**, so nothing calls a voice Claude's (`iosVoices`, an
   account setting, default *Pro*); anybody else's replies are *Standard*,
-  free, as before 2026-11-13. The channel's choice among the *Pro* voices is
+  free, as before 2026-11-13. The asker's choice among the *Pro* voices is
   *Pro voice*, **one per language** at Rodrigo's word the same day (a voice
-  filling its own language's slot, `speechVoices`), and what publishes it is
-  *the room reader*. The
+  filling its own language's slot, `speechVoices`), on *Floor Settings* beside
+  *Read aloud* — the channel's that morning, and moved that evening — and
+  what publishes it is *the room reader*. The
   *Ask Claude* warning shows only to a viewer whose reply the server would
   speak, and `/privacy` says the speech is a *Pro* asker's.
 - **The language** is `Transcripts.firstLanguage`: the earliest finished

@@ -95,7 +95,11 @@ import {
   type TranscriptView,
 } from './transcripts';
 import { SpeechStore, type SpeechProvider } from './speech';
-import { SPEECH_SAMPLE_TEXT, SPEECH_VOICES } from '../../core/speech';
+import {
+  SPEECH_SAMPLE_TEXT,
+  SPEECH_VOICES,
+  knownSpeechVoices,
+} from '../../core/speech';
 import { readable, separated } from '../../core/transcript';
 import {
   BUILD_HEADER,
@@ -1311,6 +1315,7 @@ export function buildApp(options: BuildOptions = {}): App {
       firstLanguage: (channelId) => transcripts.firstLanguage(channelId),
       accountLanguage: (accountId) => accounts.settings(accountId).language,
       speaksFor: (accountId) => isPro(accountId) && !accounts.settings(accountId).iosVoices,
+      voicesFor: (accountId) => accounts.settings(accountId).speechVoices,
       billed: ({ channelId, accountId, pasteId, characters }) => {
         db.prepare(
           `INSERT INTO speech_usage (id, at, channel_id, account_id, paste_id, characters)
@@ -3416,6 +3421,7 @@ export function buildApp(options: BuildOptions = {}): App {
   /** What Floor Settings shows about Pro, for whoever is asking. */
   function proView(accountId: string): ProView {
     return {
+      pro: isPro(accountId),
       until: pro.activeUntil(accountId, now()),
       freeMinutes: freeAllowanceMs / 60_000,
       // Minted on the first visit to Floor Settings while Pro is on sale, and
@@ -3896,6 +3902,21 @@ export function buildApp(options: BuildOptions = {}): App {
         return reply.code(400).send({ error: `${field} must be true or false.` });
       }
       changes[field] = body[field];
+    }
+    // The *Pro voices*, whole: a voice outside the catalogue, or under a
+    // language it was not recorded in, is refused rather than dropped, so the
+    // screen never draws a choice the account does not hold.
+    if (body?.speechVoices !== undefined) {
+      const voices = body.speechVoices;
+      const known = knownSpeechVoices(voices);
+      if (
+        !voices ||
+        typeof voices !== 'object' ||
+        Object.keys(voices).length !== Object.keys(known).length
+      ) {
+        return reply.code(400).send({ error: 'speechVoices must be voices from the catalogue.' });
+      }
+      changes.speechVoices = known;
     }
     // `chimeAmplitude` is not read here and, like `tabsAtFoot` above, is
     // deliberately not refused either. Build 211 and earlier carry the
@@ -5852,7 +5873,7 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * A voice's sample, for *AssemblyAI voice* on *Channel Settings*: one fixed
+   * A voice's sample, for *Pro voice* on *Floor Settings*: one fixed
    * sentence in the voice's own language, as raw 16-bit mono PCM at 48 kHz.
    * **Synthesised once per process and kept**, so trying voices costs a
    * sample per voice rather than one per tap; the ledger has a row for each

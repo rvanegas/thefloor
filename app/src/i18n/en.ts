@@ -870,6 +870,20 @@ export const en = {
       'Which voices read aloud the replies you ask Claude for. Pro voices are heard by everybody in the call and kept in recordings, and each reply costs a little. Standard voices are the iPhone’s own: free, but each iPhone reads the reply on its own, and it is never recorded.',
     readAloudVoicesWho: () =>
       'Only somebody subscribed to Pro can choose. Without Pro, Standard voices read the replies you ask for.',
+    /**
+     * *Pro voice*, since 2026-11-13: the AssemblyAI voice, one per language,
+     * that reads aloud the replies you ask for, chosen by *Pro*, heard by
+     * everybody present. The channel's that morning, and yours since.
+     */
+    proVoice: () => 'Pro voice',
+    proVoiceNote: () =>
+      'Where a Pro voice reads aloud the replies you ask Claude for, it is this one for each language, heard by everybody in the conversation. Tap a voice to hear it.',
+    proVoiceLanguage: (language: 'en' | 'es'): string =>
+      language === 'es' ? 'Spanish' : 'English',
+    /** One line per language while the card is shut. */
+    proVoiceIs: (language: 'en' | 'es', voice: string) =>
+      `${language === 'es' ? 'Spanish' : 'English'}: ${voice}`,
+    proVoiceWho: () => 'Only somebody subscribed to Pro can change it.',
     chooseWhereSoundComesOut: () => 'Choose where sound comes out',
     chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
     on: () => 'On',
@@ -1125,18 +1139,6 @@ export const en = {
      * buttons above are called *Pro* too.
      */
     modelWho: () => 'Only somebody subscribed to Pro can change it.',
-    /**
-     * *Pro voice*, since 2026-11-13: the one AssemblyAI voice the
-     * channel's replies are read aloud in, chosen by *Pro*, heard by anybody.
-     */
-    assemblyVoice: () => 'Pro voice',
-    assemblyVoiceNote: () =>
-      'Where a Pro voice reads Claude’s replies aloud, it is this one for each language, heard by everybody in the conversation. Tap a voice to hear it.',
-    assemblyVoiceLanguage: (language: 'en' | 'es'): string =>
-      language === 'es' ? 'Spanish' : 'English',
-    /** One line per language while the card is shut. */
-    assemblyVoiceIs: (language: 'en' | 'es', voice: string) =>
-      `${language === 'es' ? 'Spanish' : 'English'}: ${voice}`,
     /**
      * Whether *Ask Claude* may consult the server's library, since
      * 2026-10-27: drawn, since 2026-11-09, only for somebody whose own is

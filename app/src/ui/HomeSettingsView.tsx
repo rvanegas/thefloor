@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import { Alert, AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
+import { api } from '../api/http';
+import { speechLocale } from '../audio/readAloud';
+import { playSample } from '../../modules/read-aloud';
 import { showRoutePicker } from '../audio/routePicker';
 import { mayHoldToken } from '../push';
 import { useApp } from '../state/AppProvider';
@@ -27,6 +30,7 @@ import { openNoesis } from './links';
 import { colors, spacing, type } from './theme';
 import type { ColorSchemePreference } from './appearance';
 import type { LanguagePreference } from '../../../core/settings';
+import { SPEECH_VOICES, speechVoiceFor } from '../../../core/speech';
 import { useText } from '../i18n';
 import type { NoesisView, ProView } from '../../../core/protocol';
 
@@ -308,20 +312,21 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         *Read aloud* was here, from 2026-10-28: which installed voice read
         Claude's replies on this phone, a choice among them, and how to
         download a better one. **Removed 2026-11-13, at Rodrigo's word**, when
-        the server began speaking replies into the room in the channel's own
-        voice (*AssemblyAI voice*, on *Channel Settings*): the phone's voice is
+        the server began speaking replies into the room in a *Pro voice*: the
+        phone's voice is
         heard only where the server cannot speak, and a card tuning that
         fallback was weight for a failure path. `bestVoice` still chooses it.
 
         **In its place since the same day, *Claude's replies***: whether the
-        replies you ask for are spoken by the server — *AssemblyAI voice*, heard
+        replies you ask for are spoken by the server — a *Pro voice*, heard
         by everybody in the call and kept in a recording, and billed per
         reply — or read by each phone's own voice, which costs nothing. **A
         choice only *Pro* has**, at Rodrigo's word, for cost: anybody else's
         replies are always the phones'. Drawn for everybody, greyed with the
         model cards' sentence without *Pro*, as those cards are. Drawn only
         where this server speaks at all, which a channel's snapshot is the one
-        thing to say (`ChannelView.speech`). See `iosVoices`.
+        thing to say (`ChannelView.speech`). See `iosVoices`. Under it, which
+        *Pro voice*, since that evening (`ProVoiceCard`).
       */}
       {Object.values(app.channelViews ?? {}).some((view) => view?.speech) ? (
         <>
@@ -348,6 +353,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             <Text style={type.muted}>{t.readAloudVoicesNote()}</Text>
             {app.pro ? null : <Text style={type.muted}>{t.readAloudVoicesWho()}</Text>}
           </Card>
+          <ProVoiceCard />
         </>
       ) : null}
 
@@ -1100,6 +1106,82 @@ function ProCard() {
   );
 }
 
+/**
+ * *Pro voice*, since 2026-11-13: which of the *Pro* voices reads aloud the
+ * replies you ask for, one per language, under *Read aloud* because it is
+ * that choice's *Pro*. **It was the channel's, on *Channel Settings*, that
+ * morning**, and moved here the same day at Rodrigo's word: whether a *Pro*
+ * voice reads was already the asker's choice, so which one is too.
+ *
+ * **Down the page, under each voice's own language**, for STYLE.md § *A
+ * choice of more than three goes down the page*, the chosen one primary as
+ * every choice on this screen is. **A tap plays the voice's sample, and for
+ * *Pro* chooses it too**: trying a voice is the point of the list, so the
+ * buttons are live for everybody rather than greyed, and a sentence says who
+ * may change it. A voice sounds best in its own language and every one speaks
+ * both, which is why they are grouped by it rather than filtered.
+ */
+function ProVoiceCard() {
+  const app = useApp();
+  const t = useText().homeSettings;
+  const more = useText().introduction;
+  /**
+   * **Shut on every visit**, STYLE.md's disclosure: shut, the card says which
+   * voice reads each language, which is what most visits want; open, the list
+   * to try and choose from, which is a page long. *See more* / *See less*, the
+   * introduction card's control and words.
+   */
+  const [open, setOpen] = useState(false);
+  const languages: Array<'en' | 'es'> = speechLocale(app.language).startsWith('es')
+    ? ['es', 'en']
+    : ['en', 'es'];
+  const press = (voice: string) => {
+    const url = api.speechSampleUrl(voice);
+    if (url && app.token) void playSample(url, `Bearer ${app.token}`);
+    // **One per language**: a voice fills the slot of the language it was
+    // recorded in, and leaves the other language's alone.
+    if (app.pro) app.setSpeechVoice(voice);
+  };
+  const nameOf = (id: string) => SPEECH_VOICES.find((voice) => voice.id === id)?.name ?? id;
+  return (
+    <Card style={styles.stack}>
+      <Text style={type.heading}>{t.proVoice()}</Text>
+      <Text style={type.muted}>{t.proVoiceNote()}</Text>
+      {open
+        ? languages.map((language) => (
+            <View key={language} style={styles.stack}>
+              <Text style={type.body}>{t.proVoiceLanguage(language)}</Text>
+              {SPEECH_VOICES.filter((voice) => voice.language === language).map((voice) => (
+                <Button
+                  key={voice.id}
+                  label={voice.name}
+                  // Each language draws its own in use, its default where
+                  // nothing is chosen.
+                  variant={
+                    speechVoiceFor(app.speechVoices, language) === voice.id ? 'primary' : 'default'
+                  }
+                  onPress={() => press(voice.id)}
+                />
+              ))}
+            </View>
+          ))
+        : languages.map((language) => (
+            <Text key={language} style={type.body}>
+              {t.proVoiceIs(language, nameOf(speechVoiceFor(app.speechVoices, language)))}
+            </Text>
+          ))}
+      {open && !app.pro ? <Text style={type.muted}>{t.proVoiceWho()}</Text> : null}
+      <View style={styles.disclosure}>
+        <Button
+          label={open ? more.seeLess() : more.seeMore()}
+          variant="quiet"
+          onPress={() => setOpen((was) => !was)}
+        />
+      </View>
+    </Card>
+  );
+}
+
 const styles = StyleSheet.create({
   container: { padding: spacing(2), paddingBottom: spacing(4) },
   header: {
@@ -1112,6 +1194,9 @@ const styles = StyleSheet.create({
   cards: { gap: spacing(1.5) },
   choices: { flexDirection: 'row', gap: spacing(1) },
   choice: { flex: 1 },
+  // The *Pro voice* card's *See more*, at the foot and to the start as the
+  // introduction card's is.
+  disclosure: { flexDirection: 'row' },
   /*
    * The seam between two settings sharing a card. A hairline rather than a
    * gap, because a gap inside a card reads as loose spacing and a rule reads

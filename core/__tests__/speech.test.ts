@@ -2,8 +2,10 @@ import {
   SPEECH_VOICES,
   defaultSpeechVoice,
   isSpeechVoice,
+  knownSpeechVoices,
   speechLanguageOf,
   speechVoiceFor,
+  withSpeechVoice,
 } from '../speech';
 
 describe('speech voices', () => {
@@ -45,5 +47,28 @@ describe('speechVoiceFor', () => {
     expect(speechVoiceFor({ en: 'aai-sara' }, 'es')).toBe('aai-antonioluis');
     expect(speechVoiceFor(undefined, 'en')).toBe('aai-kyla');
     expect(speechVoiceFor({ en: 'aai-nobody' }, 'en')).toBe('aai-kyla');
+  });
+});
+
+describe('withSpeechVoice', () => {
+  it('fills the slot of the language each voice was recorded in, one per language', () => {
+    const english = withSpeechVoice({}, 'aai-sara');
+    const both = withSpeechVoice(english, 'aai-oriol');
+    expect(both).toEqual({ en: 'aai-sara', es: 'aai-oriol' });
+    expect(withSpeechVoice(both, 'aai-peter')).toEqual({ en: 'aai-peter', es: 'aai-oriol' });
+  });
+
+  it('leaves them as they are for a slug outside the catalogue, and clears them all on null', () => {
+    const set = { en: 'aai-sara' };
+    expect(withSpeechVoice(set, 'aai-nobody')).toBe(set);
+    expect(withSpeechVoice(set, null)).toEqual({});
+  });
+});
+
+describe('knownSpeechVoices', () => {
+  it('keeps only catalogue voices, each under its own language', () => {
+    expect(knownSpeechVoices({ en: 'aai-sara', es: 'aai-peter', fr: 'aai-nobody' })).toEqual({ en: 'aai-sara' });
+    expect(knownSpeechVoices('aai-sara')).toEqual({});
+    expect(knownSpeechVoices(null)).toEqual({});
   });
 });

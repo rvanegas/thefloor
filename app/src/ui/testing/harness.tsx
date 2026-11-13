@@ -320,6 +320,7 @@ export const mockApp = {
   // APP_STORE_PRO_PRODUCT, and so what Floor Settings looks like for nearly
   // every test. The Pro cases replace it. Typed loosely for the reason above.
   loadPro: jest.fn(async () => ({
+    pro: false,
     until: null as number | null,
     freeMinutes: 60,
     offer: null as { product: string; accountToken: string } | null,
@@ -438,6 +439,8 @@ export const mockApp = {
   setIosVoices: jest.fn((value: boolean) => {
     mockApp.iosVoices = value;
   }),
+  speechVoices: {} as Partial<Record<string, string>>,
+  setSpeechVoice: jest.fn(),
   setPushNotificationsOff: jest.fn((value: boolean) => {
     mockApp.pushNotificationsOff = value;
   }),
@@ -1146,6 +1149,7 @@ export function resetHarness(): void {
   mockApp.labs = false;
   mockApp.debug = false;
   mockApp.pro = false;
+  mockApp.speechVoices = {};
   mockApp.loadHelp = emptyHelp();
   mockApp.askHelp = takesQuestion();
   uploads.length = 0;

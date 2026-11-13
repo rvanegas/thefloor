@@ -19,6 +19,7 @@ import {
   type ImService,
 } from '../../core/im';
 import { NOTHING_TRIED, type Tried, type TriedId } from '../../core/tried';
+import { knownSpeechVoices } from '../../core/speech';
 import { foldUsername, normaliseUsername } from '../../core/username';
 import {
   displayNameFromIdentifier,
@@ -714,6 +715,8 @@ export class Accounts {
       emailNotifications: row.email_notifications === 1,
       pushNotificationsOff: row.push_off === 1,
       iosVoices: row.ios_voices === 1,
+      // A voice since dropped from the catalogue reads as the default.
+      speechVoices: knownSpeechVoices(row.speech_voices === null ? null : JSON.parse(row.speech_voices)),
     };
   }
 
@@ -799,6 +802,11 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET ios_voices = ? WHERE id = ?')
         .run(changes.iosVoices ? 1 : 0, accountId);
+    }
+    if (changes.speechVoices !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET speech_voices = ? WHERE id = ?')
+        .run(JSON.stringify(knownSpeechVoices(changes.speechVoices)), accountId);
     }
     return this.settings(accountId);
   }

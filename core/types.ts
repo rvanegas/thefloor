@@ -295,14 +295,11 @@ export type TranscriptionModel = 'standard' | 'pro';
 export type ResponseModel = 'standard' | 'pro' | 'max';
 
 /**
- * The voice Claude's replies are spoken in, in this channel — an AssemblyAI
- * voice slug from `SPEECH_VOICES` — or null for the default voice of the
- * language the reply is spoken in (`defaultSpeechVoice`). Since 2026-11-13.
+ * A *Pro voice* — an AssemblyAI voice slug from `SPEECH_VOICES` — or null for
+ * the default voice of the language a reply is spoken in
+ * (`defaultSpeechVoice`). Since 2026-11-13.
  */
 export type SpeechVoice = string | null;
-
-/** The *Pro voice* chosen for each language, by subtag. See `ChannelState.speechVoices`. */
-export type SpeechVoices = Partial<Record<string, string>>;
 
 /**
  * How long a reply *Ask Claude* asks for, since 2026-10-22: one of three
@@ -1071,18 +1068,12 @@ export interface ChannelState {
    * app reads as `standard`.
    */
   responseModel: ResponseModel;
-  /**
-   * The *Pro voice* each language's replies are read in, for the whole
-   * channel, by two-letter subtag — **one per language**, at Rodrigo's word,
-   * 2026-11-13, a voice sounding best in the language it was recorded in. A
-   * language with none chosen reads in its default (`speechVoiceFor`). The
-   * channel's, whoever asks, for `responseModel`'s reason, and **changed only
-   * by *Pro***, refused by the server before dispatch as that one is; drawn
-   * for every member. Absent on a snapshot from a server that predates it,
-   * which reads as none chosen. It was one `speechVoice` for every language
-   * for the first day.
+  /*
+   * `speechVoices`, the *Pro voice* per language, was here on 2026-11-13 and
+   * moved the same day to the asker's *Floor Settings*, at Rodrigo's word:
+   * whether a reply is read by a *Pro* voice was already the asker's choice,
+   * so which one is too. See `speechVoices` in core/settings.ts.
    */
-  speechVoices?: SpeechVoices;
   /**
    * Whether this channel's *Ask Claude* may consult noesis libraries — their
    * owners' own writing — on *Pro* and *Max*; *Standard* never does. Off on
@@ -1485,13 +1476,6 @@ export type ChannelAction =
    * from any account without `debug`.
    */
   | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
-  /**
-   * Chooses a *Pro voice* for **the language that voice was recorded in**,
-   * leaving the other languages' as they are; null clears them all. Guarded
-   * as `SET_RESPONSE_MODEL` is, and refused by the server, as that one is,
-   * from any account that is not *Pro*.
-   */
-  | { type: 'SET_SPEECH_VOICE'; userId: UserId; speechVoice: SpeechVoice }
   /**
    * Switches libraries on or off. Guarded as `SET_RESPONSE_MODEL` is; on,
    * refused by the server from anybody without a library of their own

@@ -105,35 +105,6 @@ describe('the response model', () => {
   });
 });
 
-describe('the Pro voices', () => {
-  it('are each language’s default on a new channel', () => {
-    expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).speechVoices).toEqual({});
-  });
-
-  it('fill the slot of the language each voice was recorded in, one per language', () => {
-    const before = bothHere();
-    const english = reduce(before, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-sara' }, T0 + 1);
-    const both = reduce(english, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-oriol' }, T0 + 2);
-    expect(both.speechVoices).toEqual({ en: 'aai-sara', es: 'aai-oriol' });
-    const again = reduce(both, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-peter' }, T0 + 3);
-    expect(again.speechVoices).toEqual({ en: 'aai-peter', es: 'aai-oriol' });
-    expect({ ...english, speechVoices: {} }).toEqual(before);
-  });
-
-  it('are left as they are by a slug outside the catalogue, and all cleared by null', () => {
-    const set = reduce(bothHere(), { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-sara' }, T0 + 1);
-    expect(reduce(set, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-nobody' }, T0 + 2)).toBe(set);
-    expect(reduce(set, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: null }, T0 + 2).speechVoices).toEqual({});
-  });
-
-  it('are guarded like the other channel settings', () => {
-    // Whether the account is Pro is the server's half of the rule.
-    let s = bothHere();
-    s = reduce(s, { type: 'STEP_OUT', userId: A }, T0 + 1);
-    expect(reduce(s, { type: 'SET_SPEECH_VOICE', userId: A, speechVoice: 'aai-sara' }, T0 + 2)).toBe(s);
-  });
-});
-
 describe('the library', () => {
   it('is off on a new channel', () => {
     expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).library).toBe(false);

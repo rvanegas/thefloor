@@ -52,7 +52,7 @@ export function isSpeechVoice(value: unknown): value is string {
 
 /**
  * AssemblyAI's own defaults, pinned: **their docs say the defaults may
- * change**, and a channel that never chose should not start sounding like
+ * change**, and somebody who never chose should not start sounding like
  * somebody else on a day nobody here decided anything. The other four
  * languages fall to English's, which speaks them all.
  */
@@ -62,7 +62,43 @@ const DEFAULTS: Partial<Record<SpeechLanguage, string>> = {
 };
 
 /**
- * The voice a reply in `language` is read in: the channel's choice for that
+ * The *Pro voice* chosen for each language, by two-letter subtag — **one per
+ * language**, at Rodrigo's word, 2026-11-13, a voice sounding best in the
+ * language it was recorded in. The asker's, on *Floor Settings*: see
+ * `speechVoices` in settings.ts.
+ */
+export type SpeechVoices = Partial<Record<string, string>>;
+
+/**
+ * `voices` with `voice` chosen: **the voice's own language is the slot it
+ * fills**, leaving the other languages' alone, so a choice needs no language
+ * of its own. Null clears every language back to its default; a slug outside
+ * the catalogue changes nothing.
+ */
+export function withSpeechVoice(voices: SpeechVoices, voice: string | null): SpeechVoices {
+  if (voice === null) return {};
+  const known = SPEECH_VOICES.find((v) => v.id === voice);
+  return known ? { ...voices, [known.language]: known.id } : voices;
+}
+
+/**
+ * Whatever claims to be a `SpeechVoices`, keeping only the voices in the
+ * catalogue, each under the language it was recorded in — which is what the
+ * server stores and accepts, so a slot can never hold another language's
+ * voice.
+ */
+export function knownSpeechVoices(value: unknown): SpeechVoices {
+  const known: SpeechVoices = {};
+  if (!value || typeof value !== 'object') return known;
+  for (const [language, voice] of Object.entries(value as Record<string, unknown>)) {
+    const info = SPEECH_VOICES.find((v) => v.id === voice);
+    if (info && info.language === language) known[language] = info.id;
+  }
+  return known;
+}
+
+/**
+ * The voice a reply in `language` is read in: the asker's choice for that
  * language, else the default.
  */
 export function speechVoiceFor(
@@ -73,7 +109,7 @@ export function speechVoiceFor(
   return voice && isSpeechVoice(voice) ? voice : defaultSpeechVoice(language);
 }
 
-/** The voice a reply in `language` is spoken in where the channel chose none. */
+/** The voice a reply in `language` is spoken in where the asker chose none. */
 export function defaultSpeechVoice(language: SpeechLanguage): string {
   return DEFAULTS[language] ?? 'aai-kyla';
 }

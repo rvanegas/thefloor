@@ -87,6 +87,7 @@ describe('the settings that follow the account', () => {
       emailNotifications: false,
       pushNotificationsOff: false,
       iosVoices: false,
+      speechVoices: {},
       // The old names as well, which is what stops a build already on a phone
       // reading this answer as its channel settings having been turned over.
       // See settings-wire.ts.
@@ -118,6 +119,7 @@ describe('the settings that follow the account', () => {
       emailNotifications: false,
       pushNotificationsOff: false,
       iosVoices: false,
+      speechVoices: {},
     });
 
     await save(alice.token, { labs: false, hideControlCards: true });
@@ -130,6 +132,7 @@ describe('the settings that follow the account', () => {
       emailNotifications: false,
       pushNotificationsOff: false,
       iosVoices: false,
+      speechVoices: {},
     });
 
     await save(alice.token, { appearance: 'dark' });
@@ -142,6 +145,7 @@ describe('the settings that follow the account', () => {
       emailNotifications: false,
       pushNotificationsOff: false,
       iosVoices: false,
+      speechVoices: {},
     });
 
     // And the language, which is the newest of them and the one most likely to
@@ -156,6 +160,7 @@ describe('the settings that follow the account', () => {
       emailNotifications: false,
       pushNotificationsOff: false,
       iosVoices: false,
+      speechVoices: {},
     });
     await save(alice.token, { appearance: 'light' });
     expect(app.accounts.settings(alice.account.id).language).toBe('es');
@@ -375,6 +380,7 @@ describe('the settings that follow the account', () => {
       'language',
       'marketingEmail',
       'pushNotificationsOff',
+      'speechVoices',
       'tapToLook',
       'tapToStepIn',
     ]);
@@ -401,6 +407,7 @@ describe('the settings that follow the account', () => {
       emailNotifications: false,
       pushNotificationsOff: false,
       iosVoices: false,
+      speechVoices: {},
     });
 
     // And is refused when it is not a boolean, rather than being stored as one.

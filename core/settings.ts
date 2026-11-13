@@ -23,6 +23,8 @@
  * account and others do not is only honest if it admits which is which.
  */
 
+import type { SpeechVoices } from './speech';
+
 /**
  * Light, dark, or whatever the phone is set to.
  *
@@ -205,6 +207,16 @@ export interface AccountSettings {
    * reply is the server's.
    */
   iosVoices: boolean;
+  /**
+   * Which *Pro voice* reads the replies this person asks for, one per
+   * language (`withSpeechVoice`); a language with none chosen reads in its
+   * default. On *Floor Settings* beside `iosVoices` since 2026-11-13, at
+   * Rodrigo's word — it was the channel's that morning — and like it **a
+   * choice only *Pro* has**, so a voice outlives its chooser's Pro and is
+   * heard again when they renew. Everybody in the room hears it, since the
+   * server says it into the call.
+   */
+  speechVoices: SpeechVoices;
 }
 
 /**
@@ -268,4 +280,6 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   emailNotifications: false,
   pushNotificationsOff: false,
   iosVoices: false,
+  // Each language's default until somebody *Pro* chooses.
+  speechVoices: {},
 };

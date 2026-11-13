@@ -69,7 +69,6 @@ import {
   speakingGuests,
 } from './guests';
 import { hasMicrophone } from './micNeeded';
-import { SPEECH_VOICES } from './speech';
 import type {
   ChannelAction,
   ChannelState,
@@ -170,8 +169,6 @@ export function createChannel(params: {
     // Haiku, for the same reason: the cheap grade unless a `debug` account
     // has said otherwise.
     responseModel: 'standard',
-    // Each language's default voice until somebody *Pro* chooses one.
-    speechVoices: {},
     // Off until the library's owner says otherwise, channel by channel.
     library: false,
     recording: initialRecordingState(),
@@ -232,7 +229,6 @@ export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new S
   'SET_AUTO_RECORD',
   'SET_TRANSCRIPTION_MODEL',
   'SET_RESPONSE_MODEL',
-  'SET_SPEECH_VOICE',
   'SET_LIBRARY',
   'START_RECORDING',
   'PAUSE_RECORDING',
@@ -3586,25 +3582,6 @@ function reduceAction(
       if (!canEditChannel(state, action.userId)) return state;
       if (action.responseModel === (state.responseModel ?? 'standard')) return state;
       return { ...state, responseModel: action.responseModel };
-    }
-
-    case 'SET_SPEECH_VOICE': {
-      // Guarded like `SET_RESPONSE_MODEL`, and the *Pro* half of the rule is
-      // the server's for the same reason. A slug outside the catalogue is no
-      // voice at all, which is the default rather than a refusal.
-      // **The voice's own language is the slot it fills**, so the action
-      // needs no language of its own and keeps the shape build 432 sends.
-      if (!canEditChannel(state, action.userId)) return state;
-      if (action.speechVoice === null) {
-        return Object.keys(state.speechVoices ?? {}).length === 0
-          ? state
-          : { ...state, speechVoices: {} };
-      }
-      const voice = SPEECH_VOICES.find((v) => v.id === action.speechVoice);
-      // A slug outside the catalogue changes nothing.
-      if (!voice) return state;
-      if (state.speechVoices?.[voice.language] === voice.id) return state;
-      return { ...state, speechVoices: { ...state.speechVoices, [voice.language]: voice.id } };
     }
 
     case 'SET_LIBRARY': {
