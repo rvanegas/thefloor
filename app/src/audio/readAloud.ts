@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { CLAUDE_ID } from '../../../core/constants';
 import type { LanguagePreference } from '../../../core/settings';
 import type { ChannelState } from '../../../core/types';
@@ -15,6 +16,7 @@ import {
   type VoiceQuality,
 } from '../../modules/read-aloud';
 import { deviceRegion } from '../api/region';
+import { storage } from '../state/storage';
 import { recordEvent } from './diagnostics';
 
 /**
@@ -90,10 +92,10 @@ const RANK: Record<VoiceQuality, number> = { default: 0, enhanced: 1, premium: 2
 
 /**
  * The voice a reply will be read in where the phone reads it: `chosen`, while
- * it is still installed — the asker's, since *Floor Settings*' own choice went
- * with its card on 2026-11-13 — otherwise the best quality installed, then the
- * one in the phone's own region, then by name so the answer is stable. Null
- * when nothing is installed for the language, which leaves the choice to iOS.
+ * it is still installed — the *Standard voice* chosen on *Floor Settings* —
+ * otherwise the best quality installed, then the one in the phone's own
+ * region, then by name so the answer is stable. Null when nothing is installed
+ * for the language, which leaves the choice to iOS.
  *
  * **The choice is this app's because iOS's cannot be read.** The voice picked
  * under Settings › Accessibility is Speak Selection's, and nothing public
@@ -123,25 +125,136 @@ function languageOf(locale: string): string {
   return locale.replace(/_/g, '-').split('-')[0].toLowerCase();
 }
 
+/** The two languages *Floor Settings* chooses voices for, the app's own first. */
+export type SpokenLanguage = 'en' | 'es';
+
+/**
+ * Where each language's *Standard voice* is kept: **this phone's**, in its
+ * keychain, since the voices are installed on the phone rather than on the
+ * account — a voice one phone has downloaded is one another may not have.
+ * Card and keys went for a few hours of 2026-11-13 and came back that evening
+ * at Rodrigo's word, beside the *Pro voice*.
+ */
+const ENGLISH_VOICE_KEY = 'thefloor.readAloud.en';
+const SPANISH_VOICE_KEY = 'thefloor.readAloud.es';
+export const VOICE_KEYS: Record<SpokenLanguage, string> = {
+  en: ENGLISH_VOICE_KEY,
+  es: SPANISH_VOICE_KEY,
+};
+
+/**
+ * The chosen identifiers, read once from storage and then held here, so that
+ * a reply read the moment it lands does not wait on the keychain.
+ */
+let chosenVoices: Partial<Record<string, string>> = {};
+const loadedVoices: Promise<void> = (async () => {
+  for (const language of Object.keys(VOICE_KEYS) as SpokenLanguage[]) {
+    try {
+      const id = await storage.get(VOICE_KEYS[language]);
+      if (id) chosenVoices = { ...chosenVoices, [language]: id };
+    } catch {
+      // Unreadable is unchosen: the best installed voice reads instead.
+    }
+  }
+})();
+
+/** Makes `identifier` this phone's *Standard voice* for `language`. */
+export async function chooseVoice(
+  language: SpokenLanguage,
+  identifier: string
+): Promise<void> {
+  chosenVoices = { ...chosenVoices, [language]: identifier };
+  await storage.set(VOICE_KEYS[language], identifier).catch(() => undefined);
+}
+
 /**
  * The voice this phone would read each language in now, by subtag — what a
  * press of *Ask Claude* sends, so that **every phone reads the reply in the
- * asker's voice** where it has that voice installed. Undefined where this
- * build cannot speak or has no voice for either language.
- *
- * Since 2026-11-13 this is only the fallback's — a reply the server cannot
- * speak, or a build that predates it — and the choice that used to be made on
- * *Floor Settings* is gone with its card, so it is `bestVoice`'s.
+ * asker's *Standard voice*** where it has that voice installed. Undefined
+ * where this build cannot speak or has no voice for either language. Read
+ * only where the channel's replies are *Standard* or the server cannot speak.
  */
 export function askerVoices(): Record<string, string> | undefined {
   const found: Record<string, string> = {};
-  for (const language of ['en', 'es']) {
+  for (const language of Object.keys(VOICE_KEYS) as SpokenLanguage[]) {
     const voices = installedVoices(language);
     if (!voices) return undefined;
-    const voice = bestVoice(voices, localeFor(language));
+    const voice = bestVoice(voices, localeFor(language), chosenVoices[language] ?? null);
     if (voice) found[language] = voice.identifier;
   }
   return Object.keys(found).length > 0 ? found : undefined;
+}
+
+export interface LanguageVoices {
+  language: SpokenLanguage;
+  /** The voice a reply in this language would be read in now. */
+  voice: Voice | null;
+  /**
+   * What may be chosen among: the Enhanced and Premium voices installed. The
+   * basic ones are left out, being the robotic sound the card exists to get
+   * somebody away from — and a list of every basic voice is a page long.
+   */
+  choices: Voice[];
+}
+
+/**
+ * What *Floor Settings*' *Standard voice* card draws: for each language, the
+ * voice a reply in it would be read in now and what else may be chosen — or
+ * null for the whole where this build cannot speak.
+ *
+ * **Both languages, not the app's**, because the reply's language decides the
+ * voice, and a Spanish reply reaches a phone set to English as readily as an
+ * English one.
+ *
+ * **Asked again whenever the app comes back to the foreground**, because the
+ * card's advice is to go to Settings and download a voice, and the person who
+ * did is the one coming back to see whether it took.
+ */
+export function useReadAloudVoices(languages: readonly SpokenLanguage[]): {
+  found: LanguageVoices[] | null;
+  choose: (language: SpokenLanguage, identifier: string) => void;
+} {
+  const key = languages.join(',');
+  const look = (): LanguageVoices[] | null => {
+    const found: LanguageVoices[] = [];
+    for (const language of languages) {
+      const voices = installedVoices(language);
+      if (voices === null) return null;
+      const locale = localeFor(language);
+      found.push({
+        language,
+        voice: bestVoice(voices, locale, chosenVoices[language] ?? null),
+        choices: voices
+          .filter((voice) => voice.quality !== 'default')
+          .sort(
+            (a, b) =>
+              RANK[b.quality] - RANK[a.quality] || a.name.localeCompare(b.name)
+          ),
+      });
+    }
+    return found;
+  };
+  const [found, setFound] = useState(look);
+  useEffect(() => {
+    let live = true;
+    setFound(look());
+    void loadedVoices.then(() => {
+      if (live) setFound(look());
+    });
+    const subscription = AppState.addEventListener('change', (next) => {
+      if (next === 'active') setFound(look());
+    });
+    return () => {
+      live = false;
+      subscription.remove();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  const choose = (language: SpokenLanguage, identifier: string) => {
+    void chooseVoice(language, identifier);
+    setFound(look());
+  };
+  return { found, choose };
 }
 
 /**
@@ -376,7 +489,7 @@ function sayWithBestVoice(
     installedVoices(language) ?? [],
     locale,
     voices?.[language],
-    null
+    chosenVoices[language] ?? null
   );
   speak(text, voice?.identifier ?? null, locale, reply);
 }

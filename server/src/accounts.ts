@@ -714,7 +714,6 @@ export class Accounts {
       marketingEmail: row.marketing_email_at !== null,
       emailNotifications: row.email_notifications === 1,
       pushNotificationsOff: row.push_off === 1,
-      iosVoices: row.ios_voices === 1,
       // A voice since dropped from the catalogue reads as the default.
       speechVoices: knownSpeechVoices(row.speech_voices === null ? null : JSON.parse(row.speech_voices)),
     };
@@ -797,11 +796,6 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET push_off = ? WHERE id = ?')
         .run(changes.pushNotificationsOff ? 1 : 0, accountId);
-    }
-    if (changes.iosVoices !== undefined) {
-      this.db
-        .prepare('UPDATE accounts SET ios_voices = ? WHERE id = ?')
-        .run(changes.iosVoices ? 1 : 0, accountId);
     }
     if (changes.speechVoices !== undefined) {
       this.db

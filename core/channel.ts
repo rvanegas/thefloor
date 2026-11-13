@@ -169,6 +169,8 @@ export function createChannel(params: {
     // Haiku, for the same reason: the cheap grade unless a `debug` account
     // has said otherwise.
     responseModel: 'standard',
+    // The phones' own voices, free, until somebody *Pro* says otherwise.
+    readAloud: 'standard',
     // Off until the library's owner says otherwise, channel by channel.
     library: false,
     recording: initialRecordingState(),
@@ -229,6 +231,7 @@ export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new S
   'SET_AUTO_RECORD',
   'SET_TRANSCRIPTION_MODEL',
   'SET_RESPONSE_MODEL',
+  'SET_READ_ALOUD',
   'SET_LIBRARY',
   'START_RECORDING',
   'PAUSE_RECORDING',
@@ -3582,6 +3585,13 @@ function reduceAction(
       if (!canEditChannel(state, action.userId)) return state;
       if (action.responseModel === (state.responseModel ?? 'standard')) return state;
       return { ...state, responseModel: action.responseModel };
+    }
+
+    case 'SET_READ_ALOUD': {
+      // Guarded like `SET_RESPONSE_MODEL`, the *Pro* half being the server's.
+      if (!canEditChannel(state, action.userId)) return state;
+      if (action.readAloud === (state.readAloud ?? 'standard')) return state;
+      return { ...state, readAloud: action.readAloud };
     }
 
     case 'SET_LIBRARY': {

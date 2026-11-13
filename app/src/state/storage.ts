@@ -52,11 +52,10 @@ export const INSTALL_KEYS: readonly string[] = [
   'thefloor.tabsAtFoot',
   'thefloor.labs',
   'thefloor.chimeAmplitude',
-  // `thefloor.readAloud.en` and `.es` were here, the voice chosen per
-  // language on Floor Settings, until that card went on 2026-11-13. Nothing
-  // writes or reads them now; on a phone that had them they stay behind,
-  // unread and harmless — an Apple voice identifier — rather than being
-  // cleared by code that would exist only for them.
+  // The *Standard voice* chosen per language on Floor Settings —
+  // `readAloud.ts`. This phone's, since the voices are installed on it.
+  'thefloor.readAloud.en',
+  'thefloor.readAloud.es',
   'thefloor.notifications.launches',
   'thefloor.notifications.conversed',
   'thefloor.notifications.pitched',

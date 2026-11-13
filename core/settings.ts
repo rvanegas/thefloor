@@ -197,22 +197,17 @@ export interface AccountSettings {
    * screen says what to do in Settings when the two disagree.
    */
   pushNotificationsOff: boolean;
-  /**
-   * Whether Claude's replies this person asks for are read by each phone's own
-   * iOS voice rather than spoken into the room by the server with AssemblyAI,
-   * since 2026-11-13 — **for cost**, the server's speech being billed per
-   * character. **A choice only *Pro* has**: anybody else's replies are read
-   * by the phones whatever this says, so for them it is not drawn as theirs.
-   * Named for the departure, as every boolean here is; off, a *Pro* asker's
-   * reply is the server's.
+  /*
+   * `iosVoices` was here for a few hours of 2026-11-13: whether *Standard*
+   * or *Pro* voices read the replies this person asked for. It is the
+   * channel's since that evening, `ChannelState.readAloud`, at Rodrigo's
+   * word; the `ios_voices` column stays behind unread.
    */
-  iosVoices: boolean;
   /**
    * Which *Pro voice* reads the replies this person asks for, one per
    * language (`withSpeechVoice`); a language with none chosen reads in its
-   * default. On *Floor Settings* beside `iosVoices` since 2026-11-13, at
-   * Rodrigo's word — it was the channel's that morning — and like it **a
-   * choice only *Pro* has**, so a voice outlives its chooser's Pro and is
+   * default. On *Floor Settings* since 2026-11-13, at Rodrigo's word — it
+   * was the channel's that morning — and **a choice only *Pro* has**, so a voice outlives its chooser's Pro and is
    * heard again when they renew. Everybody in the room hears it, since the
    * server says it into the call.
    */
@@ -279,7 +274,6 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   marketingEmail: false,
   emailNotifications: false,
   pushNotificationsOff: false,
-  iosVoices: false,
   // Each language's default until somebody *Pro* chooses.
   speechVoices: {},
 };

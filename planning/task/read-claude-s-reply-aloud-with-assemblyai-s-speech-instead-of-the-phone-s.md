@@ -339,17 +339,20 @@ open, or did differently:
   reaches phones only with an upload.
 - **The ledger is `speech_usage`**, a row per synthesis; *Read again* plays
   the kept audio and has none.
-- **Only a *Pro* asker's reply is read by AssemblyAI**, at Rodrigo's word,
-  2026-11-13, for cost: *Floor Settings*' *Read aloud* lets *Pro* (and
-  `transcripts_unlimited`) choose *Standard* or *Pro* voices — iOS's and
-  AssemblyAI's, which is all anybody is shown of the engines; **Claude writes
-  only the words**, so nothing calls a voice Claude's (`iosVoices`, an
-  account setting, default *Pro*); anybody else's replies are *Standard*,
-  free, as before 2026-11-13. The asker's choice among the *Pro* voices is
-  *Pro voice*, **one per language** at Rodrigo's word the same day (a voice
-  filling its own language's slot, `speechVoices`), on *Floor Settings* beside
-  *Read aloud* — the channel's that morning, and moved that evening — and
-  what publishes it is *the room reader*. The
+- **A channel's replies are read by AssemblyAI where its *Read aloud* is
+  *Pro***, at Rodrigo's word, the evening of 2026-11-13: *Standard* or *Pro*
+  voices — iOS's and AssemblyAI's, which is all anybody is shown of the
+  engines; **Claude writes only the words**, so nothing calls a voice
+  Claude's — on *Channel Settings*, *Standard* by default, **the channel's
+  whoever asks and changed only by *Pro***, the *Response model*'s terms
+  (`ChannelState.readAloud`, `SET_READ_ALOUD`). For the few hours before it
+  was each *Pro* asker's own on *Floor Settings* (`iosVoices`, unread now).
+  **Which voice of each grade is the asker's, on *Floor Settings*' *Read
+  aloud***: the *Standard voice*, this phone's installed one per language,
+  in its keychain and sent with each press (`Clip.voices`); and the *Pro
+  voice*, **one per language** (a voice filling its own language's slot,
+  `speechVoices`, an account setting), chosen by *Pro* — the channel's that
+  morning. What publishes the *Pro* voice is *the room reader*. The
   *Ask Claude* warning shows only to a viewer whose reply the server would
   speak, and `/privacy` says the speech is a *Pro* asker's.
 - **The language** is `Transcripts.firstLanguage`: the earliest finished

@@ -86,7 +86,6 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      iosVoices: false,
       speechVoices: {},
       // The old names as well, which is what stops a build already on a phone
       // reading this answer as its channel settings having been turned over.
@@ -118,7 +117,6 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      iosVoices: false,
       speechVoices: {},
     });
 
@@ -131,7 +129,6 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      iosVoices: false,
       speechVoices: {},
     });
 
@@ -144,7 +141,6 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      iosVoices: false,
       speechVoices: {},
     });
 
@@ -159,7 +155,6 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      iosVoices: false,
       speechVoices: {},
     });
     await save(alice.token, { appearance: 'light' });
@@ -375,7 +370,6 @@ describe('the settings that follow the account', () => {
       'controlCards',
       'emailNotifications',
       'hideControlCards',
-      'iosVoices',
       'labs',
       'language',
       'marketingEmail',
@@ -406,7 +400,6 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      iosVoices: false,
       speechVoices: {},
     });
 

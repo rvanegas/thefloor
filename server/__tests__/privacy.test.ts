@@ -326,7 +326,7 @@ describe('The privacy policy', () => {
       expect(at).toBeLessThan(nextAt);
       expect(page).toContain('sent to Fake, in the United States');
       expect(page).toContain('keeps the speech for an hour');
-      expect(page).toContain('whoever asked for it subscribes to Pro');
+      expect(page).toContain('somebody who subscribes to Pro has chosen Pro voices');
       // Nothing about what the speech provider keeps: not checkable here.
       expect(page).not.toMatch(/Fake (keeps|retains|deletes)/);
       expect(page).toContain(

@@ -121,7 +121,6 @@ function hello(settings: {
     settings && {
       emailNotifications: false,
       pushNotificationsOff: false,
-      iosVoices: false,
       speechVoices: {},
       ...settings,
     }
@@ -271,7 +270,6 @@ describe('the settings that follow the account', () => {
         marketingEmail: false,
         emailNotifications: false,
         pushNotificationsOff: false,
-        iosVoices: false,
         speechVoices: {},
       })
     );

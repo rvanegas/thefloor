@@ -75,8 +75,12 @@ describe('Ask Claude on the Record bar', () => {
   });
 
   it('warns, without refusing, while somebody here is on an app from before the room reader', () => {
-    mockApp.pro = true;
-    showChannel(here(), [], { claude: true, speech: true, speechKept: [], roomReaderUnheard: [THEM, ME] });
+    showChannel({ ...here(), readAloud: 'pro' }, [], {
+      claude: true,
+      speech: true,
+      speechKept: [],
+      roomReaderUnheard: [THEM, ME],
+    });
     record();
     // The viewer is on this build, so only the others are named.
     expect(textOf(tree!)).toContain(
@@ -86,8 +90,9 @@ describe('Ask Claude on the Record bar', () => {
     expect(disabled(findButton(tree!, 'Medium')!)).toBeFalsy();
   });
 
-  it('says nothing to an asker whose reply the phones will read', () => {
-    // Not Pro: the server does not speak what this viewer asks for.
+  it('says nothing where the phones will read the reply', () => {
+    // A *Standard* channel: the server speaks nothing here.
+    mockApp.pro = true;
     showChannel(here(), [], { claude: true, speech: true, speechKept: [], roomReaderUnheard: [THEM] });
     record();
     expect(textOf(tree!)).not.toContain('to update The Floor');
@@ -235,6 +240,58 @@ describe('the response model', () => {
     showChannel(here());
     open();
     expect(textOf(tree!)).not.toContain('Response model');
+  });
+});
+
+/**
+ * *Read aloud*, on *Channel Settings* since 2026-11-13: *Standard* or *Pro*
+ * voices for the channel's replies, whoever asks, on the response model's
+ * terms.
+ */
+describe('read aloud', () => {
+  const open = () => {
+    mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
+    return (tree = render(
+      <ChannelSettingsView
+        publicAt={null}
+        channel={here()}
+        derivedTitle="Dana Chu"
+        onBack={() => {}}
+        onLeft={() => {}}
+      />
+    ));
+  };
+
+  it('is drawn only where the server speaks', () => {
+    showChannel(here(), [], { claude: true });
+    open();
+    expect(textOf(tree!)).not.toContain('Read aloud');
+  });
+
+  it('is Standard on a new channel, and greyed without Pro', () => {
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
+    open();
+    expect(textOf(tree!)).toContain('Which voices read Claude’s replies aloud here');
+    const standard = findButton(tree!, 'Standard')!;
+    expect(disabled(standard)).toBe(true);
+  });
+
+  it('is chosen by Pro, and sends the choice', () => {
+    mockApp.pro = true;
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
+    open();
+    const buttons = tree!.root.findAll(
+      (n) =>
+        n.props?.accessibilityRole === 'button' &&
+        typeof n.props?.onPress === 'function' &&
+        labelOf(n).trim() === 'Pro'
+    );
+    // The two models' Pro are drawn above it; read aloud's is the last.
+    act(() => buttons[buttons.length - 1].props.onPress());
+    expect(mockApp.act).toHaveBeenLastCalledWith('sess_1', {
+      type: 'SET_READ_ALOUD',
+      readAloud: 'pro',
+    });
   });
 });
 

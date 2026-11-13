@@ -858,18 +858,39 @@ export const en = {
       'The list above your channels on Home. It goes for good once every rung is done — the conversation, and the four things to try in a channel — or once every rung has been put away with the cross beside it, and this is the way to get it back.',
     audioOutput: () => 'Audio output',
     /**
-     * *Read aloud*: whether *Standard* voices (iOS's) or *Pro* voices
-     * (AssemblyAI's) read the replies you ask Claude for, since 2026-11-13 —
-     * *Pro*'s choice, for cost. Claude writes only the words; the engines are
-     * named only in the code and on `/privacy`.
+     * *Read aloud*: which voice of each grade reads the replies you ask for,
+     * since 2026-11-13 — which grade reads is the channel's, on *Channel
+     * Settings*. Claude writes only the words; the engines are named only in
+     * the code and on `/privacy`.
      */
-    readAloudVoices: () => 'Read aloud',
-    readAloudAssembly: () => 'Pro',
-    readAloudIos: () => 'Standard',
-    readAloudVoicesNote: () =>
-      'Which voices read aloud the replies you ask Claude for. Pro voices are heard by everybody in the call and kept in recordings, and each reply costs a little. Standard voices are the iPhone’s own: free, but each iPhone reads the reply on its own, and it is never recorded.',
-    readAloudVoicesWho: () =>
-      'Only somebody subscribed to Pro can choose. Without Pro, Standard voices read the replies you ask for.',
+    readAloud: () => 'Read aloud',
+    /** *Standard voice*: this iPhone's installed voice, per language. */
+    standardVoice: () => 'Standard voice',
+    standardVoiceNote: () =>
+      'Where Standard voices read Claude’s replies aloud, each iPhone reads them in its own voice, and when you ask, everybody hears the reply in yours if their iPhone has it too. This choice is this iPhone’s, since the voices are installed on it.',
+    standardVoiceIs: (
+      language: 'en' | 'es',
+      voice: string,
+      quality: 'enhanced' | 'premium'
+    ) =>
+      `${language === 'es' ? 'Spanish' : 'English'}: ${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'})`,
+    standardVoiceChoice: (voice: string, quality: 'enhanced' | 'premium') =>
+      `${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'})`,
+    /**
+     * **Says why the voice chosen in iOS Settings is not the one here**, since
+     * that is what somebody who just chose one there expects: nothing public
+     * lets an app read it.
+     */
+    standardVoiceChoiceNote: () =>
+      'The voice you choose in iOS Settings is not shared with apps, so choose it here too.',
+    standardVoiceBasic: (language: 'en' | 'es') =>
+      `${language === 'es' ? 'Spanish' : 'English'}: only the basic voice, which sounds robotic`,
+    /**
+     * **Settings' own words for the path, which iOS 26 renamed** — *Spoken
+     * Content* became *Read & Speak* — so the version picks.
+     */
+    standardVoiceHowTo: (newerSettings: boolean) =>
+      `For a more natural voice, open Settings \u203a Accessibility \u203a ${newerSettings ? 'Read & Speak' : 'Spoken Content'} \u203a Voices, choose the language, then a voice, and download its Enhanced or Premium version. It is used here as soon as it has downloaded.`,
     /**
      * *Pro voice*, since 2026-11-13: the AssemblyAI voice, one per language,
      * that reads aloud the replies you ask for, chosen by *Pro*, heard by
@@ -1139,6 +1160,15 @@ export const en = {
      * buttons above are called *Pro* too.
      */
     modelWho: () => 'Only somebody subscribed to Pro can change it.',
+    /**
+     * *Read aloud*, since 2026-11-13: whether *Standard* or *Pro* voices read
+     * the channel's Claude replies, whoever asks — chosen by *Pro*, for cost.
+     */
+    readAloud: () => 'Read aloud',
+    readAloudStandard: () => 'Standard',
+    readAloudPro: () => 'Pro',
+    readAloudNote: () =>
+      'Which voices read Claude’s replies aloud here, whoever asks. Pro voices are heard by everybody in the call and kept in recordings, and each reply costs a little. Standard voices are each iPhone’s own: free, but each iPhone reads the reply on its own, and it is never recorded. Which voice of each is the asker’s, on Floor Settings.',
     /**
      * Whether *Ask Claude* may consult the server's library, since
      * 2026-10-27: drawn, since 2026-11-09, only for somebody whose own is

@@ -3,7 +3,12 @@ import * as WebBrowser from 'expo-web-browser';
 import { Alert, AppState, Linking, Platform, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '../api/config';
 import { api } from '../api/http';
-import { speechLocale } from '../audio/readAloud';
+import {
+  speechLocale,
+  useReadAloudVoices,
+  type LanguageVoices,
+  type SpokenLanguage,
+} from '../audio/readAloud';
 import { playSample } from '../../modules/read-aloud';
 import { showRoutePicker } from '../audio/routePicker';
 import { mayHoldToken } from '../push';
@@ -309,53 +314,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {/*
-        *Read aloud* was here, from 2026-10-28: which installed voice read
-        Claude's replies on this phone, a choice among them, and how to
-        download a better one. **Removed 2026-11-13, at Rodrigo's word**, when
-        the server began speaking replies into the room in a *Pro voice*: the
-        phone's voice is
-        heard only where the server cannot speak, and a card tuning that
-        fallback was weight for a failure path. `bestVoice` still chooses it.
-
-        **In its place since the same day, *Claude's replies***: whether the
-        replies you ask for are spoken by the server — a *Pro voice*, heard
-        by everybody in the call and kept in a recording, and billed per
-        reply — or read by each phone's own voice, which costs nothing. **A
-        choice only *Pro* has**, at Rodrigo's word, for cost: anybody else's
-        replies are always the phones'. Drawn for everybody, greyed with the
-        model cards' sentence without *Pro*, as those cards are. Drawn only
-        where this server speaks at all, which a channel's snapshot is the one
-        thing to say (`ChannelView.speech`). See `iosVoices`. Under it, which
-        *Pro voice*, since that evening (`ProVoiceCard`).
+        ***Read aloud*: which voice of each grade reads the replies you ask
+        for**, at Rodrigo's word, 2026-11-13 — *Standard*, this phone's own,
+        and *Pro*, the server's. **Which grade reads is the channel's**, on
+        *Channel Settings* (`ChannelState.readAloud`); for a few hours that
+        day it was a choice here too. Each card is drawn only where it can
+        apply, and the label only over one.
       */}
-      {Object.values(app.channelViews ?? {}).some((view) => view?.speech) ? (
-        <>
-          <SectionLabel>{t.readAloudVoices()}</SectionLabel>
-          <Card style={styles.stack}>
-            <View style={styles.choices}>
-              {(
-                [
-                  // Standard first, as every grade on these screens runs.
-                  [true, t.readAloudIos()],
-                  [false, t.readAloudAssembly()],
-                ] as Array<[boolean, string]>
-              ).map(([phones, label]) => (
-                <Button
-                  key={label}
-                  label={label}
-                  style={styles.choice}
-                  disabled={!app.pro}
-                  variant={(app.pro ? app.iosVoices : true) === phones ? 'primary' : 'default'}
-                  onPress={() => app.setIosVoices(phones)}
-                />
-              ))}
-            </View>
-            <Text style={type.muted}>{t.readAloudVoicesNote()}</Text>
-            {app.pro ? null : <Text style={type.muted}>{t.readAloudVoicesWho()}</Text>}
-          </Card>
-          <ProVoiceCard />
-        </>
-      ) : null}
+      <ReadAloudSection />
 
       {/*
         *Labs* was here, a switch for the unfinished parts of the app, and has
@@ -1106,12 +1072,125 @@ function ProCard() {
   );
 }
 
+/** *Read aloud*'s label and two cards. See the comment where it is drawn. */
+function ReadAloudSection() {
+  const app = useApp();
+  const t = useText().homeSettings;
+  // The app's own language first, being the likelier of the two to be read.
+  const languages: SpokenLanguage[] = speechLocale(app.language).startsWith('es')
+    ? ['es', 'en']
+    : ['en', 'es'];
+  const { found, choose } = useReadAloudVoices(languages);
+  const standard = Platform.OS === 'ios' && found !== null ? found : null;
+  // Only where this server speaks at all, which a channel's snapshot is the
+  // one thing to say (`ChannelView.speech`).
+  const pro = Object.values(app.channelViews ?? {}).some((view) => view?.speech);
+  if (!standard && !pro) return null;
+  return (
+    <>
+      <SectionLabel>{t.readAloud()}</SectionLabel>
+      <View style={styles.cards}>
+        {standard ? <StandardVoiceCard found={standard} choose={choose} /> : null}
+        {pro ? <ProVoiceCard languages={languages} /> : null}
+      </View>
+    </>
+  );
+}
+
+/**
+ * *Standard voice*: which voice installed on this phone reads the replies it
+ * reads itself, per language — and which the replies you ask for are read in
+ * on every phone that has it too (`askerVoices`, `Clip.voices`). From
+ * 2026-10-28, gone for a few hours of 2026-11-13 and back that evening.
+ *
+ * **This phone's, not the account's**, kept in its keychain, the voices being
+ * installed on it; the card says so. **Anybody's to choose**, since it costs
+ * nothing. **Shut on every visit**, as the *Pro voice* card below is: shut, a
+ * line per language; open, the Enhanced and Premium voices installed, down the
+ * page, the one in use primary.
+ *
+ * **The download cannot be started from here, or linked to.** iOS has no API
+ * for either, and the only Settings URL a public app may open is its own
+ * page. So the card says the path in Settings' own words, and the voices are
+ * asked again when the app comes back to the foreground.
+ */
+function StandardVoiceCard({
+  found,
+  choose,
+}: {
+  found: LanguageVoices[];
+  choose: (language: SpokenLanguage, identifier: string) => void;
+}) {
+  const t = useText().homeSettings;
+  const more = useText().introduction;
+  const [open, setOpen] = useState(false);
+  const newerSettings = parseInt(String(Platform.Version), 10) >= 26;
+  const allPremium = found.every(({ voice }) => voice?.quality === 'premium');
+  const anyChoice = found.some(({ choices }) => choices.length > 1);
+  return (
+    <Card style={styles.stack}>
+      <Text style={type.heading}>{t.standardVoice()}</Text>
+      <Text style={type.muted}>{t.standardVoiceNote()}</Text>
+      {open
+        ? found.map(({ language, voice, choices }) =>
+            choices.length > 1 ? (
+              <View key={language} style={styles.stack}>
+                <Text style={type.body}>{t.proVoiceLanguage(language)}</Text>
+                {choices.map((choice) => (
+                  <Button
+                    key={choice.identifier}
+                    label={t.standardVoiceChoice(
+                      choice.name,
+                      choice.quality === 'premium' ? 'premium' : 'enhanced'
+                    )}
+                    variant={voice?.identifier === choice.identifier ? 'primary' : 'default'}
+                    onPress={() => choose(language, choice.identifier)}
+                  />
+                ))}
+              </View>
+            ) : (
+              <Text key={language} style={type.body}>
+                {standardLine(t, language, voice)}
+              </Text>
+            )
+          )
+        : found.map(({ language, voice }) => (
+            <Text key={language} style={type.body}>
+              {standardLine(t, language, voice)}
+            </Text>
+          ))}
+      {open && anyChoice ? <Text style={type.muted}>{t.standardVoiceChoiceNote()}</Text> : null}
+      {open && !allPremium ? (
+        <Text style={type.muted}>{t.standardVoiceHowTo(newerSettings)}</Text>
+      ) : null}
+      <View style={styles.disclosure}>
+        <Button
+          label={open ? more.seeLess() : more.seeMore()}
+          variant="quiet"
+          onPress={() => setOpen((was) => !was)}
+        />
+      </View>
+    </Card>
+  );
+}
+
+/** A language's *Standard voice* in a line: its name and grade, or that it is the basic one. */
+function standardLine(
+  t: ReturnType<typeof useText>['homeSettings'],
+  language: SpokenLanguage,
+  voice: LanguageVoices['voice']
+): string {
+  return voice && voice.quality !== 'default'
+    ? t.standardVoiceIs(language, voice.name, voice.quality)
+    : t.standardVoiceBasic(language);
+}
+
 /**
  * *Pro voice*, since 2026-11-13: which of the *Pro* voices reads aloud the
- * replies you ask for, one per language, under *Read aloud* because it is
- * that choice's *Pro*. **It was the channel's, on *Channel Settings*, that
- * morning**, and moved here the same day at Rodrigo's word: whether a *Pro*
- * voice reads was already the asker's choice, so which one is too.
+ * replies you ask for, one per language, wherever a channel's *Read aloud* is
+ * *Pro*, and heard there by everybody. **It was the channel's, on *Channel
+ * Settings*, that morning**, and moved here the same day at Rodrigo's word,
+ * beside the *Standard voice*. Drawn only where this server speaks.
  *
  * **Down the page, under each voice's own language**, for STYLE.md § *A
  * choice of more than three goes down the page*, the chosen one primary as
@@ -1121,7 +1200,7 @@ function ProCard() {
  * may change it. A voice sounds best in its own language and every one speaks
  * both, which is why they are grouped by it rather than filtered.
  */
-function ProVoiceCard() {
+function ProVoiceCard({ languages }: { languages: SpokenLanguage[] }) {
   const app = useApp();
   const t = useText().homeSettings;
   const more = useText().introduction;
@@ -1132,9 +1211,6 @@ function ProVoiceCard() {
    * introduction card's control and words.
    */
   const [open, setOpen] = useState(false);
-  const languages: Array<'en' | 'es'> = speechLocale(app.language).startsWith('es')
-    ? ['es', 'en']
-    : ['en', 'es'];
   const press = (voice: string) => {
     const url = api.speechSampleUrl(voice);
     if (url && app.token) void playSample(url, `Bearer ${app.token}`);

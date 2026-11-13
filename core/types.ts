@@ -295,6 +295,15 @@ export type TranscriptionModel = 'standard' | 'pro';
 export type ResponseModel = 'standard' | 'pro' | 'max';
 
 /**
+ * Which grade of voice reads this channel's Claude replies aloud, since
+ * 2026-11-13: `standard`, each iPhone's own, free and heard on that phone
+ * alone; `pro`, AssemblyAI's, said once by the server into the room and
+ * billed per reply. Its own union for `ResponseModel`'s reason, and its *Pro*
+ * is a grade, not *Pro (the subscription)*.
+ */
+export type ReadAloud = 'standard' | 'pro';
+
+/**
  * A *Pro voice* — an AssemblyAI voice slug from `SPEECH_VOICES` — or null for
  * the default voice of the language a reply is spoken in
  * (`defaultSpeechVoice`). Since 2026-11-13.
@@ -1068,12 +1077,18 @@ export interface ChannelState {
    * app reads as `standard`.
    */
   responseModel: ResponseModel;
-  /*
-   * `speechVoices`, the *Pro voice* per language, was here on 2026-11-13 and
-   * moved the same day to the asker's *Floor Settings*, at Rodrigo's word:
-   * whether a reply is read by a *Pro* voice was already the asker's choice,
-   * so which one is too. See `speechVoices` in core/settings.ts.
+  /**
+   * Whether *Standard* or *Pro* voices read this channel's Claude replies
+   * aloud, since 2026-11-13 — on *Channel Settings*, at Rodrigo's word, after
+   * a few hours as each asker's own on *Floor Settings*. **The channel's,
+   * whoever asks**, `responseModel`'s rule, so a *Pro* channel's replies are
+   * billed whoever asks; **changed only by *Pro***, refused by the server
+   * before dispatch as that one is, and a choice outlives its chooser's Pro.
+   * Which voice of each grade reads is the asker's, on *Floor Settings*
+   * (`speechVoices`, `Clip.voices`). Absent on a row written before it,
+   * which reads as `standard`.
    */
+  readAloud: ReadAloud;
   /**
    * Whether this channel's *Ask Claude* may consult noesis libraries — their
    * owners' own writing — on *Pro* and *Max*; *Standard* never does. Off on
@@ -1476,6 +1491,12 @@ export type ChannelAction =
    * from any account without `debug`.
    */
   | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
+  /**
+   * Chooses the grade of voice that reads the channel's Claude replies.
+   * Guarded as `SET_RESPONSE_MODEL` is, and refused by the server, as that one
+   * is, from any account that is not *Pro*.
+   */
+  | { type: 'SET_READ_ALOUD'; userId: UserId; readAloud: ReadAloud }
   /**
    * Switches libraries on or off. Guarded as `SET_RESPONSE_MODEL` is; on,
    * refused by the server from anybody without a library of their own

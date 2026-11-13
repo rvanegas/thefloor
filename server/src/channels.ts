@@ -317,13 +317,6 @@ export interface ClaudeSpeech {
   /** The account's own language setting, `en`, `es` or `system`. */
   accountLanguage(accountId: string): string | null;
   /**
-   * Whether the server speaks a reply this account asked for: **only for
-   * *Pro***, and only while they have not chosen the phones' own voices on
-   * *Floor Settings* — the server's speech being the one that costs. Since
-   * 2026-11-13.
-   */
-  speaksFor(accountId: string): boolean;
-  /**
    * The *Pro voices* this account chose on *Floor Settings*, by language —
    * the asker's, since 2026-11-13, and not the channel's.
    */
@@ -429,6 +422,8 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_TRANSCRIPTION_MODEL',
   // *Pro* only, refused in `dispatch` beside the transcription model.
   'SET_RESPONSE_MODEL',
+  // *Pro* only, refused in `dispatch` beside the response model.
+  'SET_READ_ALOUD',
   // The library's owner only, refused in `dispatch` beside the response model.
   'SET_LIBRARY',
   'CLAIM_FLOOR',
@@ -1160,7 +1155,8 @@ export class ChannelRegistry {
 
   /**
    * Claude's spoken reply, since 2026-11-13: set by the composition root where
-   * there is an AssemblyAI key, on `isPro`'s terms; absent, nothing is spoken
+   * there is an AssemblyAI key, and used where the channel's `readAloud` is
+   * `pro`; absent, nothing is spoken
    * by the server and every phone reads a reply with its own voice, as before.
    */
   speech?: ClaudeSpeech;
@@ -3138,6 +3134,22 @@ export class ChannelRegistry {
         return {
           ok: false,
           error: 'Only a Pro account can choose the response model.',
+          code: 'forbidden',
+        };
+      }
+    }
+
+    // *Read aloud*, on the same rule, at Rodrigo's word, 2026-11-13: *Pro*
+    // voices are billed per reply, and the grade is the channel's whoever asks.
+    if (action.type === 'SET_READ_ALOUD') {
+      const grade = (action as { readAloud?: unknown }).readAloud;
+      if (grade !== 'standard' && grade !== 'pro') {
+        return { ok: false, error: 'Not an action.', code: 'invalid' };
+      }
+      if (!this.isPro?.(userId)) {
+        return {
+          ok: false,
+          error: 'Only a Pro account can choose how replies are read aloud.',
           code: 'forbidden',
         };
       }
@@ -8074,7 +8086,7 @@ export class ChannelRegistry {
     const speech = this.speech;
     const channel = this.channels.get(channelId);
     if (!speech || !channel) return false;
-    if (!speech.speaksFor(askerId)) return false;
+    if ((channel.readAloud ?? 'standard') !== 'pro') return false;
     if ([...text].length > SPEECH_MAX_CHARACTERS) return false;
     const language = this.speechLanguage(channelId, askerId, askerLanguage);
     if (!language) return false;
@@ -9104,6 +9116,8 @@ export class ChannelRegistry {
       // request dies with the process, and restoring it would leave the card
       // saying *Responding…* to an answer that is never coming.
       responseModel: channel.responseModel ?? 'standard',
+      // Beside it, for the same reason.
+      readAloud: channel.readAloud ?? 'standard',
       // A setting somebody chose, beside the model it applies to, and whose
       // library it is.
       library: channel.library ?? false,
@@ -9493,6 +9507,7 @@ export class ChannelRegistry {
       autoTranscribe?: boolean;
       transcriptionModel?: ChannelState['transcriptionModel'];
       responseModel?: ChannelState['responseModel'];
+      readAloud?: ChannelState['readAloud'];
       library?: boolean;
       libraries?: Record<string, string[]>;
       initiator?: string;
@@ -9563,6 +9578,7 @@ export class ChannelRegistry {
       // The default on a row written before the field existed.
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       responseModel: durable.responseModel ?? 'standard',
+      readAloud: durable.readAloud ?? 'standard',
       // `speechVoices`, the channel's Pro voices of 2026-11-13, is left
       // unread on a row that has it: the voice is the asker's since that day.
       // On only with somebody's libraries chosen: off for a channel written

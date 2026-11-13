@@ -286,9 +286,9 @@ export interface AccountRow {
    */
   push_off: number | null;
   /**
-   * Whether Claude's replies this account asks for are read by the phones'
-   * own voices, null until it says. See `iosVoices` in
-   * core/settings.ts.
+   * Whether Claude's replies this account asked for were read by the phones'
+   * own voices, for a few hours of 2026-11-13; unread since that evening,
+   * when it became the channel's `readAloud`. See core/settings.ts.
    */
   ios_voices: number | null;
   /**
@@ -827,7 +827,7 @@ CREATE TABLE IF NOT EXISTS accounts (
   email_notifications INTEGER,
   push_off           INTEGER,
   -- Claude's replies read by the phones' own voices rather than the server's,
-  -- null until somebody *Pro* says; since 2026-11-13. See core/settings.ts.
+  -- for a few hours of 2026-11-13; unread since. See core/settings.ts.
   ios_voices INTEGER,
   -- The Pro voices chosen, by language, as JSON; null until somebody *Pro*
   -- chooses; since 2026-11-13. See core/settings.ts.

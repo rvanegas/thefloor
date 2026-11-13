@@ -105,6 +105,21 @@ describe('the response model', () => {
   });
 });
 
+describe('read aloud', () => {
+  it('is Standard on a new channel', () => {
+    expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).readAloud).toBe('standard');
+  });
+
+  it('is set by anybody who may edit the channel, the Pro half being the server’s', () => {
+    const s = reduce(bothHere(), { type: 'SET_READ_ALOUD', userId: A, readAloud: 'pro' }, T0 + 1);
+    expect(s.readAloud).toBe('pro');
+    expect(reduce(s, { type: 'SET_READ_ALOUD', userId: A, readAloud: 'pro' }, T0 + 2)).toBe(s);
+    let away = bothHere();
+    away = reduce(away, { type: 'STEP_OUT', userId: A }, T0 + 1);
+    expect(reduce(away, { type: 'SET_READ_ALOUD', userId: A, readAloud: 'pro' }, T0 + 2)).toBe(away);
+  });
+});
+
 describe('the library', () => {
   it('is off on a new channel', () => {
     expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).library).toBe(false);

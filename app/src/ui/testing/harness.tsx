@@ -435,10 +435,6 @@ export const mockApp = {
     mockApp.emailNotifications = value;
   }),
   pushNotificationsOff: false,
-  iosVoices: false,
-  setIosVoices: jest.fn((value: boolean) => {
-    mockApp.iosVoices = value;
-  }),
   speechVoices: {} as Partial<Record<string, string>>,
   setSpeechVoice: jest.fn(),
   setPushNotificationsOff: jest.fn((value: boolean) => {

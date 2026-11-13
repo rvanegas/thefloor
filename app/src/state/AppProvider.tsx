@@ -1030,14 +1030,6 @@ interface AppValue extends AppState {
   pushNotificationsOff: boolean;
   setPushNotificationsOff: (value: boolean) => void;
   /**
-   * Whether Claude's replies this account asks for are read by the phones'
-   * own voices rather than the server's, since 2026-11-13 — *Pro*'s choice,
-   * for cost. See `iosVoices` in core/settings.ts. Not cached, for
-   * `marketingEmail`'s reason.
-   */
-  iosVoices: boolean;
-  setIosVoices: (value: boolean) => void;
-  /**
    * The *Pro voice* this account chose for each language, since 2026-11-13 —
    * *Pro*'s choice, on *Floor Settings*. See `speechVoices` in
    * core/settings.ts. `setSpeechVoice` fills the slot of the voice's own
@@ -1246,9 +1238,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pushNotificationsOff, setPushNotificationsOffState] = useState(
     DEFAULT_ACCOUNT_SETTINGS.pushNotificationsOff
   );
-  const [iosVoices, setIosVoicesState] = useState(
-    DEFAULT_ACCOUNT_SETTINGS.iosVoices
-  );
   const [speechVoices, setSpeechVoicesState] = useState(
     DEFAULT_ACCOUNT_SETTINGS.speechVoices
   );
@@ -1297,8 +1286,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // and whose behaviour is exactly the defaults.
     setEmailNotificationsState(settings.emailNotifications ?? false);
     setPushNotificationsOffState(settings.pushNotificationsOff ?? false);
-    // `?? false` for a server that predates it, on which only phones read.
-    setIosVoicesState(settings.iosVoices ?? false);
     setSpeechVoicesState(settings.speechVoices ?? {});
   }, [adoptLanguage]);
   /**
@@ -1329,7 +1316,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMarketingEmailState(DEFAULT_ACCOUNT_SETTINGS.marketingEmail);
     setEmailNotificationsState(DEFAULT_ACCOUNT_SETTINGS.emailNotifications);
     setPushNotificationsOffState(DEFAULT_ACCOUNT_SETTINGS.pushNotificationsOff);
-    setIosVoicesState(DEFAULT_ACCOUNT_SETTINGS.iosVoices);
     setSpeechVoicesState(DEFAULT_ACCOUNT_SETTINGS.speechVoices);
   }, [forgetLanguage]);
   /**
@@ -2718,14 +2704,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
-      iosVoices,
-      setIosVoices: (value) => {
-        setIosVoicesState(value);
-        if (state.token) {
-          void api.saveSettings(state.token, { iosVoices: value }).catch(() => {});
-        }
-      },
-
       speechVoices,
       setSpeechVoice: (voice) => {
         const chosen = withSpeechVoice(speechVoices, voice);
@@ -3526,7 +3504,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       marketingEmail,
       emailNotifications,
       pushNotificationsOff,
-      iosVoices,
       speechVoices,
       forgetSettings,
       expiry,

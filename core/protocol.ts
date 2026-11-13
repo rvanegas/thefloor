@@ -7,6 +7,7 @@ import type {
   ChannelState,
   Clip,
   NearbyWhen,
+  ReadAloud,
   ResponseModel,
 
   TranscriptionModel,
@@ -1916,6 +1917,8 @@ export type ClientAction =
    * those who may not change it. Unknown to a server that predates it.
    */
   | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
+  /** Refused by the server from an account that is not *Pro*, as the response model is. */
+  | { type: 'SET_READ_ALOUD'; readAloud: ReadAloud }
   /**
    * On sets your own libraries here, and is refused from anybody without one
    * connected; off is `owner`'s, or everybody's. Refused from every account

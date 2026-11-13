@@ -54,6 +54,15 @@ jest.mock("../../push", () => ({
   ...jest.requireActual("../../push"),
   mayHoldToken: () => mockMayHoldToken,
 }));
+/**
+ * The phone's installed voices, which the *Standard voice* card lists: none
+ * by default, as on a build that cannot speak, and some where a case says.
+ */
+const mockInstalled = jest.fn((_language: string): unknown[] | null => null);
+jest.mock("../../../modules/read-aloud", () => ({
+  ...jest.requireActual("../../../modules/read-aloud"),
+  installedVoices: (language: string) => mockInstalled(language),
+}));
 jest.mock("../../audio/chime", () => ({
   chimeIn: jest.fn(),
   warmChimes: jest.fn(),
@@ -79,7 +88,10 @@ const styleOf = (tree: ReactTestRenderer, label: string) =>
     findButton(tree, label)!.props.style({ pressed: false }),
   ) as { backgroundColor?: unknown };
 
-beforeEach(resetHarness);
+beforeEach(() => {
+  resetHarness();
+  mockInstalled.mockImplementation(() => null);
+});
 
 describe("Home settings", () => {
   /** The view fetches on mount, so every case has to let that settle. */
@@ -92,35 +104,40 @@ describe("Home settings", () => {
   }
 
   /**
-   * *Read aloud*, since 2026-11-13: *Standard* voices (iOS's) or *Pro*
-   * (AssemblyAI's) — Claude writes only the words — *Pro*'s choice for cost,
-   * and drawn only where the server speaks at all.
+   * *Standard voice*: this phone's installed voices, per language, which
+   * anybody may choose among. Drawn only where this build can speak.
    */
-  describe('Read aloud', () => {
-    const speaking = () => {
-      mockApp.channelViews.sess_1 = { speech: true } as never;
-    };
+  describe('Standard voice', () => {
+    const installed = (language: string) =>
+      language === 'en'
+        ? [
+            { identifier: 'ava', name: 'Ava', language: 'en-US', quality: 'premium' },
+            { identifier: 'zoe', name: 'Zoe', language: 'en-US', quality: 'enhanced' },
+            { identifier: 'fred', name: 'Fred', language: 'en-US', quality: 'default' },
+          ]
+        : [{ identifier: 'jorge', name: 'Jorge', language: 'es-ES', quality: 'default' }];
 
-    it('is not drawn where the server does not speak', async () => {
+    it('is not drawn, nor the label, where this build cannot speak and the server does not', async () => {
       const tree = await openSettings();
-      expect(textOf(tree)).not.toContain('Which voices read aloud');
+      expect(textOf(tree)).not.toContain('Read aloud');
+      expect(textOf(tree)).not.toContain('Standard voice');
     });
 
-    it('is greyed without Pro, Standard voices being what reads', async () => {
-      speaking();
+    it('says each language’s voice, and opens onto the voices to choose from', async () => {
+      mockInstalled.mockImplementation(installed as never);
       const tree = await openSettings();
-      expect(textOf(tree)).toContain('Which voices read aloud');
-      expect(textOf(tree)).toContain('Only somebody subscribed to Pro can choose.');
-      const phones = findButton(tree, 'Standard')!;
-      expect(phones.props.accessibilityState?.disabled ?? phones.props.disabled).toBe(true);
-    });
-
-    it('lets Pro choose Standard voices', async () => {
-      speaking();
-      mockApp.pro = true;
-      const tree = await openSettings();
-      act(() => findButton(tree, 'Standard')!.props.onPress());
-      expect(mockApp.setIosVoices).toHaveBeenCalledWith(true);
+      expect(textOf(tree)).toContain('Read aloud');
+      expect(textOf(tree)).toContain('English: Ava (Premium)');
+      expect(textOf(tree)).toContain('Spanish: only the basic voice');
+      expect(findButton(tree, 'Zoe (Enhanced)')).toBeUndefined();
+      act(() => findButton(tree, 'See more')!.props.onPress());
+      // The basic voices are no choice; Enhanced and Premium are, for anybody.
+      expect(findButton(tree, 'Fred (Enhanced)')).toBeUndefined();
+      // The best installed is in use until one is chosen.
+      const primary = styleOf(tree, 'Ava (Premium)').backgroundColor;
+      act(() => findButton(tree, 'Zoe (Enhanced)')!.props.onPress());
+      expect(styleOf(tree, 'Zoe (Enhanced)').backgroundColor).toEqual(primary);
+      expect(styleOf(tree, 'Ava (Premium)').backgroundColor).not.toEqual(primary);
     });
   });
 

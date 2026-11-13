@@ -21,7 +21,7 @@ import {
   NOTIFICATION_LEVELS,
   type NotificationLevel,
 } from '../../../core/notifications';
-import type { ChannelState, ResponseModel, TranscriptionModel } from '../../../core/types';
+import type { ChannelState, ReadAloud, ResponseModel, TranscriptionModel } from '../../../core/types';
 import type { ChannelLibraryView, NoesisView } from '../../../core/protocol';
 import { API_URL } from '../api/config';
 import { api, type GuestLinkSummary } from '../api/http';
@@ -623,10 +623,39 @@ export function ChannelSettingsView({
       ) : null}
 
       {/*
-        *Pro voice* was here on 2026-11-13, the channel's, and moved the same
-        day to *Floor Settings* at Rodrigo's word, beside the *Read aloud*
-        choice whose *Pro* it voices: the asker's, not the channel's.
+        **Whether *Standard* or *Pro* voices read the channel's Claude
+        replies, since 2026-11-13** — the *Response model* card's terms and
+        shape, at Rodrigo's word: the channel's whoever asks, drawn for
+        everybody, settable only by *Pro*, which the server enforces, and grey
+        with the same sentence for anybody else. Two grades, so a `choices`
+        row. Which voice of each is the asker's, on *Floor Settings*; the
+        *Pro voice* card was here that morning. Drawn only where the server
+        speaks and Claude can be asked.
       */}
+      {view?.claude && view.speech ? (
+        <Card style={styles.stack}>
+          <Text style={type.heading}>{t.readAloud()}</Text>
+          <View style={styles.choices}>
+            {(
+              [
+                ['standard', t.readAloudStandard()],
+                ['pro', t.readAloudPro()],
+              ] as Array<[ReadAloud, string]>
+            ).map(([value, label]) => (
+              <Button
+                key={value}
+                label={label}
+                style={styles.choice}
+                disabled={!mayEdit || !app.pro}
+                variant={(channel.readAloud ?? 'standard') === value ? 'primary' : 'default'}
+                onPress={() => app.act(channel.id, { type: 'SET_READ_ALOUD', readAloud: value })}
+              />
+            ))}
+          </View>
+          <Text style={type.muted}>{t.readAloudNote()}</Text>
+          {app.pro ? null : <Text style={type.muted}>{t.modelWho()}</Text>}
+        </Card>
+      ) : null}
 
       {/*
         **Whether *Ask Claude* may consult the library, since 2026-10-27** —

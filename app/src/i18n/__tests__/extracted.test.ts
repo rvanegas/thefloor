@@ -205,7 +205,7 @@ describe('the two languages', () => {
       'channel.claudeMaxSuffix',
       // *Pro* voices, since 2026-11-13: the grade's word, the same for the
       // response model's reason. *Standard* is translated, as that one is.
-      'homeSettings.readAloudAssembly',
+      'channelSettings.readAloudPro',
       // The subscription's name — a different Pro from the grade above, and
       // the name it is sold under in the App Store, which is not translated
       // either. GLOSSARY.md, *Pro (the subscription)*.

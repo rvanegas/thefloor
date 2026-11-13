@@ -655,13 +655,24 @@ export const es: Strings = {
     checklistNote: () =>
       'La lista que hay encima de tus canales en el inicio. Desaparece para siempre cuando est\u00e1n todos los pasos hechos —la conversaci\u00f3n y las cuatro cosas que probar en un canal— o cuando has descartado todos con la cruz de al lado, y esta es la forma de recuperarla.',
     audioOutput: () => 'Salida de audio',
-    readAloudVoices: () => 'Leer en voz alta',
-    readAloudAssembly: () => 'Pro',
-    readAloudIos: () => 'Est\u00e1ndar',
-    readAloudVoicesNote: () =>
-      'Qu\u00e9 voces leen en voz alta las respuestas que pides a Claude. Las voces Pro las oyen todos en la llamada y quedan en las grabaciones, y cada respuesta cuesta un poco. Las voces Est\u00e1ndar son las del propio iPhone: gratis, pero cada iPhone lee la respuesta por su cuenta y nunca se graba.',
-    readAloudVoicesWho: () =>
-      'Solo puede elegir quien est\u00e9 suscrito a Pro. Sin Pro, las voces Est\u00e1ndar leen las respuestas que pides.',
+    readAloud: () => 'Leer en voz alta',
+    standardVoice: () => 'Voz Est\u00e1ndar',
+    standardVoiceNote: () =>
+      'Cuando las voces Est\u00e1ndar leen en voz alta las respuestas de Claude, cada iPhone las lee con su propia voz, y cuando preguntas t\u00fa, todos oyen la respuesta con la tuya si su iPhone tambi\u00e9n la tiene. Esta elecci\u00f3n es de este iPhone, porque las voces est\u00e1n instaladas en \u00e9l.',
+    standardVoiceIs: (
+      language: 'en' | 'es',
+      voice: string,
+      quality: 'enhanced' | 'premium'
+    ) =>
+      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: ${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'})`,
+    standardVoiceChoice: (voice: string, quality: 'enhanced' | 'premium') =>
+      `${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'})`,
+    standardVoiceChoiceNote: () =>
+      'La voz que eliges en los Ajustes de iOS no se comparte con las apps, as\u00ed que el\u00edgela tambi\u00e9n aqu\u00ed.',
+    standardVoiceBasic: (language: 'en' | 'es') =>
+      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: solo la voz b\u00e1sica, que suena rob\u00f3tica`,
+    standardVoiceHowTo: (newerSettings: boolean) =>
+      `Para una voz m\u00e1s natural, abre Ajustes \u203a Accesibilidad \u203a ${newerSettings ? 'Leer y hablar' : 'Contenido le\u00eddo'} \u203a Voces, elige el idioma, luego una voz, y descarga su versi\u00f3n mejorada o Premium. Se usa aqu\u00ed en cuanto termina de descargarse.`,
     proVoice: () => 'Voz Pro',
     proVoiceNote: () =>
       'Cuando una voz Pro lee en voz alta las respuestas que pides a Claude, es esta para cada idioma, y la oyen todos en la conversaci\u00f3n. Toca una voz para o\u00edrla.',
@@ -858,6 +869,11 @@ export const es: Strings = {
     responseModelNote: () =>
       'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
     modelWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
+    readAloud: () => 'Leer en voz alta',
+    readAloudStandard: () => 'Est\u00e1ndar',
+    readAloudPro: () => 'Pro',
+    readAloudNote: () =>
+      'Qu\u00e9 voces leen en voz alta las respuestas de Claude aqu\u00ed, pregunte quien pregunte. Las voces Pro las oyen todos en la llamada y quedan en las grabaciones, y cada respuesta cuesta un poco. Las voces Est\u00e1ndar son las de cada iPhone: gratis, pero cada iPhone lee la respuesta por su cuenta y nunca se graba. Qu\u00e9 voz de cada una es la de quien pregunta, en Ajustes de The Floor.',
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.

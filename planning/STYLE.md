@@ -358,10 +358,11 @@ being quiet but the consequence of there being no pill left to fill, which is
 the distinction `ghost` never made: a transparent 48pt pill occupies exactly
 as much of a screen as a filled one and merely looks like it does not.
 
-**It is for disclosure, and so far for two controls** — the introduction
+**It is for disclosure, and so far for three controls** — the introduction
 card's *See more*, which expands and collapses the card it is drawn in, and
-since 2026-11-13 the *Pro voice* card's on *Floor Settings*, which shut says
-each language's voice in a line and open lists every voice to try. That
+since 2026-11-13 the *Standard voice* and *Pro voice* cards' on *Floor
+Settings*, each of which shut says each language's voice in a line and open
+lists every voice to choose from. That
 is the case the variant is scoped to: it commits nothing, navigates nowhere,
 and is read after the thing it is attached to rather than instead of it. It
 was a `default` pill until 2026-09-24, stacked directly beneath the rung's
@@ -425,17 +426,18 @@ a puzzle. Beyond three, stack full-width buttons, one per rung, the `primary`
 fill marking the one in force. ChannelSettingsView's `NotificationLevelPicker`
 is the pattern (four, with a `sublabel` each), and since 2026-11-13 *Pro voice* is
 the second: AssemblyAI's voices stacked under a plain line naming
-each language, a group per language as the *Read aloud* card's installed voices
-were — on *Floor Settings* since the evening of that day, under *Read aloud*.
-**Its buttons are live for everybody, unlike every other choice beside it**,
+each language, a group per language as the *Standard voice* card draws the
+phone's installed ones — both on *Floor Settings* under *Read aloud*, since
+the evening of that day. **The *Pro voice*'s buttons are live for everybody,
+unlike every other choice drawn for *Pro***,
 because a tap plays the voice's sample before it chooses anything — trying a
 voice is what the list is for — and only *Pro*'s tap also chooses; the
-*Response model* card's sentence, in its words, under it says who may. *Read aloud*
-on *Floor Settings*, the same day, is a plain pair in a `choices` row —
-*Standard* and *Pro*, in that order as every grade runs, which are iOS's
-voices and AssemblyAI's, Claude writing only the words — greyed without *Pro*
-with a sentence of its own, and drawn as *Standard* then, that being what is
-true. The chime
+*Response model* card's sentence, in its words, under it says who may; the
+*Standard voice*'s are anybody's, being free. *Read aloud* on *Channel
+Settings*, since the same evening, is a plain pair in a `choices` row under
+*Response model*, and in its shape — *Standard* and *Pro*, in that order as
+every grade runs, which are iOS's voices and AssemblyAI's, Claude writing
+only the words — greyed without *Pro* with that card's sentence. The chime
 loudness on Floor Settings was the second — five, bare — for the day that
 setting existed, and the arithmetic above is what decided its shape. It is the
 same arithmetic § *The pinned footer* makes about five slots in 620.
