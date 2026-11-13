@@ -21,6 +21,7 @@ import {
 } from './transcription';
 import Anthropic from '@anthropic-ai/sdk';
 import { AssemblyAiStreaming } from './streaming';
+import { AssemblyAiSpeech } from './speech';
 
 // Node's own .env loader — no dependency. Resolved against the working
 // directory, which npm scripts set to this package. A missing file is not an
@@ -298,6 +299,12 @@ const streaming = assemblyAiKey
   : undefined;
 
 /**
+ * Claude's reply, spoken into the room: the same key again, since 2026-11-13.
+ * It spends only when Claude replies, about 1.4¢ for a *Medium* reply.
+ */
+const speech = assemblyAiKey ? new AssemblyAiSpeech({ apiKey: assemblyAiKey }) : undefined;
+
+/**
  * Claude, for *Ask Claude* on the *Record* bar — optional and off by default, on
  * transcription's terms exactly. **Setting this key is a public act**: it is
  * what makes the privacy policy name Anthropic, so set it, and push it, with
@@ -427,6 +434,8 @@ const app = buildApp({
   badgeSetter: pusher,
   transcription,
   streaming,
+  speech,
+  speechDir: process.env.SPEECH_DIR ?? './speech',
   claude,
   library,
   names,

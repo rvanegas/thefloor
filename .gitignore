@@ -110,6 +110,7 @@ app/modules/*/android/build/
 # the same kind of thing: state one box holds. Excluded from ts deploy's
 # --delete too, or a deploy would empty it.
 /server/tracks/
+/server/speech/
 
 # local env — the wildcard matters: a .env.bak or .env.save is just as
 # secret-bearing as .env itself, and the bare pattern would not have caught it.

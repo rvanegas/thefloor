@@ -559,6 +559,8 @@ export function registerWebsocket(deps: {
   mayAutoTranscribe?: (userId: string) => boolean;
   /** Whether this server can ask Claude, which draws *Ask Claude*. */
   claudeAvailable?: () => boolean;
+  /** Whether the server speaks Claude's replies, and which may be read again. */
+  speechKept?: (channelId: string) => string[] | null;
   /** Whether this server has a library for Claude to consult, which draws *Library*. */
   libraryAvailable?: () => boolean;
   /**
@@ -1351,6 +1353,12 @@ export function registerWebsocket(deps: {
         // Absent rather than false where there is no key, as an old server
         // sends nothing: one reading for both.
         ...(deps.claudeAvailable?.() ? { claude: true as const } : {}),
+        // Claude's voice, since 2026-11-13: absent where the server has no
+        // AssemblyAI key, as `claude` is where it has no Anthropic one.
+        ...(() => {
+          const kept = deps.speechKept?.(channelId);
+          return kept ? { speech: true as const, speechKept: kept } : {};
+        })(),
         // The same reading for the library, and whether the switch is the
         // reader's to turn, which is theirs alone like `mayTranscribeLive`.
         ...(deps.libraryAvailable?.()

@@ -561,6 +561,10 @@ export class UsageMeter {
     this.db
       .prepare('UPDATE claude_usage SET account_id = NULL WHERE account_id = ?')
       .run(accountId);
+    // And the speech of their replies, the same way. See speech_usage.
+    this.db
+      .prepare('UPDATE speech_usage SET account_id = NULL WHERE account_id = ?')
+      .run(accountId);
   }
 }
 

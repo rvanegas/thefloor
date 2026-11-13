@@ -129,6 +129,13 @@ import {
   type PushNotifier,
 } from './push';
 import { pairSpan, UsageMeter } from './usage';
+import { SPEECH_MAX_CHARACTERS, type SpeechProvider, type SpeechStore } from './speech';
+import {
+  defaultSpeechVoice,
+  isSpeechVoice,
+  speechLanguageOf,
+  type SpeechLanguage,
+} from '../../core/speech';
 
 export const TICK_INTERVAL_MS = 500;
 
@@ -276,6 +283,43 @@ export const PING_INTERVAL_MS = 5 * 60 * 1000;
  * its playback on the way out rather than leaving this connected behind it.
  */
 export const MEDIA_IDENTITY = 'media';
+
+/**
+ * The room participant Claude's replies are spoken as, since 2026-11-13 — its
+ * own rather than a second track on `media:`, because withholding works per
+ * publisher (`MediaServer.setSilenced`) and an older build must be kept off
+ * the reply without losing the film. A phone ignores it as it ignores
+ * `media:`: neither is somebody the channel says is here. Its recording stem
+ * is filed under `CLAUDE_ID`, as the film's is under `MEDIA_IDENTITY`.
+ */
+export const claudeVoiceIdentity = (channelId: string) => `claude:${channelId}`;
+
+/**
+ * How long a reply waits for its first audio before it is posted without it.
+ * The paste is held that long so that `Clip.speech` is never set on a reply
+ * the server cannot say — a phone that sees it reads nothing aloud itself.
+ * Their first audio is usually a few hundred milliseconds away.
+ */
+export const SPEECH_FIRST_AUDIO_MS = 4_000;
+
+/**
+ * How long Claude's voice stays in the room after the last thing it said, so
+ * a reply and a *Read again* a moment later do not churn a connection each.
+ */
+const SPEECH_LINGER_MS = 30_000;
+
+/** What the composition root gives the registry to speak with. See speech.ts. */
+export interface ClaudeSpeech {
+  provider: SpeechProvider;
+  store: SpeechStore;
+  /** The language of the channel's first transcript, as detection spelled it. */
+  firstLanguage(channelId: string): string | null;
+  /** The account's own language setting, `en`, `es` or `system`. */
+  accountLanguage(accountId: string): string | null;
+  /** A synthesis's billed characters, for the ledger. */
+  billed(entry: { channelId: string; accountId: string | null; pasteId: string; characters: number }): void;
+  log?: { warn(details: object, message: string): void };
+}
 export const playbackIdentity = (channelId: string) => `media:${channelId}`;
 
 /**
@@ -373,6 +417,8 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_TRANSCRIPTION_MODEL',
   // *Pro* only, refused in `dispatch` beside the transcription model.
   'SET_RESPONSE_MODEL',
+  // *Pro* only, refused in `dispatch` beside the response model.
+  'SET_SPEECH_VOICE',
   // The library's owner only, refused in `dispatch` beside the response model.
   'SET_LIBRARY',
   'CLAIM_FLOOR',
@@ -1103,6 +1149,36 @@ export class ChannelRegistry {
   isPro?: (userId: string) => boolean;
 
   /**
+   * Claude's spoken reply, since 2026-11-13: set by the composition root where
+   * there is an AssemblyAI key, on `isPro`'s terms; absent, nothing is spoken
+   * by the server and every phone reads a reply with its own voice, as before.
+   */
+  speech?: ClaudeSpeech;
+
+  /**
+   * Claude's voice in each channel's room, while it is there: the publishing
+   * session, what it is saying, and its recording stem's key.
+   */
+  private voices = new Map<
+    string,
+    {
+      session: PlaybackSession;
+      saying: string | null;
+      linger: ReturnType<typeof setTimeout> | null;
+      stem: string | null;
+    }
+  >();
+  private openingVoice = new Map<string, Promise<PlaybackSession | null>>();
+
+  /**
+   * Who in each room is a build that hears Claude's voice from the room —
+   * said at each `mediaToken` — by channel, then identity. **Anybody else on a
+   * native build is withheld from it**: they read the reply aloud themselves,
+   * and hearing it twice is worse than hearing it in their own voice.
+   */
+  private hearsClaude = new Map<string, Map<string, boolean>>();
+
+  /**
    * Told what `SilenceNotice` describes. Set by the composition root, which
    * logs it, on `onGuestConsentChanged`'s terms.
    */
@@ -1552,6 +1628,10 @@ export class ChannelRegistry {
     this.live?.sweep();
     const now = this.now();
     this.digests?.sweep(now);
+    // A reply past its hour can no longer be read again, which the snapshot
+    // says by leaving it out of `speechKept`.
+    const unkept = this.speech?.store.sweep();
+    if (unkept?.size) this.emit([...unkept]);
     const changed: string[] = [];
     /**
      * Anybody a tick has just put on the *nearby* rung, so the cap can be
@@ -3048,6 +3128,22 @@ export class ChannelRegistry {
         return {
           ok: false,
           error: 'Only a Pro account can choose the response model.',
+          code: 'forbidden',
+        };
+      }
+    }
+
+    // *Claude's voice*, on the same rule as the response model at Rodrigo's
+    // word, 2026-11-13: the channel's whoever asks, chosen only by *Pro*.
+    if (action.type === 'SET_SPEECH_VOICE') {
+      const voice = (action as { speechVoice?: unknown }).speechVoice;
+      if (voice !== null && !isSpeechVoice(voice)) {
+        return { ok: false, error: 'No such voice.', code: 'invalid' };
+      }
+      if (!this.isPro?.(userId)) {
+        return {
+          ok: false,
+          error: "Only a Pro account can choose Claude's voice.",
           code: 'forbidden',
         };
       }
@@ -5402,6 +5498,8 @@ export class ChannelRegistry {
       // channel that no longer exists. The poll would never visit it again.
       this.usage.closeChannel(after.id);
       this.closePlayback(after.id);
+      this.closeVoice(after.id);
+      this.hearsClaude.delete(after.id);
       this.digests?.forget(after.id);
       // A backstop, not the mechanism: participants leave on their own once
       // told the channel ended. This guarantees the room does not outlive it.
@@ -6510,7 +6608,10 @@ export class ChannelRegistry {
     // listener rather than per speaker — one person talking to four costs
     // four. Anyone present hears everybody else, including the shared track,
     // which is why `media` is counted here having been excluded above.
-    const audible = publishing.length + (roster.has(media) ? 1 : 0);
+    const audible =
+      publishing.length +
+      (roster.has(media) ? 1 : 0) +
+      (roster.has(claudeVoiceIdentity(state.id)) ? 1 : 0);
     for (const identity of now.present) {
       const others = audible - (publishing.includes(identity) ? 1 : 0);
       if (others <= 0) continue;
@@ -6779,6 +6880,8 @@ export class ChannelRegistry {
       // is what begins the media stem. This is the first of those two orders;
       // openPlayback handles the other.
       this.startMediaCapture(after.id, after);
+      // And Claude's voice, if a recording begins mid-reply.
+      if (this.voices.get(after.id)?.saying) this.startVoiceCapture(after.id, after);
     } else if (!shouldCapture && isCapturing) {
       this.stopCapture(after);
     }
@@ -6805,6 +6908,7 @@ export class ChannelRegistry {
       );
     }
     this.stopMediaCapture(after.id);
+    this.stopVoiceCapture(after.id);
   }
 
 
@@ -7056,6 +7160,7 @@ export class ChannelRegistry {
     // and a second timer would only give the two something to disagree about.
     if (!occupied) {
       this.releasePlayback(after.id);
+      this.closeVoice(after.id);
       return;
     }
 
@@ -7517,7 +7622,14 @@ export class ChannelRegistry {
   /** A join credential for this participant, scoped to this channel's room. */
   async mediaToken(
     channelId: string,
-    userId: string
+    userId: string,
+    /**
+     * Whether this client hears Claude's voice from the room rather than
+     * reading replies aloud itself: true from a build that says so, and from
+     * any browser, which never read aloud. Absent, a native build is taken to
+     * be one that predates it.
+     */
+    hearsClaude = false
   ): Promise<{ ok: true; token: string } | Refused> {
     if (!this.media) return { ok: false, error: 'Audio is not configured.', code: 'invalid' };
     const channel = this.channels.get(channelId);
@@ -7535,6 +7647,9 @@ export class ChannelRegistry {
       identity: userId,
       displayName: account.displayName,
     });
+    const hearing = this.hearsClaude.get(channelId) ?? new Map<string, boolean>();
+    hearing.set(userId, hearsClaude);
+    this.hearsClaude.set(channelId, hearing);
     return { ok: true, token };
   }
 
@@ -7879,24 +7994,32 @@ export class ChannelRegistry {
    * once it is posted (`Pastes.keepWorking`) — before any *Record* is read
    * again, since nothing between here and there yields.
    */
-  postClaudeReply(
+  async postClaudeReply(
     channelId: string,
     askerId: string,
     text: string,
     voices?: Record<string, string>,
-    working?: readonly unknown[]
-  ): 'posted' | 'too_long' | 'empty' | 'gone' {
-    const channel = this.channels.get(channelId);
-    if (!channel) return 'gone';
+    working?: readonly unknown[],
+    /** The asker's app language, `en` or `es`, where the press said it. */
+    askerLanguage?: string
+  ): Promise<'posted' | 'too_long' | 'empty' | 'gone'> {
+    if (!this.channels.get(channelId)) return 'gone';
     if (text.trim().length === 0) return 'empty';
     if (text.length > MAX_CLIP_LENGTH) return 'too_long';
+    const id = newId('clip');
+    // Held until its first audio, or until it is plain there will be none —
+    // see SPEECH_FIRST_AUDIO_MS.
+    const speaking = await this.startSpeech(channelId, askerId, id, text, askerLanguage);
+    const channel = this.channels.get(channelId);
+    if (!channel) return 'gone';
     const clip = {
-      id: newId('clip'),
+      id,
       authorId: CLAUDE_ID,
       pastedAt: this.now(),
       kind: 'text' as const,
       text,
       ...(voices ? { voices } : {}),
+      ...(speaking ? { speech: true as const } : {}),
     };
     const actor = channel.present.includes(askerId) ? askerId : channel.present[0];
     const keep = () => {
@@ -7913,7 +8036,246 @@ export class ChannelRegistry {
     } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
     if (!(applied.ok && applied.channel.clip?.id === clip.id)) return 'gone';
     keep();
+    if (speaking) this.say(channelId, id);
     return 'posted';
+  }
+
+  // --- Claude's voice ---------------------------------------------------------
+  //
+  // A reply synthesised once, here, and published into the room as
+  // `claude:<channel>` — heard by everybody present through the call and kept
+  // by a running recording. See
+  // planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
+
+  /**
+   * The language a reply is spoken in: **the channel's first transcript's**,
+   * at Rodrigo's word, then the asker's app language, then English. Null
+   * where that is a language AssemblyAI does not speak, and the phones read
+   * the reply themselves.
+   */
+  speechLanguage(channelId: string, askerId: string, askerLanguage?: string): SpeechLanguage | null {
+    const heard = this.speech?.firstLanguage(channelId);
+    if (heard) return speechLanguageOf(heard);
+    const own = askerLanguage ?? this.speech?.accountLanguage(askerId);
+    return speechLanguageOf(own === 'system' ? null : own) ?? 'en';
+  }
+
+  /**
+   * Starts a reply's synthesis and resolves once its first audio has arrived
+   * (true) or it is plain none will (false): no AssemblyAI key, a language it
+   * does not speak, a text past its limit, a refusal, or SPEECH_FIRST_AUDIO_MS
+   * gone by. The rest of the audio goes on arriving into the store.
+   */
+  private async startSpeech(
+    channelId: string,
+    askerId: string,
+    pasteId: string,
+    text: string,
+    askerLanguage?: string
+  ): Promise<boolean> {
+    const speech = this.speech;
+    const channel = this.channels.get(channelId);
+    if (!speech || !channel) return false;
+    if ([...text].length > SPEECH_MAX_CHARACTERS) return false;
+    const language = this.speechLanguage(channelId, askerId, askerLanguage);
+    if (!language) return false;
+    const voice = channel.speechVoice ?? defaultSpeechVoice(language);
+
+    speech.store.begin(pasteId, channelId);
+    const abort = new AbortController();
+    let heard = false;
+    let settle: (spoke: boolean) => void = () => {};
+    const first = new Promise<boolean>((resolve) => {
+      settle = resolve;
+    });
+    const timer = setTimeout(() => {
+      abort.abort();
+      settle(false);
+    }, SPEECH_FIRST_AUDIO_MS);
+
+    speech.provider
+      .synthesize(
+        { text, voice, language },
+        (pcm) => {
+          speech.store.append(pasteId, pcm);
+          if (!heard) {
+            heard = true;
+            settle(true);
+          }
+        },
+        abort.signal
+      )
+      .then(({ billedCharacters }) => {
+        // Text with nothing to speak in it answers with no audio at all.
+        if (!heard) {
+          speech.store.fail(pasteId);
+          settle(false);
+          return;
+        }
+        speech.store.finish(pasteId);
+        speech.billed({ channelId, accountId: askerId, pasteId, characters: billedCharacters });
+        this.emit([channelId]);
+      })
+      .catch((error) => {
+        speech.store.fail(pasteId);
+        settle(false);
+        speech.log?.warn({ err: error, channel: channelId }, 'claude speech failed');
+      });
+
+    const spoke = await first;
+    clearTimeout(timer);
+    return spoke;
+  }
+
+  /**
+   * *Read again*: a kept reply, said into the room once more for everybody,
+   * at Rodrigo's word, 2026-11-13. Anybody present may ask, as anybody
+   * present may ask Claude. **The latest wins**: whatever Claude's voice is
+   * saying stops, and this starts from its beginning.
+   */
+  readAgain(channelId: string, userId: string, pasteId: string): { ok: true } | Refused {
+    const channel = this.channels.get(channelId);
+    if (!channel || channel.status !== 'active') {
+      return { ok: false, error: 'No such channel.', code: 'not_found' };
+    }
+    if (!isHere(channel, userId)) {
+      return { ok: false, error: 'Only somebody in the room can ask for that.', code: 'forbidden' };
+    }
+    if (!this.speech?.store.has(pasteId, channelId)) {
+      return { ok: false, error: 'That reply can no longer be read again.', code: 'not_found' };
+    }
+    this.say(channelId, pasteId);
+    return { ok: true };
+  }
+
+  /** The replies this channel may still have read again, for its snapshot. */
+  speechKept(channelId: string): string[] {
+    return this.speech?.store.kept(channelId) ?? [];
+  }
+
+  /** Says a reply into the room: opens Claude's voice if it is not there. */
+  private say(channelId: string, pasteId: string): void {
+    const state = this.channels.get(channelId);
+    if (!this.media || !this.speech || !state || state.status !== 'active') return;
+    if (!state.mediaRoom || peopleHere(state).length === 0) return;
+    const room = state.mediaRoom;
+    this.run(async () => {
+      const session = await this.openVoice(channelId, room);
+      const voice = this.voices.get(channelId);
+      if (!session || !voice) return;
+      if (voice.linger) clearTimeout(voice.linger);
+      voice.linger = null;
+      // **Before the first frame**, so an older build never hears even the
+      // start of a reply it is about to read in its own voice.
+      await this.withholdVoice(channelId);
+      voice.saying = pasteId;
+      const live = this.channels.get(channelId);
+      if (live?.recording.status === 'recording' && voice.stem === null) {
+        this.startVoiceCapture(channelId, live);
+      }
+      await session.setFile(pasteId);
+      await session.play(0);
+    }, `sayClaude ${channelId}/${pasteId}`);
+  }
+
+  private openVoice(channelId: string, room: string): Promise<PlaybackSession | null> {
+    const open = this.voices.get(channelId);
+    if (open) return Promise.resolve(open.session);
+    const opening = this.openingVoice.get(channelId);
+    if (opening) return opening;
+    const store = this.speech!.store;
+    const promise = this.media!
+      .openSpeech({
+        room,
+        identity: claudeVoiceIdentity(channelId),
+        displayName: 'Claude',
+        openDecoder: (pasteId) => store.decoder(pasteId),
+        onEnded: () => this.voiceEnded(channelId),
+        onFailure: (error) => this.onMediaError(error, `claudeVoice ${channelId}`),
+      })
+      .then((session) => {
+        this.voices.set(channelId, { session, saying: null, linger: null, stem: null });
+        return session;
+      })
+      .finally(() => this.openingVoice.delete(channelId));
+    this.openingVoice.set(channelId, promise);
+    return promise;
+  }
+
+  /**
+   * Keeps every native build that has not said it hears Claude's voice off
+   * it, by the floor's own means. Restated at each reply rather than on
+   * arrival: one who joins mid-reply on an older build may hear its tail.
+   */
+  private async withholdVoice(channelId: string): Promise<void> {
+    const state = this.channels.get(channelId);
+    if (!this.media || !state?.mediaRoom) return;
+    const hearing = this.hearsClaude.get(channelId);
+    for (const listener of peopleHere(state)) {
+      if (hearing?.get(listener) === true) continue;
+      await this.media
+        .setSilenced({
+          room: state.mediaRoom,
+          speaker: claudeVoiceIdentity(channelId),
+          listener,
+          silenced: true,
+        })
+        .catch((error) => this.onMediaError(error, `withholdClaude ${channelId}/${listener}`));
+    }
+  }
+
+  /** A reply has been said: its stem is closed, and the voice lingers. */
+  private voiceEnded(channelId: string): void {
+    const voice = this.voices.get(channelId);
+    if (!voice) return;
+    voice.saying = null;
+    this.stopVoiceCapture(channelId);
+    if (voice.linger) clearTimeout(voice.linger);
+    voice.linger = setTimeout(() => this.closeVoice(channelId), SPEECH_LINGER_MS);
+    voice.linger.unref?.();
+  }
+
+  private closeVoice(channelId: string): void {
+    const voice = this.voices.get(channelId);
+    this.voices.delete(channelId);
+    if (!voice) return;
+    if (voice.linger) clearTimeout(voice.linger);
+    this.stopVoiceCapture(channelId);
+    this.run(() => voice.session.close(), `closeClaudeVoice ${channelId}`);
+  }
+
+  /**
+   * A stem for one reply, under `CLAUDE_ID`, padded from the run's start as
+   * the film's is — `startMediaCapture`'s arithmetic, for its reason.
+   */
+  private startVoiceCapture(channelId: string, state: ChannelState): void {
+    const voice = this.voices.get(channelId);
+    if (!voice || voice.stem !== null || state.recording.runId === null) return;
+    const perParticipant = this.segments.get(channelId) ?? new Map();
+    this.segments.set(channelId, perParticipant);
+    const previous = perParticipant.get(CLAUDE_ID) ?? [];
+    const index = String(previous.length + 1).padStart(3, '0');
+    const key = `${channelId}/${state.recording.runId}/${CLAUDE_ID}-${index}.ogg`;
+    perParticipant.set(CLAUDE_ID, [...previous, { key, startMs: state.recording.accumulatedMs }]);
+    const offsetMs = state.recording.segmentStartedAt
+      ? Math.max(0, this.now() - state.recording.segmentStartedAt)
+      : 0;
+    voice.stem = key;
+    this.run(
+      () => voice.session.startCapture(key, offsetMs),
+      `startCapture ${key}`,
+      () => {
+        voice.stem = null;
+        this.releaseSegment(channelId, CLAUDE_ID, key);
+      }
+    );
+  }
+
+  private stopVoiceCapture(channelId: string): void {
+    const voice = this.voices.get(channelId);
+    if (!voice || voice.stem === null) return;
+    voice.stem = null;
+    this.run(() => voice.session.stopCapture(), `stopCapture claude ${channelId}`);
   }
 
   /** Takes a knock back, for a page that gave up waiting. */
@@ -8724,6 +9086,8 @@ export class ChannelRegistry {
       // request dies with the process, and restoring it would leave the card
       // saying *Responding…* to an answer that is never coming.
       responseModel: channel.responseModel ?? 'standard',
+      // Beside it, for the same reason.
+      speechVoice: channel.speechVoice ?? null,
       // A setting somebody chose, beside the model it applies to, and whose
       // library it is.
       library: channel.library ?? false,
@@ -9113,6 +9477,7 @@ export class ChannelRegistry {
       autoTranscribe?: boolean;
       transcriptionModel?: ChannelState['transcriptionModel'];
       responseModel?: ChannelState['responseModel'];
+      speechVoice?: ChannelState['speechVoice'];
       library?: boolean;
       libraries?: Record<string, string[]>;
       initiator?: string;
@@ -9183,6 +9548,8 @@ export class ChannelRegistry {
       // The default on a row written before the field existed.
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       responseModel: durable.responseModel ?? 'standard',
+      // A voice since dropped from the catalogue reads as the default.
+      speechVoice: isSpeechVoice(durable.speechVoice) ? durable.speechVoice : null,
       // On only with somebody's libraries chosen: off for a channel written
       // before the field, as for a new one, and for one written while a
       // channel held one owner's list, which is switched on again by hand.
@@ -9328,7 +9695,7 @@ export class ChannelRegistry {
     const audience = [
       ...new Set([
         ...present,
-        ...Object.keys(stems).filter((id) => id !== MEDIA_IDENTITY),
+        ...Object.keys(stems).filter((id) => id !== MEDIA_IDENTITY && id !== CLAUDE_ID),
       ]),
     ];
 

@@ -849,8 +849,9 @@ export interface ClaudeChannels {
     askerId: string,
     text: string,
     voices?: Record<string, string>,
-    working?: readonly WorkingStep[]
-  ): 'posted' | 'too_long' | 'empty' | 'gone';
+    working?: readonly WorkingStep[],
+    askerLanguage?: string
+  ): Promise<'posted' | 'too_long' | 'empty' | 'gone'>;
 }
 
 export type ClaudeResult =
@@ -979,7 +980,12 @@ export class ClaudeResponder {
     userId: string,
     length: ReplyLength = DEFAULT_REPLY_LENGTH,
     /** The asker's, carried onto the reply for every phone to read it in. */
-    voices?: Record<string, string>
+    voices?: Record<string, string>,
+    /**
+     * The asker's app language, `en` or `es`, which the reply is spoken in
+     * where the channel has no transcript to say. Since 2026-11-13.
+     */
+    language?: string
   ): Promise<ClaudeResult> {
     const { channels, now } = this.options;
     const channel = channels.get(channelId);
@@ -1038,12 +1044,13 @@ export class ClaudeResponder {
       if (response.stop_reason === 'refusal') {
         outcome = 'refused';
       } else {
-        outcome = channels.postClaudeReply(
+        outcome = await channels.postClaudeReply(
           channelId,
           userId,
           replyText(response.content),
           voices,
-          library ? workingSteps(response.content, library) : undefined
+          library ? workingSteps(response.content, library) : undefined,
+          language
         );
       }
     } catch (error) {

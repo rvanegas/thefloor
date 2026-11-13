@@ -62,6 +62,12 @@ export interface PlaybackPumpOptions {
   volume?: number;
   /** Reported when decoding fails; the channel turns it into a visible failure. */
   onFailure?: (error: unknown) => void;
+  /**
+   * Reported when the file runs out. Shared playback ignores it — the
+   * channel's own clock says when a track is over — but Claude's spoken reply
+   * has no clock of its own, and this is how it learns it has been said.
+   */
+  onEnded?: () => void;
   /** Injectable so the pacing loop is testable without waiting in real time. */
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
@@ -230,6 +236,7 @@ export class PlaybackPump {
       // over; the pump simply has nothing more to contribute.
       this.playing = false;
       await this.stopDecoder();
+      this.options.onEnded?.();
       return frame;
     }
 

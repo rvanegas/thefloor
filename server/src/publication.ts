@@ -1,3 +1,4 @@
+import { CLAUDE_ID } from '../../core/constants';
 import { isItunesCategory } from '../../core/publication';
 import { artworkKeyFor } from './artwork';
 import { PUBLISHED_CONTENT_TYPE, transcodeToPublished } from './export';
@@ -576,7 +577,8 @@ export class Publication {
       parseJson<Record<string, unknown>>(row.stems) ?? {}
     );
     const members = [...new Set([...roster, ...stems])].filter(
-      (id) => !isGuestId(id) && id !== MEDIA_IDENTITY
+      // Claude's stem is not a person, and has nobody to ask either.
+      (id) => !isGuestId(id) && id !== MEDIA_IDENTITY && id !== CLAUDE_ID
     );
     // Only guests with accounts, and only ones who spoke. A guest who agreed
     // at the microphone is *not* here: they have said yes once, for this

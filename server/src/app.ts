@@ -14,7 +14,7 @@ import type {
   PublicAccount,
   RecordingView,
 } from '../../core/protocol';
-import { MAX_DISPLAY_NAME_LENGTH, MAX_TRACK_BYTES } from '../../core/constants';
+import { CLAUDE_ID, MAX_DISPLAY_NAME_LENGTH, MAX_TRACK_BYTES } from '../../core/constants';
 import {
   IM_SERVICES,
   IM_SERVICE_NAMES,
@@ -44,7 +44,7 @@ import {
   UsernameTakenError,
   weekStartOf,
 } from './accounts';
-import { hashesEqual, openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
+import { hashesEqual, newId, openDb, sha256, type AccountRow, type Db, type RecordingRow } from './db';
 import { deletionPage } from './deletion';
 import { logSafeRequest } from './log-url';
 import { Devices, type DevicePlatform } from './devices';
@@ -94,6 +94,7 @@ import {
   Transcripts,
   type TranscriptView,
 } from './transcripts';
+import { SpeechStore, type SpeechProvider } from './speech';
 import { readable, separated } from '../../core/transcript';
 import {
   BUILD_HEADER,
@@ -326,6 +327,13 @@ export interface BuildOptions {
    * absent credential has to mean absent feature rather than a broken one.
    */
   transcription?: TranscriptionProvider;
+  /**
+   * Claude's spoken reply, since 2026-11-13: AssemblyAI's text-to-speech, on
+   * the transcription key. Absent, the phones read replies themselves.
+   */
+  speech?: SpeechProvider;
+  /** Where a reply's audio is kept for its hour. Emptied at startup. */
+  speechDir?: string;
   /**
    * Asks Claude for a turn in a conversation — *Ask Claude*, on the *Record* bar.
    * Optional for `transcription`'s reasons, and the switch in the same way:
@@ -1292,6 +1300,24 @@ export function buildApp(options: BuildOptions = {}): App {
     // eventually removes the transcript.
     onFailed: (recordingId) => accounts.refundTranscript(recordingId),
   });
+
+  // Claude's spoken reply, where there is a provider. The language comes from
+  // the transcripts just above; see `ChannelRegistry.speechLanguage`.
+  if (options.speech) {
+    channels.speech = {
+      provider: options.speech,
+      store: new SpeechStore(options.speechDir ?? './speech', now),
+      firstLanguage: (channelId) => transcripts.firstLanguage(channelId),
+      accountLanguage: (accountId) => accounts.settings(accountId).language,
+      billed: ({ channelId, accountId, pasteId, characters }) => {
+        db.prepare(
+          `INSERT INTO speech_usage (id, at, channel_id, account_id, paste_id, characters)
+           VALUES (?, ?, ?, ?, ?, ?)`
+        ).run(newId('speech'), now(), channelId, accountId, pasteId, characters);
+      },
+      log: fastify.log,
+    };
+  }
 
   // Each channel's own noesis library, filed into by itself (channelLibraries.ts).
   const channelLibraries = options.channelLibraries
@@ -5070,7 +5096,12 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
     const { id } = request.params as { id: string };
 
-    const result = await channels.mediaToken(id, account.id);
+    // A build that hears Claude's voice from the room says so; a browser
+    // never read aloud, so it hears it whatever it says. Since 2026-11-13.
+    const hears =
+      (request.body as { hearsClaude?: unknown } | undefined)?.hearsClaude === true ||
+      claimedClient(request.headers[CLIENT_HEADER]) === 'web';
+    const result = await channels.mediaToken(id, account.id, hears);
     if (result.ok) {
       return { token: result.token, url: options.mediaUrl };
     }
@@ -5795,15 +5826,41 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!claude) {
       return reply.code(503).send({ error: 'Claude is not available here.' });
     }
-    const { length = DEFAULT_REPLY_LENGTH, voices } = (request.body ?? {}) as {
+    const { length = DEFAULT_REPLY_LENGTH, voices, language } = (request.body ?? {}) as {
       length?: unknown;
       voices?: unknown;
+      language?: unknown;
     };
     if (!isReplyLength(length)) {
       return reply.code(400).send({ error: 'No such length.' });
     }
-    const result = await claude.respond(id, account.id, length, readVoices(voices));
+    const result = await claude.respond(
+      id,
+      account.id,
+      length,
+      readVoices(voices),
+      // Since 2026-11-13: the asker's app language, which the reply is spoken
+      // in where the channel has no transcript to say. Anything else is none.
+      language === 'en' || language === 'es' ? language : undefined
+    );
     if (!result.ok) return reply.code(result.status).send({ error: result.error });
+    return { ok: true };
+  });
+
+  /**
+   * *Read again*: one of Claude's replies said into the room once more, for
+   * everybody present, while its audio is kept — an hour. Anybody present may
+   * ask. Since 2026-11-13; see `ChannelRegistry.readAgain`.
+   */
+  fastify.post('/channels/:id/pastes/:pasteId/read-again', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, pasteId } = request.params as { id: string; pasteId: string };
+    if (!channels.isMemberOf(id, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    const result = channels.readAgain(id, account.id, pasteId);
+    if (!result.ok) return reply.code(statusFor(result.code)).send({ error: result.error });
     return { ok: true };
   });
 
@@ -7064,6 +7121,8 @@ export function buildApp(options: BuildOptions = {}): App {
     // "Someone" — a participant nobody can identify, which is the confusion
     // excluding the stem was once meant to avoid, reached from the other side.
     if (id === MEDIA_IDENTITY) return { id, displayName: MEDIA_LABEL };
+    // Claude's voice, read into the room since 2026-11-13, for the same reason.
+    if (id === CLAUDE_ID) return { id, displayName: 'Claude' };
     const frozen: Record<string, string> = row.participant_names
       ? JSON.parse(row.participant_names)
       : {};
@@ -7157,6 +7216,7 @@ export function buildApp(options: BuildOptions = {}): App {
       mayTranscribeLive,
       mayAutoTranscribe,
       claudeAvailable: () => claude !== null,
+      speechKept: (channelId) => (channels.speech ? channels.speechKept(channelId) : null),
       libraryAvailable: () => channels.libraryAvailable(),
       mayChangeLibrary: (userId, channelId) => channels.mayChangeLibrary(channelId, userId),
       reachability,

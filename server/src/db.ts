@@ -2222,6 +2222,21 @@ CREATE TABLE IF NOT EXISTS claude_usage (
 );
 CREATE INDEX IF NOT EXISTS claude_usage_at ON claude_usage(at);
 
+-- What speaking Claude's replies cost, since 2026-11-13: one row per
+-- synthesis, AssemblyAI billing per character of text. A reply is spoken once
+-- however many phones hear it, and *Read again* plays the kept audio, so it
+-- costs nothing and has no row. account_id is the asker, nulled when they go,
+-- as claude_usage's is; what was spent stays spent.
+CREATE TABLE IF NOT EXISTS speech_usage (
+  id          TEXT PRIMARY KEY,
+  at          INTEGER NOT NULL,
+  channel_id  TEXT NOT NULL,
+  account_id  TEXT,
+  paste_id    TEXT NOT NULL,
+  characters  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS speech_usage_at ON speech_usage(at);
+
 -- How loudly one channel may interrupt one person.
 --
 -- **Only the people who have changed it have a row.** Absence means

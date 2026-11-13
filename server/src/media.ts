@@ -27,6 +27,7 @@ import {
   FfmpegStemEncoder,
   PlaybackPump,
   SAMPLE_RATE,
+  type Decoder,
   type FrameSink,
 } from './playback';
 import { STREAM_SAMPLE_RATE } from './streaming';
@@ -224,6 +225,23 @@ export interface MediaServer {
     displayName: string;
     /** The uploaded file, on the server's own disk. */
     file: string;
+    onFailure?: (error: unknown) => void;
+  }): Promise<PlaybackSession>;
+
+  /**
+   * Joins the room as Claude's voice and holds one track for it — **the
+   * shared-playback machinery with a different decoder**, since 2026-11-13.
+   * The "file" handed to `setFile` is a paste id and `openDecoder` reads that
+   * reply's speech as it is synthesised, so the room and a recording stem
+   * get the same samples by the same path the film's do. `onEnded` fires
+   * when a reply has been said.
+   */
+  openSpeech(params: {
+    room: string;
+    identity: string;
+    displayName: string;
+    openDecoder: (file: string, fromMs: number) => Decoder;
+    onEnded: () => void;
     onFailure?: (error: unknown) => void;
   }): Promise<PlaybackSession>;
 
@@ -502,6 +520,64 @@ export class LiveKitMediaServer implements MediaServer {
   }): Promise<PlaybackSession> {
     const ffmpegPath =
       this.options.ffmpegPath ?? process.env.FFMPEG_PATH ?? 'ffmpeg';
+    const session = await this.openPublisher({
+      room,
+      identity,
+      displayName,
+      trackName: 'playback',
+      openDecoder: (path, fromMs) => new FfmpegDecoder(path, fromMs, ffmpegPath),
+      onFailure,
+    });
+    await session.setFile(file);
+    return session;
+  }
+
+  async openSpeech({
+    room,
+    identity,
+    displayName,
+    openDecoder,
+    onEnded,
+    onFailure,
+  }: {
+    room: string;
+    identity: string;
+    displayName: string;
+    openDecoder: (file: string, fromMs: number) => Decoder;
+    onEnded: () => void;
+    onFailure?: (error: unknown) => void;
+  }): Promise<PlaybackSession> {
+    return this.openPublisher({
+      room,
+      identity,
+      displayName,
+      trackName: 'claude',
+      openDecoder,
+      onEnded,
+      onFailure,
+    });
+  }
+
+  /** One publishing participant and its pump: the film's, or Claude's voice. */
+  private async openPublisher({
+    room,
+    identity,
+    displayName,
+    trackName,
+    openDecoder,
+    onEnded,
+    onFailure,
+  }: {
+    room: string;
+    identity: string;
+    displayName: string;
+    trackName: string;
+    openDecoder: (file: string, fromMs: number) => Decoder;
+    onEnded?: () => void;
+    onFailure?: (error: unknown) => void;
+  }): Promise<LiveKitPlaybackSession> {
+    const ffmpegPath =
+      this.options.ffmpegPath ?? process.env.FFMPEG_PATH ?? 'ffmpeg';
     const token = await this.issueToken({ room, identity, displayName });
 
     const rtc = new RtcRoom();
@@ -520,7 +596,7 @@ export class LiveKitMediaServer implements MediaServer {
     }
 
     const source = new AudioSource(SAMPLE_RATE, CHANNELS);
-    const track = LocalAudioTrack.createAudioTrack('playback', source);
+    const track = LocalAudioTrack.createAudioTrack(trackName, source);
     await local.publishTrack(
       track,
       new TrackPublishOptions({ source: TrackSource.SOURCE_MICROPHONE })
@@ -528,10 +604,10 @@ export class LiveKitMediaServer implements MediaServer {
 
     const pump = new PlaybackPump({
       sink: new AudioSourceSink(source),
-      openDecoder: (path, fromMs) => new FfmpegDecoder(path, fromMs, ffmpegPath),
+      openDecoder,
+      onEnded,
       onFailure,
     });
-    await pump.setFile(file);
     pump.start();
 
     return new LiveKitPlaybackSession(
@@ -1027,6 +1103,33 @@ export class MemoryMediaServer implements MediaServer {
     return this.muted.get(`${room}/${identity}`);
   }
 
+  /** Claude's voice, opened in order, live or closed. */
+  readonly speeches: MemoryPlaybackSession[] = [];
+
+  async openSpeech({
+    room,
+    identity,
+    onEnded,
+  }: {
+    room: string;
+    identity: string;
+    onEnded: () => void;
+  }) {
+    this.known.add(`${room}/${identity}`);
+    this.absent.delete(`${room}/${identity}`);
+    const channel = new MemoryPlaybackSession(room, identity, '', () => {
+      this.known.delete(`${room}/${identity}`);
+    });
+    channel.onEnded = onEnded;
+    this.speeches.push(channel);
+    return channel;
+  }
+
+  /** Claude's voice in a room, if it is open. */
+  speechFor(room: string): MemoryPlaybackSession | undefined {
+    return this.speeches.find((s) => s.room === room && !s.closed);
+  }
+
   /** The playback channel for a room, if one was ever opened. */
   playbackFor(room: string): MemoryPlaybackSession | undefined {
     return this.playbacks.find((p) => p.room === room);
@@ -1102,6 +1205,8 @@ export class MemoryPlaybackSession implements PlaybackSession {
    * on.
    */
   producing = true;
+  /** For Claude's voice: what the real pump calls when a reply has been said. */
+  onEnded: () => void = () => {};
 
   constructor(
     readonly room: string,

@@ -25,6 +25,8 @@
 - dev-*.mjs
 # The box's own durable state: loaded tracks exist there and never here.
 - /server/tracks/
+# And Claude's spoken replies, kept an hour for *Read again*.
+- /server/speech/
 # The store captures; the box serves small derivatives in server/public.
 - /assets/
 # Keys live under ~/.config/thefloor, outside this tree; excluded as well,

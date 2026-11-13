@@ -3,6 +3,7 @@ import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
 import type { TranscriptionModel } from '../../core/types';
 import { intoBlocks, readable, type TranscriptLine, type VoiceName } from '../../core/transcript';
 import { MEDIA_IDENTITY } from './channels';
+import { CLAUDE_ID } from '../../core/constants';
 import { hasSearchIndex, type Db, type RecordingRow } from './db';
 import { encodeStem, type ExportRequest } from './export';
 import type { RecordingStore } from './storage';
@@ -484,6 +485,31 @@ export class Transcripts {
   }
 
   /**
+   * The language of the channel's first transcript — what AssemblyAI's
+   * detection decided for the earliest recording, of a person rather than a
+   * film — or null where nothing has been transcribed yet. **What Claude's
+   * reply is spoken in**, at Rodrigo's word, 2026-11-13: the conversation's
+   * own language as it was first heard, rather than a guess from the reply's
+   * text. *First* rather than *latest* was his word too, and the cost is a
+   * conversation that changes language being spoken in the one it began in.
+   * A deleted recording is not counted, being something the channel no
+   * longer holds.
+   */
+  firstLanguage(channelId: string): string | null {
+    const row = this.db
+      .prepare(
+        `SELECT j.language AS language
+           FROM transcript_jobs j JOIN recordings r ON r.id = j.recording_id
+          WHERE r.channel_id = ? AND r.deleted_at IS NULL
+            AND j.state = 'ready' AND j.language IS NOT NULL AND j.identity != ?
+          ORDER BY r.started_at, j.rowid
+          LIMIT 1`
+      )
+      .get(channelId, MEDIA_IDENTITY) as { language: string } | undefined;
+    return row?.language ?? null;
+  }
+
+  /**
    * Every line in one channel's transcripts matching what somebody typed.
    *
    * **This is the feature the denormalised `channel_id` on a line exists for**
@@ -953,10 +979,16 @@ export class Transcripts {
    * did not exist. BACKLOG.md § *Playing media into a channel is a copyright
    * surface nobody has addressed* is where that sits, and it is not this
    * function's to answer.
+   *
+   * **Claude's stem is the one left out**, since 2026-11-13: it is its own
+   * reply read aloud, and the paste already holds every word of it, so a
+   * transcript of it would be the *Record* saying the reply twice.
    */
   private speakersOf(recording: RecordingRow): string[] {
     const stems = parse<Record<string, unknown[]>>(recording.stems) ?? {};
-    return Object.keys(stems).filter((identity) => stems[identity]?.length);
+    return Object.keys(stems).filter(
+      (identity) => identity !== CLAUDE_ID && stems[identity]?.length
+    );
   }
 
   /**

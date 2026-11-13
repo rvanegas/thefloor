@@ -269,6 +269,9 @@ describe('the floor as an actual mute', () => {
         async openPlayback() {
           throw new Error('livekit unreachable');
         },
+        async openSpeech() {
+          throw new Error('livekit unreachable');
+        },
       },
     });
 

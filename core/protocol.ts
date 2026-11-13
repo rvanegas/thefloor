@@ -1311,6 +1311,19 @@ export interface ChannelView {
    */
   claude?: true;
   /**
+   * Present, and true, when this server speaks Claude's replies into the room
+   * itself — it has an AssemblyAI key — which is what draws *Claude's voice*
+   * on *Channel Settings*. Since 2026-11-13; the server's configuration, as
+   * `claude` is.
+   */
+  speech?: true;
+  /**
+   * The replies of Claude's this channel may still have *read again*, by paste
+   * id: their audio is kept for an hour after it was made. Absent where the
+   * server does not speak, and from a server that predates it.
+   */
+  speechKept?: string[];
+  /**
    * Present, and true, when this server has a library *Ask Claude* may
    * consult, and Claude to consult it — which is what draws the *Library*
    * card on *Channel Settings*. The server's configuration, as `claude` is,
