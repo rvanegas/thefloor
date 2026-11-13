@@ -108,23 +108,45 @@ Considered and rejected:
 - **Synthesising per phone**: that costs N times as much, and a recording would
   need its own copy anyway.
 
-**The participant, and older builds.** The film is already published as the
-`media:<channel>` participant (`playbackIdentity`), which every build knows to
-treat as something other than a person. The open question is whether the
-reply goes on that participant as a second track or on its own identity, such
-as `claude:<channel>`. Two things decide it, and both have to be read before
-building:
+**Its own participant, `claude:<channel>`, not a second track on the
+film's.** Settled 2026-11-13 by reading the code:
 
-- what an older build does with a second track on `media:`
-  (`app/src/audio/unheard.ts`, `useSessionAudio`), and with an unknown
-  identity;
-- whether the reply may play while a film is playing. A recording and a
-  playing film are never on at the same time (GLOSSARY, *Watch party*), so
-  in that case there is no stem to write, only the room to play into. The
-  reply might play over the film, pause it, or wait for it.
+- **Withholding works per publisher.** `MediaServer.setSilenced` unsubscribes
+  a listener from *every* audio track a speaker publishes. A second track on
+  `media:<channel>` would make it impossible to keep an older build off the
+  reply without also taking the film away from it. On an identity of its own,
+  the floor's existing call does the job unchanged:
+  `setSilenced({ speaker: 'claude:<channel>', listener, silenced: true })`.
+- **Phones ignore a participant who is not a person.** `unheardSpeakers`
+  counts only identities the channel says are here (`isHere`), and so does
+  the speaking indicator, which is keyed by account id. That is the reason
+  `media:` causes no trouble today, and `claude:` gets the same treatment
+  with no client change. The subscription itself needs nothing from the
+  phone: a phone takes every published audio track (`takeSubscriptions` in
+  `rebind.ts`, or the server's auto-subscribe), so the reply is heard on
+  every build that is not withheld.
+- **The two have different lifetimes.** `media:` is opened when a film is
+  loaded and closed with it; the reply's participant is opened for each reply
+  and closed when the reply ends.
+- **The server has to skip it** wherever it already skips `media:` by name:
+  the metering in the tick, `reconcilePresence`, and `restartEndedEgress`,
+  since its stem is written by the server and must never get a track egress
+  of its own. A shared `isServerIdentity` makes that one test instead of two.
+
+**While a film plays, the reply plays over it**, without pausing it or
+waiting for it. That is what the phone's own reading does today, and pausing
+would move everybody's shared transport for something nobody asked of the
+film. A recording and a playing film are never on at the same time (GLOSSARY,
+*Watch party*), so in that case there is no stem to write, only the room. If
+the two together are hard to follow, ducking the film under the reply is the
+next step, and the pump already applies a level.
 
 **Builds older than this one are not subscribed** to the reply's track. The
 server already decides who hears what, which is how the floor withholds people.
+The build comes from the joining session's `sessions.last_build`, and a
+session that has never announced one counts as old. The unsubscribe is made
+**before the first frame is captured**, so the race the floor tolerates (a
+listener hearing a moment before it is withheld) never happens here.
 Those builds go on reading with their own voice, as they do today, so nobody
 hears the reply twice. A new build skips its local reading whenever the clip
 says the server is speaking (`Clip.speech`, added in one additive step). This
@@ -169,9 +191,9 @@ language, and the picker says which that is.
 
 - **Where**: the channel's settings, beside *Response model*, as *Claude's
   voice*.
-- **Who may change it**: the same rule as *Response model* until there is a
-  reason to differ (shown to every member, changed only by *Pro*). Whether
-  it should be open to every member instead is worth asking.
+- **Who may change it**: **any member**, at Rodrigo's word, 2026-11-13. This
+  is unlike *Response model*, which only *Pro* can change, because a voice
+  costs nothing more than another voice.
 - **The picker**: a short curated list of AssemblyAI voices, the English and
   Spanish starters to begin with, each row naming the voice and its own
   language, with a sample button. A sample is one fixed sentence per voice,
@@ -185,19 +207,17 @@ language, and the picker says which that is.
 paste id, for an hour after it finishes, and lost on a restart. It is never
 put in S3 and never in the snapshot; the recording's stem is a separate copy
 that belongs to the recording. While it is kept, the reply's paste in the
-*Record* carries a **Read again** control. Whether that is for one person or
-for everybody is the remaining question:
-
-- **Just you** (recommended). The phone fetches
-  `GET /channels/:id/pastes/:pasteId/speech` and plays it on its own call
-  engine (`Reader`'s `AVAudioPlayerNode` path), so the echo canceller keeps it
-  out of everyone else's microphone and it is not recorded a second time.
-  This is what *Restart* already means, and *Restart* and *Stop* on the
-  reading bar become this same act. Its cost is a native change, so it reaches
-  phones with an upload, and it is iOS-only until
-  task/bring-android-level-with-ios.md.
-- **Everybody**: published into the room again. It needs no native work, but
-  one person's replay interrupts the whole call and is recorded again.
+*Record* carries a **Read again** control, **for just you**, at Rodrigo's
+word, 2026-11-13. The phone fetches
+`GET /channels/:id/pastes/:pasteId/speech` and plays it on its own call
+engine (`Reader`'s `AVAudioPlayerNode` path), so the echo canceller keeps it
+out of everyone else's microphone and it is not recorded a second time.
+This is what *Restart* already means, and *Restart* and *Stop* on the
+reading bar become this same act. Its cost is a native change, so it reaches
+phones with an upload, and it is iOS-only until
+task/bring-android-level-with-ios.md. Rejected: replaying into the room
+for everybody. It needed no native work, but one person's replay would
+interrupt the whole call and be recorded again.
 
 After the hour the control goes. A reply older than that is in the *Record*
 to read.
@@ -211,8 +231,8 @@ on a `429` or `503`), when the language is outside the six, and on older
 builds. It is heard by that phone alone, and is not in the recording. A
 response cut off partway is reported and stops.
 
-**The *Read aloud* card: remove it** wherever the server speaks. The
-recommendation, for these reasons:
+**The *Read aloud* card: removed** wherever the server speaks, at Rodrigo's
+word, 2026-11-13, for these reasons:
 
 - The card exists to get somebody to a better voice installed on their phone.
   Once the server speaks, that voice is heard only on the fallback path,
@@ -269,11 +289,4 @@ are not subscribed, so nothing changes for them until a new build arrives.
 The new build skips its local reading when `speech` is set, adds the picker,
 *Read again* and the per-phone *Stop*, and drops the card.
 
-### Still to decide
-
-1. *Read again* for just you (recommended) or for everybody.
-2. Whether *Claude's voice* is changeable only by *Pro*, like *Response
-   model*, or by any member.
-3. The reply's track: a second track on `media:<channel>` or its own
-   identity, and what it does while a film plays. Both are settled by reading
-   the app's code rather than by preference.
+Nothing is left to decide before building.
