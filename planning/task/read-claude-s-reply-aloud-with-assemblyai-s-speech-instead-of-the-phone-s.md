@@ -74,128 +74,206 @@ and each sounds best in the language it was recorded in.
 module has only an `ios/` half, and `load()` returns null on any other
 platform.
 
-## Design, proposed
+## Design
 
-**Once per paste, on the server, streamed to each phone.** When
-`postClaudeReply` posts, the text goes into the *Record* at once, as it does
-today, and one `POST /v1/speech` starts beside it. A new
-`server/src/speech.ts` provider makes that call, shaped like
-`transcription.ts`'s providers and faked in tests. The audio goes into an
-entry kept by paste id. A phone asks for
-`GET /channels/:id/pastes/:pasteId/speech` behind the snapshot's own presence
-guard, and gets what has arrived so far and then the rest as it comes. A phone
-that asks after synthesis has finished gets the whole thing. Five phones still
-cost one request and one set of characters. Considered and rejected:
+Settled with Rodrigo on 2026-11-13, in answer to the first draft:
 
-- **Holding the paste until its audio is ready**, which makes everybody's
+- the reply's voice goes **into the room and into the recording**;
+- **one voice for the whole channel**;
+- the language comes from **the channel's transcripts**;
+- the audio is PCM, **kept for an hour**, and anybody can have it **read
+  again** during that hour.
+
+This reverses decision/2026-10-28-claudes-reply-is-read-aloud-on-arrival.md
+§ *Local, never into the call*, which its shipping decision has to say.
+
+**Once per paste, synthesised on the server and published into the room.**
+When `postClaudeReply` posts, the text goes into the *Record* at once and one
+`POST /v1/speech` starts beside it. A new `server/src/speech.ts` provider makes
+that call, shaped like `transcription.ts`'s providers and faked in tests. The
+audio comes back as PCM s16le at **48 kHz**, the rate `playback.ts` already
+pumps (`SAMPLE_RATE`), so nothing has to be resampled. It is published the way
+shared playback is: frames go to an `AudioSource` on the server's own
+participant, and **the same samples go to a stem encoder while a recording is
+running**. Everybody present hears it through the call, at the call's level,
+and the echo canceller treats it like any other remote voice. Build 396's
+three failures (faint, cut short, heard through others' microphones) came from
+playing it as local audio beside the call, so they do not arise on this path.
+**Android hears it with no work of its own**, since it already plays the room.
+Considered and rejected:
+
+- **Holding the paste until the audio is ready**, which makes everybody's
   *Record* wait for speech.
 - **The WebSocket API**, which is built for text that arrives a token at a time.
-- **A temporary token per phone**: that is one synthesis per phone, N times
-  the cost, and the voice could differ from phone to phone.
+- **Synthesising per phone**: that costs N times as much, and a recording would
+  need its own copy anyway.
 
-**The wire, in one additive step.** `Clip` gains a field set when synthesis
-starts, such as `speech: true`, so a phone knows whether to ask instead of
-finding out from a 404. An older build ignores it and keeps reading with its
-own voice, so this needs no SHIMS.md entry. The server half can be deployed
-before the upload. The phone half is native, so it reaches phones only with
-the next upload.
+**The participant, and older builds.** The film is already published as the
+`media:<channel>` participant (`playbackIdentity`), which every build knows to
+treat as something other than a person. The open question is whether the
+reply goes on that participant as a second track or on its own identity, such
+as `claude:<channel>`. Two things decide it, and both have to be read before
+building:
 
-**PCM on the wire, at 24 kHz.** `Reader` already plays PCM buffers on the
-call's engine (`Segment.audio`, converted to the node's format, half a second
-at a time and resumed after an engine stop). The server's bytes become those
-segments directly, with no decoder, and play from the first bytes. What it
-costs is 48 kB a second: about 2.9 MB per phone for a *Medium* reply and about
-8.6 MB for an *Extended* one. MP3 is six times smaller, but it needs a
-streaming decoder on the phone (`AudioFileStream` and `AVAudioConverter`) and
-AssemblyAI throttles MP3 requests when it is busy. 16 kHz PCM is the middle
-option. **To decide.**
+- what an older build does with a second track on `media:`
+  (`app/src/audio/unheard.ts`, `useSessionAudio`), and with an unknown
+  identity;
+- whether the reply may play while a film is playing. A recording and a
+  playing film are never on at the same time (GLOSSARY, *Watch party*), so
+  in that case there is no stem to write, only the room to play into. The
+  reply might play over the film, pause it, or wait for it.
 
-**The language is told on the server.** Because the API will not detect it,
-a small offline detector runs on the reply, limited to the six languages and
-leaning towards English and Spanish. It plays the part `NLLanguageRecognizer`
-plays on the phone today, and which library to use is still to be chosen.
-Below its confidence threshold, the asker's app language is used, which the
-press would then send. A reply in a language outside the six (Catalan, for
-example) carries no `speech` and is read with the phone's own voice. Claude
-tagging its own language is rejected again, for the reason
-decision/2026-10-28-claudes-reply-is-read-aloud-on-arrival.md gives.
+**Builds older than this one are not subscribed** to the reply's track. The
+server already decides who hears what, which is how the floor withholds people.
+Those builds go on reading with their own voice, as they do today, so nobody
+hears the reply twice. A new build skips its local reading whenever the clip
+says the server is speaking (`Clip.speech`, added in one additive step). This
+needs no SHIMS.md entry, because nothing is removed.
 
-**The voice: the asker's, kept on the account.** Nothing needs installing, so
-every phone hears the same audio, and what `Clip.voices` was for (the asker's
-voice where a phone has it installed) is now true by construction. A slug
-names the same voice on every phone, so the choice moves off the phone's
-keychain and onto the account, and the server reads it at the press. That
-changes *Floor Settings*' one-scope paragraph for this card. Where nothing is
-chosen, the catalogue defaults are pinned in code rather than left to
-AssemblyAI. The alternative is a choice per channel: Claude's voice in this
-room, the same whoever asks. **To decide.**
+**In the recording, not in the transcript.** The reply gets its own stem, as
+the shared track does, placed by offset like a film loaded partway through a
+run. Unlike the shared track, **it is never sent to AssemblyAI for
+transcription**: the paste is already the text, and transcribing it would put
+the reply in the *Record* twice. A published episode then carries Claude's
+voice. That is the point of this change, and the episode pages need to say
+whose voice it is.
 
-**The *Read aloud* card** becomes a short list of AssemblyAI voices for
-English and for Spanish, a handful each from the starter list, each with a
-sample. A sample is a fixed sentence synthesised once on the server and
-cached, so trying voices costs nothing per tap. **The installed-voice choice
-and the download instructions go** wherever the server can speak. The phone's
-voice stays only as the fallback, chosen by `bestVoice` as it is today. That
-removal follows the no-compatibility rule. What it leaves behind is the two
-keychain entries (`thefloor.readAloud.en`, `.es`), harmless and unread, and
-nothing needs migrating. Where the server cannot speak, the card stays as it
-is. **To decide**, since the card was Rodrigo's own ask.
+**The floor is not involved.** The reply plays over whoever is speaking, as
+the local reading does today. Making it wait for the floor, or take it, is a
+separate question that can be asked once this is heard in a real room.
 
-**The phone's voice stays as the fallback.** It is used when the server has no
-key (no `speech` on the clip), when the request fails before the first audio
-(the server retries a `429` or `503` once, after `Retry-After`, and then
-answers an error status), when the build is older, and when the language is
-outside the six. A response cut off partway is reported in the diagnostics
-log and stops. It is rare, and reading the rest in a different voice would be
-worse than stopping.
+**The language: the channel's first transcript.** Each stem's transcript job
+already stores what AssemblyAI's language detection decided
+(`transcript_jobs.language`). The reply is spoken in the language of the
+**earliest finished transcript in the channel**. A channel with no transcript
+falls back to the language the channel declares for its feed
+(`channels.language`), and then to the asker's app language, which the press
+sends. Codes map to AssemblyAI's names (`es` → `spanish`). A language outside
+AssemblyAI's six means the clip carries no `speech`, and each phone reads it
+with its own voice, as today.
 
-**On the phone, the route does not change.** The audio still plays on the
-`AVAudioPlayerNode` on LiveKit's engine, with the `AVAudioPlayer` fallback,
-so the echo canceller keeps it out of the call and out of recordings. `Reader`
-gains a way to play a stream beside `speak(text)`, and `onReading`, *Restart*,
-*Stop* and the `read-aloud` log lines all stay. *Restart* asks the server for
-the audio again rather than re-synthesising. The three failures from build 396
-(faint, cut short, and heard through others' microphones) are what to listen
-for on the first walk with two phones.
+- *First* rather than *latest* was Rodrigo's word. A channel whose
+  conversation moves from Spanish to English goes on being read in Spanish,
+  which is the cost the 2026-10-28 decision gave for rejecting a channel
+  setting. Switching to the latest transcript would change one query.
+- Live transcripts do not ask for detection today. The multilingual streaming
+  model can (`language_detection`, which adds `language_code` to each `Turn`),
+  which would let a channel that only transcribes live have a language as
+  well. That is a later step, not part of this.
 
-**The audio is kept for an hour**, on the server's disk, and lost on a
-restart. It is never put in S3, never in a recording, and never in the
-snapshot. It can always be made again from the paste, and keeping it longer
-would be a new kind of stored data for `/privacy` to describe. *Restart* only
-appears while a reply is being heard, so an hour is plenty.
+**One voice for the whole channel**, as a channel setting beside *Response
+model*: `speechVoice`, an AssemblyAI slug, with the catalogue default pinned in
+code where nothing is chosen. **Every voice speaks all six languages**, so one
+choice covers whatever the channel speaks; a voice sounds best in its own
+language, and the picker says which that is.
 
-**`/privacy`**: a sentence inside Claude's section, shown only where the
-server has both keys, in the style of `transcriptionSending`: the reply's text
-is sent to AssemblyAI, in the United States, to be turned into speech, which
-the server keeps for an hour and never records. It claims nothing about what
-AssemblyAI keeps, since the docs say nothing about it. The section's date
-moves (`CLAUDE_PRIVACY_UPDATED`).
+- **Where**: the channel's settings, beside *Response model*, as *Claude's
+  voice*.
+- **Who may change it**: the same rule as *Response model* until there is a
+  reason to differ (shown to every member, changed only by *Pro*). Whether
+  it should be open to every member instead is worth asking.
+- **The picker**: a short curated list of AssemblyAI voices, the English and
+  Spanish starters to begin with, each row naming the voice and its own
+  language, with a sample button. A sample is one fixed sentence per voice,
+  synthesised once on the server and cached, so trying voices costs nothing per
+  tap. It plays on the phone through `Reader`'s engine path. It is the first
+  new screen this design needs, so STYLE.md is read before drawing it.
+- `Clip.voices`, the asker's installed voices, stays on the wire for older
+  builds. A new build stops sending it once the server speaks.
+
+**Read again, for an hour.** The audio is kept on the server's disk, keyed by
+paste id, for an hour after it finishes, and lost on a restart. It is never
+put in S3 and never in the snapshot; the recording's stem is a separate copy
+that belongs to the recording. While it is kept, the reply's paste in the
+*Record* carries a **Read again** control. Whether that is for one person or
+for everybody is the remaining question:
+
+- **Just you** (recommended). The phone fetches
+  `GET /channels/:id/pastes/:pasteId/speech` and plays it on its own call
+  engine (`Reader`'s `AVAudioPlayerNode` path), so the echo canceller keeps it
+  out of everyone else's microphone and it is not recorded a second time.
+  This is what *Restart* already means, and *Restart* and *Stop* on the
+  reading bar become this same act. Its cost is a native change, so it reaches
+  phones with an upload, and it is iOS-only until
+  task/bring-android-level-with-ios.md.
+- **Everybody**: published into the room again. It needs no native work, but
+  one person's replay interrupts the whole call and is recorded again.
+
+After the hour the control goes. A reply older than that is in the *Record*
+to read.
+
+**Stop**, for the arrival, mutes the reply's track on that phone only, as a
+local unsubscribe, until the reply ends. Nobody else is affected.
+
+**The phone's voice stays as the fallback**: when the server has no key, when
+the speech request fails before the first audio (one retry after `Retry-After`
+on a `429` or `503`), when the language is outside the six, and on older
+builds. It is heard by that phone alone, and is not in the recording. A
+response cut off partway is reported and stops.
+
+**The *Read aloud* card: remove it** wherever the server speaks. The
+recommendation, for these reasons:
+
+- The card exists to get somebody to a better voice installed on their phone.
+  Once the server speaks, that voice is heard only on the fallback path,
+  which is a failure or a language AssemblyAI does not speak. A settings card
+  that tunes a failure path is weight nobody benefits from.
+- The voice that matters is now the channel's, and the place to choose it is
+  the channel's settings. A phone-level card beside it would read as a second
+  answer to the same question and invite the one-scope confusion that
+  *Floor Settings*' paragraph warns about.
+- `bestVoice` already makes a sensible choice without being asked, and it did
+  so before the card existed.
+- The download instructions cannot be acted on from the app in any case:
+  there is no API to open the right Settings page.
+
+What goes: the card, the per-phone voice choice (`chooseVoice`,
+`useReadAloudVoices`), and their strings in both catalogues. **What stays**:
+`bestVoice`, `replyLocale` and the local reader, for the fallback. The
+no-compatibility rule decides this: the two keychain entries
+(`thefloor.readAloud.en`, `.es`) are left behind unread and harmless, and
+nothing needs migrating. On a server without an AssemblyAI key the card has a
+case for staying, since the phone's voice is then the only voice. Only a
+development box is in that position, though, and keeping the card for it is
+not worth the code.
+
+**`/privacy`**: inside Claude's section, shown only where the server has both
+keys. It says that the reply's text is sent to AssemblyAI, in the United
+States, to be spoken; that the audio is heard by everyone in the call and
+kept in the recording like any voice; and that a copy on our server is
+deleted after an hour. It claims nothing about what AssemblyAI keeps, which
+its docs do not say. `CLAUDE_PRIVACY_UPDATED` moves.
 
 **The ledger** records the billed characters with the press: a column on
-`claude_usage`, which `bin/usage` reports. CREDENTIALS.md § AssemblyAI gains
-the new use. If task/alternate-between-assemblyai-credentials.md lands first,
-speech takes its key from the same place. Each request stands alone, so there
-is no job for a key to stay with.
+`claude_usage`, which `bin/usage` reports. Samples are billed once each and
+recorded as such. CREDENTIALS.md § AssemblyAI gains the new use. If
+task/alternate-between-assemblyai-credentials.md lands first, speech takes its
+key from the same place.
 
-**The text is sent as written.** AssemblyAI strips the Markdown itself.
-Rewriting Claude's prompt towards spoken style (the TTS guide's *Writing
-replies that sound natural*) is out of scope, because the reply is written for
-the *Record* first.
+**The text is sent as written**; AssemblyAI strips the Markdown. Rewriting
+Claude's prompt towards spoken style is out of scope, because the reply is
+written for the *Record* first.
 
-**Android stays out of scope.** It needs a player that is heard locally and
-not through the call, which is the problem build 396 had on iOS, and that
-belongs to task/bring-android-level-with-ios.md. Nothing here rules it out:
-the audio is served to any phone that asks.
+**What changes with it**:
 
-**What changes with it**: the GLOSSARY's *Read aloud* entry and its one-line
-form, STYLE.md for the card, and, when this ships, a decision that supersedes
-the voice half of 2026-10-28's.
+- the GLOSSARY's *Read aloud* entry, its one-line form and a *Claude's voice*
+  entry;
+- STYLE.md for the picker and the *Read again* control;
+- STATES.md, which is read before any of this, since a new publisher is a new
+  thing on the audio session's list;
+- when it ships, a decision that supersedes 2026-10-28's on where the reply is
+  heard and in which voice.
 
-### To decide before building
+**Order of shipping.** The server half can be deployed on its own. Old builds
+are not subscribed, so nothing changes for them until a new build arrives.
+The new build skips its local reading when `speech` is set, adds the picker,
+*Read again* and the per-phone *Stop*, and drops the card.
 
-1. Whose voice: the asker's choice kept on the account, or a choice per
-   channel.
-2. PCM at 24 kHz, PCM at 16 kHz, or MP3 with a decoder on the phone.
-3. Whether the installed-voice choice and the download instructions leave
-   *Floor Settings* wherever the server can speak.
-4. Whether an hour is the right time to keep the audio.
+### Still to decide
+
+1. *Read again* for just you (recommended) or for everybody.
+2. Whether *Claude's voice* is changeable only by *Pro*, like *Response
+   model*, or by any member.
+3. The reply's track: a second track on `media:<channel>` or its own
+   identity, and what it does while a film plays. Both are settled by reading
+   the app's code rather than by preference.
