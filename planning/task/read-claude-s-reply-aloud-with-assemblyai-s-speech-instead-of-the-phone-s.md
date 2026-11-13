@@ -339,6 +339,13 @@ open, or did differently:
   reaches phones only with an upload.
 - **The ledger is `speech_usage`**, a row per synthesis; *Read again* plays
   the kept audio and has none.
+- **Only a *Pro* asker's reply is the server's**, at Rodrigo's word,
+  2026-11-13, for cost: *Floor Settings*' *Claude's replies* lets *Pro* (and
+  `transcripts_unlimited`) choose *Claude's voice* or *Phone voices*
+  (`claudePhoneVoices`, an account setting, default the server's); anybody
+  else's replies are read by the phones, free, as before 2026-11-13. The
+  *Ask Claude* warning shows only to a viewer whose reply the server would
+  speak, and `/privacy` says the speech is a *Pro* asker's.
 - **The language** is `Transcripts.firstLanguage`: the earliest finished
   transcript of a person (never the film's stem), then the asker's app
   language sent with the press, then the account's, then English.

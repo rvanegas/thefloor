@@ -434,6 +434,10 @@ export const mockApp = {
     mockApp.emailNotifications = value;
   }),
   pushNotificationsOff: false,
+  claudePhoneVoices: false,
+  setClaudePhoneVoices: jest.fn((value: boolean) => {
+    mockApp.claudePhoneVoices = value;
+  }),
   setPushNotificationsOff: jest.fn((value: boolean) => {
     mockApp.pushNotificationsOff = value;
   }),

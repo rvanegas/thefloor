@@ -427,7 +427,10 @@ each language, a group per language as the *Read aloud* card's installed voices
 were. **Its buttons are live for everybody, unlike every other choice on that
 screen**, because a tap plays the voice's sample before it chooses anything —
 trying a voice is what the list is for — and only *Pro*'s tap also chooses;
-the *Response model* card's sentence under it says who may. The chime
+the *Response model* card's sentence under it says who may. *Claude's replies*
+on *Floor Settings*, the same day, is a plain pair in a `choices` row —
+*Claude's voice* and *Phone voices* — greyed without *Pro* with a sentence of
+its own, and drawn as *Phone voices* then, that being what is true. The chime
 loudness on Floor Settings was the second — five, bare — for the day that
 setting existed, and the arithmetic above is what decided its shape. It is the
 same arithmetic § *The pinned footer* makes about five slots in 620.

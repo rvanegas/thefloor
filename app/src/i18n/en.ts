@@ -857,6 +857,17 @@ export const en = {
     checklistNote: () =>
       'The list above your channels on Home. It goes for good once every rung is done — the conversation, and the four things to try in a channel — or once every rung has been put away with the cross beside it, and this is the way to get it back.',
     audioOutput: () => 'Audio output',
+    /**
+     * Whether the replies you ask Claude for are spoken by the server or read
+     * by each phone, since 2026-11-13: *Pro*'s choice, for cost.
+     */
+    claudeReplies: () => 'Claude’s replies',
+    claudeRepliesServer: () => 'Claude’s voice',
+    claudeRepliesPhones: () => 'Phone voices',
+    claudeRepliesNote: () =>
+      'Claude’s voice is heard by everybody in the call and kept in recordings, and costs a little for each reply. Phone voices are free, but each iPhone reads the reply on its own, and it is never recorded. It applies to the replies you ask for.',
+    claudeRepliesWho: () =>
+      'Only somebody subscribed to Pro can choose. Without Pro, phones read the replies you ask for.',
     chooseWhereSoundComesOut: () => 'Choose where sound comes out',
     chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
     on: () => 'On',

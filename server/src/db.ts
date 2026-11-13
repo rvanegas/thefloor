@@ -285,6 +285,12 @@ export interface AccountRow {
    * `pushNotificationsOff` in core/settings.ts.
    */
   push_off: number | null;
+  /**
+   * Whether Claude's replies this account asks for are read by the phones'
+   * own voices, null until it says. See `claudePhoneVoices` in
+   * core/settings.ts.
+   */
+  claude_phone_voices: number | null;
 }
 
 export interface ContactRow {
@@ -814,7 +820,10 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- Notifications by email, and push switched off; null until somebody says,
   -- which is the off case for both. See core/settings.ts.
   email_notifications INTEGER,
-  push_off           INTEGER
+  push_off           INTEGER,
+  -- Claude's replies read by the phones' own voices rather than the server's,
+  -- null until somebody *Pro* says; since 2026-11-13. See core/settings.ts.
+  claude_phone_voices INTEGER
 );
 
 -- One-time codes. The code itself is never stored, only its hash, so a copy of
@@ -2836,6 +2845,9 @@ function migrate(db: Db): void {
   }
   if (!accountColumns.some((c) => c.name === 'push_off')) {
     db.exec('ALTER TABLE accounts ADD COLUMN push_off INTEGER');
+  }
+  if (!accountColumns.some((c) => c.name === 'claude_phone_voices')) {
+    db.exec('ALTER TABLE accounts ADD COLUMN claude_phone_voices INTEGER');
   }
   // Null for every existing account, and emphatically not back-filled from
   // `last_seen_at`. That column is the fact this one exists to stop being read

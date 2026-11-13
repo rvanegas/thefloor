@@ -381,6 +381,7 @@ describe('websocket', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
+      claudePhoneVoices: false,
       // The names builds already installed know, sent beside the current ones
       // so that a phone that has not been updated reads a hello from this
       // server as the settings it has always had. See settings-wire.ts.
@@ -416,6 +417,7 @@ describe('websocket', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
+      claudePhoneVoices: false,
       tapToLook: true,
       tapToStepIn: false,
       controlCards: false,
@@ -464,6 +466,7 @@ describe('websocket', () => {
         marketingEmail: false,
         emailNotifications: false,
         pushNotificationsOff: false,
+        claudePhoneVoices: false,
         // The old names here too, and that is the point of putting the
         // translation in one function: a client that learnt one shape from the
         // hello and another from this event would be the same bug in a harder

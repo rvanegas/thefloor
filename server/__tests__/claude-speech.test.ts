@@ -120,6 +120,8 @@ async function room2() {
   const channelId = created.channel.id;
   app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
   app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+  // Alice asks in these tests, and the server speaks only for *Pro*.
+  app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.account.id);
   clock += 1_000;
   app.channels.dispatch(channelId, bob.account.id, {
     type: 'PASTE_CLIP',
@@ -238,14 +240,13 @@ describe("Claude's reply, spoken", () => {
 
   it('is in the channel’s chosen voice, which only Pro may choose', async () => {
     boot();
-    const { alice, channelId } = await room2();
-    const refused = app.channels.dispatch(channelId, alice.account.id, {
+    const { alice, bob, channelId } = await room2();
+    const refused = app.channels.dispatch(channelId, bob.account.id, {
       type: 'SET_SPEECH_VOICE',
       speechVoice: 'aai-sara',
     } as never);
     expect(refused.ok).toBe(false);
 
-    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.account.id);
     const chosen = app.channels.dispatch(channelId, alice.account.id, {
       type: 'SET_SPEECH_VOICE',
       speechVoice: 'aai-sara',
@@ -267,6 +268,31 @@ describe("Claude's reply, spoken", () => {
     expect(res.statusCode).toBe(200);
     expect(app.channels.get(channelId)!.clip!.speech).toBeUndefined();
     expect(media.speechFor(room(channelId))).toBeUndefined();
+  });
+
+  it('is read by the phones, at no cost, for an asker who is not Pro', async () => {
+    boot();
+    const { bob, channelId } = await room2();
+    await press(channelId, bob.token);
+    await settle();
+    expect(speech.requests).toEqual([]);
+    expect(app.channels.get(channelId)!.clip!.speech).toBeUndefined();
+  });
+
+  it('is read by the phones for a Pro asker who chose their voices', async () => {
+    boot();
+    const { alice, channelId } = await room2();
+    const saved = await app.fastify.inject({
+      method: 'POST',
+      url: '/me/settings',
+      headers: auth(alice.token),
+      payload: { claudePhoneVoices: true },
+    });
+    expect(saved.statusCode).toBe(200);
+    await press(channelId, alice.token);
+    await settle();
+    expect(speech.requests).toEqual([]);
+    expect(app.channels.get(channelId)!.clip!.speech).toBeUndefined();
   });
 
   it('is not spoken by a server without a provider', async () => {

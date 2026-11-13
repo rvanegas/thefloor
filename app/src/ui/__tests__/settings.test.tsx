@@ -92,6 +92,38 @@ describe("Home settings", () => {
   }
 
   /**
+   * *Claude's replies*, since 2026-11-13: the server's voice or each phone's,
+   * *Pro*'s choice for cost, and drawn only where the server speaks at all.
+   */
+  describe("Claude's replies", () => {
+    const speaking = () => {
+      mockApp.channelViews.sess_1 = { speech: true } as never;
+    };
+
+    it('is not drawn where the server does not speak', async () => {
+      const tree = await openSettings();
+      expect(textOf(tree)).not.toContain("Claude’s replies");
+    });
+
+    it('is greyed without Pro, the phones being what reads', async () => {
+      speaking();
+      const tree = await openSettings();
+      expect(textOf(tree)).toContain("Claude’s replies");
+      expect(textOf(tree)).toContain('Only somebody subscribed to Pro can choose.');
+      const phones = findButton(tree, 'Phone voices')!;
+      expect(phones.props.accessibilityState?.disabled ?? phones.props.disabled).toBe(true);
+    });
+
+    it('lets Pro choose the phones’ voices', async () => {
+      speaking();
+      mockApp.pro = true;
+      const tree = await openSettings();
+      act(() => findButton(tree, 'Phone voices')!.props.onPress());
+      expect(mockApp.setClaudePhoneVoices).toHaveBeenCalledWith(true);
+    });
+  });
+
+  /**
    * The privacy policy, which Guideline 5.1.1(i) requires to be reachable from
    * inside the application and not only from the App Store listing.
    *

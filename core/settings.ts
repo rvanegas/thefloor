@@ -195,6 +195,16 @@ export interface AccountSettings {
    * screen says what to do in Settings when the two disagree.
    */
   pushNotificationsOff: boolean;
+  /**
+   * Whether Claude's replies this person asks for are read by each phone's own
+   * iOS voice rather than spoken into the room by the server with AssemblyAI,
+   * since 2026-11-13 — **for cost**, the server's speech being billed per
+   * character. **A choice only *Pro* has**: anybody else's replies are read
+   * by the phones whatever this says, so for them it is not drawn as theirs.
+   * Named for the departure, as every boolean here is; off, a *Pro* asker's
+   * reply is the server's.
+   */
+  claudePhoneVoices: boolean;
 }
 
 /**
@@ -257,4 +267,5 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   marketingEmail: false,
   emailNotifications: false,
   pushNotificationsOff: false,
+  claudePhoneVoices: false,
 };

@@ -309,6 +309,7 @@ describe('The privacy policy', () => {
     it('says nothing of speech without Claude, and says it inside Claude’s section with its own date', async () => {
       app = buildApp({ dbPath: ':memory:', speech: new FakeSpeech(), speechDir: mkdtempSync(join(tmpdir(), 'privacy-speech-')) });
       expect((await fetchPolicy()).body).not.toContain('read aloud into the conversation');
+      // Said only of a Pro asker's replies, below.
       await app.fastify.close();
 
       app = buildApp({
@@ -320,11 +321,12 @@ describe('The privacy policy', () => {
       const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
       const claudeAt = page.indexOf('<h2>Claude</h2>');
       const nextAt = page.indexOf('<h2>', claudeAt + 1);
-      const at = page.indexOf("Claude's reply is also read aloud into the conversation");
+      const at = page.indexOf("Claude's reply can also be read aloud into the conversation");
       expect(at).toBeGreaterThan(claudeAt);
       expect(at).toBeLessThan(nextAt);
       expect(page).toContain('sent to Fake, in the United States');
       expect(page).toContain('keeps the speech for an hour');
+      expect(page).toContain('whoever asked for it subscribes to Pro');
       // Nothing about what the speech provider keeps: not checkable here.
       expect(page).not.toMatch(/Fake (keeps|retains|deletes)/);
       expect(page).toContain(

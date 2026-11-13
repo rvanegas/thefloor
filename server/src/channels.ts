@@ -316,6 +316,13 @@ export interface ClaudeSpeech {
   firstLanguage(channelId: string): string | null;
   /** The account's own language setting, `en`, `es` or `system`. */
   accountLanguage(accountId: string): string | null;
+  /**
+   * Whether the server speaks a reply this account asked for: **only for
+   * *Pro***, and only while they have not chosen the phones' own voices on
+   * *Floor Settings* — the server's speech being the one that costs. Since
+   * 2026-11-13.
+   */
+  speaksFor(accountId: string): boolean;
   /** A synthesis's billed characters, for the ledger. */
   billed(entry: { channelId: string; accountId: string | null; pasteId: string; characters: number }): void;
   log?: { warn(details: object, message: string): void };
@@ -8080,6 +8087,7 @@ export class ChannelRegistry {
     const speech = this.speech;
     const channel = this.channels.get(channelId);
     if (!speech || !channel) return false;
+    if (!speech.speaksFor(askerId)) return false;
     if ([...text].length > SPEECH_MAX_CHARACTERS) return false;
     const language = this.speechLanguage(channelId, askerId, askerLanguage);
     if (!language) return false;

@@ -713,6 +713,7 @@ export class Accounts {
       marketingEmail: row.marketing_email_at !== null,
       emailNotifications: row.email_notifications === 1,
       pushNotificationsOff: row.push_off === 1,
+      claudePhoneVoices: row.claude_phone_voices === 1,
     };
   }
 
@@ -793,6 +794,11 @@ export class Accounts {
       this.db
         .prepare('UPDATE accounts SET push_off = ? WHERE id = ?')
         .run(changes.pushNotificationsOff ? 1 : 0, accountId);
+    }
+    if (changes.claudePhoneVoices !== undefined) {
+      this.db
+        .prepare('UPDATE accounts SET claude_phone_voices = ? WHERE id = ?')
+        .run(changes.claudePhoneVoices ? 1 : 0, accountId);
     }
     return this.settings(accountId);
   }

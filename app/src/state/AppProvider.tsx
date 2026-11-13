@@ -1029,6 +1029,14 @@ interface AppValue extends AppState {
   pushNotificationsOff: boolean;
   setPushNotificationsOff: (value: boolean) => void;
   /**
+   * Whether Claude's replies this account asks for are read by the phones'
+   * own voices rather than the server's, since 2026-11-13 — *Pro*'s choice,
+   * for cost. See `claudePhoneVoices` in core/settings.ts. Not cached, for
+   * `marketingEmail`'s reason.
+   */
+  claudePhoneVoices: boolean;
+  setClaudePhoneVoices: (value: boolean) => void;
+  /**
    * Whether this install should be asked to turn notifications on, and what it
    * takes to do it.
    *
@@ -1229,6 +1237,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [pushNotificationsOff, setPushNotificationsOffState] = useState(
     DEFAULT_ACCOUNT_SETTINGS.pushNotificationsOff
   );
+  const [claudePhoneVoices, setClaudePhoneVoicesState] = useState(
+    DEFAULT_ACCOUNT_SETTINGS.claudePhoneVoices
+  );
   // The address old builds kept for the opt-in; nothing reads it now. See `LAST_IDENTIFIER_KEY`.
   useEffect(() => {
     void storage.remove(LAST_IDENTIFIER_KEY);
@@ -1274,6 +1285,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     // and whose behaviour is exactly the defaults.
     setEmailNotificationsState(settings.emailNotifications ?? false);
     setPushNotificationsOffState(settings.pushNotificationsOff ?? false);
+    // `?? false` for a server that predates it, on which only phones read.
+    setClaudePhoneVoicesState(settings.claudePhoneVoices ?? false);
   }, [adoptLanguage]);
   /**
    * Puts the settings back to what somebody who has never signed in sees, and
@@ -1303,6 +1316,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setMarketingEmailState(DEFAULT_ACCOUNT_SETTINGS.marketingEmail);
     setEmailNotificationsState(DEFAULT_ACCOUNT_SETTINGS.emailNotifications);
     setPushNotificationsOffState(DEFAULT_ACCOUNT_SETTINGS.pushNotificationsOff);
+    setClaudePhoneVoicesState(DEFAULT_ACCOUNT_SETTINGS.claudePhoneVoices);
   }, [forgetLanguage]);
   /**
    * The address this install is registered at, kept so sign-out can hand it
@@ -2690,6 +2704,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       },
 
+      claudePhoneVoices,
+      setClaudePhoneVoices: (value) => {
+        setClaudePhoneVoicesState(value);
+        if (state.token) {
+          void api.saveSettings(state.token, { claudePhoneVoices: value }).catch(() => {});
+        }
+      },
+
       signIn: async () => {
         const prompt = (await storage.get(SIGNED_OUT_KEY)) ? ('login' as const) : undefined;
         if (Platform.OS === 'web') {
@@ -3480,6 +3502,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       marketingEmail,
       emailNotifications,
       pushNotificationsOff,
+      claudePhoneVoices,
       forgetSettings,
       expiry,
     ]

@@ -75,6 +75,7 @@ describe('Ask Claude on the Record bar', () => {
   });
 
   it('warns, without refusing, while somebody here is on an app from before Claude’s voice', () => {
+    mockApp.pro = true;
     showChannel(here(), [], { claude: true, speech: true, speechKept: [], claudeUnheard: [THEM, ME] });
     record();
     // The viewer is on this build, so only the others are named.
@@ -83,6 +84,13 @@ describe('Ask Claude on the Record bar', () => {
     );
     expect(textOf(tree!)).not.toContain('Me needs');
     expect(disabled(findButton(tree!, 'Medium')!)).toBeFalsy();
+  });
+
+  it('says nothing to an asker whose reply the phones will read', () => {
+    // Not Pro: the server does not speak what this viewer asks for.
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [], claudeUnheard: [THEM] });
+    record();
+    expect(textOf(tree!)).not.toContain('to update The Floor');
   });
 
   it('says nothing while everybody here has updated', () => {

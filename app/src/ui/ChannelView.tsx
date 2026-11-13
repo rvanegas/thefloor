@@ -3104,7 +3104,13 @@ export function ChannelView({
                     me={me}
                     nameOf={nameOf}
                     onAsk={(length) => app.askClaude(channel.id, length)}
-                    unheard={(view.claudeUnheard ?? []).filter((id) => id !== me)}
+                    // Only where a reply this viewer asks for is the server's:
+                    // a phone-read reply cannot be heard twice.
+                    unheard={
+                      app.pro && !app.claudePhoneVoices
+                        ? (view.claudeUnheard ?? []).filter((id) => id !== me)
+                        : []
+                    }
                   />
                 ) : null
               }

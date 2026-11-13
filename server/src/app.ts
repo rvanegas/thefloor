@@ -1310,6 +1310,7 @@ export function buildApp(options: BuildOptions = {}): App {
       store: new SpeechStore(options.speechDir ?? './speech', now),
       firstLanguage: (channelId) => transcripts.firstLanguage(channelId),
       accountLanguage: (accountId) => accounts.settings(accountId).language,
+      speaksFor: (accountId) => isPro(accountId) && !accounts.settings(accountId).claudePhoneVoices,
       billed: ({ channelId, accountId, pasteId, characters }) => {
         db.prepare(
           `INSERT INTO speech_usage (id, at, channel_id, account_id, paste_id, characters)
@@ -3889,7 +3890,7 @@ export function buildApp(options: BuildOptions = {}): App {
       }
       changes.marketingEmail = body.marketingEmail;
     }
-    for (const field of ['emailNotifications', 'pushNotificationsOff'] as const) {
+    for (const field of ['emailNotifications', 'pushNotificationsOff', 'claudePhoneVoices'] as const) {
       if (body?.[field] === undefined) continue;
       if (typeof body[field] !== 'boolean') {
         return reply.code(400).send({ error: `${field} must be true or false.` });
