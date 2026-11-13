@@ -49,7 +49,7 @@ GLOSSARY.md's one-line list, which is worth reading routinely.
 | File | What it is | Read it |
 | --- | --- | --- |
 | [APPREVIEWSCRIPT.md](APPREVIEWSCRIPT.md) | The walk through the app in the order a stranger meets it, which found eight defects before 1.0.0; filming it is optional | Before every submission, and as the smoke test after a dependency upgrade |
-| [ASSEMBLY_PROMPT.md](ASSEMBLY_PROMPT.md) | AssemblyAI's own guidance for coding agents, verbatim, with our header; a snapshot, and `llms.txt` is the live copy | Before touching `server/src/transcription.ts` |
+| [ASSEMBLY_PROMPT.md](ASSEMBLY_PROMPT.md) | AssemblyAI's own guidance for coding agents, verbatim, with our header; a snapshot, and `llms.txt` is the live copy | Before touching `server/src/transcription.ts` or `server/src/streaming.ts`, and before using their text-to-speech |
 | [CREDENTIALS.md](CREDENTIALS.md) | Every credential the project holds: where it lives, what it can do, what losing it costs | Before touching any credential, `ts provision*`, `bin/env-*` or `server/.env` |
 | [DEMO-ACCOUNT.md](DEMO-ACCOUNT.md) | The two accounts App Review signs in as, why two, and the order they are torn down in | Before a submission, and before touching `REVIEW_IDENTIFIER` / `REVIEW_CODE` |
 | [EXPIRATIONS.md](EXPIRATIONS.md) | Every deadline measured in days, each with its own argument, and which are published promises | Before changing any retention or expiry constant, or "tidying" them into one |
