@@ -204,7 +204,7 @@ export interface AccountSettings {
    * Named for the departure, as every boolean here is; off, a *Pro* asker's
    * reply is the server's.
    */
-  claudePhoneVoices: boolean;
+  iosVoices: boolean;
 }
 
 /**
@@ -267,5 +267,5 @@ export const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   marketingEmail: false,
   emailNotifications: false,
   pushNotificationsOff: false,
-  claudePhoneVoices: false,
+  iosVoices: false,
 };

@@ -292,7 +292,7 @@ export const MEDIA_IDENTITY = 'media';
  * `media:`: neither is somebody the channel says is here. Its recording stem
  * is filed under `CLAUDE_ID`, as the film's is under `MEDIA_IDENTITY`.
  */
-export const claudeVoiceIdentity = (channelId: string) => `claude:${channelId}`;
+export const roomReaderIdentity = (channelId: string) => `room-reader:${channelId}`;
 
 /**
  * How long a reply waits for its first audio before it is posted without it.
@@ -303,7 +303,7 @@ export const claudeVoiceIdentity = (channelId: string) => `claude:${channelId}`;
 export const SPEECH_FIRST_AUDIO_MS = 4_000;
 
 /**
- * How long Claude's voice stays in the room after the last thing it said, so
+ * How long the room reader stays in the room after the last thing it said, so
  * a reply and a *Read again* a moment later do not churn a connection each.
  */
 const SPEECH_LINGER_MS = 30_000;
@@ -1163,7 +1163,7 @@ export class ChannelRegistry {
   speech?: ClaudeSpeech;
 
   /**
-   * Claude's voice in each channel's room, while it is there: the publishing
+   * The room reader in each channel's room, while it is there: the publishing
    * session, what it is saying, and its recording stem's key.
    */
   private voices = new Map<
@@ -1178,7 +1178,7 @@ export class ChannelRegistry {
   private openingVoice = new Map<string, Promise<PlaybackSession | null>>();
 
   /**
-   * Who in each room is a build that hears Claude's voice from the room —
+   * Who in each room is a build that hears the room reader from the room —
    * said at each `mediaToken` — by channel, then identity. **Anybody else on a
    * native build is withheld from it**: they read the reply aloud themselves,
    * and hearing it twice is worse than hearing it in their own voice.
@@ -3140,7 +3140,7 @@ export class ChannelRegistry {
       }
     }
 
-    // *Claude's voice*, on the same rule as the response model at Rodrigo's
+    // *AssemblyAI voice*, on the same rule as the response model at Rodrigo's
     // word, 2026-11-13: the channel's whoever asks, chosen only by *Pro*.
     if (action.type === 'SET_SPEECH_VOICE') {
       const voice = (action as { speechVoice?: unknown }).speechVoice;
@@ -3150,7 +3150,7 @@ export class ChannelRegistry {
       if (!this.isPro?.(userId)) {
         return {
           ok: false,
-          error: "Only a Pro account can choose Claude's voice.",
+          error: 'Only a Pro account can choose the AssemblyAI voice.',
           code: 'forbidden',
         };
       }
@@ -6618,7 +6618,7 @@ export class ChannelRegistry {
     const audible =
       publishing.length +
       (roster.has(media) ? 1 : 0) +
-      (roster.has(claudeVoiceIdentity(state.id)) ? 1 : 0);
+      (roster.has(roomReaderIdentity(state.id)) ? 1 : 0);
     for (const identity of now.present) {
       const others = audible - (publishing.includes(identity) ? 1 : 0);
       if (others <= 0) continue;
@@ -6887,7 +6887,7 @@ export class ChannelRegistry {
       // is what begins the media stem. This is the first of those two orders;
       // openPlayback handles the other.
       this.startMediaCapture(after.id, after);
-      // And Claude's voice, if a recording begins mid-reply.
+      // And the room reader's, if a recording begins mid-reply.
       if (this.voices.get(after.id)?.saying) this.startVoiceCapture(after.id, after);
     } else if (!shouldCapture && isCapturing) {
       this.stopCapture(after);
@@ -7631,7 +7631,7 @@ export class ChannelRegistry {
     channelId: string,
     userId: string,
     /**
-     * Whether this client hears Claude's voice from the room rather than
+     * Whether this client hears the room reader from the room rather than
      * reading replies aloud itself: true from a build that says so, and from
      * any browser, which never read aloud. Absent, a native build is taken to
      * be one that predates it.
@@ -8051,10 +8051,10 @@ export class ChannelRegistry {
     return 'posted';
   }
 
-  // --- Claude's voice ---------------------------------------------------------
+  // --- The room reader --------------------------------------------------------
   //
   // A reply synthesised once, here, and published into the room as
-  // `claude:<channel>` — heard by everybody present through the call and kept
+  // `room-reader:<channel>` — heard by everybody present through the call and kept
   // by a running recording. See
   // planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
 
@@ -8142,7 +8142,7 @@ export class ChannelRegistry {
   /**
    * *Read again*: a kept reply, said into the room once more for everybody,
    * at Rodrigo's word, 2026-11-13. Anybody present may ask, as anybody
-   * present may ask Claude. **The latest wins**: whatever Claude's voice is
+   * present may ask Claude. **The latest wins**: whatever the room reader is
    * saying stops, and this starts from its beginning.
    */
   readAgain(channelId: string, userId: string, pasteId: string): { ok: true } | Refused {
@@ -8161,19 +8161,19 @@ export class ChannelRegistry {
   }
 
   /**
-   * Who is in the room on an app that has not said it hears Claude's voice —
-   * see `ChannelView.claudeUnheard`. Somebody present who has not fetched a
+   * Who is in the room on an app that has not said it hears the room reader —
+   * see `ChannelView.roomReaderUnheard`. Somebody present who has not fetched a
    * room token yet counts, being on no app this server has heard from.
    */
-  claudeUnheard(channelId: string): string[] {
+  roomReaderUnheard(channelId: string): string[] {
     const state = this.channels.get(channelId);
     if (!state || !this.speech) return [];
     const hearing = this.hearsClaude.get(channelId);
     return peopleHere(state).filter((id) => hearing?.get(id) !== true);
   }
 
-  /** The reply Claude's voice is saying in this channel's room now, if any. */
-  claudeSaying(channelId: string): string | null {
+  /** The reply the room reader is saying in this channel's room now, if any. */
+  roomReaderSaying(channelId: string): string | null {
     return this.voices.get(channelId)?.saying ?? null;
   }
 
@@ -8182,7 +8182,7 @@ export class ChannelRegistry {
     return this.speech?.store.kept(channelId) ?? [];
   }
 
-  /** Says a reply into the room: opens Claude's voice if it is not there. */
+  /** Says a reply into the room: opens the room reader if it is not there. */
   private say(channelId: string, pasteId: string): void {
     const state = this.channels.get(channelId);
     if (!this.media || !this.speech || !state || state.status !== 'active') return;
@@ -8217,11 +8217,11 @@ export class ChannelRegistry {
     const promise = this.media!
       .openSpeech({
         room,
-        identity: claudeVoiceIdentity(channelId),
+        identity: roomReaderIdentity(channelId),
         displayName: 'Claude',
         openDecoder: (pasteId) => store.decoder(pasteId),
         onEnded: () => this.voiceEnded(channelId),
-        onFailure: (error) => this.onMediaError(error, `claudeVoice ${channelId}`),
+        onFailure: (error) => this.onMediaError(error, `roomReader ${channelId}`),
       })
       .then((session) => {
         this.voices.set(channelId, { session, saying: null, linger: null, stem: null });
@@ -8233,7 +8233,7 @@ export class ChannelRegistry {
   }
 
   /**
-   * Keeps every native build that has not said it hears Claude's voice off
+   * Keeps every native build that has not said it hears the room reader off
    * it, by the floor's own means. Restated at each reply rather than on
    * arrival: one who joins mid-reply on an older build may hear its tail.
    */
@@ -8246,7 +8246,7 @@ export class ChannelRegistry {
       await this.media
         .setSilenced({
           room: state.mediaRoom,
-          speaker: claudeVoiceIdentity(channelId),
+          speaker: roomReaderIdentity(channelId),
           listener,
           silenced: true,
         })
@@ -8272,7 +8272,7 @@ export class ChannelRegistry {
     if (!voice) return;
     if (voice.linger) clearTimeout(voice.linger);
     this.stopVoiceCapture(channelId);
-    this.run(() => voice.session.close(), `closeClaudeVoice ${channelId}`);
+    this.run(() => voice.session.close(), `closeRoomReader ${channelId}`);
   }
 
   /**

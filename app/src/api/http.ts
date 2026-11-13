@@ -932,7 +932,7 @@ export const api = {
   /**
    * `hearsClaude` since 2026-11-13: this build hears Claude's replies from the
    * room, where the server speaks them, rather than reading them aloud itself
-   * — so the server lets it hear `claude:<channel>`. Without it a native
+   * — so the server lets it hear `room-reader:<channel>`. Without it a native
    * build is withheld from that voice, and reads the reply in its own.
    */
   mediaToken: (token: string, channelId: string) =>

@@ -523,9 +523,9 @@ function Root() {
     // what this phone can do about it. See `RoomVoice`.
     live
       ? {
-          saying: here?.claudeSaying ?? null,
+          saying: here?.roomReaderSaying ?? null,
           readAgain: (pasteId) => void app.readAgain(live.id, pasteId).catch(() => undefined),
-          hush: audio.hushClaude,
+          hush: audio.hushRoomReader,
         }
       : null
   );

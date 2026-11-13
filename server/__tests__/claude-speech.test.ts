@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { CLAUDE_ID } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
-import { claudeVoiceIdentity } from '../src/channels';
+import { roomReaderIdentity } from '../src/channels';
 import type { ClaudeClient } from '../src/claude';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
@@ -19,7 +19,7 @@ import { MemoryRecordingStore } from '../src/storage';
 
 /**
  * Claude's reply spoken into the room by the server, since 2026-11-13: once
- * per paste, as `claude:<channel>`, in the channel's voice and the language
+ * per paste, as `room-reader:<channel>`, in the channel's voice and the language
  * of its first transcript — and kept an hour so anybody present can have it
  * read again. See
  * planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
@@ -168,7 +168,7 @@ describe("Claude's reply, spoken", () => {
     await settle();
 
     const voice = media.speechFor(room(channelId))!;
-    expect(voice.identity).toBe(claudeVoiceIdentity(channelId));
+    expect(voice.identity).toBe(roomReaderIdentity(channelId));
     expect(voice.commands).toEqual([
       { type: 'file', file: app.channels.get(channelId)!.clip!.id },
       { type: 'play', fromMs: 0 },
@@ -182,9 +182,9 @@ describe("Claude's reply, spoken", () => {
     await press(channelId, alice.token);
     await settle();
     const pasteId = app.channels.get(channelId)!.clip!.id;
-    expect(app.channels.claudeSaying(channelId)).toBe(pasteId);
+    expect(app.channels.roomReaderSaying(channelId)).toBe(pasteId);
     media.speechFor(room(channelId))!.onEnded();
-    expect(app.channels.claudeSaying(channelId)).toBeNull();
+    expect(app.channels.roomReaderSaying(channelId)).toBeNull();
   });
 
   it('keeps every native build that has not said it hears the voice off it', async () => {
@@ -196,7 +196,7 @@ describe("Claude's reply, spoken", () => {
     await settle();
 
     const toClaude = media.subscriptions.filter(
-      (s) => s.speaker === claudeVoiceIdentity(channelId)
+      (s) => s.speaker === roomReaderIdentity(channelId)
     );
     expect(toClaude).toEqual([
       expect.objectContaining({ listener: bob.account.id, silenced: true }),
@@ -206,16 +206,16 @@ describe("Claude's reply, spoken", () => {
   it('names who is present on an app that does not hear it, for the warning', async () => {
     boot();
     const { alice, bob, channelId } = await room2();
-    expect(app.channels.claudeUnheard(channelId).sort()).toEqual([alice.account.id, bob.account.id].sort());
+    expect(app.channels.roomReaderUnheard(channelId).sort()).toEqual([alice.account.id, bob.account.id].sort());
     await app.channels.mediaToken(channelId, alice.account.id, true);
     await app.channels.mediaToken(channelId, bob.account.id);
-    expect(app.channels.claudeUnheard(channelId)).toEqual([bob.account.id]);
+    expect(app.channels.roomReaderUnheard(channelId)).toEqual([bob.account.id]);
   });
 
   it('names nobody where the server does not speak', async () => {
     boot({ speech: false });
     const { channelId } = await room2();
-    expect(app.channels.claudeUnheard(channelId)).toEqual([]);
+    expect(app.channels.roomReaderUnheard(channelId)).toEqual([]);
   });
 
   it('is spoken in the language of the channel’s first transcript', async () => {
@@ -286,7 +286,7 @@ describe("Claude's reply, spoken", () => {
       method: 'POST',
       url: '/me/settings',
       headers: auth(alice.token),
-      payload: { claudePhoneVoices: true },
+      payload: { iosVoices: true },
     });
     expect(saved.statusCode).toBe(200);
     await press(channelId, alice.token);

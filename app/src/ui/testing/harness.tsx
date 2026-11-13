@@ -434,9 +434,9 @@ export const mockApp = {
     mockApp.emailNotifications = value;
   }),
   pushNotificationsOff: false,
-  claudePhoneVoices: false,
-  setClaudePhoneVoices: jest.fn((value: boolean) => {
-    mockApp.claudePhoneVoices = value;
+  iosVoices: false,
+  setIosVoices: jest.fn((value: boolean) => {
+    mockApp.iosVoices = value;
   }),
   setPushNotificationsOff: jest.fn((value: boolean) => {
     mockApp.pushNotificationsOff = value;
@@ -492,7 +492,7 @@ export const AUDIO = {
   // tests: the panel it lives on is gated on `mockApp.debug`.
   reconnect: () => {},
   resubscribe: () => {},
-  hushClaude: () => {},
+  hushRoomReader: () => {},
   // The browser's two, which are constants on a phone and false in the
   // ordinary web case as well: the page is playing sound and the microphone is
   // producing some. A test that wants either notice sets it on a copy.
@@ -940,10 +940,10 @@ export function showChannel(
     /** Whether this server speaks Claude's replies, and which may be read again. */
     speech?: true;
     speechKept?: string[];
-    /** The reply Claude's voice is saying into the room now. */
-    claudeSaying?: string;
-    /** Who here is on an app from before Claude's voice. */
-    claudeUnheard?: string[];
+    /** The reply the room reader is saying into the room now. */
+    roomReaderSaying?: string;
+    /** Who here is on an app from before the room reader. */
+    roomReaderUnheard?: string[];
   } = {}
 ) {
   const names: Record<string, string> = {

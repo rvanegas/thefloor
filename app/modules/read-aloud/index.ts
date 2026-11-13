@@ -112,7 +112,7 @@ export function onReading(listener: (reply: string | null) => void): () => void 
 }
 
 /**
- * Plays a voice's sample from the server — *Claude's voice*, since
+ * Plays a voice's sample from the server — *AssemblyAI voice*, since
  * 2026-11-13. False where this build cannot, or nothing came back.
  */
 export async function playSample(url: string, authorization: string): Promise<boolean> {

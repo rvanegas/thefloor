@@ -346,7 +346,7 @@ describe('readingVoice', () => {
 
 /**
  * A reply the server speaks into the room, since 2026-11-13: the phone reads
- * none of it, the bar follows `claudeSaying`, *Restart* is *Read again* for
+ * none of it, the bar follows `roomReaderSaying`, *Restart* is *Read again* for
  * everybody, and *Stop* quiets it here alone.
  */
 describe('a reply the room is hearing', () => {

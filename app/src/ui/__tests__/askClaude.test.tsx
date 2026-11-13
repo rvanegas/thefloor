@@ -74,9 +74,9 @@ describe('Ask Claude on the Record bar', () => {
     expect(textOf(tree!)).not.toContain('Reads the Record');
   });
 
-  it('warns, without refusing, while somebody here is on an app from before Claude’s voice', () => {
+  it('warns, without refusing, while somebody here is on an app from before the room reader', () => {
     mockApp.pro = true;
-    showChannel(here(), [], { claude: true, speech: true, speechKept: [], claudeUnheard: [THEM, ME] });
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [], roomReaderUnheard: [THEM, ME] });
     record();
     // The viewer is on this build, so only the others are named.
     expect(textOf(tree!)).toContain(
@@ -88,7 +88,7 @@ describe('Ask Claude on the Record bar', () => {
 
   it('says nothing to an asker whose reply the phones will read', () => {
     // Not Pro: the server does not speak what this viewer asks for.
-    showChannel(here(), [], { claude: true, speech: true, speechKept: [], claudeUnheard: [THEM] });
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [], roomReaderUnheard: [THEM] });
     record();
     expect(textOf(tree!)).not.toContain('to update The Floor');
   });
@@ -239,11 +239,11 @@ describe('the response model', () => {
 });
 
 /**
- * *Claude's voice*, since 2026-11-13: where the server speaks, every member
+ * *AssemblyAI voice*, since 2026-11-13: where the server speaks, every member
  * sees the voices under their languages and can tap one to hear it; only
  * *Pro* chooses one by tapping.
  */
-describe("Claude's voice", () => {
+describe('the AssemblyAI voice', () => {
   const open = () => {
     mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
     return (tree = render(
@@ -260,13 +260,13 @@ describe("Claude's voice", () => {
   it('is drawn only where the server speaks', () => {
     showChannel(here(), [], { claude: true });
     open();
-    expect(textOf(tree!)).not.toContain('Claude’s voice');
+    expect(textOf(tree!)).not.toContain('AssemblyAI voice');
   });
 
   it('lists the voices for everybody to hear, and chooses nothing without Pro', () => {
     showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
     open();
-    expect(textOf(tree!)).toContain('Claude’s voice');
+    expect(textOf(tree!)).toContain('AssemblyAI voice');
     expect(textOf(tree!)).toContain('Only somebody subscribed to Pro can change it.');
     const sara = findButton(tree!, 'Sara')!;
     expect(disabled(sara)).toBeFalsy();

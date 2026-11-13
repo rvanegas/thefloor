@@ -105,7 +105,7 @@ describe('the response model', () => {
   });
 });
 
-describe("Claude's voice", () => {
+describe('the AssemblyAI voice', () => {
   it('is the default on a new channel', () => {
     expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).speechVoice).toBeNull();
   });

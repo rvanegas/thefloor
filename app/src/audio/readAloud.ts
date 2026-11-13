@@ -177,11 +177,11 @@ export function askerVoices(): Record<string, string> | undefined {
  * (`onReading`), since only it knows when the last sentence has played.
  *
  * **A reply the server speaks is not read here at all**, since 2026-11-13:
- * `Clip.speech` says the room is hearing it as `claude:<channel>`, so this
+ * `Clip.speech` says the room is hearing it as `room-reader:<channel>`, so this
  * phone hears it with everybody else. `room` is that voice as the snapshot
- * describes it — `claudeSaying`, which only the server can know — and what
+ * describes it — `roomReaderSaying`, which only the server can know — and what
  * acts on it: *Restart* becomes *Read again*, for everybody, and *Stop*
- * quiets it on this phone alone (`hushClaudeVoice`) until it says something
+ * quiets it on this phone alone (`quietRoomReader`) until it says something
  * else.
  */
 export function useClaudeReadAloud(
@@ -319,15 +319,15 @@ export function useClaudeReadAloud(
 }
 
 /**
- * Claude's voice in the room, for `useClaudeReadAloud`: what it is saying,
- * by paste id (`ChannelView.claudeSaying`), and the two things this phone can
+ * The room reader in the room, for `useClaudeReadAloud`: what it is saying,
+ * by paste id (`ChannelView.roomReaderSaying`), and the two things this phone can
  * do about it. Since 2026-11-13.
  */
 export interface RoomVoice {
   saying: string | null;
   /** *Read again*: the reply, said into the room once more for everybody. */
   readAgain: (pasteId: string) => void;
-  /** Quiets Claude's voice on this phone alone, or lets it back. */
+  /** Quiets the room reader on this phone alone, or lets it back. */
   hush: (hushed: boolean) => void;
 }
 

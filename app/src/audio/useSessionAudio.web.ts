@@ -1,4 +1,4 @@
-import { hushClaudeVoice } from './claudeVoice';
+import { quietRoomReader } from './roomReader';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ConnectionQuality,
@@ -138,7 +138,7 @@ export interface SessionAudio {
    */
   resubscribe: () => void;
   /** See the native hook's. */
-  hushClaude: (hushed: boolean) => void;
+  hushRoomReader: (hushed: boolean) => void;
   /**
    * Asks the browser again to let this page make sound, from inside whatever
    * gesture called it.
@@ -211,7 +211,7 @@ export function useSessionAudio(
     asked: null,
     reconnect: () => {},
     resubscribe: () => {},
-    hushClaude: () => {},
+    hushRoomReader: () => {},
     allowPlayback: () => {},
   });
 
@@ -543,11 +543,11 @@ export function useSessionAudio(
     rebindTracks(roomRef.current, null);
   }, []);
 
-  const hushClaude = useCallback((hushed: boolean) => {
-    hushClaudeVoice(roomRef.current, hushed);
+  const hushRoomReader = useCallback((hushed: boolean) => {
+    quietRoomReader(roomRef.current, hushed);
   }, []);
 
-  return { ...state, reconnect, resubscribe, hushClaude, allowPlayback };
+  return { ...state, reconnect, resubscribe, hushRoomReader, allowPlayback };
 }
 
 /** What the meter needs of a track, which every local audio track satisfies. */

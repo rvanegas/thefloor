@@ -37,7 +37,7 @@ import { randomUUID } from 'node:crypto';
 import { isDiarized, isTranscribingLive, isWithheld } from '../../core/channel';
 import type { LiveLine } from '../../core/protocol';
 import type { ChannelState } from '../../core/types';
-import { MEDIA_IDENTITY, claudeVoiceIdentity, playbackIdentity } from './channels';
+import { MEDIA_IDENTITY, roomReaderIdentity, playbackIdentity } from './channels';
 import type { Db } from './db';
 import type { ListenerSession, MediaServer } from './media';
 import { MEDIA_LABEL } from './transcripts';
@@ -203,7 +203,7 @@ export class LiveTranscriber {
     if (!room || !state || !isTranscribingLive(state)) return;
     if (identity === TRANSCRIBER_IDENTITY) return;
     // Claude's own reply read aloud, which the paste already says in full.
-    if (identity === claudeVoiceIdentity(channelId)) return;
+    if (identity === roomReaderIdentity(channelId)) return;
 
     const speakerId = identity === playbackIdentity(channelId) ? MEDIA_IDENTITY : identity;
     const gated =

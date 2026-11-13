@@ -3107,8 +3107,8 @@ export function ChannelView({
                     // Only where a reply this viewer asks for is the server's:
                     // a phone-read reply cannot be heard twice.
                     unheard={
-                      app.pro && !app.claudePhoneVoices
-                        ? (view.claudeUnheard ?? []).filter((id) => id !== me)
+                      app.pro && !app.iosVoices
+                        ? (view.roomReaderUnheard ?? []).filter((id) => id !== me)
                         : []
                     }
                   />

@@ -626,7 +626,7 @@ export function ChannelSettingsView({
       ) : null}
 
       {view?.claude && view.speech ? (
-        <ClaudeVoiceCard channel={channel} mayChoose={mayEdit && app.pro} />
+        <AssemblyVoiceCard channel={channel} mayChoose={mayEdit && app.pro} />
       ) : null}
 
       {/*
@@ -929,7 +929,7 @@ export function ChannelSettingsView({
 }
 
 /**
- * *Claude's voice*, since 2026-11-13: the one AssemblyAI voice this channel's
+ * *AssemblyAI voice*, since 2026-11-13: the one AssemblyAI voice this channel's
  * replies are read into the room in. **Drawn where the server speaks and
  * Claude can be asked**, as *Response model* is drawn only where it applies.
  *
@@ -942,7 +942,7 @@ export function ChannelSettingsView({
  * its own language and every one speaks both, which is why they are grouped
  * by it rather than filtered.
  */
-function ClaudeVoiceCard({ channel, mayChoose }: { channel: ChannelState; mayChoose: boolean }) {
+function AssemblyVoiceCard({ channel, mayChoose }: { channel: ChannelState; mayChoose: boolean }) {
   const app = useApp();
   const t = useText().channelSettings;
   const chosen = channel.speechVoice ?? null;
@@ -958,11 +958,11 @@ function ClaudeVoiceCard({ channel, mayChoose }: { channel: ChannelState; mayCho
   };
   return (
     <Card style={styles.stack}>
-      <Text style={type.heading}>{t.claudeVoice()}</Text>
-      <Text style={type.muted}>{t.claudeVoiceNote()}</Text>
+      <Text style={type.heading}>{t.assemblyVoice()}</Text>
+      <Text style={type.muted}>{t.assemblyVoiceNote()}</Text>
       {languages.map((language) => (
         <View key={language} style={styles.stack}>
-          <Text style={type.body}>{t.claudeVoiceLanguage(language)}</Text>
+          <Text style={type.body}>{t.assemblyVoiceLanguage(language)}</Text>
           {SPEECH_VOICES.filter((voice) => voice.language === language).map((voice) => (
             <Button
               key={voice.id}

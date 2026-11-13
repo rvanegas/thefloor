@@ -229,7 +229,7 @@ export interface MediaServer {
   }): Promise<PlaybackSession>;
 
   /**
-   * Joins the room as Claude's voice and holds one track for it — **the
+   * Joins the room as the room reader and holds one track for it — **the
    * shared-playback machinery with a different decoder**, since 2026-11-13.
    * The "file" handed to `setFile` is a paste id and `openDecoder` reads that
    * reply's speech as it is synthesised, so the room and a recording stem
@@ -558,7 +558,7 @@ export class LiveKitMediaServer implements MediaServer {
     });
   }
 
-  /** One publishing participant and its pump: the film's, or Claude's voice. */
+  /** One publishing participant and its pump: the film's, or the room reader. */
   private async openPublisher({
     room,
     identity,
@@ -1103,7 +1103,7 @@ export class MemoryMediaServer implements MediaServer {
     return this.muted.get(`${room}/${identity}`);
   }
 
-  /** Claude's voice, opened in order, live or closed. */
+  /** The room reader, opened in order, live or closed. */
   readonly speeches: MemoryPlaybackSession[] = [];
 
   async openSpeech({
@@ -1125,7 +1125,7 @@ export class MemoryMediaServer implements MediaServer {
     return channel;
   }
 
-  /** Claude's voice in a room, if it is open. */
+  /** The room reader in a room, if it is open. */
   speechFor(room: string): MemoryPlaybackSession | undefined {
     return this.speeches.find((s) => s.room === room && !s.closed);
   }
@@ -1205,7 +1205,7 @@ export class MemoryPlaybackSession implements PlaybackSession {
    * on.
    */
   producing = true;
-  /** For Claude's voice: what the real pump calls when a reply has been said. */
+  /** For the room reader: what the real pump calls when a reply has been said. */
   onEnded: () => void = () => {};
 
   constructor(

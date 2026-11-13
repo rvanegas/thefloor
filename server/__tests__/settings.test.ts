@@ -86,7 +86,7 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      claudePhoneVoices: false,
+      iosVoices: false,
       // The old names as well, which is what stops a build already on a phone
       // reading this answer as its channel settings having been turned over.
       // See settings-wire.ts.
@@ -117,7 +117,7 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      claudePhoneVoices: false,
+      iosVoices: false,
     });
 
     await save(alice.token, { labs: false, hideControlCards: true });
@@ -129,7 +129,7 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      claudePhoneVoices: false,
+      iosVoices: false,
     });
 
     await save(alice.token, { appearance: 'dark' });
@@ -141,7 +141,7 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      claudePhoneVoices: false,
+      iosVoices: false,
     });
 
     // And the language, which is the newest of them and the one most likely to
@@ -155,7 +155,7 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      claudePhoneVoices: false,
+      iosVoices: false,
     });
     await save(alice.token, { appearance: 'light' });
     expect(app.accounts.settings(alice.account.id).language).toBe('es');
@@ -365,12 +365,12 @@ describe('the settings that follow the account', () => {
     expect(response.statusCode).toBe(200);
     expect(Object.keys(response.json()).sort()).toEqual([
       'appearance',
-      'claudePhoneVoices',
       // The two names builds already installed know, which go out beside the
       // current ones until the compatibility floor has passed them.
       'controlCards',
       'emailNotifications',
       'hideControlCards',
+      'iosVoices',
       'labs',
       'language',
       'marketingEmail',
@@ -400,7 +400,7 @@ describe('the settings that follow the account', () => {
       marketingEmail: false,
       emailNotifications: false,
       pushNotificationsOff: false,
-      claudePhoneVoices: false,
+      iosVoices: false,
     });
 
     // And is refused when it is not a boolean, rather than being stored as one.

@@ -114,7 +114,7 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
   }
 
   /**
-   A voice's sample, for *Claude's voice* on *Channel Settings*, since
+   A voice's sample, for *AssemblyAI voice* on *Channel Settings*, since
    2026-11-13: 16-bit mono PCM the server made with AssemblyAI, played on the
    path a reply is — the call's engine where it is playing out, so the echo
    canceller keeps it out of the microphone — after stopping whatever was

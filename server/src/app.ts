@@ -1310,7 +1310,7 @@ export function buildApp(options: BuildOptions = {}): App {
       store: new SpeechStore(options.speechDir ?? './speech', now),
       firstLanguage: (channelId) => transcripts.firstLanguage(channelId),
       accountLanguage: (accountId) => accounts.settings(accountId).language,
-      speaksFor: (accountId) => isPro(accountId) && !accounts.settings(accountId).claudePhoneVoices,
+      speaksFor: (accountId) => isPro(accountId) && !accounts.settings(accountId).iosVoices,
       billed: ({ channelId, accountId, pasteId, characters }) => {
         db.prepare(
           `INSERT INTO speech_usage (id, at, channel_id, account_id, paste_id, characters)
@@ -3890,7 +3890,7 @@ export function buildApp(options: BuildOptions = {}): App {
       }
       changes.marketingEmail = body.marketingEmail;
     }
-    for (const field of ['emailNotifications', 'pushNotificationsOff', 'claudePhoneVoices'] as const) {
+    for (const field of ['emailNotifications', 'pushNotificationsOff', 'iosVoices'] as const) {
       if (body?.[field] === undefined) continue;
       if (typeof body[field] !== 'boolean') {
         return reply.code(400).send({ error: `${field} must be true or false.` });
@@ -5100,7 +5100,7 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
     const { id } = request.params as { id: string };
 
-    // A build that hears Claude's voice from the room says so; a browser
+    // A build that hears the room reader from the room says so; a browser
     // never read aloud, so it hears it whatever it says. Since 2026-11-13.
     const hears =
       (request.body as { hearsClaude?: unknown } | undefined)?.hearsClaude === true ||
@@ -5852,7 +5852,7 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
-   * A voice's sample, for *Claude's voice* on *Channel Settings*: one fixed
+   * A voice's sample, for *AssemblyAI voice* on *Channel Settings*: one fixed
    * sentence in the voice's own language, as raw 16-bit mono PCM at 48 kHz.
    * **Synthesised once per process and kept**, so trying voices costs a
    * sample per voice rather than one per tap; the ledger has a row for each
@@ -7165,7 +7165,7 @@ export function buildApp(options: BuildOptions = {}): App {
     // "Someone" — a participant nobody can identify, which is the confusion
     // excluding the stem was once meant to avoid, reached from the other side.
     if (id === MEDIA_IDENTITY) return { id, displayName: MEDIA_LABEL };
-    // Claude's voice, read into the room since 2026-11-13, for the same reason.
+    // The room reader, read into the room since 2026-11-13, for the same reason.
     if (id === CLAUDE_ID) return { id, displayName: 'Claude' };
     const frozen: Record<string, string> = row.participant_names
       ? JSON.parse(row.participant_names)

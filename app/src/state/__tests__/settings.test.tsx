@@ -119,7 +119,7 @@ function hello(settings: {
     settings && {
       emailNotifications: false,
       pushNotificationsOff: false,
-      claudePhoneVoices: false,
+      iosVoices: false,
       ...settings,
     }
   );
@@ -268,7 +268,7 @@ describe('the settings that follow the account', () => {
         marketingEmail: false,
         emailNotifications: false,
         pushNotificationsOff: false,
-        claudePhoneVoices: false,
+        iosVoices: false,
       })
     );
     expect(textOf(tree)).toContain('light/es/bare/labs');

@@ -1312,7 +1312,7 @@ export interface ChannelView {
   claude?: true;
   /**
    * Present, and true, when this server speaks Claude's replies into the room
-   * itself — it has an AssemblyAI key — which is what draws *Claude's voice*
+   * itself — it has an AssemblyAI key — which is what draws *AssemblyAI voice*
    * on *Channel Settings*. Since 2026-11-13; the server's configuration, as
    * `claude` is.
    */
@@ -1324,20 +1324,20 @@ export interface ChannelView {
    */
   speechKept?: string[];
   /**
-   * The reply Claude's voice is saying into the room now, by paste id, or
+   * The reply the room reader is saying into the room now, by paste id, or
    * absent while it says nothing — what draws the reading bar for a reply the
    * room is hearing, since only the server knows when it has been said.
    */
-  claudeSaying?: string;
+  roomReaderSaying?: string;
   /**
-   * Who is in the room on an app that does not hear Claude's voice from it —
+   * Who is in the room on an app that does not hear the room reader from it —
    * one that has not said `hearsClaude`, so a build from before 2026-11-13.
    * **Such a phone may hear a reply twice**, the room's and its own reading,
    * since keeping it off the voice is best-effort; the *Ask Claude* bar warns
    * whoever is about to ask. Absent where nobody is, and where the server
    * does not speak.
    */
-  claudeUnheard?: string[];
+  roomReaderUnheard?: string[];
   /**
    * Present, and true, when this server has a library *Ask Claude* may
    * consult, and Claude to consult it — which is what draws the *Library*
@@ -1910,7 +1910,7 @@ export type ClientAction =
    */
   | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
   /**
-   * *Claude's voice*, since 2026-11-13: an AssemblyAI slug from
+   * *AssemblyAI voice*, since 2026-11-13: an AssemblyAI slug from
    * `SPEECH_VOICES`, or null for the default. Refused from an account that is
    * not *Pro*. Unknown to a server that predates it.
    */

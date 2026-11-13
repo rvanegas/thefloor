@@ -466,7 +466,7 @@ export interface Clip {
   voices?: Record<string, string>;
   /**
    * On a reply from Claude only: **the server is speaking it into the room**,
-   * in the channel's `speechVoice`, as the `claude:<channel>` participant —
+   * in the channel's `speechVoice`, as the `room-reader:<channel>` participant —
    * so a build that knows this field reads nothing aloud itself. Set when
    * synthesis starts; absent where the server has no AssemblyAI key, where
    * the reply's language is not one AssemblyAI speaks, and on every paste
@@ -1479,7 +1479,7 @@ export type ChannelAction =
    */
   | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
   /**
-   * Chooses *Claude's voice*. Guarded as `SET_RESPONSE_MODEL` is, and refused
+   * Chooses *AssemblyAI voice*. Guarded as `SET_RESPONSE_MODEL` is, and refused
    * by the server, as that one is, from any account that is not *Pro*.
    */
   | { type: 'SET_SPEECH_VOICE'; userId: UserId; speechVoice: SpeechVoice }

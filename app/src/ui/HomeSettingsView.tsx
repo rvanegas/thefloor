@@ -309,29 +309,29 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         Claude's replies on this phone, a choice among them, and how to
         download a better one. **Removed 2026-11-13, at Rodrigo's word**, when
         the server began speaking replies into the room in the channel's own
-        voice (*Claude's voice*, on *Channel Settings*): the phone's voice is
+        voice (*AssemblyAI voice*, on *Channel Settings*): the phone's voice is
         heard only where the server cannot speak, and a card tuning that
         fallback was weight for a failure path. `bestVoice` still chooses it.
 
         **In its place since the same day, *Claude's replies***: whether the
-        replies you ask for are spoken by the server — *Claude's voice*, heard
+        replies you ask for are spoken by the server — *AssemblyAI voice*, heard
         by everybody in the call and kept in a recording, and billed per
         reply — or read by each phone's own voice, which costs nothing. **A
         choice only *Pro* has**, at Rodrigo's word, for cost: anybody else's
         replies are always the phones'. Drawn for everybody, greyed with the
         model cards' sentence without *Pro*, as those cards are. Drawn only
         where this server speaks at all, which a channel's snapshot is the one
-        thing to say (`ChannelView.speech`). See `claudePhoneVoices`.
+        thing to say (`ChannelView.speech`). See `iosVoices`.
       */}
       {Object.values(app.channelViews ?? {}).some((view) => view?.speech) ? (
         <>
-          <SectionLabel>{t.claudeReplies()}</SectionLabel>
+          <SectionLabel>{t.readAloudVoices()}</SectionLabel>
           <Card style={styles.stack}>
             <View style={styles.choices}>
               {(
                 [
-                  [false, t.claudeRepliesServer()],
-                  [true, t.claudeRepliesPhones()],
+                  [false, t.readAloudAssembly()],
+                  [true, t.readAloudIos()],
                 ] as Array<[boolean, string]>
               ).map(([phones, label]) => (
                 <Button
@@ -339,13 +339,13 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
                   label={label}
                   style={styles.choice}
                   disabled={!app.pro}
-                  variant={(app.pro ? app.claudePhoneVoices : true) === phones ? 'primary' : 'default'}
-                  onPress={() => app.setClaudePhoneVoices(phones)}
+                  variant={(app.pro ? app.iosVoices : true) === phones ? 'primary' : 'default'}
+                  onPress={() => app.setIosVoices(phones)}
                 />
               ))}
             </View>
-            <Text style={type.muted}>{t.claudeRepliesNote()}</Text>
-            {app.pro ? null : <Text style={type.muted}>{t.claudeRepliesWho()}</Text>}
+            <Text style={type.muted}>{t.readAloudVoicesNote()}</Text>
+            {app.pro ? null : <Text style={type.muted}>{t.readAloudVoicesWho()}</Text>}
           </Card>
         </>
       ) : null}

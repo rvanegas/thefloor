@@ -108,7 +108,7 @@ Considered and rejected:
 - **Synthesising per phone**: that costs N times as much, and a recording would
   need its own copy anyway.
 
-**Its own participant, `claude:<channel>`, not a second track on the
+**Its own participant, `room-reader:<channel>`, not a second track on the
 film's.** Settled 2026-11-13 by reading the code:
 
 - **Withholding works per publisher.** `MediaServer.setSilenced` unsubscribes
@@ -116,7 +116,7 @@ film's.** Settled 2026-11-13 by reading the code:
   `media:<channel>` would make it impossible to keep an older build off the
   reply without also taking the film away from it. On an identity of its own,
   the floor's existing call does the job unchanged:
-  `setSilenced({ speaker: 'claude:<channel>', listener, silenced: true })`.
+  `setSilenced({ speaker: 'room-reader:<channel>', listener, silenced: true })`.
 - **Phones ignore a participant who is not a person.** `unheardSpeakers`
   counts only identities the channel says are here (`isHere`), and so does
   the speaking indicator, which is keyed by account id. That is the reason
@@ -211,7 +211,7 @@ put in S3 and never in the snapshot; the recording's stem is a separate copy
 that belongs to the recording. While it is kept, the reply's paste in the
 *Record* carries a **Read again** control, **for everybody**, at Rodrigo's
 word, 2026-11-13 (he first said just you, then corrected it). A press
-publishes the kept audio into the room again on `claude:<channel>`, exactly
+publishes the kept audio into the room again on `room-reader:<channel>`, exactly
 as on arrival. Everybody present hears it and the echo canceller treats it as
 any remote voice; older builds stay off it, as they do for the arrival, and
 **a running recording gets it again**, because what a recording holds is what
@@ -291,8 +291,8 @@ written for the *Record* first.
 
 **What changes with it**:
 
-- the GLOSSARY's *Read aloud* entry, its one-line form and a *Claude's voice*
-  entry;
+- the GLOSSARY's *Read aloud* entry, its one-line form, and *AssemblyAI
+  voice* and *Room reader* entries;
 - STYLE.md for the picker and the *Read again* control;
 - STATES.md, which is read before any of this, since a new publisher is a new
   thing on the audio session's list;
@@ -320,16 +320,16 @@ open, or did differently:
   have.
 - **Older builds are told apart by what they say, not by a build number**: a
   build sends `hearsClaude` with its room token, and a native client that
-  does not is withheld from `claude:<channel>` before the first frame. A
+  does not is withheld from `room-reader:<channel>` before the first frame. A
   browser hears it whatever it says. **Withholding is best-effort**: a build
   that subscribes itself to each new track can race the server's
   unsubscribe, and somebody joining mid-reply may hear its tail — either way
   an older phone may hear the reply twice. Rather than engineering that away,
   at Rodrigo's word, 2026-11-13, **the *Ask Claude* bar warns**: it names
   everybody present on an app that has not said `hearsClaude`
-  (`claudeUnheard` on the snapshot) and suggests asking once they have
+  (`roomReaderUnheard` on the snapshot) and suggests asking once they have
   updated, the buttons staying live.
-- **`claudeSaying` on the snapshot** draws the reading bar for a reply the
+- **`roomReaderSaying` on the snapshot** draws the reading bar for a reply the
   room is hearing, since only the server knows when it has been said.
   *Restart* reads *Read again* there; *Stop* is `setEnabled(false)` on the
   track, this phone only, until the room says something else.
@@ -339,11 +339,14 @@ open, or did differently:
   reaches phones only with an upload.
 - **The ledger is `speech_usage`**, a row per synthesis; *Read again* plays
   the kept audio and has none.
-- **Only a *Pro* asker's reply is the server's**, at Rodrigo's word,
-  2026-11-13, for cost: *Floor Settings*' *Claude's replies* lets *Pro* (and
-  `transcripts_unlimited`) choose *Claude's voice* or *Phone voices*
-  (`claudePhoneVoices`, an account setting, default the server's); anybody
-  else's replies are read by the phones, free, as before 2026-11-13. The
+- **Only a *Pro* asker's reply is read by AssemblyAI**, at Rodrigo's word,
+  2026-11-13, for cost: *Floor Settings*' *Read aloud* lets *Pro* (and
+  `transcripts_unlimited`) choose *AssemblyAI* or *iOS* — the engine that
+  reads; **Claude writes only the words**, which is why nothing the user sees
+  calls a voice Claude's (`iosVoices`, an account setting, default
+  AssemblyAI); anybody else's replies are read by iOS voices, free, as before
+  2026-11-13. The channel's choice among AssemblyAI's voices is *AssemblyAI
+  voice*, and what publishes it is *the room reader*. The
   *Ask Claude* warning shows only to a viewer whose reply the server would
   speak, and `/privacy` says the speech is a *Pro* asker's.
 - **The language** is `Transcripts.firstLanguage`: the earliest finished

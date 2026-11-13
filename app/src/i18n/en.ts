@@ -858,16 +858,17 @@ export const en = {
       'The list above your channels on Home. It goes for good once every rung is done — the conversation, and the four things to try in a channel — or once every rung has been put away with the cross beside it, and this is the way to get it back.',
     audioOutput: () => 'Audio output',
     /**
-     * Whether the replies you ask Claude for are spoken by the server or read
-     * by each phone, since 2026-11-13: *Pro*'s choice, for cost.
+     * *Read aloud*: whether AssemblyAI's voices or iOS's read the replies you
+     * ask Claude for, since 2026-11-13 — *Pro*'s choice, for cost. Claude
+     * writes only the words.
      */
-    claudeReplies: () => 'Claude’s replies',
-    claudeRepliesServer: () => 'Claude’s voice',
-    claudeRepliesPhones: () => 'Phone voices',
-    claudeRepliesNote: () =>
-      'Claude’s voice is heard by everybody in the call and kept in recordings, and costs a little for each reply. Phone voices are free, but each iPhone reads the reply on its own, and it is never recorded. It applies to the replies you ask for.',
-    claudeRepliesWho: () =>
-      'Only somebody subscribed to Pro can choose. Without Pro, phones read the replies you ask for.',
+    readAloudVoices: () => 'Read aloud',
+    readAloudAssembly: () => 'AssemblyAI',
+    readAloudIos: () => 'iOS',
+    readAloudVoicesNote: () =>
+      'Which voices read aloud the replies you ask Claude for. AssemblyAI’s are heard by everybody in the call and kept in recordings, and each reply costs a little. iOS voices are free, but each iPhone reads the reply on its own, and it is never recorded.',
+    readAloudVoicesWho: () =>
+      'Only somebody subscribed to Pro can choose. Without Pro, iOS voices read the replies you ask for.',
     chooseWhereSoundComesOut: () => 'Choose where sound comes out',
     chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
     on: () => 'On',
@@ -1124,13 +1125,13 @@ export const en = {
      */
     modelWho: () => 'Only somebody subscribed to Pro can change it.',
     /**
-     * *Claude's voice*, since 2026-11-13: the one AssemblyAI voice the
+     * *AssemblyAI voice*, since 2026-11-13: the one AssemblyAI voice the
      * channel's replies are read aloud in, chosen by *Pro*, heard by anybody.
      */
-    claudeVoice: () => 'Claude’s voice',
-    claudeVoiceNote: () =>
-      'Claude’s replies are read aloud to everybody in the conversation in this voice. Tap a voice to hear it.',
-    claudeVoiceLanguage: (language: 'en' | 'es'): string =>
+    assemblyVoice: () => 'AssemblyAI voice',
+    assemblyVoiceNote: () =>
+      'Where AssemblyAI reads Claude’s replies aloud, it reads them in this voice, to everybody in the conversation. Tap a voice to hear it.',
+    assemblyVoiceLanguage: (language: 'en' | 'es'): string =>
       language === 'es' ? 'Spanish' : 'English',
     /**
      * Whether *Ask Claude* may consult the server's library, since
@@ -1579,9 +1580,9 @@ export const en = {
     claudeAskedByYou: () => 'You asked Claude',
     /**
      * Under the *Ask Claude* bar while somebody here is on an app from before
-     * Claude's voice, since 2026-11-13: they may hear the reply twice.
+     * The room reader, since 2026-11-13: they may hear the reply twice.
      */
-    claudeUnheard: (names: string[]) =>
+    roomReaderUnheard: (names: string[]) =>
       `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`} ${
         names.length === 1 ? 'needs' : 'need'
       } to update The Floor, or will hear Claude\u2019s reply twice. Best to ask once everybody here has updated.`,

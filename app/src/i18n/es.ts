@@ -655,13 +655,13 @@ export const es: Strings = {
     checklistNote: () =>
       'La lista que hay encima de tus canales en el inicio. Desaparece para siempre cuando est\u00e1n todos los pasos hechos —la conversaci\u00f3n y las cuatro cosas que probar en un canal— o cuando has descartado todos con la cruz de al lado, y esta es la forma de recuperarla.',
     audioOutput: () => 'Salida de audio',
-    claudeReplies: () => 'Respuestas de Claude',
-    claudeRepliesServer: () => 'Voz de Claude',
-    claudeRepliesPhones: () => 'Voz del tel\u00e9fono',
-    claudeRepliesNote: () =>
-      'La voz de Claude la oyen todos en la llamada y queda en las grabaciones, y cada respuesta cuesta un poco. La voz del tel\u00e9fono es gratis, pero cada iPhone lee la respuesta por su cuenta y nunca se graba. Se aplica a las respuestas que pides t\u00fa.',
-    claudeRepliesWho: () =>
-      'Solo puede elegir quien est\u00e9 suscrito a Pro. Sin Pro, los tel\u00e9fonos leen las respuestas que pides.',
+    readAloudVoices: () => 'Leer en voz alta',
+    readAloudAssembly: () => 'AssemblyAI',
+    readAloudIos: () => 'iOS',
+    readAloudVoicesNote: () =>
+      'Qu\u00e9 voces leen en voz alta las respuestas que pides a Claude. Las de AssemblyAI las oyen todos en la llamada y quedan en las grabaciones, y cada respuesta cuesta un poco. Las de iOS son gratis, pero cada iPhone lee la respuesta por su cuenta y nunca se graba.',
+    readAloudVoicesWho: () =>
+      'Solo puede elegir quien est\u00e9 suscrito a Pro. Sin Pro, las voces de iOS leen las respuestas que pides.',
     chooseWhereSoundComesOut: () => 'Elegir por d\u00f3nde sale el sonido',
     chooseWhereSoundComesOutSub: () =>
       'Auriculares, AirPlay o cualquier cosa emparejada',
@@ -851,10 +851,10 @@ export const es: Strings = {
     responseModelNote: () =>
       'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
     modelWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
-    claudeVoice: () => 'Voz de Claude',
-    claudeVoiceNote: () =>
-      'Las respuestas de Claude se leen en voz alta para todos en la conversaci\u00f3n con esta voz. Toca una voz para o\u00edrla.',
-    claudeVoiceLanguage: (language: 'en' | 'es') => (language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'),
+    assemblyVoice: () => 'Voz de AssemblyAI',
+    assemblyVoiceNote: () =>
+      'Cuando AssemblyAI lee en voz alta las respuestas de Claude, las lee con esta voz, para todos en la conversaci\u00f3n. Toca una voz para o\u00edrla.',
+    assemblyVoiceLanguage: (language: 'en' | 'es') => (language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'),
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.
@@ -1203,7 +1203,7 @@ export const es: Strings = {
     responding: () => 'Respondiendo\u2026',
     claudeAsked: (name: string) => `${name} ha preguntado a Claude`,
     claudeAskedByYou: () => 'Has preguntado a Claude',
-    claudeUnheard: (names: string[]) =>
+    roomReaderUnheard: (names: string[]) =>
       `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`} ${
         names.length === 1 ? 'tiene' : 'tienen'
       } que actualizar The Floor o ${names.length === 1 ? 'oir\u00e1' : 'oir\u00e1n'} la respuesta de Claude dos veces. Mejor pregunta cuando todos aqu\u00ed hayan actualizado.`,

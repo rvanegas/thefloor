@@ -1353,18 +1353,18 @@ export function registerWebsocket(deps: {
         // Absent rather than false where there is no key, as an old server
         // sends nothing: one reading for both.
         ...(deps.claudeAvailable?.() ? { claude: true as const } : {}),
-        // Claude's voice, since 2026-11-13: absent where the server has no
+        // The room reader, since 2026-11-13: absent where the server has no
         // AssemblyAI key, as `claude` is where it has no Anthropic one.
         ...(() => {
           const kept = deps.speechKept?.(channelId);
-          const saying = channels.claudeSaying(channelId);
-          const unheard = channels.claudeUnheard(channelId);
+          const saying = channels.roomReaderSaying(channelId);
+          const unheard = channels.roomReaderUnheard(channelId);
           return kept
             ? {
                 speech: true as const,
                 speechKept: kept,
-                ...(saying ? { claudeSaying: saying } : {}),
-                ...(unheard.length > 0 ? { claudeUnheard: unheard } : {}),
+                ...(saying ? { roomReaderSaying: saying } : {}),
+                ...(unheard.length > 0 ? { roomReaderUnheard: unheard } : {}),
               }
             : {};
         })(),

@@ -107,7 +107,7 @@ public class ReadAloudModule: Module {
 
     /**
      A voice's sample from the server, fetched here and played by `Reader` —
-     *Claude's voice* on *Channel Settings*, since 2026-11-13. Raw 16-bit mono
+     *AssemblyAI voice* on *Channel Settings*, since 2026-11-13. Raw 16-bit mono
      PCM, its rate in `x-sample-rate`. Resolves false where nothing could be
      fetched, which the picker says nothing about: the voice is still
      choosable unheard.

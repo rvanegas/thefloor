@@ -362,8 +362,8 @@ is deleted with the reply. Disconnecting switches the library off in every
 channel.</p>
 `;
   const speechParagraph = `<p>Claude's reply can also be read aloud into the conversation, when
-whoever asked for it subscribes to Pro and has not chosen to have phones read
-it instead. Its text is then sent to ${speech}, in the United States, which returns it as speech, and The
+whoever asked for it subscribes to Pro and has not chosen the iPhone's own
+voices instead. Its text is then sent to ${speech}, in the United States, which returns it as speech, and The
 Floor plays that speech once to everybody in the channel's conversation, as
 another voice in it. A recording that is running keeps it like any other voice.
 The Floor keeps the speech for an hour after it was made, so that anybody in the

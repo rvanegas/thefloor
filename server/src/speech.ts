@@ -9,7 +9,7 @@ import { SAMPLE_RATE, type Decoder } from './playback';
  *
  * **Once per paste, on the server**, since 2026-11-13: one request whatever
  * the number of phones, the key never leaving the box, and the samples
- * published into the room as `claude:<channel>` — where everybody hears them
+ * published into the room as `room-reader:<channel>` — where everybody hears them
  * and a recording keeps them. See
  * planning/task/read-claude-s-reply-aloud-with-assemblyai-s-speech-instead-of-the-phone-s.md.
  *

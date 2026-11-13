@@ -38,7 +38,7 @@ export const SPEECH_VOICES: readonly SpeechVoiceInfo[] = [
 ];
 
 /**
- * What a voice says when somebody tries it on *Claude's voice*, in its own
+ * What a voice says when somebody tries it on *AssemblyAI voice*, in its own
  * language. Fixed, so the server synthesises each once and keeps it.
  */
 export const SPEECH_SAMPLE_TEXT: Partial<Record<SpeechLanguage, string>> = {
