@@ -1,5 +1,5 @@
 import { describeChannel } from '../../core/naming';
-import type { TranscriptLine } from '../../core/transcript';
+import { lettered, type TranscriptLine } from '../../core/transcript';
 import type { AuthClient } from './auth';
 import type { Db } from './db';
 import { finished, noesisFilename, type NoesisSent } from './noesis';
@@ -164,16 +164,19 @@ export class ChannelLibraries {
     if (row.text) {
       const lines = this.db
         .prepare(
-          `SELECT display_name, start_at, text FROM live_lines
+          `SELECT identity, display_name AS displayName, speaker, start_at, text FROM live_lines
             WHERE channel_id = ? AND start_at >= ? AND start_at <= ? AND deleted_at IS NULL
             ORDER BY start_at, id`
         )
         .all(row.channel_id, row.started_at, row.ended_at) as unknown as Array<{
-        display_name: string;
+        identity: string;
+        displayName: string;
+        speaker: string | null;
         start_at: number;
         text: string;
       }>;
-      for (const line of lines) entries.push({ who: line.display_name, at: line.start_at, text: line.text });
+      // A separated voice's letter goes on its name across the segment, as the Record puts it.
+      for (const line of lettered(lines)) entries.push({ who: line.displayName, at: line.start_at, text: line.text });
     } else if (row.recording_id) {
       const recording = this.db
         .prepare('SELECT started_at, participant_names FROM recordings WHERE id = ?')

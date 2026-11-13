@@ -197,6 +197,27 @@ describe('a channel library, filed into by itself', () => {
     expect(sent).toHaveLength(3);
   });
 
+  it("files a separated voice's letter on its name, as the Record shows it", async () => {
+    const { channelId, ertaId } = await bookClub();
+    makeFiling(ertaId);
+    app.db
+      .prepare('INSERT INTO segments (id, channel_id, started_at, ended_at, text) VALUES (?, ?, ?, ?, 1)')
+      .run('seg_1', channelId, START, START + 45 * 60_000);
+    const line = app.db.prepare(
+      `INSERT INTO live_lines (id, channel_id, identity, display_name, start_at, end_at, text, speaker)
+       VALUES (?, ?, 'erta', 'Erta Example', ?, ?, ?, ?)`
+    );
+    line.run('l_a', channelId, START + 60_000, START + 61_000, 'Afternoon.', 'A');
+    line.run('l_b', channelId, START + 62_000, START + 63_000, 'Hello.', 'B');
+    clock = START + 45 * 60_000 + SETTLE_MS;
+    await app.channelLibraries!.sweep();
+    expect(sent[1].body).toBe(
+      'The Floor — Book Club\n2026-11-07 · 14:05–14:50 UTC\n\n' +
+        'Erta Example (A) · 14:06\nAfternoon.\n\n' +
+        'Erta Example (B) · 14:06\nHello.'
+    );
+  });
+
   it('files nothing for a channel with nobody Pro, ever', async () => {
     const { channelId, ertaId } = await bookClub();
     textSegment(channelId);
