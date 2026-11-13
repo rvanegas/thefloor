@@ -11,8 +11,9 @@ import { PaneContext } from '../layout';
  * column, which leaves the one bar to the pane beside it.
  */
 
-const controls = (reading: boolean): ReadAloudControls => ({
+const controls = (reading: boolean, forRoom = false): ReadAloudControls => ({
   reading,
+  forRoom,
   restart: jest.fn(),
   stop: jest.fn(),
 });
@@ -44,6 +45,16 @@ describe('ReadingBar', () => {
       'Body',
       'Reading Claude’s reply',
       'Restart',
+      'Stop',
+      'Footer',
+    ]);
+  });
+
+  it('says Read again for a reply the room is hearing, which it asks again for everybody', () => {
+    expect(words(controls(true, true))).toEqual([
+      'Body',
+      'Reading Claude’s reply',
+      'Read again',
       'Stop',
       'Footer',
     ]);

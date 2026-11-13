@@ -212,3 +212,51 @@ describe('the response model', () => {
     expect(textOf(tree!)).not.toContain('Response model');
   });
 });
+
+/**
+ * *Claude's voice*, since 2026-11-13: where the server speaks, every member
+ * sees the voices under their languages and can tap one to hear it; only
+ * *Pro* chooses one by tapping.
+ */
+describe("Claude's voice", () => {
+  const open = () => {
+    mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
+    return (tree = render(
+      <ChannelSettingsView
+        publicAt={null}
+        channel={here()}
+        derivedTitle="Dana Chu"
+        onBack={() => {}}
+        onLeft={() => {}}
+      />
+    ));
+  };
+
+  it('is drawn only where the server speaks', () => {
+    showChannel(here(), [], { claude: true });
+    open();
+    expect(textOf(tree!)).not.toContain('Claude’s voice');
+  });
+
+  it('lists the voices for everybody to hear, and chooses nothing without Pro', () => {
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
+    open();
+    expect(textOf(tree!)).toContain('Claude’s voice');
+    expect(textOf(tree!)).toContain('Only somebody subscribed to Pro can change it.');
+    const sara = findButton(tree!, 'Sara')!;
+    expect(disabled(sara)).toBeFalsy();
+    act(() => sara.props.onPress());
+    expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', expect.objectContaining({ type: 'SET_SPEECH_VOICE' }));
+  });
+
+  it('chooses the voice tapped, for Pro', () => {
+    mockApp.pro = true;
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
+    open();
+    act(() => findButton(tree!, 'Oriol')!.props.onPress());
+    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
+      type: 'SET_SPEECH_VOICE',
+      speechVoice: 'aai-oriol',
+    });
+  });
+});

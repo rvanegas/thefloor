@@ -31,6 +31,9 @@ import { useText } from '../i18n';
 import { shareText } from '../share';
 import { openNoesis, openUrl } from './links';
 import { useApp } from '../state/AppProvider';
+import { playSample } from '../../modules/read-aloud';
+import { speechLocale } from '../audio/readAloud';
+import { SPEECH_VOICES, defaultSpeechVoice } from '../../../core/speech';
 import {
   Button,
   Card,
@@ -622,6 +625,10 @@ export function ChannelSettingsView({
         </Card>
       ) : null}
 
+      {view?.claude && view.speech ? (
+        <ClaudeVoiceCard channel={channel} mayChoose={mayEdit && app.pro} />
+      ) : null}
+
       {/*
         **Whether *Ask Claude* may consult the library, since 2026-10-27** —
         the response model's terms, under it because it qualifies it: drawn
@@ -918,6 +925,58 @@ export function ChannelSettingsView({
         </Text>
       </Card>
     </Screen>
+  );
+}
+
+/**
+ * *Claude's voice*, since 2026-11-13: the one AssemblyAI voice this channel's
+ * replies are read into the room in. **Drawn where the server speaks and
+ * Claude can be asked**, as *Response model* is drawn only where it applies.
+ *
+ * **Down the page, under each voice's own language**, for STYLE.md § *A
+ * choice of more than three goes down the page*, the chosen one primary as
+ * every choice on this screen is. **A tap plays the voice's sample, and for
+ * *Pro* chooses it too**: trying a voice is the point of the list, so the
+ * buttons are live for everybody rather than greyed, and *modelWho* says who
+ * may change it, the *Response model* card's sentence. A voice sounds best in
+ * its own language and every one speaks both, which is why they are grouped
+ * by it rather than filtered.
+ */
+function ClaudeVoiceCard({ channel, mayChoose }: { channel: ChannelState; mayChoose: boolean }) {
+  const app = useApp();
+  const t = useText().channelSettings;
+  const chosen = channel.speechVoice ?? null;
+  const languages: Array<'en' | 'es'> = speechLocale(app.language).startsWith('es')
+    ? ['es', 'en']
+    : ['en', 'es'];
+  const press = (voice: string) => {
+    const url = api.speechSampleUrl(voice);
+    if (url && app.token) void playSample(url, `Bearer ${app.token}`);
+    if (mayChoose && voice !== chosen) {
+      app.act(channel.id, { type: 'SET_SPEECH_VOICE', speechVoice: voice });
+    }
+  };
+  return (
+    <Card style={styles.stack}>
+      <Text style={type.heading}>{t.claudeVoice()}</Text>
+      <Text style={type.muted}>{t.claudeVoiceNote()}</Text>
+      {languages.map((language) => (
+        <View key={language} style={styles.stack}>
+          <Text style={type.body}>{t.claudeVoiceLanguage(language)}</Text>
+          {SPEECH_VOICES.filter((voice) => voice.language === language).map((voice) => (
+            <Button
+              key={voice.id}
+              label={voice.name}
+              // Nothing chosen is each language's default, so each language
+              // draws its own as the one in use.
+              variant={(chosen ?? defaultSpeechVoice(language)) === voice.id ? 'primary' : 'default'}
+              onPress={() => press(voice.id)}
+            />
+          ))}
+        </View>
+      ))}
+      {mayChoose ? null : <Text style={type.muted}>{t.modelWho()}</Text>}
+    </Card>
   );
 }
 

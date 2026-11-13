@@ -105,6 +105,34 @@ public class ReadAloudModule: Module {
       return true
     }.runOnQueue(.main)
 
+    /**
+     A voice's sample from the server, fetched here and played by `Reader` —
+     *Claude's voice* on *Channel Settings*, since 2026-11-13. Raw 16-bit mono
+     PCM, its rate in `x-sample-rate`. Resolves false where nothing could be
+     fetched, which the picker says nothing about: the voice is still
+     choosable unheard.
+     */
+    AsyncFunction("playSample") { (url: String, authorization: String, promise: Promise) in
+      guard let target = URL(string: url) else {
+        promise.resolve(false)
+        return
+      }
+      var request = URLRequest(url: target)
+      request.setValue(authorization, forHTTPHeaderField: "Authorization")
+      URLSession.shared.dataTask(with: request) { data, response, _ in
+        let http = response as? HTTPURLResponse
+        let rate = Double(http?.value(forHTTPHeaderField: "x-sample-rate") ?? "") ?? 48_000
+        DispatchQueue.main.async {
+          guard let data, http?.statusCode == 200 else {
+            promise.resolve(false)
+            return
+          }
+          self.reader.play(pcm: data, sampleRate: rate, reply: "sample")
+          promise.resolve(true)
+        }
+      }.resume()
+    }
+
     AsyncFunction("stop") { () -> Bool in
       self.reader.stop()
       return true

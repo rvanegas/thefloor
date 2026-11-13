@@ -37,6 +37,7 @@ interface NativeReadAloud {
     reply: string
   ): Promise<boolean>;
   stop(): Promise<boolean>;
+  playSample(url: string, authorization: string): Promise<boolean>;
   hook(): string;
   addListener(
     event: 'onReport',
@@ -107,6 +108,19 @@ export function onReading(listener: (reply: string | null) => void): () => void 
     return () => sub?.remove();
   } catch {
     return () => {};
+  }
+}
+
+/**
+ * Plays a voice's sample from the server — *Claude's voice*, since
+ * 2026-11-13. False where this build cannot, or nothing came back.
+ */
+export async function playSample(url: string, authorization: string): Promise<boolean> {
+  if (!native) return false;
+  try {
+    return await native.playSample(url, authorization);
+  } catch {
+    return false;
   }
 }
 

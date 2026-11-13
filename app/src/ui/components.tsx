@@ -933,7 +933,11 @@ export function ReadingBar() {
         <Text style={[type.muted, styles.readingWhat]} numberOfLines={2}>
           {t.reading()}
         </Text>
-        <Button label={t.restart()} onPress={controls.restart} />
+        {/* For everybody where the room is hearing it, so it says so. */}
+        <Button
+          label={controls.forRoom ? t.readAgain() : t.restart()}
+          onPress={controls.restart}
+        />
         <Button label={t.stop()} onPress={controls.stop} />
       </View>
     </View>

@@ -22,6 +22,7 @@ import {
   keepingOf,
   recordingRefusal,
 } from '../../../core/channel';
+import { isHere } from '../../../core/guests';
 import type {
   FiledView,
   LiveLine,
@@ -29,7 +30,7 @@ import type {
   RoomView,
   SegmentView,
 } from '../../../core/protocol';
-import { MAX_VOICE_NAME_LENGTH } from '../../../core/constants';
+import { CLAUDE_ID, MAX_VOICE_NAME_LENGTH } from '../../../core/constants';
 import {
   givenName,
   intoBlocks,
@@ -475,7 +476,7 @@ function Segment({
       {shown
         ? entriesOf(item).map((entry) =>
             entry.kind === 'paste' ? (
-              <PasteEntry key={entry.segment.id} segment={entry.segment} />
+              <PasteEntry key={entry.segment.id} segment={entry.segment} channelId={channelId} />
             ) : (
               <View key={entry.block.lines[0].id} style={styles.entry}>
                 <View style={styles.entryHead}>
@@ -1453,9 +1454,30 @@ export function intoRooms(
  * paste: in a log it is an entry like any other, and a transcript does not
  * truncate what somebody said. `MAX_CLIP_LENGTH` is what bounds it.
  */
-export function PasteEntry({ segment }: { segment: SegmentView }) {
+export function PasteEntry({
+  segment,
+  channelId,
+}: {
+  segment: SegmentView;
+  /** Absent where there is no channel to ask, which draws no *Read again*. */
+  channelId?: string;
+}) {
   const t = useText().channel;
   const linkWords = useText().links;
+  const app = useApp();
+  const view = channelId ? app.channelViews[channelId] : undefined;
+  /**
+   * *Read again*, since 2026-11-13: on a reply of Claude's whose speech the
+   * server still keeps — an hour — for anybody in the room, who are the
+   * people it is said to. A paste segment's id is its paste's. Not drawn
+   * rather than greyed outside the room, where a press could only be refused
+   * and there is nobody it would be said to.
+   */
+  const again =
+    !!channelId &&
+    segment.paste?.authorId === CLAUDE_ID &&
+    !!view?.speechKept?.includes(segment.id) &&
+    isHere(view.channel, app.me?.id ?? '');
   const [copied, setCopied] = React.useState<'idle' | 'done' | 'failed'>('idle');
   React.useEffect(() => {
     if (copied === 'idle') return;
@@ -1487,6 +1509,9 @@ export function PasteEntry({ segment }: { segment: SegmentView }) {
         </Text>
         <Text style={[type.muted, styles.pasteTime]}>{t.liveTime(segment.startedAt)}</Text>
         {url ? word(t.open(), () => void openUrl(url, linkWords)) : null}
+        {again
+          ? word(t.readAgain(), () => void app.readAgain(channelId!, segment.id).catch(() => undefined))
+          : null}
         {word(
           copied === 'done' ? t.copied() : copied === 'failed' ? t.copyFailed() : t.copy(),
           () => {

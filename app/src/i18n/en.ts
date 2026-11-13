@@ -208,6 +208,8 @@ export const en = {
   readingBar: {
     reading: () => 'Reading Claude’s reply',
     restart: () => 'Restart',
+    /** *Restart* where the room is hearing it: for everybody, so it says so. */
+    readAgain: () => 'Read again',
     stop: () => 'Stop',
   },
   watch: {
@@ -857,36 +859,6 @@ export const en = {
     audioOutput: () => 'Audio output',
     chooseWhereSoundComesOut: () => 'Choose where sound comes out',
     chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
-    readAloud: () => 'Read aloud',
-    /**
-     * **Settings' own words for the path, which iOS 26 renamed** — *Spoken
-     * Content* became *Read & Speak* — so the version picks. The quality is
-     * named as the Voices list labels it, which is what somebody is matching
-     * against with their finger.
-     */
-    readAloudNote: () =>
-      'Claude\u2019s replies are read aloud as they arrive, in the language each is written in.',
-    readAloudVoice: (
-      language: 'en' | 'es',
-      voice: string,
-      quality: 'enhanced' | 'premium'
-    ) =>
-      `${language === 'es' ? 'Spanish' : 'English'}: ${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'})`,
-    readAloudLanguage: (language: 'en' | 'es'): string =>
-      language === 'es' ? 'Spanish' : 'English',
-    readAloudChoice: (voice: string, quality: 'enhanced' | 'premium') =>
-      `${voice} (${quality === 'premium' ? 'Premium' : 'Enhanced'})`,
-    /**
-     * **Says why the voice chosen in iOS Settings is not the one here**, since
-     * that is what somebody who just chose one there expects: nothing public
-     * lets an app read it.
-     */
-    readAloudChoiceNote: () =>
-      'The voice you choose in iOS Settings is not shared with apps, so choose it here too. This choice is this phone’s, since the voices are installed on it, and when you ask Claude, everybody hears the reply in it if their phone has it too.',
-    readAloudBasicVoice: (language: 'en' | 'es') =>
-      `${language === 'es' ? 'Spanish' : 'English'}: only the basic voice, which sounds robotic`,
-    readAloudHowTo: (newerSettings: boolean) =>
-      `For a more natural voice, open Settings \u203a Accessibility \u203a ${newerSettings ? 'Read & Speak' : 'Spoken Content'} \u203a Voices, choose the language, then a voice, and download its Enhanced or Premium version. It is used here as soon as it has downloaded.`,
     on: () => 'On',
     off: () => 'Off',
     diagnostics: () => 'Diagnostics',
@@ -1140,6 +1112,15 @@ export const en = {
      * buttons above are called *Pro* too.
      */
     modelWho: () => 'Only somebody subscribed to Pro can change it.',
+    /**
+     * *Claude's voice*, since 2026-11-13: the one AssemblyAI voice the
+     * channel's replies are read aloud in, chosen by *Pro*, heard by anybody.
+     */
+    claudeVoice: () => 'Claude’s voice',
+    claudeVoiceNote: () =>
+      'Claude’s replies are read aloud to everybody in the conversation in this voice. Tap a voice to hear it.',
+    claudeVoiceLanguage: (language: 'en' | 'es'): string =>
+      language === 'es' ? 'Spanish' : 'English',
     /**
      * Whether *Ask Claude* may consult the server's library, since
      * 2026-10-27: drawn, since 2026-11-09, only for somebody whose own is
@@ -1487,6 +1468,8 @@ export const en = {
     copied: () => '\u2713 copied',
     copyFailed: () => '\u2717 copy failed',
     copy: () => 'Copy',
+    /** On Claude's reply in the *Record* while its speech is kept, since 2026-11-13. */
+    readAgain: () => 'Read again',
     clipTooLong: (max: number) =>
       `That is too long to paste. A paste holds up to ${max} characters.`,
     couldNotShare: () => 'Could not share',

@@ -713,6 +713,14 @@ export const api = {
     }),
 
   /**
+   * Where a voice's sample is, for the native reader to fetch and play itself
+   * (`playSample`): raw PCM, which nothing in JavaScript plays. Since
+   * 2026-11-13.
+   */
+  speechSampleUrl: (voice: string) =>
+    API_URL ? `${API_URL}/speech/voices/${encodeURIComponent(voice)}/sample` : null,
+
+  /**
    * *Read again*: one of Claude's kept replies said into the room once more,
    * for everybody present. Since 2026-11-13.
    */

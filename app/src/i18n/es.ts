@@ -176,6 +176,7 @@ export const es: Strings = {
   readingBar: {
     reading: () => 'Leyendo a Claude',
     restart: () => 'Reiniciar',
+    readAgain: () => 'Repetir',
     stop: () => 'Parar',
   },
   watch: {
@@ -657,25 +658,6 @@ export const es: Strings = {
     chooseWhereSoundComesOut: () => 'Elegir por d\u00f3nde sale el sonido',
     chooseWhereSoundComesOutSub: () =>
       'Auriculares, AirPlay o cualquier cosa emparejada',
-    readAloud: () => 'Leer en voz alta',
-    readAloudNote: () =>
-      'Las respuestas de Claude se leen en voz alta en cuanto llegan, en el idioma en que est\u00e1 escrita cada una.',
-    readAloudVoice: (
-      language: 'en' | 'es',
-      voice: string,
-      quality: 'enhanced' | 'premium'
-    ) =>
-      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: ${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'})`,
-    readAloudLanguage: (language: 'en' | 'es') =>
-      language === 'es' ? 'Español' : 'Inglés',
-    readAloudChoice: (voice: string, quality: 'enhanced' | 'premium') =>
-      `${voice} (${quality === 'premium' ? 'Premium' : 'mejorada'})`,
-    readAloudChoiceNote: () =>
-      'La voz que eliges en los Ajustes de iOS no se comparte con las apps, así que elígela también aquí. Esta elección es de este teléfono, porque las voces están instaladas en él, y cuando le preguntas a Claude, todos oyen la respuesta con ella si su teléfono también la tiene.',
-    readAloudBasicVoice: (language: 'en' | 'es') =>
-      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: solo la voz b\u00e1sica, que suena rob\u00f3tica`,
-    readAloudHowTo: (newerSettings: boolean) =>
-      `Para una voz m\u00e1s natural, abre Ajustes \u203a Accesibilidad \u203a ${newerSettings ? 'Leer y hablar' : 'Contenido le\u00eddo'} \u203a Voces, elige el idioma, luego una voz, y descarga su versi\u00f3n mejorada o Premium. Se usa aqu\u00ed en cuanto termina de descargarse.`,
     on: () => 'S\u00ed',
     off: () => 'No',
     diagnostics: () => 'Diagn\u00f3stico',
@@ -862,6 +844,10 @@ export const es: Strings = {
     responseModelNote: () =>
       'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
     modelWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
+    claudeVoice: () => 'Voz de Claude',
+    claudeVoiceNote: () =>
+      'Las respuestas de Claude se leen en voz alta para todos en la conversaci\u00f3n con esta voz. Toca una voz para o\u00edrla.',
+    claudeVoiceLanguage: (language: 'en' | 'es') => (language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'),
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.
@@ -1160,6 +1146,7 @@ export const es: Strings = {
     copied: () => '\u2713 copiado',
     copyFailed: () => '\u2717 no se ha podido copiar',
     copy: () => 'Copiar',
+    readAgain: () => 'Repetir',
     clipTooLong: (max: number) =>
       `Eso es demasiado largo para pegar. Se pueden pegar hasta ${max} caracteres.`,
     couldNotShare: () => 'No se ha podido compartir',

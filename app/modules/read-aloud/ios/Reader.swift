@@ -113,6 +113,37 @@ final class Reader: NSObject, AVAudioPlayerDelegate {
     publish()
   }
 
+  /**
+   A voice's sample, for *Claude's voice* on *Channel Settings*, since
+   2026-11-13: 16-bit mono PCM the server made with AssemblyAI, played on the
+   path a reply is — the call's engine where it is playing out, so the echo
+   canceller keeps it out of the microphone — after stopping whatever was
+   being read, since a sample is asked for to be heard now.
+   */
+  func play(pcm data: Data, sampleRate: Double, reply: String) {
+    stop()
+    let frames = data.count / 2
+    guard frames > 0,
+      let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
+      let audio = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(frames)),
+      let channel = audio.floatChannelData?[0]
+    else {
+      report("read-aloud could not play a sample of \(data.count) bytes")
+      return
+    }
+    data.withUnsafeBytes { raw in
+      let samples = raw.bindMemory(to: Int16.self)
+      for index in 0..<frames {
+        channel[index] = Float(Int16(littleEndian: samples[index])) / 32768
+      }
+    }
+    audio.frameLength = AVAudioFrameCount(frames)
+    segments.append(Segment(reply: reply, audio: audio, label: "sample", last: true))
+    report("read-aloud sample secs=\(Self.round(Double(frames) / sampleRate))")
+    pump()
+    publish()
+  }
+
   func stop() {
     render += 1
     sentences.removeAll()
