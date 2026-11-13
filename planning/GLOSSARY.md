@@ -53,7 +53,7 @@ caused; the list carries the meaning.
 - **Read aloud** — A reply from *Ask Claude*, its words read out the moment it lands: **Claude writes only the words, and *Standard* or *Pro* voices read them** — iOS's and AssemblyAI's, names said only in the code and on `/privacy`. *Pro* where the asker is *Pro (the subscription)* and has not chosen *Standard* on *Floor Settings*' *Read aloud* (`iosVoices`, for cost), since 2026-11-13: synthesised once by the server in the channel's *Pro voice*, in the language of the channel's first transcript (the asker's *Language* where there is none), and published as *the room reader*, so everybody *present* hears it through the call and a running recording keeps it, as a stem under `CLAUDE_ID` that is never transcribed; `Clip.speech` marks such a reply. *Standard* otherwise — without *Pro*, by choice, with no AssemblyAI key, on a refusal or a language AssemblyAI does not speak — each iPhone reading it on its own, free and never recorded, in the asker's installed voice where it has it (`Clip.voices`) or the best it has. A build from before the room reader is kept off it, best-effort, and may hear an AssemblyAI reply twice, so the *Ask Claude* bar names whoever here has not updated, to an asker whose reply a *Pro* voice would read — a warning, not a refusal (`roomReaderUnheard`). The only thing the app speaks, with no switch. While a reply is being heard a bar immediately above every screen's footer says *Reading Claude's reply* with **two controls: *Read again* — the reply, from the top, for everybody — where the room is hearing it (*Restart* where the phone is reading it), and *Stop*, which quiets it on this phone alone**, since 2026-10-29. *Floor Settings*' card of installed iOS voices was there 2026-10-28 to 2026-11-13. `useClaudeReadAloud`, `ReadingBar`, `roomReaderSaying`; *Leer en voz alta*, *Leyendo a Claude*, *Repetir*, *Reiniciar*, *Parar*
 - **Read again** — Claude's reply said into the room once more, for everybody present, from its paste in the *Record* or the reading bar, while the server keeps its speech: an hour, since 2026-11-13. Anybody present may press it; the latest press or reply wins. Not synthesised again, so it costs nothing. `readAgain`, `speechKept`; *Repetir*
 - **Standard voices / Pro voices** — The two grades of voice that *Read aloud* Claude's replies, since 2026-11-13: *Standard*, each iPhone's own (iOS), free, heard on that phone alone and never recorded; *Pro*, AssemblyAI's, said once into the room for everybody and recorded, billed per reply. Chosen on *Floor Settings*' *Read aloud* by *Pro (the subscription)* alone; everybody else's replies are *Standard*. **A grade, as *Response model*'s *Pro* is, and not the subscription** — the third sense of the word here. `iosVoices` (true is *Standard*); *Estándar* / *Pro*
-- **Pro voice** — A channel setting, since 2026-11-13: which of the *Pro* voices reads Claude's replies in the room, for the whole channel, whoever asks — one of a curated few (`SPEECH_VOICES`), or each language's default where none is chosen; on *Channel Settings* where the server speaks, every voice tapped to hear its sample, **chosen only by *Pro***. `speechVoice`; *Voz Pro*
+- **Pro voice** — A channel setting, since 2026-11-13: which of the *Pro* voices reads Claude's replies in the room, **one per language**, for the whole channel, whoever asks — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; on *Channel Settings* where the server speaks, a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **chosen only by *Pro***. `speechVoices`; *Voz Pro*
 - **Room reader** — The participant AssemblyAI's reading of a reply is published as, `room-reader:<channel>`, since 2026-11-13: in the room without being a person, as the film's `media:` is, so nothing that counts people sees it; a build that says `hearsClaude` hears it, an older one is kept off it. Not the native `Reader` that speaks on a phone, nor the person reading a screen. `roomReaderIdentity`
 - **Paste** — A piece of text somebody here put into the channel, kept in the *Record* as a *segment* of its own at the moment it was made — an instant, which breaks no other segment — for anybody to copy, and never deleted; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
@@ -3317,15 +3317,19 @@ subscription)*; *Max* is a grade too, and the same word in Spanish.
 ## Pro voice
 
 **A channel setting naming which of the *Pro* voices — AssemblyAI's — reads
-Claude's replies in the room**, since 2026-11-13: one of a curated few of AssemblyAI's voices
-(`SPEECH_VOICES` in `core/speech.ts`), or null for the default voice of the
-language the reply is spoken in, pinned there because AssemblyAI's own
-defaults may change. `speechVoice` on `ChannelState`.
+Claude's replies in the room, one per language**, since 2026-11-13: one of a
+curated few of AssemblyAI's voices (`SPEECH_VOICES` in `core/speech.ts`) for
+each language, or that language's default where none is chosen, pinned there
+because AssemblyAI's own defaults may change. `speechVoices` on
+`ChannelState`, by subtag.
 
-**One for the whole channel, whoever asks**, at Rodrigo's word: every voice
-speaks all six of AssemblyAI's languages, so one choice covers a channel
-whatever it speaks, though a voice sounds best in the one it was recorded in —
-which is why the card groups them by it. **Changeable only by *Pro***, like
+**One per language, for the whole channel, whoever asks**, at Rodrigo's word.
+Every voice speaks all six of AssemblyAI's languages, but sounds best in the
+one it was recorded in, so **choosing a voice fills the slot of its own
+language** and leaves the other's alone — which is also why the action needs
+no language of its own. It was one voice for every language for its first
+day, and a channel that chose then has it migrated to its own language's slot
+when it is read back. **Changeable only by *Pro***, like
 *Response model*, and drawn for every member, whose taps play each voice's
 sample without choosing it. Drawn only where the server speaks and Claude can
 be asked. Not *Voice*, below, which is a person's on a recording.

@@ -3,6 +3,7 @@ import {
   defaultSpeechVoice,
   isSpeechVoice,
   speechLanguageOf,
+  speechVoiceFor,
 } from '../speech';
 
 describe('speech voices', () => {
@@ -35,5 +36,14 @@ describe('speechLanguageOf', () => {
     expect(speechLanguageOf('ca')).toBeNull();
     expect(speechLanguageOf(null)).toBeNull();
     expect(speechLanguageOf('')).toBeNull();
+  });
+});
+
+describe('speechVoiceFor', () => {
+  it('is the language’s choice, else its default', () => {
+    expect(speechVoiceFor({ en: 'aai-sara' }, 'en')).toBe('aai-sara');
+    expect(speechVoiceFor({ en: 'aai-sara' }, 'es')).toBe('aai-antonioluis');
+    expect(speechVoiceFor(undefined, 'en')).toBe('aai-kyla');
+    expect(speechVoiceFor({ en: 'aai-nobody' }, 'en')).toBe('aai-kyla');
   });
 });

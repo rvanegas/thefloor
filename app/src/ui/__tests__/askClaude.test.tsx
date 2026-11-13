@@ -243,19 +243,20 @@ describe('the response model', () => {
  * sees the voices under their languages and can tap one to hear it; only
  * *Pro* chooses one by tapping.
  */
-describe('the AssemblyAI voice', () => {
-  const open = () => {
+describe('the Pro voice', () => {
+  const open = (channel = here()) => {
     mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
     return (tree = render(
       <ChannelSettingsView
         publicAt={null}
-        channel={here()}
+        channel={channel}
         derivedTitle="Dana Chu"
         onBack={() => {}}
         onLeft={() => {}}
       />
     ));
   };
+  const seeMore = () => act(() => findButton(tree!, 'See more')!.props.onPress());
 
   it('is drawn only where the server speaks', () => {
     showChannel(here(), [], { claude: true });
@@ -263,10 +264,23 @@ describe('the AssemblyAI voice', () => {
     expect(textOf(tree!)).not.toContain('Pro voice');
   });
 
+  it('is shut on arrival, saying which voice reads each language', () => {
+    const chosen = reduce(here(), { type: 'SET_SPEECH_VOICE', userId: ME, speechVoice: 'aai-oriol' }, NOW);
+    showChannel(chosen, [], { claude: true, speech: true, speechKept: [] });
+    open(chosen);
+    expect(textOf(tree!)).toContain('English: Kyla');
+    expect(textOf(tree!)).toContain('Spanish: Oriol');
+    expect(findButton(tree!, 'Sara')).toBeUndefined();
+    seeMore();
+    expect(findButton(tree!, 'Sara')).toBeDefined();
+    act(() => findButton(tree!, 'See less')!.props.onPress());
+    expect(findButton(tree!, 'Sara')).toBeUndefined();
+  });
+
   it('lists the voices for everybody to hear, and chooses nothing without Pro', () => {
     showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
     open();
-    expect(textOf(tree!)).toContain('Pro voice');
+    seeMore();
     expect(textOf(tree!)).toContain('Only somebody subscribed to Pro can change it.');
     const sara = findButton(tree!, 'Sara')!;
     expect(disabled(sara)).toBeFalsy();
@@ -274,10 +288,11 @@ describe('the AssemblyAI voice', () => {
     expect(mockApp.act).not.toHaveBeenCalledWith('sess_1', expect.objectContaining({ type: 'SET_SPEECH_VOICE' }));
   });
 
-  it('chooses the voice tapped, for Pro', () => {
+  it('chooses the voice tapped for its own language, for Pro', () => {
     mockApp.pro = true;
     showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
     open();
+    seeMore();
     act(() => findButton(tree!, 'Oriol')!.props.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'SET_SPEECH_VOICE',

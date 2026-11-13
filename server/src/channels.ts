@@ -131,11 +131,35 @@ import {
 import { pairSpan, UsageMeter } from './usage';
 import { SPEECH_MAX_CHARACTERS, type SpeechProvider, type SpeechStore } from './speech';
 import {
-  defaultSpeechVoice,
+  SPEECH_VOICES,
   isSpeechVoice,
   speechLanguageOf,
+  speechVoiceFor,
   type SpeechLanguage,
 } from '../../core/speech';
+
+/**
+ * A channel's *Pro voices* as its stored state has them. **The one-voice row
+ * of the first day is migrated here**, on read, since 2026-11-13: a channel
+ * that chose one voice for every language between that deploy and the next
+ * gets it as the voice of the language it was recorded in, which is the
+ * language it sounds best in. Anything outside the catalogue is dropped.
+ */
+export function restoredSpeechVoices(
+  voices: unknown,
+  legacy: unknown
+): Partial<Record<string, string>> {
+  const restored: Partial<Record<string, string>> = {};
+  if (voices && typeof voices === 'object') {
+    for (const [language, voice] of Object.entries(voices as Record<string, unknown>)) {
+      const known = SPEECH_VOICES.find((v) => v.id === voice);
+      if (known && known.language === language) restored[language] = known.id;
+    }
+  }
+  const old = SPEECH_VOICES.find((v) => v.id === legacy);
+  if (old && restored[old.language] === undefined) restored[old.language] = old.id;
+  return restored;
+}
 
 export const TICK_INTERVAL_MS = 500;
 
@@ -8091,7 +8115,7 @@ export class ChannelRegistry {
     if ([...text].length > SPEECH_MAX_CHARACTERS) return false;
     const language = this.speechLanguage(channelId, askerId, askerLanguage);
     if (!language) return false;
-    const voice = channel.speechVoice ?? defaultSpeechVoice(language);
+    const voice = speechVoiceFor(channel.speechVoices, language);
 
     speech.store.begin(pasteId, channelId);
     const abort = new AbortController();
@@ -9118,7 +9142,7 @@ export class ChannelRegistry {
       // saying *Responding…* to an answer that is never coming.
       responseModel: channel.responseModel ?? 'standard',
       // Beside it, for the same reason.
-      speechVoice: channel.speechVoice ?? null,
+      speechVoices: channel.speechVoices ?? {},
       // A setting somebody chose, beside the model it applies to, and whose
       // library it is.
       library: channel.library ?? false,
@@ -9508,7 +9532,9 @@ export class ChannelRegistry {
       autoTranscribe?: boolean;
       transcriptionModel?: ChannelState['transcriptionModel'];
       responseModel?: ChannelState['responseModel'];
-      speechVoice?: ChannelState['speechVoice'];
+      speechVoices?: ChannelState['speechVoices'];
+      /** One voice for every language, as written on 2026-11-13 before it was per language. */
+      speechVoice?: string | null;
       library?: boolean;
       libraries?: Record<string, string[]>;
       initiator?: string;
@@ -9580,7 +9606,7 @@ export class ChannelRegistry {
       transcriptionModel: durable.transcriptionModel ?? 'standard',
       responseModel: durable.responseModel ?? 'standard',
       // A voice since dropped from the catalogue reads as the default.
-      speechVoice: isSpeechVoice(durable.speechVoice) ? durable.speechVoice : null,
+      speechVoices: restoredSpeechVoices(durable.speechVoices, durable.speechVoice),
       // On only with somebody's libraries chosen: off for a channel written
       // before the field, as for a new one, and for one written while a
       // channel held one owner's list, which is switched on again by hand.

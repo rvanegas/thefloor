@@ -61,6 +61,18 @@ const DEFAULTS: Partial<Record<SpeechLanguage, string>> = {
   es: 'aai-antonioluis',
 };
 
+/**
+ * The voice a reply in `language` is read in: the channel's choice for that
+ * language, else the default.
+ */
+export function speechVoiceFor(
+  chosen: Partial<Record<string, string>> | undefined,
+  language: SpeechLanguage
+): string {
+  const voice = chosen?.[language];
+  return voice && isSpeechVoice(voice) ? voice : defaultSpeechVoice(language);
+}
+
 /** The voice a reply in `language` is spoken in where the channel chose none. */
 export function defaultSpeechVoice(language: SpeechLanguage): string {
   return DEFAULTS[language] ?? 'aai-kyla';

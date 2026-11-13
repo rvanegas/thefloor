@@ -346,7 +346,9 @@ open, or did differently:
   only the words**, so nothing calls a voice Claude's (`iosVoices`, an
   account setting, default *Pro*); anybody else's replies are *Standard*,
   free, as before 2026-11-13. The channel's choice among the *Pro* voices is
-  *Pro voice*, and what publishes it is *the room reader*. The
+  *Pro voice*, **one per language** at Rodrigo's word the same day (a voice
+  filling its own language's slot, `speechVoices`), and what publishes it is
+  *the room reader*. The
   *Ask Claude* warning shows only to a viewer whose reply the server would
   speak, and `/privacy` says the speech is a *Pro* asker's.
 - **The language** is `Transcripts.firstLanguage`: the earliest finished

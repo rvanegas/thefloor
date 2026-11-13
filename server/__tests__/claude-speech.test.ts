@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { CLAUDE_ID } from '../../core/constants';
 import { buildApp, type App } from '../src/app';
-import { roomReaderIdentity } from '../src/channels';
+import { restoredSpeechVoices, roomReaderIdentity } from '../src/channels';
 import type { ClaudeClient } from '../src/claude';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
@@ -238,7 +238,7 @@ describe("Claude's reply, spoken", () => {
     expect(speech.requests[0].language).toBe('es');
   });
 
-  it('is in the channel’s chosen voice, which only Pro may choose', async () => {
+  it('is in the channel’s Pro voice for its language, which only Pro may choose', async () => {
     boot();
     const { alice, bob, channelId } = await room2();
     const refused = app.channels.dispatch(channelId, bob.account.id, {
@@ -247,15 +247,24 @@ describe("Claude's reply, spoken", () => {
     } as never);
     expect(refused.ok).toBe(false);
 
-    const chosen = app.channels.dispatch(channelId, alice.account.id, {
-      type: 'SET_SPEECH_VOICE',
-      speechVoice: 'aai-sara',
-    } as never);
-    expect(chosen.ok).toBe(true);
+    for (const speechVoice of ['aai-sara', 'aai-oriol']) {
+      const chosen = app.channels.dispatch(channelId, alice.account.id, {
+        type: 'SET_SPEECH_VOICE',
+        speechVoice,
+      } as never);
+      expect(chosen.ok).toBe(true);
+    }
+    // One voice per language: the Spanish reply in the Spanish choice.
     await press(channelId, alice.token, { language: 'es' });
     await settle();
-    // The channel's voice, whatever the language.
-    expect(speech.requests[0]).toMatchObject({ voice: 'aai-sara', language: 'es' });
+    expect(speech.requests[0]).toMatchObject({ voice: 'aai-oriol', language: 'es' });
+  });
+
+  it('restores a channel’s one voice of the first day as its own language’s', () => {
+    expect(restoredSpeechVoices(undefined, 'aai-oriol')).toEqual({ es: 'aai-oriol' });
+    expect(restoredSpeechVoices({ en: 'aai-sara' }, 'aai-peter')).toEqual({ en: 'aai-sara' });
+    // A voice filed under a language it was not recorded in is dropped.
+    expect(restoredSpeechVoices({ es: 'aai-sara', en: 'aai-nobody' }, null)).toEqual({});
   });
 
   it('is posted without speech, for the phones to read, when synthesis is refused', async () => {

@@ -358,8 +358,10 @@ being quiet but the consequence of there being no pill left to fill, which is
 the distinction `ghost` never made: a transparent 48pt pill occupies exactly
 as much of a screen as a filled one and merely looks like it does not.
 
-**It is for disclosure, and so far for one control** — the introduction
-card's *See more*, which expands and collapses the card it is drawn in. That
+**It is for disclosure, and so far for two controls** — the introduction
+card's *See more*, which expands and collapses the card it is drawn in, and
+since 2026-11-13 the *Pro voice* card's on *Channel Settings*, which shut says
+each language's voice in a line and open lists every voice to try. That
 is the case the variant is scoped to: it commits nothing, navigates nowhere,
 and is read after the thing it is attached to rather than instead of it. It
 was a `default` pill until 2026-09-24, stacked directly beneath the rung's

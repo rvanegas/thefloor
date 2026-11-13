@@ -301,6 +301,9 @@ export type ResponseModel = 'standard' | 'pro' | 'max';
  */
 export type SpeechVoice = string | null;
 
+/** The *Pro voice* chosen for each language, by subtag. See `ChannelState.speechVoices`. */
+export type SpeechVoices = Partial<Record<string, string>>;
+
 /**
  * How long a reply *Ask Claude* asks for, since 2026-10-22: one of three
  * buttons, *Brief*, *Medium* and *Extended*, chosen at each press rather than
@@ -1069,13 +1072,17 @@ export interface ChannelState {
    */
   responseModel: ResponseModel;
   /**
-   * The voice Claude's replies are spoken in, for the whole channel — *Claude's
-   * voice*, since 2026-11-13. See `SpeechVoice`. The channel's, whoever asks,
-   * for `responseModel`'s reason, and **changed only by *Pro***, refused by
-   * the server before dispatch as that one is; drawn for every member. Absent
-   * on a snapshot from a server that predates it, which reads as null.
+   * The *Pro voice* each language's replies are read in, for the whole
+   * channel, by two-letter subtag — **one per language**, at Rodrigo's word,
+   * 2026-11-13, a voice sounding best in the language it was recorded in. A
+   * language with none chosen reads in its default (`speechVoiceFor`). The
+   * channel's, whoever asks, for `responseModel`'s reason, and **changed only
+   * by *Pro***, refused by the server before dispatch as that one is; drawn
+   * for every member. Absent on a snapshot from a server that predates it,
+   * which reads as none chosen. It was one `speechVoice` for every language
+   * for the first day.
    */
-  speechVoice?: SpeechVoice;
+  speechVoices?: SpeechVoices;
   /**
    * Whether this channel's *Ask Claude* may consult noesis libraries — their
    * owners' own writing — on *Pro* and *Max*; *Standard* never does. Off on
@@ -1479,8 +1486,10 @@ export type ChannelAction =
    */
   | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
   /**
-   * Chooses *AssemblyAI voice*. Guarded as `SET_RESPONSE_MODEL` is, and refused
-   * by the server, as that one is, from any account that is not *Pro*.
+   * Chooses a *Pro voice* for **the language that voice was recorded in**,
+   * leaving the other languages' as they are; null clears them all. Guarded
+   * as `SET_RESPONSE_MODEL` is, and refused by the server, as that one is,
+   * from any account that is not *Pro*.
    */
   | { type: 'SET_SPEECH_VOICE'; userId: UserId; speechVoice: SpeechVoice }
   /**

@@ -33,7 +33,7 @@ import { openNoesis, openUrl } from './links';
 import { useApp } from '../state/AppProvider';
 import { playSample } from '../../modules/read-aloud';
 import { speechLocale } from '../audio/readAloud';
-import { SPEECH_VOICES, defaultSpeechVoice } from '../../../core/speech';
+import { SPEECH_VOICES, speechVoiceFor } from '../../../core/speech';
 import {
   Button,
   Card,
@@ -945,37 +945,62 @@ export function ChannelSettingsView({
 function AssemblyVoiceCard({ channel, mayChoose }: { channel: ChannelState; mayChoose: boolean }) {
   const app = useApp();
   const t = useText().channelSettings;
-  const chosen = channel.speechVoice ?? null;
+  const more = useText().introduction;
+  /**
+   * **Shut on every visit**, STYLE.md's disclosure: shut, the card says which
+   * voice reads each language, which is what most visits want; open, the list
+   * to try and choose from, which is a page long. *See more* / *See less*, the
+   * introduction card's control and words.
+   */
+  const [open, setOpen] = useState(false);
   const languages: Array<'en' | 'es'> = speechLocale(app.language).startsWith('es')
     ? ['es', 'en']
     : ['en', 'es'];
-  const press = (voice: string) => {
+  const press = (voice: string, language: 'en' | 'es') => {
     const url = api.speechSampleUrl(voice);
     if (url && app.token) void playSample(url, `Bearer ${app.token}`);
-    if (mayChoose && voice !== chosen) {
+    // **One per language**: a voice fills the slot of the language it was
+    // recorded in, and leaves the other language's alone.
+    if (mayChoose && voice !== speechVoiceFor(channel.speechVoices, language)) {
       app.act(channel.id, { type: 'SET_SPEECH_VOICE', speechVoice: voice });
     }
   };
+  const nameOf = (id: string) => SPEECH_VOICES.find((voice) => voice.id === id)?.name ?? id;
   return (
     <Card style={styles.stack}>
       <Text style={type.heading}>{t.assemblyVoice()}</Text>
       <Text style={type.muted}>{t.assemblyVoiceNote()}</Text>
-      {languages.map((language) => (
-        <View key={language} style={styles.stack}>
-          <Text style={type.body}>{t.assemblyVoiceLanguage(language)}</Text>
-          {SPEECH_VOICES.filter((voice) => voice.language === language).map((voice) => (
-            <Button
-              key={voice.id}
-              label={voice.name}
-              // Nothing chosen is each language's default, so each language
-              // draws its own as the one in use.
-              variant={(chosen ?? defaultSpeechVoice(language)) === voice.id ? 'primary' : 'default'}
-              onPress={() => press(voice.id)}
-            />
+      {open
+        ? languages.map((language) => (
+            <View key={language} style={styles.stack}>
+              <Text style={type.body}>{t.assemblyVoiceLanguage(language)}</Text>
+              {SPEECH_VOICES.filter((voice) => voice.language === language).map((voice) => (
+                <Button
+                  key={voice.id}
+                  label={voice.name}
+                  // Each language draws its own in use, its default where
+                  // nothing is chosen.
+                  variant={
+                    speechVoiceFor(channel.speechVoices, language) === voice.id ? 'primary' : 'default'
+                  }
+                  onPress={() => press(voice.id, language)}
+                />
+              ))}
+            </View>
+          ))
+        : languages.map((language) => (
+            <Text key={language} style={type.body}>
+              {t.assemblyVoiceIs(language, nameOf(speechVoiceFor(channel.speechVoices, language)))}
+            </Text>
           ))}
-        </View>
-      ))}
-      {mayChoose ? null : <Text style={type.muted}>{t.modelWho()}</Text>}
+      {open && !mayChoose ? <Text style={type.muted}>{t.modelWho()}</Text> : null}
+      <View style={styles.disclosure}>
+        <Button
+          label={open ? more.seeLess() : more.seeMore()}
+          variant="quiet"
+          onPress={() => setOpen((was) => !was)}
+        />
+      </View>
     </Card>
   );
 }
@@ -988,6 +1013,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   stack: { gap: spacing(1) },
+  // The *Pro voice* card's *See more*, at the foot and to the start as the
+  // introduction card's is.
+  disclosure: { flexDirection: 'row' },
   /* The cards under *Recording*, which would otherwise touch edge to edge. */
   cards: { gap: spacing(1.5) },
   autoSwitches: { flexDirection: 'row', alignItems: 'center', gap: spacing(3) },

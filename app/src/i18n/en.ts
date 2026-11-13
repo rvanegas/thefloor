@@ -1131,9 +1131,12 @@ export const en = {
      */
     assemblyVoice: () => 'Pro voice',
     assemblyVoiceNote: () =>
-      'Where a Pro voice reads Claude’s replies aloud, it is this one, heard by everybody in the conversation. Tap a voice to hear it.',
+      'Where a Pro voice reads Claude’s replies aloud, it is this one for each language, heard by everybody in the conversation. Tap a voice to hear it.',
     assemblyVoiceLanguage: (language: 'en' | 'es'): string =>
       language === 'es' ? 'Spanish' : 'English',
+    /** One line per language while the card is shut. */
+    assemblyVoiceIs: (language: 'en' | 'es', voice: string) =>
+      `${language === 'es' ? 'Spanish' : 'English'}: ${voice}`,
     /**
      * Whether *Ask Claude* may consult the server's library, since
      * 2026-10-27: drawn, since 2026-11-09, only for somebody whose own is

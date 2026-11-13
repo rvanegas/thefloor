@@ -1910,9 +1910,10 @@ export type ClientAction =
    */
   | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
   /**
-   * *AssemblyAI voice*, since 2026-11-13: an AssemblyAI slug from
-   * `SPEECH_VOICES`, or null for the default. Refused from an account that is
-   * not *Pro*. Unknown to a server that predates it.
+   * *Pro voice*, since 2026-11-13: an AssemblyAI slug from `SPEECH_VOICES`,
+   * which fills the slot of the language it was recorded in, or null to clear
+   * every language back to its default. Refused from an account that is not
+   * *Pro*. Unknown to a server that predates it.
    */
   | { type: 'SET_SPEECH_VOICE'; speechVoice: SpeechVoice }
   /**

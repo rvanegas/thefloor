@@ -853,8 +853,10 @@ export const es: Strings = {
     modelWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
     assemblyVoice: () => 'Voz Pro',
     assemblyVoiceNote: () =>
-      'Cuando una voz Pro lee en voz alta las respuestas de Claude, es esta, y la oyen todos en la conversaci\u00f3n. Toca una voz para o\u00edrla.',
+      'Cuando una voz Pro lee en voz alta las respuestas de Claude, es esta para cada idioma, y la oyen todos en la conversaci\u00f3n. Toca una voz para o\u00edrla.',
     assemblyVoiceLanguage: (language: 'en' | 'es') => (language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'),
+    assemblyVoiceIs: (language: 'en' | 'es', voice: string) =>
+      `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: ${voice}`,
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.
