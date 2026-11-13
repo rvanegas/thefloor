@@ -103,6 +103,38 @@ describe("Home settings", () => {
     return tree;
   }
 
+  /** Rodrigo's order, since 2026-11-13, each label where its card is drawn. */
+  it('draws its sections in their order', async () => {
+    mockApp.debug = true;
+    mockApp.channelViews.sess_1 = { speech: true } as never;
+    mockApp.loadNoesis.mockResolvedValueOnce({ available: true, connected: false } as never);
+    // A subscriber, whose card is drawn whether or not Pro is on sale.
+    mockApp.loadPro.mockResolvedValueOnce({
+      pro: true,
+      until: NOW + 30 * 86_400_000,
+      freeMinutes: 60,
+      offer: null,
+    });
+    const tree = await openSettings();
+    const labels = tree.root
+      .findAll((node) => node.type === SectionLabel)
+      .map((node) => String(node.props.children));
+    expect(labels).toEqual([
+      'Appearance',
+      'Audio output',
+      'Notifications',
+      'Email',
+      'Language',
+      'Read aloud',
+      'noesis library',
+      'Diagnostics',
+      'Privacy',
+      'Pro',
+      'Account',
+    ]);
+    act(() => tree.unmount());
+  });
+
   /**
    * *Standard voice*: this phone's installed voices, per language, which
    * anybody may choose among. Drawn only where this build can speak.

@@ -235,9 +235,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       </View>
 
       {/*
-        Appearance first, then what somebody reads before deciding it, then the
-        account itself. The screen reads outwards: the phone, the policy, and
-        then the account underneath both.
+        **The order is Rodrigo's, since 2026-11-13**: Appearance, Audio output,
+        Notifications, Email, Language, Read aloud, noesis library,
+        Diagnostics, Privacy, Pro, Account — how the app looks and sounds and
+        reaches you first, then what it reads and consults, and the policy,
+        the subscription and the account itself last.
 
         **The *Channels* section was above this and went on 2026-09-21**, with
         the last setting in it. It held "Tap a channel to look, not step in",
@@ -265,6 +267,28 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         is still on the context for whatever replaces it; see
         planning/task/replace-the-getting-started-checklist.md.
       */}
+
+      <SectionLabel>{t.appearance()}</SectionLabel>
+      <Card style={styles.stack}>
+        <View style={styles.choices}>
+          {(
+            [
+              ['light', t.light()],
+              ['dark', t.dark()],
+              ['system', t.system()],
+            ] as Array<[ColorSchemePreference, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              label={label}
+              style={styles.choice}
+              variant={app.appearance === value ? 'primary' : 'default'}
+              onPress={() => app.setAppearance(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>{t.appearanceNote()}</Text>
+      </Card>
 
       {/*
         The system's own output picker, not a control of ours: iOS knows what is
@@ -314,6 +338,180 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {/*
+        The two ways what people send you reaches you, as two switches. Push
+        is stored as its negation — `pushNotificationsOff` — on the rule that
+        every boolean setting is false by default; see core/settings.ts.
+
+        **Push on is a wish, not a fact**: iOS holds the permission, and a
+        phone that refused it receives nothing however this reads. So when the
+        two disagree the card says so and says what to do — the dialog while
+        it is unspent, Settings once it is not, and the phone itself from a
+        browser, which has no permission to grant.
+      */}
+      <SectionLabel>{t.notificationsSection()}</SectionLabel>
+      <View style={styles.cards}>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>{t.pushNotifications()}</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [false, t.on()],
+              [true, t.off()],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={
+                app.pushNotificationsOff === value ? 'primary' : 'default'
+              }
+              onPress={() => app.setPushNotificationsOff(value)}
+            />
+          ))}
+        </View>
+        {app.pushNotificationsOff ||
+        app.notifications.permission === 'granted' ? null : !mayHoldToken() ? (
+          <Text style={type.muted}>{t.pushNeedsThePhone()}</Text>
+        ) : app.notifications.canPrompt ? (
+          <>
+            <Text style={type.muted}>{t.pushNotAskedYet()}</Text>
+            <Button
+              label={t.turnOnPush()}
+              onPress={() => void app.notifications.allow()}
+            />
+          </>
+        ) : (
+          <>
+            <Text style={type.muted}>{t.pushRefusedInSettings()}</Text>
+            <Button
+              label={t.openSettings()}
+              onPress={() => void Linking.openSettings()}
+            />
+          </>
+        )}
+      </Card>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>{t.emailNotifications()}</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, t.on()],
+              [false, t.off()],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={app.emailNotifications === value ? 'primary' : 'default'}
+              onPress={() => app.setEmailNotifications(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>{t.emailNotificationsNote()}</Text>
+      </Card>
+      </View>
+
+      {/*
+        Under Notifications since 2026-11-13, at Rodrigo's word, beside the
+        other way things reach you: this is the one setting on the screen that
+        is about what arrives in somebody's inbox rather than about what the
+        app does, and the question it raises — what would you send me, and
+        what do you already have — is answered by the policy further down.
+
+        **The only place this permission can be withdrawn.** The other half of
+        it is a checkbox on the sign-in screen, which can only ever grant: that
+        screen is read before anybody is identified, so it cannot show an
+        answer already given and starts clear on every device. This screen is
+        behind a session and can show it in force, which is what makes a
+        two-way control honest here and dishonest there. See `marketingEmail`
+        in core/settings.ts.
+
+        On and Off as a pair of buttons rather than the sign-in screen's box,
+        because that is what every other setting on this screen is and because
+        the shapes are saying different things: a box is a question nobody has
+        answered yet, and this is an answer in force. See STYLE.md § *Checkbox*.
+      */}
+      <SectionLabel>{t.email()}</SectionLabel>
+      <Card style={styles.stack}>
+        <Text style={type.heading}>{t.occasionalEmail()}</Text>
+        <View style={styles.choices}>
+          {(
+            [
+              [true, t.on()],
+              [false, t.off()],
+            ] as Array<[boolean, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={label}
+              label={label}
+              style={styles.choice}
+              variant={app.marketingEmail === value ? 'primary' : 'default'}
+              onPress={() => app.setMarketingEmail(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>{t.emailNote()}</Text>
+        {/*
+          Said because the setting's name does not say it, and because the
+          fear a mail setting raises is the one about the mail somebody
+          actually needs. Turning this off cannot cost anybody their way in.
+        */}
+        <Text style={type.muted}>{t.codesArriveEitherWay()}</Text>
+      </Card>
+
+      {/*
+        Above *Read aloud* since 2026-11-13, at Rodrigo's word, rather than
+        above Appearance where it sat before: the app's own language beside
+        the voices that read in each. Somebody who has the app in the wrong
+        language is still looking for it in words they do not read, which is
+        what the names in their own language below are for.
+
+        **The names are each in their own language**, English and Español, in
+        both catalogues. A Spanish reader looking for English does not want to
+        find *Inglés*: the label has to be legible to whoever is about to choose
+        it, which is the one person on the screen who cannot read the language
+        it is written in.
+
+        **The third option is *Automatic* rather than *System*, which is what
+        Appearance calls the same idea at the top of this screen.** Two buttons reading
+        *System* on one screen are announced identically by a screen reader and
+        cannot be told apart in a sentence about either. *Phone's language* was
+        the other candidate and is the clearer phrase; it is also two words in a
+        third of a card, which is the arithmetic STYLE.md § *A choice of more
+        than three goes down the page rather than across it* does — a third is
+        about 93pt, and a label that wraps leaves one button in a row of three
+        taller than its neighbours. What the word leaves out, the note says.
+
+        **It follows the account, like everything else on this screen bar the
+        output picker**: a language is chosen by a person, not by a handset, and
+        the note says so. Changing it redraws — nothing restarts — because the
+        catalogue is state above `AppProvider`; see `LanguageProvider`.
+      */}
+      <SectionLabel>{t.language()}</SectionLabel>
+      <Card style={styles.stack}>
+        <View style={styles.choices}>
+          {(
+            [
+              ['system', t.automaticLanguage()],
+              ['en', t.english()],
+              ['es', t.spanish()],
+            ] as Array<[LanguagePreference, string]>
+          ).map(([value, label]) => (
+            <Button
+              key={value}
+              label={label}
+              style={styles.choice}
+              variant={app.language === value ? 'primary' : 'default'}
+              onPress={() => app.setLanguage(value)}
+            />
+          ))}
+        </View>
+        <Text style={type.muted}>{t.languageNote()}</Text>
+      </Card>
+
+      {/*
         ***Read aloud*: which voice of each grade reads the replies you ask
         for**, at Rodrigo's word, 2026-11-13 — *Standard*, this phone's own,
         and *Pro*, the server's. **Which grade reads is the channel's**, on
@@ -322,6 +520,8 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         apply, and the label only over one.
       */}
       <ReadAloudSection />
+
+      <NoesisCard />
 
       {/*
         *Labs* was here, a switch for the unfinished parts of the app, and has
@@ -420,80 +620,6 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       ) : null}
 
       {/*
-        Beside Appearance and above it, because they are the same kind of thing
-        — how the app presents itself to you rather than what it does — and
-        because this is the one of the two that decides whether the rest of the
-        screen can be read at all. Somebody who has the app in the wrong
-        language is looking for exactly this control, and looking for it in
-        words they do not read; putting it under the scheme would mean scrolling
-        past a card about colours to find it.
-
-        **The names are each in their own language**, English and Español, in
-        both catalogues. A Spanish reader looking for English does not want to
-        find *Inglés*: the label has to be legible to whoever is about to choose
-        it, which is the one person on the screen who cannot read the language
-        it is written in.
-
-        **The third option is *Automatic* rather than *System*, which is what
-        Appearance calls the same idea one card below.** Two buttons reading
-        *System* on one screen are announced identically by a screen reader and
-        cannot be told apart in a sentence about either. *Phone's language* was
-        the other candidate and is the clearer phrase; it is also two words in a
-        third of a card, which is the arithmetic STYLE.md § *A choice of more
-        than three goes down the page rather than across it* does — a third is
-        about 93pt, and a label that wraps leaves one button in a row of three
-        taller than its neighbours. What the word leaves out, the note says.
-
-        **It follows the account, like everything else on this screen bar the
-        output picker**: a language is chosen by a person, not by a handset, and
-        the note says so. Changing it redraws — nothing restarts — because the
-        catalogue is state above `AppProvider`; see `LanguageProvider`.
-      */}
-      <SectionLabel>{t.language()}</SectionLabel>
-      <Card style={styles.stack}>
-        <View style={styles.choices}>
-          {(
-            [
-              ['system', t.automaticLanguage()],
-              ['en', t.english()],
-              ['es', t.spanish()],
-            ] as Array<[LanguagePreference, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={value}
-              label={label}
-              style={styles.choice}
-              variant={app.language === value ? 'primary' : 'default'}
-              onPress={() => app.setLanguage(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>{t.languageNote()}</Text>
-      </Card>
-
-      <SectionLabel>{t.appearance()}</SectionLabel>
-      <Card style={styles.stack}>
-        <View style={styles.choices}>
-          {(
-            [
-              ['light', t.light()],
-              ['dark', t.dark()],
-              ['system', t.system()],
-            ] as Array<[ColorSchemePreference, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={value}
-              label={label}
-              style={styles.choice}
-              variant={app.appearance === value ? 'primary' : 'default'}
-              onPress={() => app.setAppearance(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>{t.appearanceNote()}</Text>
-      </Card>
-
-      {/*
         Above the account itself, because it is what somebody reads *before*
         deciding either of the things underneath it.
 
@@ -506,137 +632,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         the link is the API's own address and nothing new has to be
         threaded through the wire to find it.
       */}
-      {/*
-        Beside Privacy rather than under Account, and above it rather than
-        below: this is the one setting on the screen that is about what arrives
-        in somebody's inbox rather than about what the app does, and the
-        question it raises — what would you send me, and what do you already
-        have — is answered by the policy directly underneath it.
-
-        **The only place this permission can be withdrawn.** The other half of
-        it is a checkbox on the sign-in screen, which can only ever grant: that
-        screen is read before anybody is identified, so it cannot show an
-        answer already given and starts clear on every device. This screen is
-        behind a session and can show it in force, which is what makes a
-        two-way control honest here and dishonest there. See `marketingEmail`
-        in core/settings.ts.
-
-        On and Off as a pair of buttons rather than the sign-in screen's box,
-        because that is what every other setting on this screen is and because
-        the shapes are saying different things: a box is a question nobody has
-        answered yet, and this is an answer in force. See STYLE.md § *Checkbox*.
-      */}
-      {/*
-        The two ways what people send you reaches you, as two switches. Push
-        is stored as its negation — `pushNotificationsOff` — on the rule that
-        every boolean setting is false by default; see core/settings.ts.
-
-        **Push on is a wish, not a fact**: iOS holds the permission, and a
-        phone that refused it receives nothing however this reads. So when the
-        two disagree the card says so and says what to do — the dialog while
-        it is unspent, Settings once it is not, and the phone itself from a
-        browser, which has no permission to grant.
-      */}
-      <SectionLabel>{t.notificationsSection()}</SectionLabel>
-      <View style={styles.cards}>
-      <Card style={styles.stack}>
-        <Text style={type.heading}>{t.pushNotifications()}</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [false, t.on()],
-              [true, t.off()],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={
-                app.pushNotificationsOff === value ? 'primary' : 'default'
-              }
-              onPress={() => app.setPushNotificationsOff(value)}
-            />
-          ))}
-        </View>
-        {app.pushNotificationsOff ||
-        app.notifications.permission === 'granted' ? null : !mayHoldToken() ? (
-          <Text style={type.muted}>{t.pushNeedsThePhone()}</Text>
-        ) : app.notifications.canPrompt ? (
-          <>
-            <Text style={type.muted}>{t.pushNotAskedYet()}</Text>
-            <Button
-              label={t.turnOnPush()}
-              onPress={() => void app.notifications.allow()}
-            />
-          </>
-        ) : (
-          <>
-            <Text style={type.muted}>{t.pushRefusedInSettings()}</Text>
-            <Button
-              label={t.openSettings()}
-              onPress={() => void Linking.openSettings()}
-            />
-          </>
-        )}
-      </Card>
-      <Card style={styles.stack}>
-        <Text style={type.heading}>{t.emailNotifications()}</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, t.on()],
-              [false, t.off()],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={app.emailNotifications === value ? 'primary' : 'default'}
-              onPress={() => app.setEmailNotifications(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>{t.emailNotificationsNote()}</Text>
-      </Card>
-      </View>
-
-      <SectionLabel>{t.email()}</SectionLabel>
-      <Card style={styles.stack}>
-        <Text style={type.heading}>{t.occasionalEmail()}</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              [true, t.on()],
-              [false, t.off()],
-            ] as Array<[boolean, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={label}
-              label={label}
-              style={styles.choice}
-              variant={app.marketingEmail === value ? 'primary' : 'default'}
-              onPress={() => app.setMarketingEmail(value)}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>{t.emailNote()}</Text>
-        {/*
-          Said because the setting's name does not say it, and because the
-          fear a mail setting raises is the one about the mail somebody
-          actually needs. Turning this off cannot cost anybody their way in.
-        */}
-        <Text style={type.muted}>{t.codesArriveEitherWay()}</Text>
-      </Card>
-
       <SectionLabel>{t.privacy()}</SectionLabel>
       <Card style={styles.stack}>
         <Button label={t.privacyPolicy()} onPress={() => void openPrivacy()} />
         <Text style={type.muted}>{t.privacyNote()}</Text>
       </Card>
-
-      <NoesisCard />
 
       <ProCard />
 

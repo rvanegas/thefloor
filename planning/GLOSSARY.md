@@ -1518,7 +1518,7 @@ account has until somebody says otherwise, or *English* or *Español* named
 outright. The two languages are named in themselves in both catalogues — the one
 person on that screen who cannot read the language it is drawn in is the person
 about to change it — and the third button is *Automatic* rather than *System*,
-though it is the same idea Appearance calls that one card below, because two
+though it is the same idea Appearance calls that on the same screen, because two
 buttons of that name on one screen are announced identically and cannot be told
 apart in a sentence.
 

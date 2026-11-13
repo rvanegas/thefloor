@@ -448,7 +448,7 @@ sets no `numberOfLines`, and a two-word label there wraps and leaves one button
 in the row taller than its neighbours. So the follow-the-phone option is
 *Automatic* rather than *Phone's language*, which is the better phrase and does
 not fit, with the sentence it gives up carried by the note under the row. It is
-also why it is not called *System* like the scheme's option one card below: two
+also why it is not called *System* like the scheme's option on the same screen: two
 buttons of one name on one screen are announced identically by a screen reader.
 See GLOSSARY.md § *Language*.
 
