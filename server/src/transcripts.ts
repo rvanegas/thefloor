@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
 import type { TranscriptionModel } from '../../core/types';
-import { intoBlocks, readable, type TranscriptLine } from '../../core/transcript';
+import { intoBlocks, readable, type TranscriptLine, type VoiceName } from '../../core/transcript';
 import { MEDIA_IDENTITY } from './channels';
 import { hasSearchIndex, type Db, type RecordingRow } from './db';
 import { encodeStem, type ExportRequest } from './export';
@@ -1000,13 +1000,16 @@ export function speakerName(
  * a separated voice's letter is in `displayName` where the stem held more
  * than one, and the bare field is dropped, as `GET …/transcript` drops it, so
  * that an export says what the screen says and no build that once drew a
- * line's `speaker` finds one.
+ * line's `speaker` finds one. **Or the name somebody gave that voice**, since
+ * 2026-11-13, from `voices`.
  */
 export function readableLines(
   lines: readonly TranscriptLine[],
-  names: Record<string, string>
+  names: Record<string, string>,
+  /** The names given to its separated voices, by its segment (`VoiceName`). */
+  voices: readonly VoiceName[] = []
 ): Array<Omit<TranscriptLine, 'speaker'> & { displayName: string | null }> {
-  return readable(lines, (identity) => speakerName(identity, names)).map(
+  return readable(lines, (identity) => speakerName(identity, names), voices).map(
     ({ speaker: _letter, ...line }) => line
   );
 }
@@ -1034,9 +1037,10 @@ export function readableLines(
 export function formatTranscript(
   lines: TranscriptLine[],
   names: Record<string, string>,
-  format: 'txt' | 'vtt' | 'json'
+  format: 'txt' | 'vtt' | 'json',
+  voices: readonly VoiceName[] = []
 ): { body: string; contentType: string; extension: string } {
-  const named = readableLines(lines, names);
+  const named = readableLines(lines, names, voices);
   const who = (line: { displayName: string | null }) => line.displayName ?? 'Someone';
 
   if (format === 'json') {

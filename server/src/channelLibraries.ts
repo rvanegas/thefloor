@@ -3,6 +3,7 @@ import { lettered, type TranscriptLine } from '../../core/transcript';
 import type { AuthClient } from './auth';
 import type { Db } from './db';
 import { finished, noesisFilename, type NoesisSent } from './noesis';
+import { Segments } from './segments';
 import { readableLines } from './transcripts';
 
 /**
@@ -169,6 +170,8 @@ export class ChannelLibraries {
   /** The segment's text, or null when it kept no words at all. */
   private segmentText(row: OwedRow, name: string): string | null {
     const entries: Entry[] = [];
+    // Its voices as named in its menu, since 2026-11-13; naming one owes the filing again.
+    const voices = new Segments(this.db).voicesOf(row.id);
     if (row.text) {
       const lines = this.db
         .prepare(
@@ -184,14 +187,14 @@ export class ChannelLibraries {
         text: string;
       }>;
       // A separated voice's letter goes on its name across the segment, as the Record puts it.
-      for (const line of lettered(lines)) entries.push({ who: line.displayName, at: line.start_at, text: line.text });
+      for (const line of lettered(lines, voices)) entries.push({ who: line.displayName, at: line.start_at, text: line.text });
     } else if (row.recording_id) {
       const recording = this.db
         .prepare('SELECT started_at, participant_names FROM recordings WHERE id = ?')
         .get(row.recording_id) as { started_at: number; participant_names: string | null } | undefined;
       if (recording) {
         const names = recording.participant_names ? JSON.parse(recording.participant_names) : {};
-        for (const line of readableLines(this.deps.transcriptLines(row.recording_id), names)) {
+        for (const line of readableLines(this.deps.transcriptLines(row.recording_id), names, voices)) {
           entries.push({ who: line.displayName ?? 'Someone', at: recording.started_at + line.startMs, text: line.text });
         }
       }

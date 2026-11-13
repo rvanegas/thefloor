@@ -733,6 +733,14 @@ export const en = {
       'Everyone in this channel loses it, and nothing in the app can bring it back.',
     stepInToDelete: () =>
       "Step in to delete. Deleting takes it out of everybody's Record too.",
+    /** A segment's separated voices, named for everybody, since 2026-11-13. */
+    nameVoices: () => 'Name voices',
+    stepInToNameVoices: () => "Step in to name voices. The names are everybody's.",
+    whoIsThis: () => 'Who is this?',
+    everyoneSeesTheVoiceNames: () =>
+      'Everyone in this channel sees these names. Left empty, a voice keeps its letter.',
+    couldNotNameVoices: () => 'Could not name the voices',
+    naming: () => 'Naming\u2026',
     deleteCost: () =>
       'The recording is kept. Transcribing it again costs the same as the first time.',
     deleteConfirm: () => 'Delete',

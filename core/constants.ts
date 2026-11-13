@@ -418,6 +418,12 @@ export const MAX_CHANNEL_NAME_LENGTH = 60;
 export const MAX_RECORDING_NAME_LENGTH = MAX_CHANNEL_NAME_LENGTH;
 
 /**
+ * The most characters a separated voice's name may hold, since 2026-11-13: a
+ * person's name, as a display name is, drawn on one line over what they said.
+ */
+export const MAX_VOICE_NAME_LENGTH = 40;
+
+/**
  * The most characters a channel's description may hold.
  *
  * Roomier than the name because it is prose and may carry links, whose markup

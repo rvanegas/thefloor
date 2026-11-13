@@ -550,6 +550,13 @@ export const es: Strings = {
       'Todos los de este canal lo pierden, y nada en la app puede recuperarlo.',
     stepInToDelete: () =>
       'Entra para borrar. Borrar lo quita tambi\u00e9n del Grabado de todos.',
+    nameVoices: () => 'Nombrar voces',
+    stepInToNameVoices: () => 'Entra para nombrar las voces. Los nombres son de todos.',
+    whoIsThis: () => '\u00bfQui\u00e9n es?',
+    everyoneSeesTheVoiceNames: () =>
+      'Todos los de este canal ven estos nombres. Si queda vac\u00edo, la voz conserva su letra.',
+    couldNotNameVoices: () => 'No se han podido nombrar las voces',
+    naming: () => 'Nombrando\u2026',
     deleteCost: () =>
       'La grabaci\u00f3n se conserva. Volver a transcribirla cuesta lo mismo que la primera vez.',
     deleteConfirm: () => 'Borrar',

@@ -305,6 +305,7 @@ describe('rooms', () => {
             endedAt: number | null;
             recordingId: string | null;
             text: boolean;
+            voices?: Array<{ identity: string; speaker: string; name: string }>;
           }>;
         }>;
       }
@@ -520,5 +521,43 @@ describe('rooms', () => {
     clock += TRANSCRIPT_DELETED_RETENTION_MS + 1;
     await app.channels.sweepDeleted(clock);
     expect(kept()).toBe(0);
+  });
+
+  it("name a segment's separated voices, for everybody, on a recording's rename's terms", async () => {
+    const { alice, bob, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.setLiveTranscription(channelId, alice.account.id, true);
+    line(channelId, clock + 1_000);
+    clock += 10_000;
+    const name = (segmentId: string, token: string, voices: unknown) =>
+      app.fastify.inject({
+        method: 'PUT',
+        url: `/channels/${channelId}/segments/${segmentId}/voices`,
+        headers: auth(token),
+        payload: { voices },
+      });
+    const [{ segments: [segment] }] = await roomsOf(channelId, alice.token);
+    const fareed = [{ identity: 'media', speaker: 'B', name: '  Fareed  ' }];
+
+    expect((await name(segment.id, alice.token, [])).statusCode).toBe(400);
+    expect((await name(segment.id, alice.token, [{ identity: 'media', speaker: 'B' }])).statusCode).toBe(400);
+    const stranger = await signIn('eve@example.com', 'Eve');
+    expect((await name(segment.id, stranger.token, fareed)).statusCode).toBe(404);
+    expect((await name('seg_nonesuch', alice.token, fareed)).statusCode).toBe(404);
+    // Bob is outside a conversation in progress.
+    expect((await name(segment.id, bob.token, fareed)).statusCode).toBe(409);
+
+    const before = app.channels.lastFiledAt(channelId);
+    expect((await name(segment.id, alice.token, fareed)).statusCode).toBe(200);
+    let [room] = await roomsOf(channelId, bob.token);
+    expect(room.segments[0].voices).toEqual([{ identity: 'media', speaker: 'B', name: 'Fareed' }]);
+    // What sends every Record to read the rooms again.
+    expect(app.channels.lastFiledAt(channelId)).not.toBe(before);
+
+    // Emptied, it is the letter again.
+    expect((await name(segment.id, alice.token, [{ ...fareed[0], name: '' }])).statusCode).toBe(200);
+    [room] = await roomsOf(channelId, bob.token);
+    expect(room.segments[0].voices).toBeUndefined();
   });
 });

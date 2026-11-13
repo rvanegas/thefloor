@@ -2111,6 +2111,19 @@ CREATE INDEX IF NOT EXISTS segments_channel
 CREATE INDEX IF NOT EXISTS segments_recording
   ON segments(recording_id);
 
+-- The names given to one segment's separated voices, since 2026-11-13: the
+-- letter speaker within the stem identity reads name in place of Name (B).
+-- A segment's, a letter being one transcription's. A name cleared is a row
+-- deleted. See segments.ts and
+-- planning/decision/2026-11-13-a-separated-voice-may-be-named.md.
+CREATE TABLE IF NOT EXISTS segment_voices (
+  segment_id    TEXT NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+  identity      TEXT NOT NULL,
+  speaker       TEXT NOT NULL,
+  name          TEXT NOT NULL,
+  PRIMARY KEY (segment_id, identity, speaker)
+);
+
 -- A paste: a piece of text somebody here put into the channel, kept in the
 -- Record as a segment of its own at pasted_at, and never deleted. Its
 -- author's name as it was then, as live_lines keeps a speaker's. See
@@ -3198,6 +3211,15 @@ function migrate(db: Db): void {
   }
   if (!hasColumn(db, 'segments', 'text_deleted_at')) {
     db.exec('ALTER TABLE segments ADD COLUMN text_deleted_at INTEGER');
+  }
+  /*
+    When a voice of the segment was last named or a name cleared, since
+    2026-11-13: the snapshot's `filedAt` carries it (`lastFiledAt`), which is
+    what sends every *Record* to read the rooms again. Null on everything
+    that exists, nothing having been named.
+  */
+  if (!hasColumn(db, 'segments', 'voices_named_at')) {
+    db.exec('ALTER TABLE segments ADD COLUMN voices_named_at INTEGER');
   }
   // The feed reads published recordings of one channel, in `started_at`
   // order, on every poll by every subscriber and every aggregator. Partial

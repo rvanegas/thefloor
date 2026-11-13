@@ -1,5 +1,5 @@
 import { canSetDiarize, createChannel, isDiarized, reduce } from '../channel';
-import { intoBlocks, readable } from '../transcript';
+import { intoBlocks, lettered, readable, separated } from '../transcript';
 import type { ChannelState } from '../types';
 
 const A = 'user-a';
@@ -102,5 +102,44 @@ describe('a separated stem, read', () => {
   it('names nothing it could not name, letter or not', () => {
     const lines = [line('acct_gone', 0, 'A'), line('acct_gone', 1_000, 'B')];
     expect(readable(lines, nameOf).map((l) => l.displayName)).toEqual([null, null]);
+  });
+});
+
+/*
+  *Name voices*, since 2026-11-13: a separated voice of one segment given a
+  name, which every reading of its lines puts in place of the letter.
+*/
+describe('a separated voice, named', () => {
+  const lines = [line('media', 0, 'A'), line('media', 1_000, 'B'), line('acct_rod', 2_000, null)];
+
+  it('reads the name given in place of its letter, and the letter where none is', () => {
+    const named = [{ identity: 'media', speaker: 'B', name: 'Fareed' }];
+    expect(readable(lines, nameOf, named).map((l) => l.displayName)).toEqual([
+      'Played audio (A)',
+      'Fareed',
+      'Rodrigo',
+    ]);
+  });
+
+  it('is keyed by the stem as well as the letter', () => {
+    const named = [{ identity: 'acct_rod', speaker: 'B', name: 'Somebody else' }];
+    expect(readable(lines, nameOf, named).map((l) => l.displayName)).toEqual([
+      'Played audio (A)',
+      'Played audio (B)',
+      'Rodrigo',
+    ]);
+  });
+
+  it('gives a name to lines already named, as the live ones are', () => {
+    const live = [
+      { identity: 'acct_rod', displayName: 'Rodrigo', speaker: 'A' },
+      { identity: 'acct_rod', displayName: 'Rodrigo', speaker: 'B' },
+    ];
+    const named = [{ identity: 'acct_rod', speaker: 'A', name: 'Ana' }];
+    expect(lettered(live, named).map((l) => l.displayName)).toEqual(['Ana', 'Rodrigo (B)']);
+  });
+
+  it('tells which stems came back with more than one voice', () => {
+    expect([...separated([...lines, line('acct_rod', 3_000, 'A')])]).toEqual(['media']);
   });
 });

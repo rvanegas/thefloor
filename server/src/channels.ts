@@ -19,6 +19,7 @@ import {
   MAX_NEARBY_CHANNELS,
   MAX_PING_TEXT_LENGTH,
   MAX_RECORDING_NAME_LENGTH,
+  MAX_VOICE_NAME_LENGTH,
   MIN_PARTICIPANTS_TO_REMOVE,
   TRANSCRIPT_DELETED_RETENTION_MS,
   WAITING_WINDOW_MS,
@@ -107,6 +108,7 @@ import { MemberLinks, type MemberPinRow } from './memberLinks';
 import { ROOM_DEPARTURE_MS, Rooms } from './rooms';
 import { Pastes } from './pastes';
 import { Segments } from './segments';
+import type { VoiceName } from '../../core/transcript';
 import {
   insertWithUniqueKey,
   isUniqueViolation,
@@ -1318,15 +1320,18 @@ export class ChannelRegistry {
     // snapshot's `filedAt` is what tells the *Record* to look at the rooms
     // again, and every installed build reads it, so the text goes from every
     // screen at once as the privacy page says. The name now undersells it.
+    // And when a voice was last named, since 2026-11-13, for the same reason.
     const row = this.db
       .prepare(
         `SELECT MAX(at) AS at FROM (
            SELECT MAX(filed_at) AS at FROM segments WHERE channel_id = ? AND filed_at > 0
            UNION ALL
            SELECT MAX(text_deleted_at) FROM segments WHERE channel_id = ?
+           UNION ALL
+           SELECT MAX(voices_named_at) FROM segments WHERE channel_id = ?
          )`
       )
-      .get(channelId, channelId) as { at: number | null } | undefined;
+      .get(channelId, channelId, channelId) as { at: number | null } | undefined;
     return row?.at ?? null;
   }
 
@@ -4729,6 +4734,50 @@ export class ChannelRegistry {
     // Same as deleting: the channel screen shows the new name now rather than
     // whenever something else happens to change.
     this.emit([row.channel_id]);
+    return { ok: true };
+  }
+
+  /**
+   * Names some of one segment's separated voices, for everybody — *Name
+   * voices*, since 2026-11-13. An empty name clears one back to its letter.
+   *
+   * **On a recording's rename's terms**, being the same act on the same
+   * thing: a name everybody in the channel reads, so not for somebody
+   * outside a conversation in progress, nor in a channel only its owner
+   * runs. Which voices exist is not checked — a name for a letter the
+   * segment never heard is one no line reads.
+   *
+   * planning/decision/2026-11-13-a-separated-voice-may-be-named.md.
+   */
+  nameVoices(
+    channelId: string,
+    segmentId: string,
+    userId: string,
+    voices: readonly VoiceName[]
+  ): { ok: true } | Refused {
+    const segment = this.isMemberOf(channelId, userId)
+      ? (this.db
+          .prepare('SELECT recording_id, text FROM segments WHERE id = ? AND channel_id = ?')
+          .get(segmentId, channelId) as { recording_id: string | null; text: number } | undefined)
+      : undefined;
+    if (!segment || (!segment.text && !segment.recording_id)) {
+      return { ok: false, error: 'No such segment.', code: 'not_found' };
+    }
+    if (!this.holdsTheControlsIn(channelId, userId)) return OWNERS_ALONE;
+    if (!this.presentOrEmptyIn(channelId, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to name voices.',
+        code: 'conflict',
+      };
+    }
+    // Normalised here rather than at the route, as a recording's name is.
+    this.segmentLog.nameVoices(
+      segmentId,
+      voices.map((voice) => ({ ...voice, name: voice.name.trim().slice(0, MAX_VOICE_NAME_LENGTH) })),
+      this.now()
+    );
+    this.emit([channelId]);
     return { ok: true };
   }
 

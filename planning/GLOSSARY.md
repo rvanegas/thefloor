@@ -138,7 +138,7 @@ caused; the list carries the meaning.
 - **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by *Pro*. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown, since 2026-11-09, only to a member whose own is connected — to every member before — where the server offers libraries, switched on only by somebody *Pro* with one connected — since 2026-11-10; a connection without Pro reads and nothing more —, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, at noesis, copying a *channel library*'s transcript into it
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up — except where noesis decides it — wherever The Floor's noesis client is configured — when it is their noesis user name too; and **fixed, with the address, while a noesis library is connected**
-- **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)*; never renamed
+- **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)* — or the name somebody gave that voice in that *segment* with *Name voices* (*Nombrar voces*) in its menu, since 2026-11-13, the segment's and no wider
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
 - **Waiting bar** — A pinned line on Home saying somebody has asked something of you, since 2026-09-23: one for the *contact requests* you can answer, one for the *invitations*, neither drawn when there is none. It carries the sentence and not the controls — a tap goes to the list that holds the row, the way the *live bar* goes to the room — and it exists because an account invited by email arrives with a request already pending, on the tab Home does not open on, marked by a *dab* that is deliberately not a sentence. `WaitingBar` in `ui/HomeView.tsx`
 - **Watch party** — Shared playback in a channel; behind *Labs* until 2026-09-18, and behind nothing now. A mode rather than a cargo: a *recording* and a *playing* film are never on together, the later ending the earlier since 2026-10-26 — play stops a run, and audio beginning pauses the film where it is — where until then a loaded film refused every recording and a run refused play; and the film is unloaded when the *room* ends (since 2026-10-09), and while one is *playing* no *floor* may be claimed — the floor asked about the load too until 2026-09-24, which left a film paused at its own end refusing every claim in that channel for ever. Against the shared track it is the two *transports* that are exclusive, since 2026-09-20 — both may be loaded, neither may play while the other does, and pausing is the way out of either. The transport is the app's own row on every device, the film's own bar being off since 2026-09-18, and every control on it asks presence — driving as well as starting, since 2026-09-20
@@ -3362,8 +3362,14 @@ it, and its label is that person's display name as frozen with the run, or
 always, and a member's own microphone while they have *Several voices on my
 microphone* on. Those are asked of the provider which voice said what, and a
 stem that came back with more than one names each with a bare letter —
-*Played audio (A)*, *Rodrigo (B)* — that nobody renames; one that came back
-with one voice is that voice, unlettered. **A live letter is a session's**,
+*Played audio (A)*, *Rodrigo (B)*; one that came back with one voice is that
+voice, unlettered. **A lettered voice may be named, since 2026-11-13**:
+*Name voices* in its *segment*'s menu, a field per voice under the line, on a
+recording's rename's terms, and read in place of the letter everywhere the
+segment's lines are — the *Record*, *Share text*, the export, the channel
+library, *Ask Claude*. **The segment's name, never wider**, a letter being
+one transcription's: the next segment's *B* need not be this one's.
+decision/2026-11-13-a-separated-voice-may-be-named.md. **A live letter is a session's**,
 and a session closes after half a minute of silence, so *A* after a pause need
 not be the *A* before it. Everywhere else a speakerphone's bleed is credited to
 the microphone's owner, by decision/2026-10-09-a-stem-is-one-voice.md, which
@@ -5429,6 +5435,7 @@ are settled:
     Transcript            Transcripción
     Several voices on my microphone
                           Varias voces en mi micrófono
+    Name voices           Nombrar voces — *¿Quién es?* in each field
     Watch party           Ver algo juntos — a phrase, there being no noun
     Watching /            Viendo / Sin ver — the roster suffixes. The negative
     not watching          names the absence rather than negating the verb, on

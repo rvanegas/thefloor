@@ -29,7 +29,16 @@ import type {
   RoomView,
   SegmentView,
 } from '../../../core/protocol';
-import { intoBlocks, lettered, type TranscriptBlock } from '../../../core/transcript';
+import { MAX_VOICE_NAME_LENGTH } from '../../../core/constants';
+import {
+  givenName,
+  intoBlocks,
+  lettered,
+  separated,
+  voiceName,
+  type TranscriptBlock,
+  type VoiceName,
+} from '../../../core/transcript';
 import type { ChannelState, Keep, ReplyLength } from '../../../core/types';
 import { shareRecording, shareTextFile } from '../api/download';
 import { api } from '../api/http';
@@ -40,8 +49,10 @@ import { useText, type Strings } from '../i18n';
 import {
   Button,
   Empty,
+  Field,
   IconButton,
   useActionMenu,
+  useRevealOnKeyboard,
   useScrollPosition,
   type MenuItem,
 } from './components';
@@ -174,7 +185,7 @@ export function RecordTab({
   const [loadingEarlier, setLoadingEarlier] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   /** Each recording's batch transcript as lines of the log, by recording id. */
-  const [batch, setBatch] = React.useState<ReadonlyMap<string, LiveLine[]>>(new Map());
+  const [batch, setBatch] = React.useState<ReadonlyMap<string, LogLine[]>>(new Map());
   /** Bumped to fetch the rooms again; see the note on the socket above. */
   const [roomsAsked, askRooms] = React.useReducer((n: number) => n + 1, 0);
   const roomsHeld = React.useRef<RoomView[] | null>(null);
@@ -552,7 +563,10 @@ export function SegmentLine({
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  /** Whether the voices' names are being edited, under the line. */
+  const [naming, setNaming] = React.useState(false);
   const { segment, recording } = item;
+  const voices = segment.paste ? [] : voicesIn(item);
   const audio = !!recording && !recording.mixing;
   // Pastes count: they are text, and are shared with the lines around them.
   const text = item.lines.length > 0 || item.pastes.length > 0;
@@ -661,6 +675,22 @@ export function SegmentLine({
             },
           ]
         : []),
+      // Only where a stem came back with several voices, there being no
+      // letter to name otherwise; last of the segment's own, so that it
+      // stands beside a recording's *Rename*.
+      ...(voices.length > 0
+        ? [
+            {
+              label: said.nameVoices(),
+              group: 'edit' as const,
+              disabled: !manageable,
+              onPress: () => {
+                if (!open) onToggle();
+                setNaming(true);
+              },
+            },
+          ]
+        : []),
     ],
     remove,
     busy: deleting ? recordingWords.deleting() : busy ? t.preparingKept() : null,
@@ -670,7 +700,12 @@ export function SegmentLine({
   const own = useActionMenu({
     label: menu.label,
     items: [...menu.items, ...remove],
-    notes: remove.length > 0 && !manageable ? [said.stepInToDelete()] : [],
+    notes: manageable
+      ? []
+      : [
+          ...(voices.length > 0 ? [said.stepInToNameVoices()] : []),
+          ...(remove.length > 0 ? [said.stepInToDelete()] : []),
+        ],
     busy: menu.busy,
   });
 
@@ -679,12 +714,23 @@ export function SegmentLine({
   if (segment.paste) return null;
 
   const title = connected && segment.filed?.title ? <FiledTitle title={segment.filed.title} /> : null;
+  // Shutting the segment abandons it, as it does a recording's rename.
+  const names =
+    open && naming && voices.length > 0 ? (
+      <VoiceNames
+        channelId={channelId}
+        segment={segment}
+        voices={voices}
+        onDone={() => setNaming(false)}
+      />
+    ) : null;
 
   if (recording && renderRecording) {
     return (
       <>
         {renderRecording(recording, { label, menu, open, onToggle })}
         {title}
+        {names}
       </>
     );
   }
@@ -711,7 +757,89 @@ export function SegmentLine({
       </View>
       {own.panel}
       {title}
+      {names}
     </>
+  );
+}
+
+/**
+ * Names a segment's separated voices, under its line — *Name voices*, since
+ * 2026-11-13: a field per voice, under what it is called now with no name,
+ * `Rodrigo (B)`, starting on the name given it if there is one. **Inline
+ * rather than a prompt**, for `RenameEditor`'s reasons. Only what changed is
+ * sent, an empty field clearing a name; nothing is done locally on success,
+ * the snapshot that follows sending every *Record* to read the rooms again.
+ *
+ * **The segment's, and no wider**: a letter is one transcription's, so the
+ * `B` of the next segment need not be this one's.
+ */
+function VoiceNames({
+  channelId,
+  segment,
+  voices,
+  onDone,
+}: {
+  channelId: string;
+  segment: SegmentView;
+  voices: readonly SeparatedVoice[];
+  onDone: () => void;
+}) {
+  const said = useText().transcript;
+  const words = useText().recordings;
+  const app = useApp();
+  const given = (voice: SeparatedVoice) =>
+    givenName(segment.voices ?? [], voice.identity, voice.speaker) ?? '';
+  const [names, setNames] = React.useState(() => voices.map(given));
+  const [busy, setBusy] = React.useState(false);
+  const card = useRevealOnKeyboard(true);
+
+  const save = async () => {
+    if (!app.token || busy) return;
+    const changed: VoiceName[] = voices
+      .map((voice, i) => ({ identity: voice.identity, speaker: voice.speaker, name: (names[i] ?? '').trim() }))
+      .filter((voice, i) => voice.name !== given(voices[i]));
+    if (changed.length === 0) return onDone();
+    setBusy(true);
+    try {
+      await api.nameVoices(app.token, channelId, segment.id, changed);
+      onDone();
+    } catch (e) {
+      // Left open, with what was typed still in it.
+      Alert.alert(said.couldNotNameVoices(), e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <View ref={card} collapsable={false} style={styles.voiceNames}>
+      {voices.map((voice, i) => (
+        <View key={`${voice.identity}:${voice.speaker}`} style={styles.voiceName}>
+          <Text style={type.muted} numberOfLines={1}>
+            {voice.lettered}
+          </Text>
+          <Field
+            value={names[i] ?? ''}
+            onChangeText={(v) =>
+              setNames((was) => was.map((name, j) => (j === i ? v.slice(0, MAX_VOICE_NAME_LENGTH) : name)))
+            }
+            placeholder={said.whoIsThis()}
+            autoCapitalize="words"
+            autoFocus={i === 0}
+            onSubmit={() => void save()}
+          />
+        </View>
+      ))}
+      {/* Said before the tap, as a recording's rename says it. */}
+      <Text style={type.muted}>{said.everyoneSeesTheVoiceNames()}</Text>
+      <Button
+        label={busy ? said.naming() : words.save()}
+        variant="primary"
+        disabled={busy}
+        onPress={() => void save()}
+      />
+      <Button label={words.cancel()} disabled={busy} onPress={onDone} />
+    </View>
   );
 }
 
@@ -1138,7 +1266,7 @@ export function KeepSwitch({
  * being one unbroken run since 2026-10-10. Ids are the recording's, so they
  * cannot meet a live line's.
  */
-export async function batchLines(token: string, recording: RecordingView): Promise<LiveLine[]> {
+export async function batchLines(token: string, recording: RecordingView): Promise<LogLine[]> {
   const body = await api.transcript(token, recording.id);
   return body.lines.map((line, i) => ({
     id: `${recording.id}:${i}`,
@@ -1148,8 +1276,16 @@ export async function batchLines(token: string, recording: RecordingView): Promi
     endAt: recording.startedAt + line.endMs,
     text: line.text,
     confidence: line.confidence,
+    ...(line.voice ? { voice: line.voice } : {}),
   }));
 }
+
+/**
+ * A line of the log: a live line, or a batch one made into one. **A batch
+ * line's letter is `voice`**, since 2026-11-13, where it is already on its
+ * name — not `speaker`, which `lettered` would put on it a second time.
+ */
+export type LogLine = LiveLine & { voice?: string };
 
 /** Two sets of lines as one, by id, in the order they were said. */
 export function merge(a: readonly LiveLine[], b: readonly LiveLine[]): LiveLine[] {
@@ -1168,7 +1304,7 @@ export interface SegmentItem {
   segment: SegmentView;
   /** Its audio, once the recording is filed and while it is not deleted. */
   recording: RecordingView | null;
-  lines: LiveLine[];
+  lines: LogLine[];
   /**
    * The pastes made while it was being kept, oldest first, drawn among its
    * lines. Empty for a paste that is an item of its own, which is `segment`.
@@ -1178,7 +1314,7 @@ export interface SegmentItem {
 
 /** What is drawn under a segment's line: a speaker's run, or a paste. */
 export type Entry =
-  | { kind: 'said'; block: TranscriptBlock<LiveLine & { startMs: number; endMs: number }> }
+  | { kind: 'said'; block: TranscriptBlock<LogLine & { startMs: number; endMs: number }> }
   | { kind: 'paste'; segment: SegmentView };
 
 /**
@@ -1189,13 +1325,18 @@ export type Entry =
  *
  * **A separated voice's letter goes on its name here**, across the whole
  * segment, by `lettered`: a live line carries it beside a name the server
- * froze without it. A batch line's is in its name already.
+ * froze without it. A batch line's is in its name already. **Or the name
+ * given that voice** in the segment's menu, since 2026-11-13, either way.
  */
 export function entriesOf(item: SegmentItem): Entry[] {
   if (item.segment.paste) return [{ kind: 'paste', segment: item.segment }];
-  const lines = lettered(item.lines);
+  const names = item.segment.voices ?? [];
+  const lines = lettered(item.lines, names).map((line) => {
+    const given = givenName(names, line.identity, line.voice);
+    return given === undefined ? line : { ...line, displayName: given };
+  });
   const entries: Entry[] = [];
-  const said = (lines: readonly LiveLine[]) => {
+  const said = (lines: readonly LogLine[]) => {
     for (const block of intoBlocks(
       lines.map((line) => ({ ...line, startMs: line.startAt, endMs: line.endAt }))
     )) {
@@ -1212,6 +1353,38 @@ export function entriesOf(item: SegmentItem): Entry[] {
   }
   said(lines.slice(from));
   return entries;
+}
+
+/** One of a segment's separated voices, as *Name voices* offers it. */
+export interface SeparatedVoice {
+  identity: string;
+  speaker: string;
+  /** What it is called with no name given: `Rodrigo (B)`. */
+  lettered: string;
+}
+
+/**
+ * The voices of a segment that may be named, in the order they were first
+ * heard, since 2026-11-13: **each voice of a stem that came back with more
+ * than one** — the ones a letter goes on — whether its lines were kept live
+ * or by the recording's batch transcript.
+ */
+export function voicesIn(item: SegmentItem): SeparatedVoice[] {
+  const several = separated(item.lines);
+  const voices = new Map<string, SeparatedVoice>();
+  for (const line of item.lines) {
+    const speaker = line.voice ?? (line.speaker && several.has(line.identity) ? line.speaker : null);
+    if (!speaker) continue;
+    const key = `${line.identity}\u0000${speaker}`;
+    if (voices.has(key)) continue;
+    voices.set(key, {
+      identity: line.identity,
+      speaker,
+      // A batch line's name carries its letter already.
+      lettered: line.voice ? line.displayName : (voiceName(line.displayName, speaker) ?? speaker),
+    });
+  }
+  return [...voices.values()];
 }
 
 /**
@@ -1232,7 +1405,7 @@ export function intoRooms(
   rooms: readonly RoomView[],
   lines: readonly LiveLine[],
   recordings: readonly RecordingView[],
-  batch: ReadonlyMap<string, readonly LiveLine[]> = new Map(),
+  batch: ReadonlyMap<string, readonly LogLine[]> = new Map(),
   from = -Infinity
 ): Array<{ room: RoomView; items: SegmentItem[] }> {
   const byId = new Map(recordings.map((r) => [r.id, r]));
@@ -1248,7 +1421,7 @@ export function intoRooms(
         }
         const recording = segment.recordingId ? (byId.get(segment.recordingId) ?? null) : null;
         if (!recording && !segment.text && segment.endedAt !== null) continue;
-        const said = segment.text
+        const said: LogLine[] = segment.text
           ? lines.filter((line) => covers(segment, line.startAt))
           : recording
             ? [...(batch.get(recording.id) ?? [])]
@@ -1376,6 +1549,8 @@ const styles = StyleSheet.create({
     borderColor: colors.textMuted,
   },
   entry: { gap: spacing(0.25) },
+  voiceNames: { gap: spacing(1) },
+  voiceName: { gap: spacing(0.5) },
   // The glyph before the name, so a paste reads as an entry and as not
   // somebody talking; the time takes the room, pushing Copy to the end.
   pasteMark: { alignSelf: 'center' },

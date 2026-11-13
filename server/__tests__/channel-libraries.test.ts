@@ -216,6 +216,17 @@ describe('a channel library, filed into by itself', () => {
         'Erta Example (A) · 14:06\nAfternoon.\n\n' +
         'Erta Example (B) · 14:06\nHello.'
     );
+
+    // A voice named since is filed again under its name.
+    const imports = sent.filter((s) => s.path.endsWith('/import')).length;
+    app.channels.segmentLog.nameVoices('seg_1', [{ identity: 'erta', speaker: 'B', name: 'Ana' }], clock);
+    await app.channelLibraries!.sweep();
+    expect(sent.filter((s) => s.path.endsWith('/import'))).toHaveLength(imports + 1);
+    expect(sent.filter((s) => s.path.endsWith('/import')).at(-1)?.body).toBe(
+      'The Floor — Book Club\n2026-11-07 · 14:05–14:50 UTC\n\n' +
+        'Erta Example (A) · 14:06\nAfternoon.\n\n' +
+        'Ana · 14:06\nHello.'
+    );
   });
 
   it('deletes the document a segment was filed as before, once it is filed again', async () => {

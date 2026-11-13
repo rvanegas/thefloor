@@ -3,6 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 import { CLAUDE_ID } from '../../core/constants';
 import type { FiledView, RoomView, SegmentView } from '../../core/protocol';
 import type { ChannelState, ReplyLength, ResponseModel } from '../../core/types';
+import { lettered } from '../../core/transcript';
 import { newId, type Db } from './db';
 import { readableLines, type TranscriptLine } from './transcripts';
 
@@ -532,12 +533,15 @@ const titled = (filed: FiledView) => (filed.title ? `, titled "${filed.title}"` 
 /** Where the *Record*'s text comes from, so tests can supply it directly. */
 export interface RecordSources {
   rooms: (channelId: string, now: number) => RoomView[];
-  /** A text segment's live lines, oldest first. */
+  /**
+   * A text segment's live lines, oldest first, with the stem each came from
+   * and its voice's letter, which go on the name as the *Record* puts them.
+   */
   liveLines: (
     channelId: string,
     from: number,
     until: number
-  ) => Array<{ displayName: string; startAt: number; text: string }>;
+  ) => Array<{ identity: string; speaker?: string | null; displayName: string; startAt: number; text: string }>;
   /** A recording's batch transcript, with the names frozen on it. */
   recording: (
     recordingId: string
@@ -558,16 +562,24 @@ export function databaseSources(
       (
         db
           .prepare(
-            `SELECT display_name, start_at, text FROM live_lines
+            `SELECT identity, speaker, display_name, start_at, text FROM live_lines
              WHERE channel_id = ? AND start_at >= ? AND start_at <= ? AND deleted_at IS NULL
              ORDER BY start_at, id`
           )
           .all(channelId, from, until) as unknown as Array<{
+          identity: string;
+          speaker: string | null;
           display_name: string;
           start_at: number;
           text: string;
         }>
-      ).map((row) => ({ displayName: row.display_name, startAt: row.start_at, text: row.text })),
+      ).map((row) => ({
+        identity: row.identity,
+        speaker: row.speaker,
+        displayName: row.display_name,
+        startAt: row.start_at,
+        text: row.text,
+      })),
     recording: (recordingId) => {
       const row = db
         .prepare('SELECT started_at, participant_names FROM recordings WHERE id = ?')
@@ -590,6 +602,14 @@ export function databaseSources(
   };
 }
 
+/**
+ * A text segment's live lines as the *Record* names them: a separated voice's
+ * letter on its name, or the name given it in the segment's menu.
+ */
+function saidIn(sources: RecordSources, channelId: string, segment: SegmentView, now: number) {
+  return lettered(sources.liveLines(channelId, segment.startedAt, segment.endedAt ?? now), segment.voices);
+}
+
 function renderSegment(
   sources: RecordSources,
   channelId: string,
@@ -603,9 +623,9 @@ function renderSegment(
     return [...renderWorking(working), `[${hhmm(segment.startedAt)}] ${who}: ${text}`];
   }
   if (segment.text) {
-    return sources
-      .liveLines(channelId, segment.startedAt, segment.endedAt ?? now)
-      .map((line) => `[${hhmm(line.startAt)}] ${line.displayName}: ${line.text}`);
+    return saidIn(sources, channelId, segment, now).map(
+      (line) => `[${hhmm(line.startAt)}] ${line.displayName}: ${line.text}`
+    );
   }
   if (segment.recordingId) {
     const recording = sources.recording(segment.recordingId);
@@ -615,7 +635,7 @@ function renderSegment(
     // offsets are not wall-clock times and would be wrong as ones.
     return [
       `(A recording began at ${hhmm(recording.startedAt)}; its transcript follows.)`,
-      ...readableLines(recording.lines, recording.names).map(
+      ...readableLines(recording.lines, recording.names, segment.voices).map(
         (line) => `${line.displayName ?? 'Someone'}: ${line.text}`
       ),
     ];
@@ -674,12 +694,14 @@ function speakersOf(
   now: number
 ): string[] {
   const names = segment.text
-    ? sources.liveLines(channelId, segment.startedAt, segment.endedAt ?? now).map((line) => line.displayName)
+    ? saidIn(sources, channelId, segment, now).map((line) => line.displayName)
     : segment.recordingId
       ? (() => {
           const recording = sources.recording(segment.recordingId!);
           return recording
-            ? readableLines(recording.lines, recording.names).map((line) => line.displayName ?? 'Someone')
+            ? readableLines(recording.lines, recording.names, segment.voices).map(
+                (line) => line.displayName ?? 'Someone'
+              )
             : [];
         })()
       : [];

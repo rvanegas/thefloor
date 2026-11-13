@@ -19,6 +19,7 @@ import type { NearbyWhen, ReplyLength } from '../../../core/types';
 import type { AccountSettings } from '../../../core/settings';
 import type { NavAction } from '../../../core/navigation';
 import type { Tried, TriedId } from '../../../core/tried';
+import type { VoiceName } from '../../../core/transcript';
 import { appBuild, BUILD_HEADER, CLIENT_HEADER, CLIENT_KIND } from './build';
 import { API_URL } from './config';
 import { notificationPermission, NOTIFY_HEADER } from './notify';
@@ -985,6 +986,11 @@ export const api = {
         endMs: number;
         text: string;
         confidence: number | null;
+        /**
+         * The separated voice's letter, where it is on `displayName`; what a
+         * name given in its segment's menu is keyed by. Since 2026-11-13.
+         */
+        voice?: string;
       }>;
     }>(`/recordings/${recordingId}/transcript`, { token }),
 
@@ -1045,5 +1051,16 @@ export const api = {
     request<{ ok: true }>(
       `/channels/${channelId}/segments/${encodeURIComponent(segmentId)}/text`,
       { method: 'DELETE', token }
+    ),
+
+  /**
+   * Names some of one segment's separated voices for everybody, an empty
+   * name clearing one back to its letter. Since 2026-11-13; a server before
+   * then answers 404.
+   */
+  nameVoices: (token: string, channelId: string, segmentId: string, voices: VoiceName[]) =>
+    request<{ ok: true }>(
+      `/channels/${channelId}/segments/${encodeURIComponent(segmentId)}/voices`,
+      { method: 'PUT', body: { voices }, token }
     ),
 };

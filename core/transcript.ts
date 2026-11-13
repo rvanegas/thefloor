@@ -11,8 +11,10 @@
  * 2026-10-16: the shared track always, and a member's own microphone when
  * they switched *Several voices* on for the room. Those lines carry the
  * provider's letter, and a stem that came back with more than one is named
- * `Name (A)`, `Name (B)`. Bare letters, never renamed. See
- * planning/decision/2026-10-16-separating-voices-is-a-choice-per-room.md.
+ * `Name (A)`, `Name (B)` — or, since 2026-11-13, whatever somebody named that
+ * voice in that segment (`VoiceName`). See
+ * planning/decision/2026-10-16-separating-voices-is-a-choice-per-room.md and
+ * planning/decision/2026-11-13-a-separated-voice-may-be-named.md.
  *
  * Two jobs, and the two ends had better agree about both, which is why this is
  * here rather than in either of them: what to call each line, and where one
@@ -33,6 +35,29 @@ export interface TranscriptLine {
   speaker?: string | null;
 }
 
+/**
+ * A name somebody gave one separated voice of one segment, since 2026-11-13:
+ * the stem's letter `speaker` within `identity` reads `name` in place of
+ * `Rodrigo (B)`. **A segment's, never wider**, a letter being one
+ * transcription's — `A` in one segment and `A` in the next need not be one
+ * person. See `SegmentView.voices`.
+ */
+export interface VoiceName {
+  identity: string;
+  speaker: string;
+  name: string;
+}
+
+/** The name given to one voice, if any. */
+export function givenName(
+  names: readonly VoiceName[],
+  identity: string,
+  speaker: string | null | undefined
+): string | undefined {
+  if (!speaker) return undefined;
+  return names.find((voice) => voice.identity === identity && voice.speaker === speaker)?.name;
+}
+
 /** A line once it has been through `readable`, which is how it travels. */
 export type NamedLine<L> = L & { displayName: string | null };
 
@@ -50,10 +75,12 @@ export type NamedLine<L> = L & { displayName: string | null };
  */
 export function readable<L extends TranscriptLine>(
   lines: readonly L[],
-  nameOf: (identity: string) => string | null
+  nameOf: (identity: string) => string | null,
+  names: readonly VoiceName[] = []
 ): Array<NamedLine<L>> {
   return lettered(
-    lines.map((line) => ({ ...line, displayName: nameOf(line.identity) }))
+    lines.map((line) => ({ ...line, displayName: nameOf(line.identity) })),
+    names
   );
 }
 
@@ -62,10 +89,32 @@ export function readable<L extends TranscriptLine>(
  * stem holds more than one among them — `readable`'s rule, for the live
  * transcript too, whose names are frozen on the server with the line and
  * whose letters are therefore applied wherever the lines are gathered.
+ *
+ * **A voice somebody named reads that name instead** (`names`), lettered or
+ * not: a name is only ever offered for a lettered one, and a name given is
+ * meant.
  */
 export function lettered<
   L extends { identity: string; displayName: string | null; speaker?: string | null },
->(lines: readonly L[]): L[] {
+>(lines: readonly L[], names: readonly VoiceName[] = []): L[] {
+  const several = separated(lines);
+  if (several.size === 0 && names.length === 0) return [...lines];
+  return lines.map((line) => {
+    const given = givenName(names, line.identity, line.speaker);
+    if (given !== undefined) return { ...line, displayName: given };
+    return several.has(line.identity)
+      ? { ...line, displayName: voiceName(line.displayName, line.speaker) }
+      : line;
+  });
+}
+
+/**
+ * The stems among `lines` that came back with more than one voice, which are
+ * the ones whose letters go on the name and whose voices may be named.
+ */
+export function separated(
+  lines: readonly { identity: string; speaker?: string | null }[]
+): Set<string> {
   const letters = new Map<string, Set<string>>();
   for (const line of lines) {
     if (!line.speaker) continue;
@@ -73,13 +122,7 @@ export function lettered<
     seen.add(line.speaker);
     letters.set(line.identity, seen);
   }
-  if (letters.size === 0) return [...lines];
-  return lines.map((line) => {
-    const several = (letters.get(line.identity)?.size ?? 0) > 1;
-    return several
-      ? { ...line, displayName: voiceName(line.displayName, line.speaker) }
-      : line;
-  });
+  return new Set([...letters].filter(([, seen]) => seen.size > 1).map(([identity]) => identity));
 }
 
 /**

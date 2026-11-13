@@ -1,4 +1,5 @@
 import { isTranscribingLive } from '../../core/channel';
+import type { VoiceName } from '../../core/transcript';
 import type { ChannelState } from '../../core/types';
 import { newId, type Db } from './db';
 
@@ -19,6 +20,8 @@ export interface SegmentRow {
    * recording's transcript since 2026-11-08 — and its filed document with it.
    */
   text_deleted_at: number | null;
+  /** When one of its voices was last named, or a name cleared; null never. */
+  voices_named_at: number | null;
 }
 
 /**
@@ -89,6 +92,53 @@ export class Segments {
     return this.db
       .prepare('SELECT * FROM segments WHERE recording_id = ?')
       .get(recordingId) as SegmentRow | undefined;
+  }
+
+  /**
+   * The names given to a segment's separated voices, since 2026-11-13 —
+   * which every reading of its lines puts in place of `Name (B)`.
+   */
+  voicesOf(segmentId: string): VoiceName[] {
+    return this.db
+      .prepare(
+        `SELECT identity, speaker, name FROM segment_voices
+          WHERE segment_id = ? ORDER BY identity, speaker`
+      )
+      .all(segmentId) as unknown as VoiceName[];
+  }
+
+  /** The names given to the voices of the segment a recording is the audio of. */
+  voicesOfRecording(recordingId: string): VoiceName[] {
+    const segment = this.ofRecording(recordingId);
+    return segment ? this.voicesOf(segment.id) : [];
+  }
+
+  /**
+   * Names some of a segment's voices, an empty name clearing one back to
+   * its letter, all at once; the caller has found the segment and the
+   * namer entitled. Stamps `voices_named_at`, which the snapshot carries,
+   * and owes the segment's filing again where it was filed, so the
+   * channel's library reads the names too (`ChannelLibraries`).
+   */
+  nameVoices(segmentId: string, voices: readonly VoiceName[], now: number): void {
+    const put = this.db.prepare(
+      `INSERT INTO segment_voices (segment_id, identity, speaker, name) VALUES (?, ?, ?, ?)
+       ON CONFLICT (segment_id, identity, speaker) DO UPDATE SET name = excluded.name`
+    );
+    const clear = this.db.prepare(
+      'DELETE FROM segment_voices WHERE segment_id = ? AND identity = ? AND speaker = ?'
+    );
+    for (const voice of voices) {
+      if (voice.name === '') clear.run(segmentId, voice.identity, voice.speaker);
+      else put.run(segmentId, voice.identity, voice.speaker, voice.name);
+    }
+    this.db
+      .prepare(
+        `UPDATE segments SET voices_named_at = ?,
+                filed_at = CASE WHEN filed_at > 0 THEN NULL ELSE filed_at END
+          WHERE id = ?`
+      )
+      .run(now, segmentId);
   }
 
   private close(channelId: string, now: number): void {

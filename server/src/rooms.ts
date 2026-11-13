@@ -211,6 +211,12 @@ export class Rooms {
       const deletedRun = this.db.prepare(
         'SELECT deleted_at FROM recordings WHERE id = ?'
       );
+      // Read only where some were named, which is most segments' never.
+      const voicesOf = (row: { id: string; voices_named_at: number | null }) => {
+        if (row.voices_named_at === null) return {};
+        const voices = this.segments?.voicesOf(row.id) ?? [];
+        return voices.length > 0 ? { voices } : {};
+      };
       const gone = (id: string) => {
         const run = deletedRun.get(id) as { deleted_at: number | null } | undefined;
         return !run || run.deleted_at !== null;
@@ -223,9 +229,12 @@ export class Rooms {
           recordingId: row.recording_id && !gone(row.recording_id) ? row.recording_id : null,
           text: row.text === 1,
           // Not the document of text since deleted, which is on its way out.
-          ...(row.filed_file && (row.filed_at ?? 0) > 0 && !row.text_deleted_at
+          // Still while it is owed again, a voice having been named since
+          // 2026-11-13: the old document stands until the new one replaces it.
+          ...(row.filed_file && !row.text_deleted_at
             ? { filed: { file: row.filed_file, title: row.filed_title } }
             : {}),
+          ...voicesOf(row),
         }))
         // A finished one left keeping nothing is nothing to show.
         .filter((segment) => segment.endedAt === null || segment.recordingId !== null || segment.text);

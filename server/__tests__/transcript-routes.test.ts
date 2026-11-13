@@ -233,7 +233,7 @@ async function complete(text: Record<string, string>) {
  * than one thing — which is the case `complete` cannot make.
  */
 async function completeWith(
-  utterances: Record<string, Array<{ text: string; startMs: number }>>
+  utterances: Record<string, Array<{ text: string; startMs: number; speaker?: string }>>
 ) {
   const identities = Object.keys(utterances);
   for (const [n, job] of provider.submitted.entries()) {
@@ -244,6 +244,7 @@ async function completeWith(
         endMs: u.startMs + 900,
         text: u.text,
         confidence: 0.9,
+        ...(u.speaker ? { speaker: u.speaker } : {}),
       })),
       'en'
     );
@@ -690,7 +691,41 @@ describe('what was played into the room', () => {
     expect(found.json().hits[0].displayName).toBe('Played audio');
   }, 60_000);
 
-  it('offers nowhere to rename a voice', async () => {
+  it("letters its voices, bare as `voice` beside the name, and exports the names given in the segment's menu", async () => {
+    const { alice } = await roomWithMedia();
+    await ask(alice.token);
+    await app.transcripts.settled();
+    await completeWith({
+      [alice.account.id]: [{ text: 'listen to this bit', startMs: 0 }],
+      media: [
+        { text: 'welcome to the programme', startMs: 1_000, speaker: 'A' },
+        { text: 'thank you for having me', startMs: 2_000, speaker: 'B' },
+      ],
+    });
+
+    const body = (await read(alice.token)).json();
+    expect(
+      body.lines.map((l: { displayName: string; voice?: string }) => [l.displayName, l.voice])
+    ).toEqual([
+      ['Alice', undefined],
+      ['Played audio (A)', 'A'],
+      ['Played audio (B)', 'B'],
+    ]);
+    expect(body.lines.every((l: object) => !('speaker' in l))).toBe(true);
+
+    app.db
+      .prepare(
+        `INSERT INTO segments (id, channel_id, started_at, ended_at, recording_id, text)
+         VALUES ('seg_1', ?, ?, ?, ?, 0)`
+      )
+      .run(CHANNEL, clock, clock + 30_000, RECORDING);
+    app.channels.segmentLog.nameVoices('seg_1', [{ identity: 'media', speaker: 'B', name: 'Fareed' }], clock);
+    const file = await read(alice.token, `/recordings/${RECORDING}/transcript/export`);
+    expect(file.body).toContain('Played audio (A): welcome to the programme');
+    expect(file.body).toContain('Fareed: thank you for having me');
+  }, 60_000);
+
+  it("answers the voice editor of before 2026-10-09 with nothing, a name being a segment's now", async () => {
     const { alice } = await roomWithMedia();
     await ask(alice.token);
     await app.transcripts.settled();

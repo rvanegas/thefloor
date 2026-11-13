@@ -75,10 +75,14 @@ const spoken = (from: number, until: number) => ({
   text: true,
 });
 
-function sources(rooms: RoomView[], lines: Array<{ displayName: string; startAt: number; text: string }> = []): RecordSources {
+function sources(
+  rooms: RoomView[],
+  lines: Array<{ identity?: string; speaker?: string; displayName: string; startAt: number; text: string }> = []
+): RecordSources {
   return {
     rooms: () => rooms,
-    liveLines: (_channel, from, until) => lines.filter((l) => l.startAt >= from && l.startAt <= until),
+    liveLines: (_channel, from, until) =>
+      lines.filter((l) => l.startAt >= from && l.startAt <= until).map((l) => ({ identity: l.displayName, ...l })),
     recording: () => null,
   };
 }
@@ -113,6 +117,23 @@ describe('the Record as Claude reads it', () => {
     expect(record.text).toContain('Ben: Hello there.');
     expect(record.text).toContain('Ana (pasted): a link');
     expect(record.text.indexOf('Ben:')).toBeLessThan(record.text.indexOf('Ana (pasted)'));
+  });
+
+  it("reads a separated voice by its letter, or by the name given it in the segment's menu", () => {
+    const segment = { ...spoken(T0, T0 + 60_000), voices: [{ identity: 'acct_b', speaker: 'B', name: 'Cy' }] };
+    const record = composeRecord(
+      sources(
+        [room(T0, [segment])],
+        [
+          { identity: 'acct_b', speaker: 'A', displayName: 'Ben', startAt: T0 + 1_000, text: 'Hello there.' },
+          { identity: 'acct_b', speaker: 'B', displayName: 'Ben', startAt: T0 + 2_000, text: 'Hi.' },
+        ]
+      ),
+      'c',
+      T0 + 120_000
+    )!;
+    expect(record.text).toContain('Ben (A): Hello there.');
+    expect(record.text).toContain('Cy: Hi.');
   });
 
   it('labels Claude’s own earlier replies as Claude, so a second press continues', () => {

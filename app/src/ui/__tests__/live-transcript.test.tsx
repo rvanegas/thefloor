@@ -751,6 +751,57 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
+  it("names a segment's separated voices, under its line, and reads the name given", async () => {
+    const { TextInput } = require('react-native');
+    const voiced = (id: string, at: number, speaker: string, text: string) => ({
+      ...line(id, ME, 'Me', at, text),
+      speaker,
+    });
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        voiced('l1', NOW + 1_000, 'A', 'first voice'),
+        voiced('l2', NOW + 2_000, 'B', 'second voice'),
+        // One voice alone in its segment is no letter, and nothing to name.
+        voiced('l3', NOW + 31_000, 'A', 'alone'),
+      ],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, [], [
+          { ...seg('s1', NOW, NOW + 30_000, null, true), voices: [{ identity: ME, speaker: 'B', name: 'Ana' }] },
+          seg('s2', NOW + 30_000, NOW + 60_000, null, true),
+        ]),
+      ],
+    } as never);
+    const named = jest.spyOn(api, 'nameVoices').mockResolvedValue({ ok: true } as never);
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+    openSegments(tree);
+
+    const text = textOf(tree);
+    expect(text).toContain('Me (A)');
+    expect(text).toContain('Ana');
+    expect(text).not.toContain('Me (B)');
+    expect(openMenu(tree, 1).options).not.toContain('Name voices');
+
+    const menu = openMenu(tree);
+    expect(menu.options).toEqual(['Share text', 'Name voices', 'Delete text']);
+    menu.choose('Name voices');
+    const fields = tree.root.findAll((node) => node.type === TextInput);
+    // Each voice under what it is called with no name, starting on the name given.
+    expect(fields.map((field) => field.props.value)).toEqual(['', 'Ana']);
+    expect(textOf(tree)).toContain('Me (B)');
+    act(() => fields[0].props.onChangeText('Ben'));
+    await act(async () => findButton(tree, 'Save')!.props.onPress());
+    expect(named).toHaveBeenCalledWith('token', 'sess_1', 's1', [
+      { identity: ME, speaker: 'A', name: 'Ben' },
+    ]);
+    act(() => tree.unmount());
+  });
+
   it('shares the text of a segment whose audio is still being filed', async () => {
     // Its recording is named but not listed until egress finishes; the text
     // is kept already and is no less shareable for that.

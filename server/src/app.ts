@@ -94,7 +94,7 @@ import {
   Transcripts,
   type TranscriptView,
 } from './transcripts';
-import { readable } from '../../core/transcript';
+import { readable, separated } from '../../core/transcript';
 import {
   BUILD_HEADER,
   NOTIFY_HEADER,
@@ -5490,9 +5490,19 @@ export function buildApp(options: BuildOptions = {}): App {
       // that read them find none, which hides their voice-naming screen. A
       // separated voice's letter travels in the name instead, since
       // 2026-10-16 — `Played audio (B)` — which every build draws as it is.
-      lines: readable(transcripts.linesFor(found.row.id), nameOf).map(
-        ({ speaker: _letter, ...line }) => line
-      ),
+      //
+      // **And bare, as `voice`, since 2026-11-13**, where it went on the
+      // name: the letter a name given in the segment's menu is keyed by,
+      // which the app puts in place of this one where the lines are
+      // gathered, as it does a live line's (`SegmentView.voices`). Not
+      // `speaker`, which the builds above would still draw a note from.
+      lines: (() => {
+        const lines = transcripts.linesFor(found.row.id);
+        const several = separated(lines);
+        return readable(lines, nameOf).map(({ speaker: letter, ...line }) =>
+          letter && several.has(line.identity) ? { ...line, voice: letter } : line
+        );
+      })(),
     };
   });
 
@@ -5513,7 +5523,8 @@ export function buildApp(options: BuildOptions = {}): App {
     const file = formatTranscript(
       transcripts.linesFor(found.row.id),
       names,
-      format
+      format,
+      channels.segmentLog.voicesOfRecording(found.row.id)
     );
     return reply
       .header('content-type', `${file.contentType}; charset=utf-8`)
@@ -5577,6 +5588,50 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!account) return;
     const { id, segmentId } = request.params as { id: string; segmentId: string };
     const result = channels.deleteSegmentText(id, segmentId, account.id);
+    if (!result.ok) {
+      return reply
+        .code(result.code === 'conflict' ? 409 : result.code === 'forbidden' ? 403 : 404)
+        .send({ error: result.error });
+    }
+    return { ok: true };
+  });
+
+  /**
+   * Names some of one segment's separated voices, an empty name clearing one
+   * — *Name voices*, since 2026-11-13. See `nameVoices` for the terms.
+   */
+  fastify.put('/channels/:id/segments/:segmentId/voices', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, segmentId } = request.params as { id: string; segmentId: string };
+    const asked = (request.body as { voices?: unknown } | undefined)?.voices;
+    const voices = Array.isArray(asked) && asked.length > 0 && asked.length <= 26 ? asked : null;
+    if (
+      !voices ||
+      !voices.every(
+        (voice: { identity?: unknown; speaker?: unknown; name?: unknown }) =>
+          typeof voice?.identity === 'string' &&
+          voice.identity.length > 0 &&
+          voice.identity.length <= 200 &&
+          typeof voice.speaker === 'string' &&
+          voice.speaker.length > 0 &&
+          voice.speaker.length <= 8 &&
+          typeof voice.name === 'string' &&
+          voice.name.length <= 1000
+      )
+    ) {
+      return reply.code(400).send({ error: 'Which voices, and what to call them.' });
+    }
+    const result = channels.nameVoices(
+      id,
+      segmentId,
+      account.id,
+      voices.map((voice: { identity: string; speaker: string; name: string }) => ({
+        identity: voice.identity,
+        speaker: voice.speaker,
+        name: voice.name,
+      }))
+    );
     if (!result.ok) {
       return reply
         .code(result.code === 'conflict' ? 409 : result.code === 'forbidden' ? 403 : 404)
@@ -6499,7 +6554,8 @@ export function buildApp(options: BuildOptions = {}): App {
     const file = formatTranscript(
       transcripts.linesFor(recordingId),
       names,
-      'vtt'
+      'vtt',
+      channels.segmentLog.voicesOfRecording(recordingId)
     );
     return reply
       .header('content-type', `${file.contentType}; charset=utf-8`)

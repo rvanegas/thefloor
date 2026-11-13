@@ -2,6 +2,7 @@ import type { ImHandles } from './im';
 import type { AccountSettings } from './settings';
 import type { NotificationLevel } from './notifications';
 import type { Tried } from './tried';
+import type { VoiceName } from './transcript';
 import type {
   ChannelState,
   Clip,
@@ -1177,6 +1178,13 @@ export interface SegmentView {
    * Absent for a segment never filed, or not yet.
    */
   filed?: FiledView;
+  /**
+   * The names given to its separated voices, since 2026-11-13 — *Name
+   * voices* in its menu, `PUT /channels/:id/segments/:segmentId/voices` —
+   * which its lines read in place of `Rodrigo (B)` (`lettered`). Absent where
+   * none is named; ignored by older builds, which draw the letter.
+   */
+  voices?: VoiceName[];
 }
 
 /** A segment's document in the channel's library: see `SegmentView.filed`. */
