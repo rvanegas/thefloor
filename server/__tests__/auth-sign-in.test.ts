@@ -38,7 +38,7 @@ const fakeAuthAndNoesis = (async (input: unknown, init?: { body?: unknown }) => 
   }
   if (url.pathname === '/me') {
     // auth's /me says who; noesis's, whose libraries. Both answer here.
-    return Response.json({ ...who, libraries: [`${who.user}/notes`], names: [] });
+    return Response.json({ ...who, libraries: [`${who.user}/notes`] });
   }
   return new Response(null, { status: 200 });
 }) as typeof fetch;

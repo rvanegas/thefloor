@@ -4182,7 +4182,7 @@ export function buildApp(options: BuildOptions = {}): App {
    * noesis's own copy (SHIMS.md, gate 429). The text is what *Share* hands
    * over, made by the app as it is for Share, so the two never disagree;
    * noesis files it as a conversation, your lines as yours by your display
-   * name here. `filename` is Share's, made safe for noesis, which takes a
+   * name, which noesis takes from auth. `filename` is Share's, made safe for noesis, which takes a
    * name and never a path. Pro's alone since 2026-11-10, refused with 402,
    * which those builds show as its message.
    */
@@ -4203,8 +4203,7 @@ export function buildApp(options: BuildOptions = {}): App {
       account.id,
       body.library,
       noesisFilename(typeof body.filename === 'string' ? body.filename : ''),
-      body.text,
-      account.display_name
+      body.text
     );
     if (sent.ok) return { file: sent.file };
     const status = { not_connected: 409, no_grant: 403, not_yours: 404, busy: 409, allowance: 402, failed: 502 }[

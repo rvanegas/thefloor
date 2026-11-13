@@ -42,9 +42,9 @@ import type { Db } from './db';
  *   writes there, and only with the `noesis:import` scope, which auth's
  *   operator allows this client alone and its sign-in names. Asked for at every
  *   connecting; a connection made before it lacks it (`canSend`) and connects
- *   again to have it. Before sending, the person's display name here is added
- *   to the names noesis keeps as their voice, so their lines are filed as
- *   their own words and everybody else's as context. **A shim since
+ *   again to have it. noesis reads the person's lines as theirs by their
+ *   display name, which it asks auth for (since 2026-11-13, when it stopped
+ *   keeping names of its own). **A shim since
  *   2026-11-10**, answering builds up to 428 (SHIMS.md, gate 429): build 429
  *   offers no Send, a member copying the channel library's transcript at noesis.
  * - **The display name is auth's** (since 2026-11-09, auth's
@@ -370,12 +370,9 @@ export class NoesisConnections {
   /**
    * Files `text` — a room's, as *Share* hands it — in `library`, one of the
    * person's, through noesis's import. Sent again, it replaces what the same
-   * conversation filed before (noesis knows one by its turns). `speaker` is
-   * the person's display name here, added first to the names noesis keeps as
-   * their voice where it is missing; best effort, since the text is worth
-   * filing even when that fails.
+   * conversation filed before (noesis knows one by its turns).
    */
-  async send(accountId: string, library: string, filename: string, text: string, speaker: string): Promise<NoesisSent> {
+  async send(accountId: string, library: string, filename: string, text: string): Promise<NoesisSent> {
     const row = this.row(accountId);
     if (!row) return { ok: false, reason: 'not_connected' };
     if (!grants(row, NOESIS_IMPORT_SCOPE)) return { ok: false, reason: 'no_grant' };
@@ -384,11 +381,6 @@ export class NoesisConnections {
     if (!token) return { ok: false, reason: 'not_connected' };
     const doFetch = this.options.fetch ?? fetch;
     const bearer = { Authorization: `Bearer ${token}` };
-    try {
-      await this.keepSpeaker(token, speaker);
-    } catch (error) {
-      this.log?.warn({ err: error }, 'noesis: could not add a speaker name');
-    }
     const url = new URL(`/libraries/${library}/import`, this.origin);
     url.search = new URLSearchParams({ filename, replace: 'true' }).toString();
     let response: Response;
@@ -409,21 +401,6 @@ export class NoesisConnections {
       return { ok: false, reason: 'failed', message: await detailOf(response) };
     }
     return finished(await response.text());
-  }
-
-  /** Adds `speaker` to the names noesis keeps as the person's voice, where it is not among them already. */
-  private async keepSpeaker(token: string, speaker: string): Promise<void> {
-    const name = speaker.trim();
-    if (!name) return;
-    const me = await this.whoIs(token);
-    if (!me || me.names.some((kept) => kept.toLowerCase() === name.toLowerCase())) return;
-    const doFetch = this.options.fetch ?? fetch;
-    const response = await doFetch(new URL('/me/names', this.origin), {
-      method: 'PUT',
-      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ names: [...me.names, name] }),
-    });
-    if (!response.ok) throw new Error(`noesis /me/names answered ${response.status}`);
   }
 
   /** The person's library ids as last read; empty when none is connected. */
@@ -538,7 +515,6 @@ export class NoesisConnections {
     email: string | null;
     displayName: string | null;
     libraries: string[];
-    names: string[];
   } | null> {
     const doFetch = this.options.fetch ?? fetch;
     const headers = { Authorization: `Bearer ${accessToken}` };
@@ -551,7 +527,6 @@ export class NoesisConnections {
     const body = (await response.json()) as {
       user?: string;
       libraries?: unknown;
-      names?: unknown;
     };
     if (!body.user) return null;
     const said = identity.ok
@@ -568,7 +543,6 @@ export class NoesisConnections {
       email,
       displayName,
       libraries: parseLibraries(body.libraries).filter((id) => id.toLowerCase().startsWith(own)),
-      names: parseLibraries(body.names),
     };
   }
 
@@ -594,7 +568,7 @@ export class NoesisConnections {
   }
 }
 
-/** A list of strings — library ids, or a person's names — from noesis or from the column; anything else is none. */
+/** A list of library ids, from noesis or from the column; anything else is none. */
 function parseLibraries(value: unknown): string[] {
   let list = value;
   if (typeof value === 'string') {

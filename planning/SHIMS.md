@@ -224,7 +224,8 @@ and a message those builds show as it is.
 What goes, once `oldestBuild` has passed 428:
 
 - `POST /me/noesis/send` in `server/src/app.ts`
-- `NoesisConnections.send` and its `PUT /me/names` call, `NOESIS_IMPORT_SCOPE`
+- `NoesisConnections.send` (its `PUT /me/names` call went 2026-11-13, when
+  noesis stopped keeping names), `NOESIS_IMPORT_SCOPE`
   in what `start` asks for, and `canSend` in `status`, all in
   `server/src/noesis.ts`; `noesis_connections.scopes` with them if nothing
   else reads it by then

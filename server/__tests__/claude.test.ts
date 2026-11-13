@@ -479,7 +479,6 @@ beforeEach(() => {
   authVouches = false;
   noesisLibraries = ['alice/philosophy'];
   noesisScope = 'noesis:read noesis:import';
-  noesisNames = [];
   noesisImport = () =>
     new Response('event: output\ndata: {"text": "imported"}\n\nevent: done\ndata: {"exit_code": 0, "changed": {"2026/2026-11-02-lunch.chat.md": "abc"}, "deleted": []}\n\n');
 });
@@ -501,8 +500,6 @@ let noesisRefuses = false;
 let noesisLibraries = ['alice/philosophy'];
 /** The scopes noesis grants at a sign-in: `import` since 2026-11-02, nothing before. */
 let noesisScope = 'noesis:read noesis:import';
-/** The names noesis keeps as the person's voice, which `PUT /me/names` replaces. */
-let noesisNames: string[] = [];
 /** How noesis's import answers. */
 let noesisImport: () => Response = () => new Response(null, { status: 500 });
 /** Whether auth grants on The Floor's word for an address (`vouch`); it refuses unless a test says otherwise. */
@@ -532,12 +529,8 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
       ...(noesisScope ? { scope: noesisScope } : {}),
     });
   }
-  if (url.pathname === '/me/names') {
-    noesisNames = JSON.parse(String(init?.body)).names;
-    return Response.json({ names: noesisNames });
-  }
   if (url.pathname === '/me') {
-    return Response.json({ ...noesisWho, libraries: noesisLibraries, names: noesisNames });
+    return Response.json({ ...noesisWho, libraries: noesisLibraries });
   }
   if (url.pathname.endsWith('/import')) return noesisImport();
   if (url.pathname === '/applications/token') return Response.json({ access_token: 'channel-token', expires_in: 3600 });
@@ -1829,14 +1822,13 @@ describe('sending a room’s text to noesis', () => {
   const send = (token: string, payload: object) =>
     app.fastify.inject({ method: 'POST', url: '/me/noesis/send', headers: auth(token), payload });
 
-  it('files it in a library of yours, replacing what it filed before, your name kept as your voice', async () => {
+  it('files it in a library of yours, replacing what it filed before', async () => {
     boot(fakeClient(() => reply('x')).client, undefined, NOESIS);
     const { alice } = await room2();
     await connect(alice.account.id);
     makePro(alice.account.id);
     const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
     expect(status.json()).toMatchObject({ connected: true, canSend: true });
-    noesisNames = ['Prompt'];
     const sent = await send(alice.token, {
       library: 'alice/philosophy',
       filename: 'The Floor — Lunch — 2026-11-02 1230',
@@ -1844,15 +1836,12 @@ describe('sending a room’s text to noesis', () => {
     });
     expect(sent.statusCode).toBe(200);
     expect(sent.json()).toEqual({ file: '2026/2026-11-02-lunch.chat.md' });
-    expect(noesisNames).toEqual(['Prompt', 'Alice']);
     const filed = noesisCalls.find((call) => call.path === '/libraries/alice/philosophy/import')!;
     expect(filed.method).toBe('POST');
     expect(filed.query).toEqual({ filename: 'The Floor — Lunch — 2026-11-02 1230.md', replace: 'true' });
     expect(filed.body).toBe(TEXT);
-    // A name already kept, in any case, is not added again.
-    noesisNames = ['alice'];
-    await send(alice.token, { library: 'alice/philosophy', filename: 'x', text: TEXT });
-    expect(noesisNames).toEqual(['alice']);
+    // noesis takes the person's voice from auth: nothing names it there.
+    expect(noesisCalls.some((call) => call.path === '/me/names')).toBe(false);
   });
 
   it('refuses a library not yours, a grant made before sending was asked for, and says why noesis did', async () => {
