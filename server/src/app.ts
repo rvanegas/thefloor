@@ -64,7 +64,7 @@ import { publicChannelPage } from './public-page';
 import { podcastDirectoryPage } from './directory-page';
 import { isEmailAddress, type Mailer } from './mail';
 import type { MediaServer } from './media';
-import { probeDurationMs, UnreadableAudioError } from './playback';
+import { probeDurationMs, SAMPLE_RATE, UnreadableAudioError } from './playback';
 import { startsAnEpisode } from './usage';
 import { escapeHtml, page, socialCard, socialTags } from './html';
 import { landingPage } from './landing';
@@ -95,6 +95,7 @@ import {
   type TranscriptView,
 } from './transcripts';
 import { SpeechStore, type SpeechProvider } from './speech';
+import { SPEECH_SAMPLE_TEXT, SPEECH_VOICES } from '../../core/speech';
 import { readable, separated } from '../../core/transcript';
 import {
   BUILD_HEADER,
@@ -3202,6 +3203,8 @@ export function buildApp(options: BuildOptions = {}): App {
       claude: claude ? 'Anthropic' : undefined,
       // Only beside Claude, on its rule. See PolicyOptions.library.
       library: channels.libraryAvailable(),
+      // Only beside Claude too, and only where the server can speak.
+      speech: options.speech?.name,
     });
   });
 
@@ -5845,6 +5848,46 @@ export function buildApp(options: BuildOptions = {}): App {
     );
     if (!result.ok) return reply.code(result.status).send({ error: result.error });
     return { ok: true };
+  });
+
+  /**
+   * A voice's sample, for *Claude's voice* on *Channel Settings*: one fixed
+   * sentence in the voice's own language, as raw 16-bit mono PCM at 48 kHz.
+   * **Synthesised once per process and kept**, so trying voices costs a
+   * sample per voice rather than one per tap; the ledger has a row for each
+   * with no channel. Since 2026-11-13.
+   */
+  const samples = new Map<string, Promise<Buffer>>();
+  fastify.get('/speech/voices/:voice/sample', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { voice } = request.params as { voice: string };
+    const info = SPEECH_VOICES.find((candidate) => candidate.id === voice);
+    if (!options.speech || !info) return reply.code(404).send({ error: 'No such voice.' });
+    let made = samples.get(voice);
+    if (!made) {
+      const text = SPEECH_SAMPLE_TEXT[info.language] ?? SPEECH_SAMPLE_TEXT.en!;
+      const chunks: Buffer[] = [];
+      made = options.speech
+        .synthesize({ text, voice, language: info.language }, (pcm) => chunks.push(pcm))
+        .then(({ billedCharacters }) => {
+          db.prepare(
+            `INSERT INTO speech_usage (id, at, channel_id, account_id, paste_id, characters)
+             VALUES (?, ?, '', NULL, ?, ?)`
+          ).run(newId('speech'), now(), `sample:${voice}`, billedCharacters);
+          return Buffer.concat(chunks);
+        });
+      // A failure is not kept: the next tap asks again.
+      made.catch(() => samples.delete(voice));
+      samples.set(voice, made);
+    }
+    try {
+      const audio = await made;
+      reply.header('x-sample-rate', String(SAMPLE_RATE)).type('application/octet-stream');
+      return audio;
+    } catch {
+      return reply.code(502).send({ error: 'That voice could not be reached. Try again in a moment.' });
+    }
   });
 
   /**

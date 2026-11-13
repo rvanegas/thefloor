@@ -37,6 +37,15 @@ export const SPEECH_VOICES: readonly SpeechVoiceInfo[] = [
   { id: 'aai-oriol', name: 'Oriol', language: 'es' },
 ];
 
+/**
+ * What a voice says when somebody tries it on *Claude's voice*, in its own
+ * language. Fixed, so the server synthesises each once and keeps it.
+ */
+export const SPEECH_SAMPLE_TEXT: Partial<Record<SpeechLanguage, string>> = {
+  en: "Hello, I'm Claude. This is how I'll sound when I answer in this channel.",
+  es: 'Hola, soy Claude. Así sonaré cuando responda en este canal.',
+};
+
 export function isSpeechVoice(value: unknown): value is string {
   return typeof value === 'string' && SPEECH_VOICES.some((voice) => voice.id === value);
 }

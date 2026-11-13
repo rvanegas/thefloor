@@ -465,6 +465,24 @@ GROUP BY c.grade
 ORDER BY presses DESC;
 
 .print ''
+.print '── Claude, spoken ───────────────────────────────────────────────'
+.print ''
+-- Claude's replies read into the room by AssemblyAI since 2026-11-13, one
+-- row per synthesis (*Read again* plays the kept audio and has none), at $15
+-- per million characters — re-check against their pricing page before
+-- quoting it. `samples` are the voice samples *Channel Settings* plays, made
+-- once per voice per process. Errors with `no such table` against a database
+-- from before it.
+SELECT strftime('%Y-%m', at / 1000, 'unixepoch') AS month,
+       SUM(paste_id NOT LIKE 'sample:%') AS replies,
+       SUM(paste_id LIKE 'sample:%') AS samples,
+       SUM(characters) AS characters,
+       ROUND(SUM(characters) * 15.0 / 1e6, 2) AS usd
+FROM speech_usage
+GROUP BY month
+ORDER BY month DESC;
+
+.print ''
 .print '── Free minutes, and who is not held to them ───────────────────'
 .print ''
 -- Everybody gets FREE_TRANSCRIPT_MINUTES a calendar week (60 unless set),

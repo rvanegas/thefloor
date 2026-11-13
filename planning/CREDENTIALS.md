@@ -44,7 +44,7 @@ here has to be read in order, and no entry depends on another.
 | `ts upload-ios`, `ts submit-ios`, `ts testflight`, `ts testflight-notes` | App Store Connect API key |
 | An Android release build, `ts android` | Android upload key |
 | Donations, `POST /donations/kofi` | Ko-fi webhook verification token |
-| Transcripts, and what `/privacy` claims | AssemblyAI |
+| Transcripts, Claude's reply spoken into the room, and what `/privacy` claims | AssemblyAI |
 | Push on Android | Firebase service account |
 | Claude's *Respond*, and what `/privacy` claims about it | Anthropic |
 | Claude consulting somebody's own writing, the *Library* switch and *Floor Settings*' noesis card | noesis client |
@@ -240,6 +240,12 @@ Deliberately separate, so no single leak is worse than it has to be:
   Somebody holding it can spend that balance and can read back any transcript
   we have not yet deleted — which, if the deletion sweep is doing its job, is
   only the ones in flight.
+
+  **Since 2026-11-13 it also speaks Claude's replies** (`server/src/speech.ts`,
+  their text-to-speech, at $15 per million characters: about 1.4¢ a *Medium*
+  reply), so its presence also adds a paragraph inside `/privacy`'s Claude
+  section, wherever the Anthropic key is set too. The same key, the same
+  account, and `speech_usage` is its ledger.
 
   **Setting it is a public act, and that is deliberate.** The `/privacy` page's
   transcription section is conditional on this key being present: with it, the

@@ -391,3 +391,35 @@ describe('AssemblyAiSpeech', () => {
     expect(waited).toEqual([2_000]);
   });
 });
+
+describe('a voice sample', () => {
+  it('is synthesised once in the voice’s own language and served again from memory', async () => {
+    boot();
+    const alice = await signIn('alice@example.com', 'Alice');
+    const get = () =>
+      app.fastify.inject({
+        method: 'GET',
+        url: '/speech/voices/aai-oriol/sample',
+        headers: auth(alice.token),
+      });
+    const first = await get();
+    const second = await get();
+    expect(first.statusCode).toBe(200);
+    expect(first.headers['x-sample-rate']).toBe('48000');
+    expect(second.rawPayload.equals(first.rawPayload)).toBe(true);
+    expect(speech.requests).toEqual([
+      expect.objectContaining({ voice: 'aai-oriol', language: 'es' }),
+    ]);
+  });
+
+  it('is refused for a voice outside the catalogue', async () => {
+    boot();
+    const alice = await signIn('alice@example.com', 'Alice');
+    const res = await app.fastify.inject({
+      method: 'GET',
+      url: '/speech/voices/aai-nobody/sample',
+      headers: auth(alice.token),
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});

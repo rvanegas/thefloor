@@ -146,6 +146,13 @@ export interface PolicyOptions {
    * own, connected on *Floor Settings*, since 2026-11-01.
    */
   library?: boolean;
+  /**
+   * The name of the company that speaks Claude's replies into the room, when
+   * this server can — its AssemblyAI key. Meaningful only with `claude`, and
+   * its paragraph sits inside that section, on `transcription`'s gate. Since
+   * 2026-11-13.
+   */
+  speech?: string;
 }
 
 /**
@@ -179,6 +186,12 @@ export const CLAUDE_PRIVACY_UPDATED = '22 October 2026';
  * the dates, on the same terms.
  */
 export const DIGEST_PRIVACY_UPDATED = '5 November 2026';
+
+/**
+ * When the page last changed for a reader whose server can both ask Claude
+ * and speak its replies, which is where that paragraph is.
+ */
+export const SPEECH_PRIVACY_UPDATED = '13 November 2026';
 
 export function privacyPage(options: PolicyOptions = {}): string {
   const { contactEmail, transcription, cohorts, pro } = options;
@@ -317,6 +330,10 @@ about ${TRANSCRIPT_RETENTION_DAYS} days later.</p>
   // claimed about what that server keeps of a search, which is not checkable
   // from here — this page's rule, as for Anthropic.
   const library = !!(claude && options.library);
+  // Inside Claude's section, and only where both keys are. **Nothing is
+  // claimed about what AssemblyAI keeps of the text**, which their docs did
+  // not say on 2026-11-13 — this page's rule, as for Anthropic.
+  const speech = claude && options.speech ? escapeHtml(options.speech) : null;
   // Inside Claude's section, and only where a live transcript can exist:
   // without one there is nothing to digest. The one time this server sends
   // the Record to Anthropic with nobody having pressed anything.
@@ -344,6 +361,13 @@ record goes to ${claude} with the Record whenever Claude is asked again, and
 is deleted with the reply. Disconnecting switches the library off in every
 channel.</p>
 `;
+  const speechParagraph = `<p>Claude's reply is also read aloud into the conversation. Its text is
+sent to ${speech}, in the United States, which returns it as speech, and The
+Floor plays that speech once to everybody in the channel's conversation, as
+another voice in it. A recording that is running keeps it like any other voice.
+The Floor keeps the speech for an hour after it was made, so that anybody in the
+conversation can have it read again, and then deletes it.</p>
+`;
   const claudeSection = claude
     ? `
 <h2>Claude</h2>
@@ -359,7 +383,7 @@ what the Record already says.</p>
 under the name <em>Claude</em>, for everybody in the channel to read, and is
 deleted with the channel, on the same schedule as everything else in it. Every screen in the channel says <em>Responding…</em>
 in place of <em>Ask Claude</em> while the reply is being written.</p>
-${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}
+${speech ? speechParagraph : ''}${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}
 `
     : '';
 
@@ -381,6 +405,7 @@ ${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}
       ...(claude ? [CLAUDE_PRIVACY_UPDATED] : []),
       ...(library ? [LIBRARY_PRIVACY_UPDATED] : []),
       ...(digest ? [DIGEST_PRIVACY_UPDATED] : []),
+      ...(speech ? [SPEECH_PRIVACY_UPDATED] : []),
     ])}`,
     body: `
 <p>The Floor is for talking with people you already know. This
