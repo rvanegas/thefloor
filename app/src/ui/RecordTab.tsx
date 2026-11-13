@@ -1151,11 +1151,20 @@ export function AskClaude({
   me,
   nameOf,
   onAsk,
+  unheard = [],
 }: {
   channel: ChannelState;
   me: string;
   nameOf: (id: string) => string;
   onAsk: (length: ReplyLength) => Promise<void>;
+  /**
+   * Who is here on an app from before Claude's voice, since 2026-11-13 —
+   * `ChannelView.claudeUnheard`, less the viewer. They may hear a reply twice,
+   * so the bar says who, at Rodrigo's word: **a warning rather than a
+   * refusal**, the buttons staying live, since asking is still the asker's to
+   * weigh and the only fix is somebody else's update.
+   */
+  unheard?: string[];
 }) {
   const t = useText().channel;
   const [pressing, setPressing] = React.useState(false);
@@ -1222,6 +1231,9 @@ export function AskClaude({
         ))}
       </View>
       {line ? <Text style={type.muted}>{line}</Text> : null}
+      {unheard.length > 0 && !busy ? (
+        <Text style={type.muted}>{t.claudeUnheard(unheard.map(nameOf))}</Text>
+      ) : null}
     </>
   );
 }

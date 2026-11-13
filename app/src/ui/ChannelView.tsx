@@ -3104,6 +3104,7 @@ export function ChannelView({
                     me={me}
                     nameOf={nameOf}
                     onAsk={(length) => app.askClaude(channel.id, length)}
+                    unheard={(view.claudeUnheard ?? []).filter((id) => id !== me)}
                   />
                 ) : null
               }

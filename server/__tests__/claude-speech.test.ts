@@ -201,6 +201,21 @@ describe("Claude's reply, spoken", () => {
     ]);
   });
 
+  it('names who is present on an app that does not hear it, for the warning', async () => {
+    boot();
+    const { alice, bob, channelId } = await room2();
+    expect(app.channels.claudeUnheard(channelId).sort()).toEqual([alice.account.id, bob.account.id].sort());
+    await app.channels.mediaToken(channelId, alice.account.id, true);
+    await app.channels.mediaToken(channelId, bob.account.id);
+    expect(app.channels.claudeUnheard(channelId)).toEqual([bob.account.id]);
+  });
+
+  it('names nobody where the server does not speak', async () => {
+    boot({ speech: false });
+    const { channelId } = await room2();
+    expect(app.channels.claudeUnheard(channelId)).toEqual([]);
+  });
+
   it('is spoken in the language of the channel’s first transcript', async () => {
     boot();
     const { alice, channelId } = await room2();

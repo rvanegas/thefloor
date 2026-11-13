@@ -74,6 +74,23 @@ describe('Ask Claude on the Record bar', () => {
     expect(textOf(tree!)).not.toContain('Reads the Record');
   });
 
+  it('warns, without refusing, while somebody here is on an app from before Claude’s voice', () => {
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [], claudeUnheard: [THEM, ME] });
+    record();
+    // The viewer is on this build, so only the others are named.
+    expect(textOf(tree!)).toContain(
+      'Dana Chu needs to update The Floor, or will hear Claude’s reply twice.'
+    );
+    expect(textOf(tree!)).not.toContain('Me needs');
+    expect(disabled(findButton(tree!, 'Medium')!)).toBeFalsy();
+  });
+
+  it('says nothing while everybody here has updated', () => {
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
+    record();
+    expect(textOf(tree!)).not.toContain('to update The Floor');
+  });
+
   it('asks Claude for the length of the button pressed', async () => {
     showChannel(here(), [], { claude: true });
     record();

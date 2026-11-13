@@ -1566,6 +1566,14 @@ export const en = {
     /** Under the bar while Claude is being asked, on every screen. */
     claudeAsked: (name: string) => `${name} asked Claude`,
     claudeAskedByYou: () => 'You asked Claude',
+    /**
+     * Under the *Ask Claude* bar while somebody here is on an app from before
+     * Claude's voice, since 2026-11-13: they may hear the reply twice.
+     */
+    claudeUnheard: (names: string[]) =>
+      `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`} ${
+        names.length === 1 ? 'needs' : 'need'
+      } to update The Floor, or will hear Claude\u2019s reply twice. Best to ask once everybody here has updated.`,
     roomsNothingYet: () =>
       'Nothing kept yet. What is recorded or transcribed here appears as a log, one room at a time.',
     paused: () => 'Paused',

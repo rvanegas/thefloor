@@ -1196,6 +1196,10 @@ export const es: Strings = {
     responding: () => 'Respondiendo\u2026',
     claudeAsked: (name: string) => `${name} ha preguntado a Claude`,
     claudeAskedByYou: () => 'Has preguntado a Claude',
+    claudeUnheard: (names: string[]) =>
+      `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`} ${
+        names.length === 1 ? 'tiene' : 'tienen'
+      } que actualizar The Floor o ${names.length === 1 ? 'oir\u00e1' : 'oir\u00e1n'} la respuesta de Claude dos veces. Mejor pregunta cuando todos aqu\u00ed hayan actualizado.`,
     roomsNothingYet: () =>
       'Todav\u00eda no se ha guardado nada. Lo que se grabe o se transcriba aqu\u00ed aparece como un registro, sala por sala.',
     paused: () => 'En pausa',

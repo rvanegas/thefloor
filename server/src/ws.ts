@@ -1358,8 +1358,14 @@ export function registerWebsocket(deps: {
         ...(() => {
           const kept = deps.speechKept?.(channelId);
           const saying = channels.claudeSaying(channelId);
+          const unheard = channels.claudeUnheard(channelId);
           return kept
-            ? { speech: true as const, speechKept: kept, ...(saying ? { claudeSaying: saying } : {}) }
+            ? {
+                speech: true as const,
+                speechKept: kept,
+                ...(saying ? { claudeSaying: saying } : {}),
+                ...(unheard.length > 0 ? { claudeUnheard: unheard } : {}),
+              }
             : {};
         })(),
         // The same reading for the library, and whether the switch is the

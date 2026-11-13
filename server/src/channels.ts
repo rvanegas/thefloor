@@ -7648,8 +7648,12 @@ export class ChannelRegistry {
       displayName: account.displayName,
     });
     const hearing = this.hearsClaude.get(channelId) ?? new Map<string, boolean>();
+    const changed = hearing.get(userId) !== hearsClaude;
     hearing.set(userId, hearsClaude);
     this.hearsClaude.set(channelId, hearing);
+    // The *Ask Claude* warning reads it, so a phone that arrives on an older
+    // build — or updates — is said at once.
+    if (changed) this.emit([channelId]);
     return { ok: true, token };
   }
 
@@ -8146,6 +8150,18 @@ export class ChannelRegistry {
     }
     this.say(channelId, pasteId);
     return { ok: true };
+  }
+
+  /**
+   * Who is in the room on an app that has not said it hears Claude's voice —
+   * see `ChannelView.claudeUnheard`. Somebody present who has not fetched a
+   * room token yet counts, being on no app this server has heard from.
+   */
+  claudeUnheard(channelId: string): string[] {
+    const state = this.channels.get(channelId);
+    if (!state || !this.speech) return [];
+    const hearing = this.hearsClaude.get(channelId);
+    return peopleHere(state).filter((id) => hearing?.get(id) !== true);
   }
 
   /** The reply Claude's voice is saying in this channel's room now, if any. */

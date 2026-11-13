@@ -1330,6 +1330,15 @@ export interface ChannelView {
    */
   claudeSaying?: string;
   /**
+   * Who is in the room on an app that does not hear Claude's voice from it —
+   * one that has not said `hearsClaude`, so a build from before 2026-11-13.
+   * **Such a phone may hear a reply twice**, the room's and its own reading,
+   * since keeping it off the voice is best-effort; the *Ask Claude* bar warns
+   * whoever is about to ask. Absent where nobody is, and where the server
+   * does not speak.
+   */
+  claudeUnheard?: string[];
+  /**
    * Present, and true, when this server has a library *Ask Claude* may
    * consult, and Claude to consult it — which is what draws the *Library*
    * card on *Channel Settings*. The server's configuration, as `claude` is,

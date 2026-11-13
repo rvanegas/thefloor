@@ -938,6 +938,8 @@ export function showChannel(
     speechKept?: string[];
     /** The reply Claude's voice is saying into the room now. */
     claudeSaying?: string;
+    /** Who here is on an app from before Claude's voice. */
+    claudeUnheard?: string[];
   } = {}
 ) {
   const names: Record<string, string> = {

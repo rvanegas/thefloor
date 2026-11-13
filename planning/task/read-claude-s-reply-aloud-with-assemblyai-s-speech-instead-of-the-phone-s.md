@@ -321,8 +321,14 @@ open, or did differently:
 - **Older builds are told apart by what they say, not by a build number**: a
   build sends `hearsClaude` with its room token, and a native client that
   does not is withheld from `claude:<channel>` before the first frame. A
-  browser hears it whatever it says. Somebody joining mid-reply on an older
-  build may hear its tail; withholding is restated at each reply.
+  browser hears it whatever it says. **Withholding is best-effort**: a build
+  that subscribes itself to each new track can race the server's
+  unsubscribe, and somebody joining mid-reply may hear its tail — either way
+  an older phone may hear the reply twice. Rather than engineering that away,
+  at Rodrigo's word, 2026-11-13, **the *Ask Claude* bar warns**: it names
+  everybody present on an app that has not said `hearsClaude`
+  (`claudeUnheard` on the snapshot) and suggests asking once they have
+  updated, the buttons staying live.
 - **`claudeSaying` on the snapshot** draws the reading bar for a reply the
   room is hearing, since only the server knows when it has been said.
   *Restart* reads *Read again* there; *Stop* is `setEnabled(false)` on the
