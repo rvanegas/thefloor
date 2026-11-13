@@ -587,17 +587,15 @@ type Card = {
    */
   presentCount: number | undefined;
   /**
-   * The most recent moment anybody was in it, the reader included. No longer
-   * what the row says or what the list is ordered by — kept for two jobs it
-   * still does alone: standing in for `lastPresenceByOthers` against a server
-   * too old to send it, and ordering the tier of channels nobody but the reader
-   * has ever been in, which have no other number.
+   * The most recent moment anybody was in it, the reader included. What the
+   * row says and what the list is ordered by, since 2026-11-12, so every
+   * member sees the same answer about the same room.
    */
   lastPresenceAt: number | undefined;
   /**
-   * The most recent moment anybody *else* was in it. What the row says and what
-   * the list is ordered by. Null is nobody else ever; undefined is a server
-   * that predates the field, and `describeQuiet` tells the two apart.
+   * The most recent moment anybody *else* was in it. Read for one thing only
+   * since 2026-11-12: null, nobody else ever, is what draws "nobody else yet".
+   * The moment itself orders nothing and is drawn nowhere.
    */
   lastPresenceByOthers: number | null | undefined;
   /**
@@ -658,8 +656,7 @@ function inviteCard(invite: InviteView, words: CardWords): Card {
     // Neither, and neither is an omission. An invitation is a channel the
     // reader has never entered — that is the whole test `invitesFor` applies —
     // so its own stamp is already about other people, and there is no visit of
-    // theirs for a mark to remember. `describeQuiet` takes the undefined branch
-    // and draws exactly the line it drew before.
+    // theirs for a mark to remember. `describeQuiet` draws the interval.
     lastPresenceByOthers: undefined,
     steppedInAt: undefined,
     // Somebody has been in it: that is what makes it an invitation rather than
@@ -735,12 +732,10 @@ function memberCard(channel: RejoinableView, words: CardWords): Card {
     // stamp, and is the same answer for every channel nobody is in — which are
     // the only ones an idleness line is drawn for.
     lastPresenceAt: channel.lastPresenceAt ?? channel.lastActiveAt,
-    // No `lastActiveAt` fallback here, unlike the line above, and the asymmetry
-    // is the point. That one wants any answer about the room; this one wants an
-    // answer with the reader taken out, and `lastActiveAt` moves on *anybody's*
-    // entry or exit including theirs — so falling back to it would let the
-    // solitary morning back in through the side door. Undefined stays
-    // undefined, and `describeQuiet` uses the old number under its old meaning.
+    // No `lastActiveAt` fallback here, unlike the line above: all this is read
+    // for is whether it is null, nobody but the reader ever, and `lastActiveAt`
+    // moves on the reader's own entry too, so it cannot answer that. Undefined
+    // stays undefined and the row draws the interval.
     lastPresenceByOthers: channel.lastPresenceByOthers,
     steppedInAt: channel.steppedInAt,
     everUsed: channel.everUsed ?? true,
@@ -776,7 +771,7 @@ export type NearbyChannel = {
  * how the bar and the row come to disagree about the same channel. The tier
  * draws these; it does not name them.
  *
- * `byIdleness` for the reason the sections use it: whoever else was here most
+ * `byIdleness` for the reason the sections use it: whoever was here most
  * recently, first. Several bars is an ordinary state, nearby not being
  * exclusive, so their order has to be somebody's decision rather than the
  * order the server happened to build its list in.
@@ -928,27 +923,16 @@ const isLive = (card: Card) =>
   card.nearbyCount > 0;
 
 /**
- * Whoever else was here most recently, first — then the rooms only the reader
- * has been in, then the ones nobody has been in at all.
+ * Whoever was here most recently, first — then the ones nobody has been in.
  *
- * **Three tiers, not two**, since 2026-08-26, and the middle one is new because
- * the number this reads is. It used to be `lastPresenceAt`, the last moment
- * anybody at all was here, which counts the reader: presence is exclusive, so
- * stepping into a channel to announce yourself and then stepping into the next
- * left the first sitting at the top of the list, above a room two other people
- * had spent an hour in yesterday. It ordered on visits, and what somebody
- * scanning this list wants is what they missed.
- *
- * The row's own line says the same number, which is the other half of the
- * reason. A list ordered by one fact and annotated with another puts the
- * disagreement in front of the reader and makes both look wrong.
- *
- * That leaves a channel the reader alone has opened with nothing to sort on,
- * which is the middle tier. It cannot stay at the top on the strength of a
- * solitary visit — that is the whole complaint — and it must not drop in among
- * the never-opened either: somebody *went* there, possibly to wait for you, and
- * that is worth more than a channel neither of you has touched. Among its own
- * kind it goes by `lastPresenceAt`, the only number it has.
+ * **The room's own number, the reader included, since 2026-11-12**, and the
+ * same number the row draws: a list ordered by one fact and annotated with
+ * another puts the disagreement in front of the reader and makes both look
+ * wrong. From 2026-08-26 it was `lastPresenceByOthers`, with a middle tier for
+ * the channels only the reader had been in; the two went together, and that
+ * tier went with them. A channel the reader alone has opened now sorts by when
+ * they opened it, among everything else, while its row still says "nobody else
+ * yet". See decision/2026-11-12-everybody-sees-the-same-recency.md.
  *
  * The never-used stay pinned at the bottom, for the reason they always were:
  * their stamp is the moment they were created, which is not a visit, and a
@@ -956,29 +940,13 @@ const isLive = (card: Card) =>
  * thing on the list. Among themselves they go by name, there being nothing else
  * true to order them by.
  *
- * **`steppedInAt` is not read here.** The mark says the reader was here, and
- * sorting on it would put their own echo back at the top — undoing, with the
- * second signal, exactly what the first one was for.
- *
- * Against a server that predates the field every row takes the `lastPresenceAt`
- * fallback, which restores the old order exactly rather than collapsing the
- * whole list into the middle tier and shuffling it by name.
+ * **`steppedInAt` is not read here.** The mark is a visit, not a measure; the
+ * visit is already in `lastPresenceAt`.
  */
-function seenOfOthers(card: Card): number | null {
-  if (card.lastPresenceByOthers !== undefined) return card.lastPresenceByOthers;
-  return card.lastPresenceAt ?? null;
-}
-
 function byIdleness(a: Card, b: Card): number {
   if (a.everUsed !== b.everUsed) return a.everUsed ? -1 : 1;
   if (!a.everUsed) return a.title.localeCompare(b.title);
-  const at = seenOfOthers(a);
-  const bt = seenOfOthers(b);
-  if (at === null || bt === null) {
-    if (at !== bt) return at === null ? 1 : -1;
-    return (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0);
-  }
-  return bt - at;
+  return (b.lastPresenceAt ?? 0) - (a.lastPresenceAt ?? 0);
 }
 
 
@@ -1023,8 +991,8 @@ function ChannelCard({
    * Drawn only on a row nobody is in, the same rule the interval follows, and
    * for the same reason: a row with people in it is showing its count, and a
    * channel the reader is *still* standing in does not need to be told they
-   * arrived. What this is for is the room they have already left, which under a
-   * recency measure that leaves them out carries no other trace of the visit.
+   * arrived. What this is for is the room they have already left: the interval
+   * says somebody was here, and only this says it was the reader.
    *
    * Expired against the phone's own clock rather than the snapshot's, which is
    * why the wire carries a moment instead of a flag: nothing has to happen in

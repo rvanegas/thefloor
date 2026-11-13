@@ -441,12 +441,10 @@ export interface RejoinableView {
    * The most recent moment anybody was in the channel — see `lastPresenceAt`
    * in core/channel.ts.
    *
-   * **No longer what Home draws or orders on**, since 2026-08-26: this one
-   * counts the reader, and `lastPresenceByOthers` below replaced it for both.
-   * It is still carried, and still load-bearing twice — it is the fallback a
-   * client uses against a server too old to send the other, and it is what
-   * orders the tier of channels only the reader has ever been in, those having
-   * no other number at all.
+   * **What Home draws its time from and orders on**, the reader included, so
+   * every member sees the same answer about the same room. It was replaced for
+   * both by `lastPresenceByOthers` from 2026-08-26 and restored on 2026-11-12;
+   * see decision/2026-11-12-everybody-sees-the-same-recency.md.
    *
    * Not `lastActiveAt`, which moves only on an entry or an exit and so freezes
    * for the whole of a conversation. This one is kept fresh by the heartbeat,
@@ -522,26 +520,18 @@ export interface RejoinableView {
   cohort?: number | null;
   /**
    * The most recent moment anybody *other than this reader* was in the channel
-   * — see `lastPresenceByOthers` in core/channel.ts. **This is what Home draws
-   * its time from and what Home orders on**, and `lastPresenceAt` beside it is
-   * kept for the older-server fallback and for the middle tier of the sort.
+   * — see `lastPresenceByOthers` in core/channel.ts.
    *
-   * It replaced the room's own number on 2026-08-26 because that one counts the
-   * reader: a channel you stepped into alone this morning to announce yourself
-   * read, and sorted, as fresher than one two other people spent an hour in
-   * yesterday — and the fresher of those is the one where nothing happened.
-   * Taking yourself out is also what makes the list answer "which of these is
-   * only me?" without a second number to compare against: a room that is fresh
-   * only because of you does not rise at all.
+   * **Since 2026-11-12 a client reads only whether it is null.** From
+   * 2026-08-26 it was what Home drew its time from and ordered on, the reader
+   * taken out; `lastPresenceAt` beside it took both jobs back so that every
+   * member sees the same number. Builds from that span still read the moment
+   * and order on it, which is why the server goes on sending it unchanged.
    *
-   * Three answers, and the client draws a different thing for each. A number is
-   * a moment. **Null means nobody else has ever been in it** — a channel a pair
-   * get for becoming contacts, or one only you have opened — which is a fact
-   * and gets words, "nobody else yet", and its own tier in the sort. **Absent
-   * means the server predates the field**, which is not a fact about anybody:
-   * the client falls back to `lastPresenceAt` under its old meaning, restoring
-   * the old line and the old order exactly, rather than telling somebody that a
-   * channel they talk in every day has never held anyone but them.
+   * **Null means nobody else has ever been in it** — a channel a pair get for
+   * becoming contacts, or one only you have opened — which is a fact and gets
+   * words, "nobody else yet". **Absent means the server predates the field**,
+   * and the client draws the interval.
    *
    * Minute-resolution once it has been through the database, and without the
    * `lastActiveAt` correction `lastPresenceAt` carries for that — core's
@@ -584,9 +574,8 @@ export interface RejoinableView {
    * different facts.
    *
    * It orders nothing, deliberately. This is a fact about the reader's own last
-   * action rather than about the room, and sorting on it would put their own
-   * echo back at the top of the list — which is exactly what
-   * `lastPresenceByOthers` exists to take out.
+   * action rather than about the room, and the visit it marks is already in
+   * `lastPresenceAt`, which does the ordering.
    */
   steppedInAt?: number | null;
   /**

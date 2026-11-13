@@ -480,10 +480,8 @@ export function isWaiting(state: ChannelState, userId: UserId): boolean {
  * beside it, one step in from being a conversation. See
  * `RejoinableView.nearbyCount` in core/protocol.ts.
  *
- * **The reader is subtracted**, on `lastPresenceByOthers`' reasoning — a
- * channel is not worth putting in front of somebody on the strength of their
- * own reachability, and it would be the one number on the row that counted
- * them.
+ * **The reader is subtracted** — a channel is not worth putting in front of
+ * somebody on the strength of their own reachability.
  *
  * **Both rungs the roster calls *Nearby*, since 2026-10-01**: the declared wait,
  * and somebody still in `present` whose connection the server has lost and is
@@ -739,12 +737,13 @@ export function lastPresenceAt(state: ChannelState): number {
  * been in this channel — the same question `lastPresenceAt` answers about the
  * room, asked with the reader taken out of it.
  *
- * It exists because a channel's own idleness cannot distinguish a place two
- * people used yesterday from one you sat in alone this morning, and the second
- * of those sorts and reads as the fresher. `ProfileView.sharedChannels` makes
- * the same argument from the other end: a maximum across everybody answers a
- * question nobody asked, once the card is about somebody in particular. Here
- * the somebody in particular is everybody-but-you.
+ * **Home reads only whether it is null, since 2026-11-12**: "nobody else yet",
+ * for a channel nobody but the reader has ever been in. From 2026-08-26 it was
+ * also the moment Home drew and sorted on, because a channel's own idleness
+ * cannot distinguish a place two people used yesterday from one you sat in
+ * alone this morning; that was given up so every member sees the same number,
+ * decision/2026-11-12-everybody-sees-the-same-recency.md. The moment is still
+ * sent, builds from that span reading it.
  *
  * **`lastActiveAt` is not in this fold, and cannot be.** It is unattributed —
  * it moves on anybody's entry or exit, including yours — so admitting it would

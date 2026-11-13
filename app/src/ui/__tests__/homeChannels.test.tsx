@@ -871,17 +871,10 @@ describe('channels you share with somebody', () => {
     act(() => tree.unmount());
   });
 
-  it('keeps the room’s own number here, where Home no longer does', async () => {
-    // The fallback branch of `describeQuiet`, pinned deliberately rather than
-    // left as a happy accident. A profile card gets no `lastPresenceByOthers`
-    // and must not: it already carries `sharedChannels`, which is the same
-    // question asked per person and answered with more detail — and this line
-    // is the one drawn when that array is missing, whose whole job is to
-    // describe the *room*. Excluding the reader from a card that is about
-    // somebody else answers nobody's question.
-    //
-    // Somebody tidying will one day notice Home passes a field here that this
-    // does not. This says the asymmetry is the design.
+  it('draws the room’s own number here, as Home does', async () => {
+    // A profile card gets no `lastPresenceByOthers`, so it never says "nobody
+    // else yet": the card is about somebody else, and `sharedChannels` already
+    // answers per person what that line would have.
     withChannels([
       {
         ...channel('sess_quiet', 'Thursday rehearsal', THEM),
@@ -1001,16 +994,13 @@ describe('the order channels are listed in', () => {
 
 /**
  * What a channel row says about how quiet it is, and what it is ordered by —
- * one number for both, and the reader is not in it.
+ * one number for both, the room's own, so every member sees the same answer.
  *
- * The complaint that produced this: presence is exclusive, so stepping into a
- * channel to announce yourself and then stepping into the next left the first
- * sitting at the top of Home, above a room two other people had spent an hour
- * in yesterday. The list ordered on visits, and what somebody scanning it wants
- * is what they missed.
+ * From 2026-08-26 to 2026-11-12 the number left the reader out. See
+ * decision/2026-11-12-everybody-sees-the-same-recency.md.
  */
 
-describe('how quiet a channel is, counting other people only', () => {
+describe('how quiet a channel is, the same for everybody', () => {
   const row = (
     id: string,
     name: string,
@@ -1034,9 +1024,9 @@ describe('how quiet a channel is, counting other people only', () => {
     return render(<HomeView {...homeNav} />);
   };
 
-  it('names the gap since anybody else was here, not since anybody was', () => {
+  it('names the gap since anybody was here, the reader included', () => {
     // The reader sat in it five minutes ago; the last other person was here two
-    // days ago. Two days is the answer.
+    // days ago. Five minutes is the answer, as it is for everybody else.
     const tree = show([
       row('chan_a', 'Book club', {
         lastPresenceAt: NOW - 5 * 60_000,
@@ -1044,14 +1034,14 @@ describe('how quiet a channel is, counting other people only', () => {
       }),
     ]);
     const text = textOf(tree);
-    expect(text).toContain('2 days ago');
-    expect(text).not.toContain('5 minutes ago');
+    expect(text).toContain('5 minutes ago');
+    expect(text).not.toContain('2 days ago');
     act(() => tree.unmount());
   });
 
   it('says nobody else yet for a room only the reader has been in', () => {
-    // Null is a fact, not a gap, and must not fall back to the room's own
-    // number — that number is the solitary morning this exists to leave out.
+    // Null is a fact, not a gap: the room's own number would only measure the
+    // reader's visit back to them.
     const tree = show([
       row('chan_a', 'Book club', {
         lastPresenceAt: NOW - 5 * 60_000,
@@ -1078,10 +1068,9 @@ describe('how quiet a channel is, counting other people only', () => {
     act(() => tree.unmount());
   });
 
-  it('draws the old line against a server that does not send the number', () => {
-    // Absent is not a fact about anybody. Falling back is far better than
-    // telling somebody a channel they talk in every day has never held anyone
-    // but them.
+  it('draws the interval against a server that does not send the number', () => {
+    // Absent is not a fact about anybody, and must not read as "nobody else
+    // yet" about a channel somebody talks in every day.
     const tree = show([
       row('chan_a', 'Book club', { lastPresenceAt: NOW - 5 * 60_000 }),
     ]);
@@ -1176,68 +1165,42 @@ describe('how quiet a channel is, counting other people only', () => {
   });
 
 
-  it('sorts a room somebody else used above one only the reader has', () => {
-    // The whole complaint, as an assertion. Under the old number "Alone" was
-    // the freshest thing on the screen.
+  it('sorts on the room’s own number, the reader’s visits included', () => {
+    // The whole change, as an assertion: a room the reader alone sat in five
+    // minutes ago is fresher than one others used yesterday, here as it is
+    // for everybody else looking at either.
     const tree = show([
-      row('chan_a', 'Alone', {
-        lastPresenceAt: NOW - 5 * 60_000,
-        lastPresenceByOthers: null,
-      }),
       row('chan_b', 'Others', {
         lastPresenceAt: NOW - 86_400_000,
         lastPresenceByOthers: NOW - 86_400_000,
       }),
+      row('chan_a', 'Alone', {
+        lastPresenceAt: NOW - 5 * 60_000,
+        lastPresenceByOthers: null,
+      }),
     ]);
-    expect(namesInOrder(tree, ['Alone', 'Others'])).toEqual(['Others', 'Alone']);
+    expect(namesInOrder(tree, ['Alone', 'Others'])).toEqual(['Alone', 'Others']);
     act(() => tree.unmount());
   });
 
-  it('keeps a room only the reader has used above one nobody has touched', () => {
-    // The middle tier. Somebody went there, possibly to wait, and that is
-    // worth more than a channel neither of them has ever opened — and less
-    // than one somebody else visited. Three tiers, in one assertion.
+  it('keeps a channel nobody has touched below every used one', () => {
+    // Its stamp is the moment it was created, which is not a visit.
     const tree = show([
       row('chan_c', 'Never', {
         everUsed: false,
         lastPresenceAt: NOW,
         lastPresenceByOthers: null,
       }),
-      row('chan_a', 'Alone', {
-        lastPresenceAt: NOW - 5 * 60_000,
-        lastPresenceByOthers: null,
-      }),
       row('chan_b', 'Others', {
         lastPresenceAt: NOW - 86_400_000,
         lastPresenceByOthers: NOW - 86_400_000,
       }),
     ]);
-    expect(namesInOrder(tree, ['Others', 'Alone', 'Never'])).toEqual([
-      'Others',
-      'Alone',
-      'Never',
-    ]);
+    expect(namesInOrder(tree, ['Others', 'Never'])).toEqual(['Others', 'Never']);
     act(() => tree.unmount());
   });
 
-  it('orders the reader-only tier by their own visits, having nothing else', () => {
-    const tree = show([
-      row('chan_a', 'Older', {
-        lastPresenceAt: NOW - 86_400_000,
-        lastPresenceByOthers: null,
-      }),
-      row('chan_b', 'Newer', {
-        lastPresenceAt: NOW - 60_000,
-        lastPresenceByOthers: null,
-      }),
-    ]);
-    expect(namesInOrder(tree, ['Newer', 'Older'])).toEqual(['Newer', 'Older']);
-    act(() => tree.unmount());
-  });
-
-  it('keeps the old order exactly against a server without the number', () => {
-    // The fallback has to restore the previous behaviour rather than collapse
-    // every row into the middle tier and shuffle the list by name.
+  it('orders the same against a server without the number', () => {
     const tree = show([
       row('chan_a', 'Older', { lastPresenceAt: NOW - 86_400_000 }),
       row('chan_b', 'Newer', { lastPresenceAt: NOW - 60_000 }),
@@ -1250,10 +1213,10 @@ describe('how quiet a channel is, counting other people only', () => {
 /**
  * The mark, which is the other half and is not a measure.
  *
- * The number above forgets the reader on purpose, so nothing in it can report
- * that the reader themselves stepped in. Presence being exclusive, stepping
- * into the next channel steps you out of the last — so without this a room you
- * knocked on a minute ago carries no trace of it at all.
+ * The number above says somebody was here and not who. Presence being
+ * exclusive, stepping into the next channel steps you out of the last — so
+ * without this a room you knocked on a minute ago says only that it was a
+ * minute ago, not that the minute was yours.
  */
 
 describe('the mark for a channel you have just stepped into', () => {
@@ -1317,11 +1280,14 @@ describe('the mark for a channel you have just stepped into', () => {
     act(() => tree.unmount());
   });
 
-  it('leaves the row’s own number alone', () => {
-    // Two facts, not one. The interval still reports the others, and it is
-    // four days old whatever the reader did a minute ago.
+  it('sits beside the row’s own number, which the visit moved', () => {
+    // Two facts, not one. The interval is the room's and counts the reader, so
+    // it says a minute; the mark is what says the minute was theirs.
     const tree = steppedIn();
-    expect(textOf(tree)).toContain('4 days ago');
+    const text = textOf(tree);
+    expect(text).toContain('A minute ago');
+    expect(text).toContain('↗');
+    expect(text).not.toContain('4 days ago');
     act(() => tree.unmount());
   });
 
@@ -1369,44 +1335,6 @@ describe('the mark for a channel you have just stepped into', () => {
     // arrived, and a row with people in it is showing its count.
     const tree = steppedIn({ presentCount: 1 });
     expect(textOf(tree)).not.toContain('↗');
-    act(() => tree.unmount());
-  });
-
-  it('does not move the channel up the list', () => {
-    // Sorting on it would put the reader's own echo back at the top, undoing
-    // with the second signal exactly what the first one was for.
-    mockApp.home = {
-      invites: [],
-      rejoinable: [
-        {
-          channelId: 'chan_a',
-          name: 'Knocked',
-          others: [{ id: 'acct_q', displayName: 'Quinn Ito' }],
-          presentCount: 0,
-          createdAt: NOW - 90 * 86_400_000,
-          lastActiveAt: NOW,
-          lastPresenceAt: NOW - 60_000,
-          lastPresenceByOthers: NOW - 4 * 86_400_000,
-          steppedInAt: NOW - 60_000,
-        },
-        {
-          channelId: 'chan_b',
-          name: 'Quiet',
-          others: [{ id: 'acct_r', displayName: 'Rae Lin' }],
-          presentCount: 0,
-          createdAt: NOW - 90 * 86_400_000,
-          lastActiveAt: NOW,
-          lastPresenceAt: NOW - 3_600_000,
-          lastPresenceByOthers: NOW - 3_600_000,
-          steppedInAt: null,
-        },
-      ],
-      contacts: [],
-      recordings: [],
-    } as never;
-    const tree = render(<HomeView {...homeNav} />);
-    const text = textOf(tree);
-    expect(text.indexOf('Quiet')).toBeLessThan(text.indexOf('Knocked'));
     act(() => tree.unmount());
   });
 });

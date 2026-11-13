@@ -548,20 +548,21 @@ all. Anyone ordering on it must ask about occupancy separately.
 
 ### How recent a channel is, which has one answer and a second thing beside it
 
-Since 2026-08-26 there are **two measures of a room's recency and they are not
+There are **two measures of a room's recency and they are not
 interchangeable.** `lastPresenceAt` (`core/channel.ts`) is the maximum across the
 per-person stamps *and* `lastActiveAt`, is always a number, and **includes the
 reader**. `lastPresenceByOthers` is the same fold with the reader's key removed.
 
-**Home reads the second, for both the line it draws and the order it draws it
-in.** The first counts you, and presence is exclusive — `stepOutOfOthers` takes
-you out of every other channel when you enter one — so somebody announcing
-themselves down a list was rewriting the top of that list with their own
-footsteps. `lastPresenceAt` is still carried and still does two jobs alone: it is
-the fallback against a server too old to send the other, and it orders the tier
-of channels nobody but the reader has ever been in.
+**Home reads the first, for both the line it draws and the order it draws it
+in, since 2026-11-12**, so every member sees the same interval about the same
+room. From 2026-08-26 it read the second for both, the reader's own footsteps
+taken out; decision/2026-11-12-everybody-sees-the-same-recency.md has the trade.
+Of `lastPresenceByOthers` the client now reads only whether it is null — nobody
+but the reader has ever been in — which draws "nobody else yet" in place of an
+interval. The server still sends the moment, for the builds of that span.
 
-Three things follow, and each has bitten somebody in an earlier draft:
+Things to know about the second, each of which has bitten somebody in an
+earlier draft:
 
 - **It cannot include `lastActiveAt`**, that stamp being unattributed — it moves
   on anybody's entry or exit including yours. So it is **minute-coarse after a
@@ -569,11 +570,11 @@ Three things follow, and each has bitten somebody in an earlier draft:
   `quantise`'s flooring. The test asserts that bound rather than a value.
 - **It is null-capable**, where `lastPresenceAt` never is, and null is an
   ordinary state rather than a gap: a channel a pair get for becoming contacts,
-  or one only the reader has opened. It gets words — "nobody else yet" — and its
-  own tier in the sort, never the room's own number.
-- **Guests are not in it, and that is settled** rather than incidental. They move
-  `lastActiveAt` and never `lastPresentAt`, `STILL_HERE` being guarded on
-  `isPresent`. Home's recency is a claim about members.
+  or one only the reader has opened.
+- **Guests are not in it**, since they move `lastActiveAt` and never
+  `lastPresentAt`, `STILL_HERE` being guarded on `isPresent`. They are in
+  `lastPresenceAt` by way of `lastActiveAt`, so since 2026-11-12 a guest's visit
+  can move a row on Home.
 
 Beside it, and **not a measure at all**, is `steppedInAt`: the moment *this
 reader* last stepped into this channel. The server holds the last entry per

@@ -4242,9 +4242,9 @@ export class ChannelRegistry {
         createdAt: channel.createdAt,
         lastActiveAt: channel.lastActiveAt,
         lastPresenceAt: lastPresenceAt(channel),
-        // The same measure with the reader taken out of it, which is what the
-        // row now says and what the list is now ordered by. A channel they sat
-        // in alone does not read as the freshest thing on Home.
+        // The same measure with the reader taken out of it. Home reads only
+        // whether it is null ("nobody else yet") since 2026-11-12; the builds
+        // between 2026-08-26 and then draw and sort on the moment.
         lastPresenceByOthers: lastPresenceByOthers(channel, userId),
         // And the other half: whether the last person to step into this channel
         // was *them*, which is the only thing left that remembers they came —
