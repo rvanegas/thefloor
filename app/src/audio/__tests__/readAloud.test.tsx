@@ -343,3 +343,89 @@ describe('readingVoice', () => {
     expect(readingVoice(installed, 'en-US', undefined, null)?.identifier).toBe('Ava');
   });
 });
+
+/**
+ * A reply the server speaks into the room, since 2026-11-13: the phone reads
+ * none of it, the bar follows `claudeSaying`, *Restart* is *Read again* for
+ * everybody, and *Stop* quiets it here alone.
+ */
+describe('a reply the room is hearing', () => {
+  function mountRoom(channel: ChannelState) {
+    const say = jest.fn();
+    const hush = jest.fn();
+    const readAgain = jest.fn();
+    const hushRoom = jest.fn();
+    let controls!: ReadAloudControls;
+    function Probe({ state, saying }: { state: ChannelState; saying: string | null }) {
+      controls = useClaudeReadAloud(state, 'en-US', say, hush, undefined, () => () => undefined, {
+        saying,
+        readAgain,
+        hush: hushRoom,
+      });
+      return null;
+    }
+    let tree: ReactTestRenderer;
+    act(() => {
+      tree = renderer.create(<Probe state={channel} saying={null} />);
+    });
+    return {
+      say,
+      readAgain,
+      hushRoom,
+      get controls() {
+        return controls;
+      },
+      update(state: ChannelState, saying: string | null) {
+        act(() => {
+          tree.update(<Probe state={state} saying={saying} />);
+        });
+      },
+      press(which: 'restart' | 'stop') {
+        act(() => controls[which]());
+      },
+    };
+  }
+
+  const spoken = (channel: ChannelState, id = 'clip_1') =>
+    reduce(
+      channel,
+      {
+        type: 'PASTE_CLIP',
+        userId: ME,
+        clip: { id, authorId: CLAUDE_ID, pastedAt: NOW + 1_000, kind: 'text', text: 'Hi.', speech: true },
+      },
+      NOW + 1_000
+    );
+
+  it('is not read by the phone', () => {
+    const channel = joined();
+    const probe = mountRoom(channel);
+    probe.update(spoken(channel), 'clip_1');
+    expect(probe.say).not.toHaveBeenCalled();
+  });
+
+  it('draws the bar while the room says it, and restart asks for it again for everybody', () => {
+    const channel = joined();
+    const probe = mountRoom(channel);
+    const replied = spoken(channel);
+    probe.update(replied, 'clip_1');
+    expect(probe.controls.reading).toBe(true);
+    probe.press('restart');
+    expect(probe.readAgain).toHaveBeenCalledWith('clip_1');
+    probe.update(replied, null);
+    expect(probe.controls.reading).toBe(false);
+  });
+
+  it('stop quiets it here until the room says something else', () => {
+    const channel = joined();
+    const probe = mountRoom(channel);
+    const replied = spoken(channel);
+    probe.update(replied, 'clip_1');
+    probe.press('stop');
+    expect(probe.hushRoom).toHaveBeenLastCalledWith(true);
+    expect(probe.controls.reading).toBe(false);
+    probe.update(spoken(replied, 'clip_2'), 'clip_2');
+    expect(probe.hushRoom).toHaveBeenLastCalledWith(false);
+    expect(probe.controls.reading).toBe(true);
+  });
+});

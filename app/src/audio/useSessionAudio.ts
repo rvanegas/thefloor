@@ -1,3 +1,4 @@
+import { hushClaudeVoice } from './claudeVoice';
 import { useEffect, useRef, useState } from 'react';
 import { AppState, Platform } from 'react-native';
 import {
@@ -302,6 +303,11 @@ export interface SessionAudio {
    * gated separately.
    */
   resubscribe: () => void;
+  /**
+   * Quiets Claude's voice on this device alone, or lets it back — *Stop* on
+   * the reading bar for a reply the room is hearing. See `hushClaudeVoice`.
+   */
+  hushClaude: (hushed: boolean) => void;
   /**
    * The browser's two obligations, which a phone does not have — and which are
    * here so that `ChannelView` can read them without a platform test.
@@ -827,6 +833,7 @@ export function useSessionAudio(
     // in between: nothing renders before the hook returns.
     reconnect: () => {},
     resubscribe: () => {},
+    hushClaude: () => {},
   });
   const roomRef = useRef<Room | null>(null);
   /**
@@ -2333,5 +2340,10 @@ export function useSessionAudio(
     }
   };
 
-  return { ...state, reconnect, resubscribe };
+  const hushClaude = (hushed: boolean) => {
+    const acted = hushClaudeVoice(roomRef.current, hushed);
+    if (acted.length > 0) recordEvent(`claude voice ${hushed ? 'hushed' : 'heard'} ${acted.join(', ')}`);
+  };
+
+  return { ...state, reconnect, resubscribe, hushClaude };
 }

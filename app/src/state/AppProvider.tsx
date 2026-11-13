@@ -34,7 +34,7 @@ import { isRecordingActive } from '../../../core/recording';
 import { appBuild } from '../api/build';
 import { recordEvent } from '../audio/diagnostics';
 import { startShippingDiagnostics } from '../audio/shipping';
-import { askerVoices } from '../audio/readAloud';
+import { askerVoices, speechLocale } from '../audio/readAloud';
 import {
   currentDrift,
   DRIFT_REPORT_MS,
@@ -614,6 +614,11 @@ interface AppValue extends AppState {
    * when it failed.
    */
   askClaude: (channelId: string, length: ReplyLength) => Promise<void>;
+  /**
+   * *Read again*, since 2026-11-13: a kept reply of Claude's, said into the
+   * room once more for everybody. Rejects with the server's sentence.
+   */
+  readAgain: (channelId: string, pasteId: string) => Promise<void>;
   /** Where to donate, and what you have already given. */
   loadSupport: () => Promise<SupportView>;
   /**
@@ -2958,7 +2963,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
       askClaude: async (channelId, length) => {
         if (!state.token) throw new ApiError(words.notSignedIn(), 401);
-        await api.askClaude(state.token, channelId, length, askerVoices());
+        await api.askClaude(
+          state.token,
+          channelId,
+          length,
+          askerVoices(),
+          speechLocale(language).split('-')[0]
+        );
+      },
+
+      readAgain: async (channelId, pasteId) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        await api.readAgain(state.token, channelId, pasteId);
       },
 
       /**

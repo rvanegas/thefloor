@@ -512,7 +512,23 @@ function Root() {
    * `ReadingContext` below, for the same reason: the voice is heard on every
    * screen, so it can be stopped from every screen.
    */
-  const reading = useClaudeReadAloud(live, speechLocale(app.language));
+  const reading = useClaudeReadAloud(
+    live,
+    speechLocale(app.language),
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    // Since 2026-11-13: the reply the server is saying into the room, and
+    // what this phone can do about it. See `RoomVoice`.
+    live
+      ? {
+          saying: here?.claudeSaying ?? null,
+          readAgain: (pasteId) => void app.readAgain(live.id, pasteId).catch(() => undefined),
+          hush: audio.hushClaude,
+        }
+      : null
+  );
 
   /**
    * Says this device is being attended, which is all a client does about

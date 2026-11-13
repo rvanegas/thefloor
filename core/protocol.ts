@@ -1324,6 +1324,12 @@ export interface ChannelView {
    */
   speechKept?: string[];
   /**
+   * The reply Claude's voice is saying into the room now, by paste id, or
+   * absent while it says nothing — what draws the reading bar for a reply the
+   * room is hearing, since only the server knows when it has been said.
+   */
+  claudeSaying?: string;
+  /**
    * Present, and true, when this server has a library *Ask Claude* may
    * consult, and Claude to consult it — which is what draws the *Library*
    * card on *Channel Settings*. The server's configuration, as `claude` is,

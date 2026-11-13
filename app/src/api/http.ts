@@ -699,13 +699,28 @@ export const api = {
     token: string,
     channelId: string,
     length: ReplyLength,
-    voices?: Record<string, string>
+    voices?: Record<string, string>,
+    /**
+     * The asker's app language, `en` or `es`, which the server speaks the
+     * reply in where the channel has no transcript to say. Since 2026-11-13.
+     */
+    language?: string
   ) =>
     request<{ ok: true }>(`/channels/${channelId}/claude`, {
       method: 'POST',
-      body: voices ? { length, voices } : { length },
+      body: { length, ...(voices ? { voices } : {}), ...(language ? { language } : {}) },
       token,
     }),
+
+  /**
+   * *Read again*: one of Claude's kept replies said into the room once more,
+   * for everybody present. Since 2026-11-13.
+   */
+  readAgain: (token: string, channelId: string, pasteId: string) =>
+    request<{ ok: true }>(
+      `/channels/${channelId}/pastes/${encodeURIComponent(pasteId)}/read-again`,
+      { method: 'POST', token }
+    ),
 
   /**
    * Sets how loudly this channel may interrupt the person asking.
@@ -906,10 +921,16 @@ export const api = {
       token,
     }),
 
+  /**
+   * `hearsClaude` since 2026-11-13: this build hears Claude's replies from the
+   * room, where the server speaks them, rather than reading them aloud itself
+   * — so the server lets it hear `claude:<channel>`. Without it a native
+   * build is withheld from that voice, and reads the reply in its own.
+   */
   mediaToken: (token: string, channelId: string) =>
     request<{ token: string; url?: string }>(
       `/channels/${channelId}/media-token`,
-      { method: 'POST', token }
+      { method: 'POST', token, body: { hearsClaude: true } }
     ),
 
   /**

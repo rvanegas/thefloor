@@ -174,6 +174,17 @@ describe("Claude's reply, spoken", () => {
     expect(media.playbackFor(room(channelId))).toBeUndefined();
   });
 
+  it('says which reply it is saying until it has been said', async () => {
+    boot();
+    const { alice, channelId } = await room2();
+    await press(channelId, alice.token);
+    await settle();
+    const pasteId = app.channels.get(channelId)!.clip!.id;
+    expect(app.channels.claudeSaying(channelId)).toBe(pasteId);
+    media.speechFor(room(channelId))!.onEnded();
+    expect(app.channels.claudeSaying(channelId)).toBeNull();
+  });
+
   it('keeps every native build that has not said it hears the voice off it', async () => {
     boot();
     const { alice, bob, channelId } = await room2();

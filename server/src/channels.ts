@@ -8148,6 +8148,11 @@ export class ChannelRegistry {
     return { ok: true };
   }
 
+  /** The reply Claude's voice is saying in this channel's room now, if any. */
+  claudeSaying(channelId: string): string | null {
+    return this.voices.get(channelId)?.saying ?? null;
+  }
+
   /** The replies this channel may still have read again, for its snapshot. */
   speechKept(channelId: string): string[] {
     return this.speech?.store.kept(channelId) ?? [];
@@ -8169,6 +8174,7 @@ export class ChannelRegistry {
       // start of a reply it is about to read in its own voice.
       await this.withholdVoice(channelId);
       voice.saying = pasteId;
+      this.emit([channelId]);
       const live = this.channels.get(channelId);
       if (live?.recording.status === 'recording' && voice.stem === null) {
         this.startVoiceCapture(channelId, live);
@@ -8229,6 +8235,7 @@ export class ChannelRegistry {
     const voice = this.voices.get(channelId);
     if (!voice) return;
     voice.saying = null;
+    this.emit([channelId]);
     this.stopVoiceCapture(channelId);
     if (voice.linger) clearTimeout(voice.linger);
     voice.linger = setTimeout(() => this.closeVoice(channelId), SPEECH_LINGER_MS);

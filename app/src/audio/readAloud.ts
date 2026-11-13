@@ -284,6 +284,14 @@ export function useReadAloudVoices(languages: readonly SpokenLanguage[]): {
  * while a reply is being heard, those two controls are on screen
  * (`ReadingBar`). Whether one is being heard is the native half's to say
  * (`onReading`), since only it knows when the last sentence has played.
+ *
+ * **A reply the server speaks is not read here at all**, since 2026-11-13:
+ * `Clip.speech` says the room is hearing it as `claude:<channel>`, so this
+ * phone hears it with everybody else. `room` is that voice as the snapshot
+ * describes it — `claudeSaying`, which only the server can know — and what
+ * acts on it: *Restart* becomes *Read again*, for everybody, and *Stop*
+ * quiets it on this phone alone (`hushClaudeVoice`) until it says something
+ * else.
  */
 export function useClaudeReadAloud(
   live: ChannelState | null,
@@ -296,13 +304,25 @@ export function useClaudeReadAloud(
   ) => void = sayWithBestVoice,
   hush: () => void = stopSpeaking,
   detect: (text: string) => DetectedLanguage | null = detectLanguage,
-  follow: (listener: (reply: string | null) => void) => () => void = onReading
+  follow: (listener: (reply: string | null) => void) => () => void = onReading,
+  room: RoomVoice | null = null
 ): ReadAloudControls {
   const seen = useRef<{ channelId: string; clipId: string | null } | null>(null);
   // What each reply in this room was handed to the reader as, by paste id, so
   // *Restart* can hand the one being heard over again exactly as it was.
   const spoken = useRef(new Map<string, SpokenReply>());
   const [reading, setReading] = useState<string | null>(null);
+  // The reply the room is saying that this phone has stopped hearing, until
+  // the room says something else.
+  const [hushedFor, setHushedFor] = useState<string | null>(null);
+  const saying = room?.saying ?? null;
+  const hushRoom = room?.hush;
+  useEffect(() => {
+    if (hushedFor !== null && hushedFor !== saying) {
+      hushRoom?.(false);
+      setHushedFor(null);
+    }
+  }, [saying, hushedFor, hushRoom]);
   // The reply a restart is re-reading: the stop it begins with publishes
   // nothing-being-read, and taking that at its word would pull the bar out
   // from under the thumb that pressed it and put it back a moment later.
@@ -349,6 +369,8 @@ export function useClaudeReadAloud(
 
     const { clip: pasted, fallback: otherwise, detect: recognize } = latest.current;
     if (pasted?.authorId !== CLAUDE_ID) return;
+    // Spoken by the server, into the room: heard here already.
+    if (pasted.speech) return;
     const reply = {
       text: pasted.text,
       locale: replyLocale(pasted.text, otherwise, recognize),
@@ -367,12 +389,17 @@ export function useClaudeReadAloud(
    * take it: the press was about this one.
    */
   const restart = useCallback(() => {
+    // The room's reply, again, for everybody — *Read again* by another name.
+    if (saying !== null) {
+      room?.readAgain(saying);
+      return;
+    }
     const reply = reading === null ? undefined : spoken.current.get(reading);
     if (!reading || !reply) return;
     restarting.current = reading;
     hush();
     say(reply.text, reply.locale, reply.voices, reading);
-  }, [reading, say, hush]);
+  }, [reading, say, hush, saying, room]);
 
   // Mounted once, above every screen, for the life of the app — so the
   // native half's lines reach the log whether or not the panel is open.
@@ -385,9 +412,27 @@ export function useClaudeReadAloud(
   const stop = useCallback(() => {
     restarting.current = null;
     hush();
-  }, [hush]);
+    if (saying !== null) {
+      hushRoom?.(true);
+      setHushedFor(saying);
+    }
+  }, [hush, saying, hushRoom]);
 
-  return { reading: reading !== null, restart, stop };
+  const roomReading = saying !== null && hushedFor !== saying;
+  return { reading: reading !== null || roomReading, restart, stop };
+}
+
+/**
+ * Claude's voice in the room, for `useClaudeReadAloud`: what it is saying,
+ * by paste id (`ChannelView.claudeSaying`), and the two things this phone can
+ * do about it. Since 2026-11-13.
+ */
+export interface RoomVoice {
+  saying: string | null;
+  /** *Read again*: the reply, said into the room once more for everybody. */
+  readAgain: (pasteId: string) => void;
+  /** Quiets Claude's voice on this phone alone, or lets it back. */
+  hush: (hushed: boolean) => void;
 }
 
 interface SpokenReply {

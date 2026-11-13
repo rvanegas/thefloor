@@ -1357,7 +1357,10 @@ export function registerWebsocket(deps: {
         // AssemblyAI key, as `claude` is where it has no Anthropic one.
         ...(() => {
           const kept = deps.speechKept?.(channelId);
-          return kept ? { speech: true as const, speechKept: kept } : {};
+          const saying = channels.claudeSaying(channelId);
+          return kept
+            ? { speech: true as const, speechKept: kept, ...(saying ? { claudeSaying: saying } : {}) }
+            : {};
         })(),
         // The same reading for the library, and whether the switch is the
         // reader's to turn, which is theirs alone like `mayTranscribeLive`.
