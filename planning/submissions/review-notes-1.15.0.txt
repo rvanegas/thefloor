@@ -25,9 +25,9 @@ Settings offer "Make channel into a community", "This channel is a podcast"
 and "Lock channel".
 
 NEW: Ask Claude's reply can be said into the room by Pro voices, for
-everybody and into a recording ("Read aloud" on Channel Settings, which
-only Pro changes); "Read again" repeats it. "Name voices" in a Record
-segment's menu.
+everybody and into a recording ("Read aloud" on Channel Settings; this
+account is Pro, so it may change it); "Read again" repeats it. "Name
+voices" in a Record segment's menu.
 
 WHY UIBackgroundModes HAS voip: stepping into a channel is reported to
 CallKit as an outgoing call, so it shows in Recents and other calls meet it
