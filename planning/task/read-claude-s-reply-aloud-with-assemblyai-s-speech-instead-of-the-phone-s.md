@@ -191,9 +191,11 @@ language, and the picker says which that is.
 
 - **Where**: the channel's settings, beside *Response model*, as *Claude's
   voice*.
-- **Who may change it**: **any member**, at Rodrigo's word, 2026-11-13. This
-  is unlike *Response model*, which only *Pro* can change, because a voice
-  costs nothing more than another voice.
+- **Who may change it**: **only *Pro***, the same as *Response model*, at
+  Rodrigo's word, 2026-11-13 (he first said any member, then corrected it).
+  It is shown to every member. *Pro* here is `isPro` in `app.ts`, which
+  already counts an account marked `transcripts_unlimited` as well as the
+  subscription, so the guard is the one *Response model* uses.
 - **The picker**: a short curated list of AssemblyAI voices, the English and
   Spanish starters to begin with, each row naming the voice and its own
   language, with a sample button. A sample is one fixed sentence per voice,
@@ -207,23 +209,36 @@ language, and the picker says which that is.
 paste id, for an hour after it finishes, and lost on a restart. It is never
 put in S3 and never in the snapshot; the recording's stem is a separate copy
 that belongs to the recording. While it is kept, the reply's paste in the
-*Record* carries a **Read again** control, **for just you**, at Rodrigo's
-word, 2026-11-13. The phone fetches
-`GET /channels/:id/pastes/:pasteId/speech` and plays it on its own call
-engine (`Reader`'s `AVAudioPlayerNode` path), so the echo canceller keeps it
-out of everyone else's microphone and it is not recorded a second time.
-This is what *Restart* already means, and *Restart* and *Stop* on the
-reading bar become this same act. Its cost is a native change, so it reaches
-phones with an upload, and it is iOS-only until
-task/bring-android-level-with-ios.md. Rejected: replaying into the room
-for everybody. It needed no native work, but one person's replay would
-interrupt the whole call and be recorded again.
+*Record* carries a **Read again** control, **for everybody**, at Rodrigo's
+word, 2026-11-13 (he first said just you, then corrected it). A press
+publishes the kept audio into the room again on `claude:<channel>`, exactly
+as on arrival. Everybody present hears it and the echo canceller treats it as
+any remote voice; older builds stay off it, as they do for the arrival, and
+**a running recording gets it again**, because what a recording holds is what
+was heard. Anybody present may press it, as anybody present may ask Claude.
+
+- **One reply speaks at a time** on the participant, and **the latest press
+  or arrival wins**. A *Read again* while something is speaking stops that
+  and starts this from the beginning, and a new reply arriving ends a
+  replay. Queueing would leave a room listening to a backlog nobody chose.
+- **It needs no native work.** The press is a request and the server does the
+  playing, so it ships with the server and the JavaScript, and Android gets
+  it the same as iOS.
+- **The reading bar's *Restart* becomes this same act**, for everybody, and
+  says so. *Stop* stays local (below), which is why the bar now carries one
+  control of each kind; STYLE.md has to approve that before it is drawn.
+- Rejected: replaying on your phone alone. It kept the call undisturbed but
+  needed a native player for the fetched audio, and Rodrigo wants the room
+  to hear it.
 
 After the hour the control goes. A reply older than that is in the *Record*
 to read.
 
-**Stop**, for the arrival, mutes the reply's track on that phone only, as a
-local unsubscribe, until the reply ends. Nobody else is affected.
+**Stop** mutes the reply's track on that phone only, as a local unsubscribe,
+until what is speaking ends. That applies to an arrival or a replay alike,
+and nobody else is affected. Stopping it for the room is not offered: a
+reply someone has just asked for is not one person's to silence for the
+others.
 
 **The phone's voice stays as the fallback**: when the server has no key, when
 the speech request fails before the first audio (one retry after `Retry-After`
@@ -287,6 +302,7 @@ written for the *Record* first.
 **Order of shipping.** The server half can be deployed on its own. Old builds
 are not subscribed, so nothing changes for them until a new build arrives.
 The new build skips its local reading when `speech` is set, adds the picker,
-*Read again* and the per-phone *Stop*, and drops the card.
+*Read again* (a request, the server doing the playing) and the per-phone
+*Stop*, and drops the card.
 
 Nothing is left to decide before building.
