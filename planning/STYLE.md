@@ -421,7 +421,13 @@ phone's card is about 280pt inside its padding, so a fifth of it is 45pt and
 any word longer than *Loud* truncates — a ladder whose rungs are half-spelt is
 a puzzle. Beyond three, stack full-width buttons, one per rung, the `primary`
 fill marking the one in force. ChannelSettingsView's `NotificationLevelPicker`
-is the pattern, and the only one left (four, with a `sublabel` each): the chime
+is the pattern (four, with a `sublabel` each), and since 2026-11-13 *Claude's
+voice* is the second: AssemblyAI's voices stacked under a plain line naming
+each language, a group per language as the *Read aloud* card's installed voices
+were. **Its buttons are live for everybody, unlike every other choice on that
+screen**, because a tap plays the voice's sample before it chooses anything —
+trying a voice is what the list is for — and only *Pro*'s tap also chooses;
+the *Response model* card's sentence under it says who may. The chime
 loudness on Floor Settings was the second — five, bare — for the day that
 setting existed, and the arithmetic above is what decided its shape. It is the
 same arithmetic § *The pinned footer* makes about five slots in 620.
@@ -1324,7 +1330,13 @@ with `edges={['top', 'bottom']}`.
 
 **The reading bar sits immediately above it, since 2026-10-29** — *Reading
 Claude's reply*, muted, then *Restart* and *Stop* as two `default` buttons,
-**only while a reply is being heard**, on every screen. Built as the footer
+**only while a reply is being heard**, on every screen. **Since 2026-11-13 the
+first is *Read again* where the room is hearing the reply**, the server
+speaking it to everybody: it asks for it again *for everybody*, so it says so,
+while *Stop* stays this phone's alone — one shared and one local control on
+one bar, which the labels are what tell apart. The same *Read again* is a
+word beside *Copy* on Claude's reply in the *Record* for the hour its speech
+is kept, drawn only for somebody in the room. Built as the footer
 is, `surface` and a top hairline. `Screen` draws it between the body and the
 footer (`ReadingBar`, from `ReadingContext`), so when it comes and goes it
 takes its height from the scroll and **the footer's targets do not move** —

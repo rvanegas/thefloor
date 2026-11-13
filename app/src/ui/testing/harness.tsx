@@ -933,6 +933,11 @@ export function showChannel(
     mayAutoTranscribe?: boolean;
     /** Whether this server can ask Claude, which draws *Ask Claude*. */
     claude?: true;
+    /** Whether this server speaks Claude's replies, and which may be read again. */
+    speech?: true;
+    speechKept?: string[];
+    /** The reply Claude's voice is saying into the room now. */
+    claudeSaying?: string;
   } = {}
 ) {
   const names: Record<string, string> = {

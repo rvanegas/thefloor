@@ -306,3 +306,43 @@ The new build skips its local reading when `speech` is set, adds the picker,
 *Stop*, and drops the card.
 
 Nothing is left to decide before building.
+
+## Built, on branch `claude-speaks-in-the-room`, 2026-11-13
+
+Not landed or deployed. What the build settled that the design above left
+open, or did differently:
+
+- **The paste waits for its first audio**, at most `SPEECH_FIRST_AUDIO_MS`
+  (4 s), so `Clip.speech` is never set on a reply the server cannot say — a
+  refusal, a timeout or text with nothing to speak posts it without, and the
+  phones read it as before. The *Record* is held by the first audio's few
+  hundred milliseconds, not by the whole reply as the rejected option would
+  have.
+- **Older builds are told apart by what they say, not by a build number**: a
+  build sends `hearsClaude` with its room token, and a native client that
+  does not is withheld from `claude:<channel>` before the first frame. A
+  browser hears it whatever it says. Somebody joining mid-reply on an older
+  build may hear its tail; withholding is restated at each reply.
+- **`claudeSaying` on the snapshot** draws the reading bar for a reply the
+  room is hearing, since only the server knows when it has been said.
+  *Restart* reads *Read again* there; *Stop* is `setEnabled(false)` on the
+  track, this phone only, until the room says something else.
+- **Samples** are `GET /speech/voices/:voice/sample`, one fixed sentence per
+  voice, synthesised once per process, played by a new native `playSample`
+  in the read-aloud module — so the picker, like the rest of the app half,
+  reaches phones only with an upload.
+- **The ledger is `speech_usage`**, a row per synthesis; *Read again* plays
+  the kept audio and has none.
+- **The language** is `Transcripts.firstLanguage`: the earliest finished
+  transcript of a person (never the film's stem), then the asker's app
+  language sent with the press, then the account's, then English.
+
+**Unverified until a phone has it**: the Swift (`Reader.play(pcm:)`,
+`playSample`) parses but has not been built; the reply heard through the
+call at the call's level with no echo, on two phones; the stem in a
+recording's mix; `setEnabled(false)` silencing the track on iOS and the web.
+
+**When it ships**, a decision supersedes
+decision/2026-10-28-claudes-reply-is-read-aloud-on-arrival.md on where the
+reply is heard (into the room, and recorded) and in which voice (the
+channel's), and this file goes.

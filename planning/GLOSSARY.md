@@ -50,7 +50,9 @@ caused; the list carries the meaning.
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the channel's whole *Record* and posts one turn into it, as a *paste* by *Claude*, of at most 50, 150 or 450 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*; the reply is *read aloud* as it lands. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
-- **Read aloud** — A reply from *Ask Claude*, spoken by each *present* phone the moment it lands, in the language the reply is written in — told from its text on the phone, the app's *Language* only where that cannot be — in the asker's voice where that phone has it installed (`Clip.voices`, since build 397), else with the voice chosen for it on *Floor Settings* — kept on the phone, iOS's own choice being unreadable — or else the best installed; played on the call's own audio engine, so it is never heard through the call or in a recording; the only thing the app speaks, with no switch. *Floor Settings* says which voice that is for English and for Spanish, offers the choice, and says how to download a better one, since 2026-10-28. While a reply is being heard a bar immediately above every screen's footer says *Reading Claude's reply* and carries **two controls, *Restart* — the reply being heard, from its first sentence — and *Stop*, which also drops anything queued behind it**, since 2026-10-29. `useClaudeReadAloud`, `ReadingBar`; *Leer en voz alta*, *Leyendo a Claude*, *Reiniciar*, *Parar*
+- **Read aloud** — A reply from *Ask Claude*, said into the room by the server the moment it lands, since 2026-11-13: synthesised once by AssemblyAI in *Claude's voice*, in the language of the channel's first transcript (the asker's *Language* where there is none), and published as `claude:<channel>`, a participant that is not a person — so everybody *present* hears it through the call and a running recording keeps it, as a stem under `CLAUDE_ID` that is never transcribed; `Clip.speech` marks such a reply. **The phone's own voice is the fallback**: no AssemblyAI key, a refusal, a language AssemblyAI does not speak, or a build that predates it (withheld from the room's voice, it reads in the asker's installed voice, `Clip.voices`, or the best it has). The only thing the app speaks, with no switch. While a reply is being heard a bar immediately above every screen's footer says *Reading Claude's reply* with **two controls: *Read again* — the reply, from the top, for everybody — where the room is hearing it (*Restart* where the phone is reading it), and *Stop*, which quiets it on this phone alone**, since 2026-10-29. *Floor Settings*' *Read aloud* card, the installed voice and a choice among them, was there 2026-10-28 to 2026-11-13. `useClaudeReadAloud`, `ReadingBar`, `claudeSaying`; *Leer en voz alta*, *Leyendo a Claude*, *Repetir*, *Reiniciar*, *Parar*
+- **Read again** — Claude's reply said into the room once more, for everybody present, from its paste in the *Record* or the reading bar, while the server keeps its speech: an hour, since 2026-11-13. Anybody present may press it; the latest press or reply wins. Not synthesised again, so it costs nothing. `readAgain`, `speechKept`; *Repetir*
+- **Claude's voice** — A channel setting, since 2026-11-13: which AssemblyAI voice *Read aloud* speaks in, for the whole channel, whoever asks — one of a curated few (`SPEECH_VOICES`), or each language's default where none is chosen; on *Channel Settings* where the server speaks, every voice tapped to hear its sample, **chosen only by *Pro***. `speechVoice`; *Voz de Claude*
 - **Paste** — A piece of text somebody here put into the channel, kept in the *Record* as a *segment* of its own at the moment it was made — an instant, which breaks no other segment — for anybody to copy, and never deleted; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
@@ -67,7 +69,7 @@ caused; the list carries the meaning.
 - **Email notifications** — A *Floor Settings* switch, `emailNotifications`: every notification also sent as email to the address you sign in with, arrivals included and paused with them. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
-- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-08, chooses a channel's *Transcription model* and *Response model*, and since 2026-11-10 switches your own *library* on in a channel, noesis being read-only for everybody else; an account marked `transcripts_unlimited` by hand is Pro too, since 2026-11-10; not the *Pro* grade of either
+- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-08, chooses a channel's *Transcription model* and *Response model* — and *Claude's voice* since 2026-11-13 — and since 2026-11-10 switches your own *library* on in a channel, noesis being read-only for everybody else; an account marked `transcripts_unlimited` by hand is Pro too, since 2026-11-10; not the *Pro* grade of either
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who can be told — push granted, or email notifications on for an email address — at the moment they become so, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
@@ -3310,6 +3312,22 @@ which model is answering in a channel is something everybody in it may know.
 Its *Pro* is a grade of model, as that one's is, and never *Pro (the
 subscription)*; *Max* is a grade too, and the same word in Spanish.
 
+## Claude's voice
+
+**A channel setting naming the voice *Read aloud* speaks Claude's replies
+in**, since 2026-11-13: one of a curated few of AssemblyAI's voices
+(`SPEECH_VOICES` in `core/speech.ts`), or null for the default voice of the
+language the reply is spoken in, pinned there because AssemblyAI's own
+defaults may change. `speechVoice` on `ChannelState`.
+
+**One for the whole channel, whoever asks**, at Rodrigo's word: every voice
+speaks all six of AssemblyAI's languages, so one choice covers a channel
+whatever it speaks, though a voice sounds best in the one it was recorded in —
+which is why the card groups them by it. **Changeable only by *Pro***, like
+*Response model*, and drawn for every member, whose taps play each voice's
+sample without choosing it. Drawn only where the server speaks and Claude can
+be asked. Not *Voice*, below, which is a person's on a recording.
+
 ## Username
 
 **A name for somebody, unique across everybody, written with an `@`.** Letters,
@@ -5389,6 +5407,8 @@ are settled:
     Brief / Medium / Extended  Breve / Media / Extensa — of a *respuesta*
     Responding…           Respondiendo…
     Response model        Modelo de respuesta — *Estándar* / *Pro* / *Max*
+    Claude's voice        Voz de Claude
+    Read again            Repetir — on the bar and on Claude's reply alike
     Library               Biblioteca — its switch *Consultar*; its owner is
                           *el dueño*, as a community's is; the Floor Settings
                           card *Biblioteca de noesis*, *Conectar* / *Desconectar*,
