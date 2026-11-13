@@ -24,17 +24,13 @@ link, then Paste. "Start a channel", on Home, makes one holding only you; its
 Settings offer "Make channel into a community", "This channel is a podcast"
 and "Lock channel".
 
-NEW: Ask Claude's reply can be said into the room by Pro voices, for
-everybody and into a recording ("Read aloud" on Channel Settings; this
-account is Pro, so it may change it); "Read again" repeats it. "Name
-voices" in a Record segment's menu.
+NEW: Pro voices can say Ask Claude's reply into the room and a recording
+("Read aloud" on Channel Settings; this account is Pro); "Read again"
+repeats it. "Name voices" in a Record segment's menu.
 
 WHY UIBackgroundModes HAS voip: stepping into a channel is reported to
 CallKit as an outgoing call, so it shows in Recents and other calls meet it
 as a call. No PushKit; nothing rings.
-
-Floor Settings, from Home: Language, "Choose where sound comes out", Email,
-"Push notifications", "Email notifications".
 
 NOT BUGS: a channel holds you on one device at a time; "Claim the floor" is
 unavailable while alone; Ping is offered only to somebody in the channel or
