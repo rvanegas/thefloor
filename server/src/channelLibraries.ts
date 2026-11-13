@@ -75,6 +75,8 @@ interface OwedRow {
   ended_at: number;
   recording_id: string | null;
   text: number;
+  /** The document it was filed as before, where it is being filed again. */
+  filed_file: string | null;
   transcript: string | null;
 }
 
@@ -117,7 +119,7 @@ export class ChannelLibraries {
     const now = this.deps.now();
     const owed = this.db
       .prepare(
-        `SELECT s.id, s.channel_id, s.started_at, s.ended_at, s.recording_id, s.text,
+        `SELECT s.id, s.channel_id, s.started_at, s.ended_at, s.recording_id, s.text, s.filed_file,
                 t.state AS transcript
            FROM segments s LEFT JOIN transcripts t ON t.recording_id = s.recording_id
           WHERE s.filed_at IS NULL AND s.ended_at IS NOT NULL AND s.ended_at >= ?
@@ -144,6 +146,12 @@ export class ChannelLibraries {
         this.db
           .prepare('UPDATE segments SET filed_file = ?, filed_title = ? WHERE id = ?')
           .run(sent.file, sent.title ?? null, row.id);
+        // noesis names the file after the title it gives, which is new each
+        // time, so filing again replaces nothing: the old document goes after.
+        const handle = this.deps.handleFor(row.channel_id);
+        if (row.filed_file && row.filed_file !== sent.file && handle && !(await this.deleteDocument(handle, row.filed_file))) {
+          this.deps.log?.warn({ segment: row.id, file: row.filed_file }, 'channel library: a refiled segment left its old document');
+        }
         this.deps.onFiled?.(row.channel_id);
       }
       else this.deps.log?.warn({ segment: row.id, ...sent }, 'channel library: a segment was not filed');
@@ -263,7 +271,7 @@ export class ChannelLibraries {
       const listing = await doFetch(new URL(base, this.options.origin), { headers: { Authorization: await this.owner() } });
       if (listing.status === 404) return true;
       if (!listing.ok) return false;
-      const sha = ((await listing.json()) as Record<string, string>)[file];
+      const sha = ((await listing.json()) as { files: Record<string, string> }).files[file];
       if (!sha) return true;
       const path = file.split('/').map(encodeURIComponent).join('/');
       const response = await doFetch(new URL(`${base}/${path}`, this.options.origin), {

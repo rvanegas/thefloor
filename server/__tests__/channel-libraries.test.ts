@@ -45,7 +45,7 @@ const fakeNoesis = (async (input: unknown, init?: { method?: string; headers?: u
   });
   if (url.pathname === '/libraries') return Response.json({ library: 'x' }, { status: sent.length > 1 ? 409 : 201 });
   if (init?.method === 'DELETE') return new Response(null, { status: 204 });
-  if (url.pathname.endsWith('/files')) return Response.json({ '2026/x.chat.md': 'abc' });
+  if (url.pathname.endsWith('/files')) return Response.json({ files: { '2026/x.chat.md': 'abc', '2026/old.chat.md': 'def' } });
   return new Response(
     'event: output\ndata: {"text": "imported"}\n\nevent: done\ndata: {"exit_code": 0, "changed": {"2026/x.chat.md": "abc"}, "titles": {"2026/x.chat.md": "Bach Reads Kant"}}\n\n'
   );
@@ -216,6 +216,23 @@ describe('a channel library, filed into by itself', () => {
         'Erta Example (A) · 14:06\nAfternoon.\n\n' +
         'Erta Example (B) · 14:06\nHello.'
     );
+  });
+
+  it('deletes the document a segment was filed as before, once it is filed again', async () => {
+    const { channelId, ertaId } = await bookClub();
+    makeFiling(ertaId);
+    textSegment(channelId);
+    app.db.prepare("UPDATE segments SET filed_file = '2026/old.chat.md' WHERE id = 'seg_1'").run();
+    clock = START + 45 * 60_000 + SETTLE_MS;
+    await app.channelLibraries!.sweep();
+    const handle = app.channels.handleOf(channelId)!;
+    expect(sent.map((s) => [s.method, s.path])).toEqual([
+      ['POST', '/libraries'],
+      ['POST', `/libraries/thefloor/${handle}/import`],
+      ['GET', `/libraries/thefloor/${handle}/files`],
+      ['DELETE', `/libraries/thefloor/${handle}/files/2026/old.chat.md`],
+    ]);
+    expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_1'").get()).toEqual({ filed_file: '2026/x.chat.md' });
   });
 
   it('files nothing for a channel with nobody Pro, ever', async () => {
