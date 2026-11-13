@@ -260,13 +260,13 @@ describe('the AssemblyAI voice', () => {
   it('is drawn only where the server speaks', () => {
     showChannel(here(), [], { claude: true });
     open();
-    expect(textOf(tree!)).not.toContain('AssemblyAI voice');
+    expect(textOf(tree!)).not.toContain('Pro voice');
   });
 
   it('lists the voices for everybody to hear, and chooses nothing without Pro', () => {
     showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
     open();
-    expect(textOf(tree!)).toContain('AssemblyAI voice');
+    expect(textOf(tree!)).toContain('Pro voice');
     expect(textOf(tree!)).toContain('Only somebody subscribed to Pro can change it.');
     const sara = findButton(tree!, 'Sara')!;
     expect(disabled(sara)).toBeFalsy();

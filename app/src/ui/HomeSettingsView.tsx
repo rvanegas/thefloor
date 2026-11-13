@@ -330,8 +330,9 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             <View style={styles.choices}>
               {(
                 [
-                  [false, t.readAloudAssembly()],
+                  // Standard first, as every grade on these screens runs.
                   [true, t.readAloudIos()],
+                  [false, t.readAloudAssembly()],
                 ] as Array<[boolean, string]>
               ).map(([phones, label]) => (
                 <Button

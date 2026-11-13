@@ -203,10 +203,9 @@ describe('the two languages', () => {
       // *Max*, the third grade, on the same reasoning.
       'channelSettings.responseMax',
       'channel.claudeMaxSuffix',
-      // *Read aloud*'s two engines, since 2026-11-13: a company's name and a
-      // platform's, neither translated.
+      // *Pro* voices, since 2026-11-13: the grade's word, the same for the
+      // response model's reason. *Standard* is translated, as that one is.
       'homeSettings.readAloudAssembly',
-      'homeSettings.readAloudIos',
       // The subscription's name — a different Pro from the grade above, and
       // the name it is sold under in the App Store, which is not translated
       // either. GLOSSARY.md, *Pro (the subscription)*.

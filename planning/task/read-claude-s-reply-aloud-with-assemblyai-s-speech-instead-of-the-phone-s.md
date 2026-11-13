@@ -291,8 +291,8 @@ written for the *Record* first.
 
 **What changes with it**:
 
-- the GLOSSARY's *Read aloud* entry, its one-line form, and *AssemblyAI
-  voice* and *Room reader* entries;
+- the GLOSSARY's *Read aloud* entry, its one-line form, and *Standard / Pro
+  voices*, *Pro voice* and *Room reader* entries;
 - STYLE.md for the picker and the *Read again* control;
 - STATES.md, which is read before any of this, since a new publisher is a new
   thing on the audio session's list;
@@ -341,12 +341,12 @@ open, or did differently:
   the kept audio and has none.
 - **Only a *Pro* asker's reply is read by AssemblyAI**, at Rodrigo's word,
   2026-11-13, for cost: *Floor Settings*' *Read aloud* lets *Pro* (and
-  `transcripts_unlimited`) choose *AssemblyAI* or *iOS* — the engine that
-  reads; **Claude writes only the words**, which is why nothing the user sees
-  calls a voice Claude's (`iosVoices`, an account setting, default
-  AssemblyAI); anybody else's replies are read by iOS voices, free, as before
-  2026-11-13. The channel's choice among AssemblyAI's voices is *AssemblyAI
-  voice*, and what publishes it is *the room reader*. The
+  `transcripts_unlimited`) choose *Standard* or *Pro* voices — iOS's and
+  AssemblyAI's, which is all anybody is shown of the engines; **Claude writes
+  only the words**, so nothing calls a voice Claude's (`iosVoices`, an
+  account setting, default *Pro*); anybody else's replies are *Standard*,
+  free, as before 2026-11-13. The channel's choice among the *Pro* voices is
+  *Pro voice*, and what publishes it is *the room reader*. The
   *Ask Claude* warning shows only to a viewer whose reply the server would
   speak, and `/privacy` says the speech is a *Pro* asker's.
 - **The language** is `Transcripts.firstLanguage`: the earliest finished

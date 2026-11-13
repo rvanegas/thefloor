@@ -3150,7 +3150,7 @@ export class ChannelRegistry {
       if (!this.isPro?.(userId)) {
         return {
           ok: false,
-          error: 'Only a Pro account can choose the AssemblyAI voice.',
+          error: 'Only a Pro account can choose the Pro voice.',
           code: 'forbidden',
         };
       }

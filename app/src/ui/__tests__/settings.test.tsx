@@ -92,9 +92,9 @@ describe("Home settings", () => {
   }
 
   /**
-   * *Read aloud*, since 2026-11-13: AssemblyAI's voices or iOS's — Claude
-   * writes only the words — *Pro*'s choice for cost, and drawn only where the
-   * server speaks at all.
+   * *Read aloud*, since 2026-11-13: *Standard* voices (iOS's) or *Pro*
+   * (AssemblyAI's) — Claude writes only the words — *Pro*'s choice for cost,
+   * and drawn only where the server speaks at all.
    */
   describe('Read aloud', () => {
     const speaking = () => {
@@ -106,20 +106,20 @@ describe("Home settings", () => {
       expect(textOf(tree)).not.toContain('Which voices read aloud');
     });
 
-    it('is greyed without Pro, iOS voices being what reads', async () => {
+    it('is greyed without Pro, Standard voices being what reads', async () => {
       speaking();
       const tree = await openSettings();
       expect(textOf(tree)).toContain('Which voices read aloud');
       expect(textOf(tree)).toContain('Only somebody subscribed to Pro can choose.');
-      const phones = findButton(tree, 'iOS')!;
+      const phones = findButton(tree, 'Standard')!;
       expect(phones.props.accessibilityState?.disabled ?? phones.props.disabled).toBe(true);
     });
 
-    it('lets Pro choose iOS voices', async () => {
+    it('lets Pro choose Standard voices', async () => {
       speaking();
       mockApp.pro = true;
       const tree = await openSettings();
-      act(() => findButton(tree, 'iOS')!.props.onPress());
+      act(() => findButton(tree, 'Standard')!.props.onPress());
       expect(mockApp.setIosVoices).toHaveBeenCalledWith(true);
     });
   });

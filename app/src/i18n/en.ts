@@ -858,17 +858,18 @@ export const en = {
       'The list above your channels on Home. It goes for good once every rung is done — the conversation, and the four things to try in a channel — or once every rung has been put away with the cross beside it, and this is the way to get it back.',
     audioOutput: () => 'Audio output',
     /**
-     * *Read aloud*: whether AssemblyAI's voices or iOS's read the replies you
-     * ask Claude for, since 2026-11-13 — *Pro*'s choice, for cost. Claude
-     * writes only the words.
+     * *Read aloud*: whether *Standard* voices (iOS's) or *Pro* voices
+     * (AssemblyAI's) read the replies you ask Claude for, since 2026-11-13 —
+     * *Pro*'s choice, for cost. Claude writes only the words; the engines are
+     * named only in the code and on `/privacy`.
      */
     readAloudVoices: () => 'Read aloud',
-    readAloudAssembly: () => 'AssemblyAI',
-    readAloudIos: () => 'iOS',
+    readAloudAssembly: () => 'Pro',
+    readAloudIos: () => 'Standard',
     readAloudVoicesNote: () =>
-      'Which voices read aloud the replies you ask Claude for. AssemblyAI’s are heard by everybody in the call and kept in recordings, and each reply costs a little. iOS voices are free, but each iPhone reads the reply on its own, and it is never recorded.',
+      'Which voices read aloud the replies you ask Claude for. Pro voices are heard by everybody in the call and kept in recordings, and each reply costs a little. Standard voices are the iPhone’s own: free, but each iPhone reads the reply on its own, and it is never recorded.',
     readAloudVoicesWho: () =>
-      'Only somebody subscribed to Pro can choose. Without Pro, iOS voices read the replies you ask for.',
+      'Only somebody subscribed to Pro can choose. Without Pro, Standard voices read the replies you ask for.',
     chooseWhereSoundComesOut: () => 'Choose where sound comes out',
     chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
     on: () => 'On',
@@ -1125,12 +1126,12 @@ export const en = {
      */
     modelWho: () => 'Only somebody subscribed to Pro can change it.',
     /**
-     * *AssemblyAI voice*, since 2026-11-13: the one AssemblyAI voice the
+     * *Pro voice*, since 2026-11-13: the one AssemblyAI voice the
      * channel's replies are read aloud in, chosen by *Pro*, heard by anybody.
      */
-    assemblyVoice: () => 'AssemblyAI voice',
+    assemblyVoice: () => 'Pro voice',
     assemblyVoiceNote: () =>
-      'Where AssemblyAI reads Claude’s replies aloud, it reads them in this voice, to everybody in the conversation. Tap a voice to hear it.',
+      'Where a Pro voice reads Claude’s replies aloud, it is this one, heard by everybody in the conversation. Tap a voice to hear it.',
     assemblyVoiceLanguage: (language: 'en' | 'es'): string =>
       language === 'es' ? 'Spanish' : 'English',
     /**

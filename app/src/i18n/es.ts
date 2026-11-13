@@ -656,12 +656,12 @@ export const es: Strings = {
       'La lista que hay encima de tus canales en el inicio. Desaparece para siempre cuando est\u00e1n todos los pasos hechos —la conversaci\u00f3n y las cuatro cosas que probar en un canal— o cuando has descartado todos con la cruz de al lado, y esta es la forma de recuperarla.',
     audioOutput: () => 'Salida de audio',
     readAloudVoices: () => 'Leer en voz alta',
-    readAloudAssembly: () => 'AssemblyAI',
-    readAloudIos: () => 'iOS',
+    readAloudAssembly: () => 'Pro',
+    readAloudIos: () => 'Est\u00e1ndar',
     readAloudVoicesNote: () =>
-      'Qu\u00e9 voces leen en voz alta las respuestas que pides a Claude. Las de AssemblyAI las oyen todos en la llamada y quedan en las grabaciones, y cada respuesta cuesta un poco. Las de iOS son gratis, pero cada iPhone lee la respuesta por su cuenta y nunca se graba.',
+      'Qu\u00e9 voces leen en voz alta las respuestas que pides a Claude. Las voces Pro las oyen todos en la llamada y quedan en las grabaciones, y cada respuesta cuesta un poco. Las voces Est\u00e1ndar son las del propio iPhone: gratis, pero cada iPhone lee la respuesta por su cuenta y nunca se graba.',
     readAloudVoicesWho: () =>
-      'Solo puede elegir quien est\u00e9 suscrito a Pro. Sin Pro, las voces de iOS leen las respuestas que pides.',
+      'Solo puede elegir quien est\u00e9 suscrito a Pro. Sin Pro, las voces Est\u00e1ndar leen las respuestas que pides.',
     chooseWhereSoundComesOut: () => 'Elegir por d\u00f3nde sale el sonido',
     chooseWhereSoundComesOutSub: () =>
       'Auriculares, AirPlay o cualquier cosa emparejada',
@@ -851,9 +851,9 @@ export const es: Strings = {
     responseModelNote: () =>
       'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
     modelWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
-    assemblyVoice: () => 'Voz de AssemblyAI',
+    assemblyVoice: () => 'Voz Pro',
     assemblyVoiceNote: () =>
-      'Cuando AssemblyAI lee en voz alta las respuestas de Claude, las lee con esta voz, para todos en la conversaci\u00f3n. Toca una voz para o\u00edrla.',
+      'Cuando una voz Pro lee en voz alta las respuestas de Claude, es esta, y la oyen todos en la conversaci\u00f3n. Toca una voz para o\u00edrla.',
     assemblyVoiceLanguage: (language: 'en' | 'es') => (language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'),
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
