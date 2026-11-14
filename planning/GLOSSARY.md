@@ -3301,7 +3301,8 @@ for.
 
 **A channel setting, *Standard*, *Pro* or *Max*, naming which model *Ask
 Claude* asks**, since 2026-10-22: *Standard* is Haiku and *Pro* is Sonnet,
-both at low effort, and *Max*, added the same day, is Opus at medium —
+both at low effort, and *Max*, added the same day, is Opus at medium — a
+press that consults a *library* at medium at the least, since 2026-11-14 —
 `RESPONSE_MODELS` in `server/src/claude.ts`. `responseModel` on
 `ChannelState`, of type `ResponseModel` — *Transcription model*'s union under
 its own name until *Max*, and now one grade longer, since the two move

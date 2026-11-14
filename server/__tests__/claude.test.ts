@@ -13,6 +13,7 @@ import {
   CLAUDE_LIBRARY_TIMEOUT_MS,
   CLAUDE_TIMEOUT_MS,
   composeLibraryRecord,
+  consultingGrade,
   composeRecord,
   FALLBACK_BETA,
   LIBRARY_CONTINUATIONS,
@@ -22,8 +23,10 @@ import {
   replyText,
   renderWorking,
   workingSteps,
+  HOW_TO_SEARCH,
   LOOK_NOW,
   lengthRule,
+  limitRule,
   REPLY_WORD_LIMITS,
   RESPONSE_MODELS,
   systemPrompt,
@@ -349,6 +352,27 @@ describe('the instructions', () => {
     }
   );
 
+  it('says people are waiting only at the end of the record, never in the system prompt', () => {
+    for (const length of ['brief', 'medium', 'extended'] as const) {
+      expect(systemPrompt(length)).toContain(limitRule(length));
+      expect(limitRule(length)).not.toContain('waiting');
+      expect(
+        systemPrompt(length, [{ owner: 'Rodrigo', libraries: ['rodrigo/notes'] }])
+      ).not.toContain('waiting on');
+    }
+  });
+
+  it('tells a library press how to search, once, however many libraries it names', () => {
+    const prompt = systemPrompt('medium', [
+      { owner: 'Rodrigo', libraries: ['rodrigo/notes'] },
+      { owner: null, libraries: ['thefloor/ai'], channel: true },
+    ]);
+    expect(prompt.split(HOW_TO_SEARCH)).toHaveLength(2);
+    expect(HOW_TO_SEARCH).toContain('lookup_term');
+    expect(HOW_TO_SEARCH).toContain('read_file');
+    expect(systemPrompt('medium')).not.toContain(HOW_TO_SEARCH);
+  });
+
   it('asks for plain text in the language being spoken, and claims nothing untrue', () => {
     for (const length of ['brief', 'medium', 'extended'] as const) {
       expect(systemPrompt(length)).toContain('plain text');
@@ -368,13 +392,15 @@ describe('the instructions', () => {
   it('names the library’s owner, keeps citation inline against noesis’s guide, and keeps the limit', () => {
     const prompt = systemPrompt('medium', [{ owner: 'Rodrigo', libraries: ['rodrigo/notes'] }]);
     expect(prompt).toContain('Rodrigo’s own writing');
-    expect(prompt).toContain('only when the conversation turns to something Rodrigo has written about');
+    expect(prompt).toContain('you cannot know what Rodrigo has written about without looking');
+    expect(prompt).toContain('before every reply');
+    expect(prompt).not.toContain('most turns need nothing');
     expect(prompt).toContain('Read the guide tool');
     expect(prompt).toContain('Related section as Rodrigo’s own recommendations');
     expect(prompt).toContain('do not write them here');
     expect(prompt).toContain('by its title in plain words');
     expect(prompt).toContain('plain text');
-    expect(prompt).toContain(lengthRule('medium'));
+    expect(prompt).toContain(limitRule('medium'));
     expect(prompt).not.toMatch(/\bcut\b|truncat/i);
     // Before anybody it names has signed in, it still makes sense.
     expect(systemPrompt('medium', [{ owner: null, libraries: ['x/y'] }])).toContain(
@@ -394,7 +420,7 @@ describe('the instructions', () => {
     expect(prompt).toContain('Every result names the library it came from');
     expect(prompt).toContain('by its title and whose it is');
     expect(prompt).toContain('do not write them here');
-    expect(prompt).toContain(lengthRule('medium'));
+    expect(prompt).toContain(limitRule('medium'));
   });
 
   it('asks Standard and Pro at low effort and Max at medium, with the larger two’s fallback', () => {
@@ -416,6 +442,15 @@ describe('the instructions', () => {
       maxTokens: 8192,
       fallback: true,
     });
+  });
+
+  it('asks at medium effort at the least, with Max’s ceiling, where a press consults a library', () => {
+    expect(consultingGrade(RESPONSE_MODELS.pro)).toEqual({
+      ...RESPONSE_MODELS.pro,
+      effort: 'medium',
+      maxTokens: 8192,
+    });
+    expect(consultingGrade(RESPONSE_MODELS.max)).toEqual(RESPONSE_MODELS.max);
   });
 });
 
@@ -1011,6 +1046,8 @@ describe('a press with the library', () => {
     expect(calls[0].beta).toBe(true);
     expect(calls[0].body).toMatchObject({
       model: 'claude-sonnet-5-5',
+      max_tokens: 8192,
+      output_config: { effort: 'medium' },
       betas: [MCP_BETA, FALLBACK_BETA],
       fallbacks: 'default',
       mcp_servers: [

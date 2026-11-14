@@ -50,9 +50,9 @@ builds before it fail on *Channel Settings* while any library is on.
 - **Whether lookups happen where they should.** On Pro, three presses in a
   channel whose Record touches something in the library and three in one that
   does not, both switched on; then `ts usage transcripts`, the *library*
-  section — `looked`, `avg_calls`, `avg_in`, `timed_out`. Lookups in the
-  second channel mean the prompt's "only when relevant" is not holding, and
-  the switch is the remedy rather than something to tune.
+  section — `looked`, `avg_calls`, `avg_in`, `timed_out`. Superseded
+  2026-11-14: the prompt no longer holds back, and the switch is what limits
+  consulting (`2026-11-14-ask-claude-searches-a-library-it-is-given.md`).
 - **Latency.** Against the two-minute timeout; `timed_out` in the same
   section.
 

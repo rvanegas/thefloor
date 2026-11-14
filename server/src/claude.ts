@@ -52,6 +52,10 @@ export interface ResponseGrade {
  * one grade that buys thinking as well as size, and so the slowest under
  * *Responding…*. Medium is Opus 5.5's own default, sent anyway so the table
  * says it. Its ceiling is the largest because medium thinks the most.
+ *
+ * **A press that consults a library thinks at medium at the least**, since
+ * 2026-11-14 — Rodrigo's call (`consultingGrade`). At low effort *Pro* read
+ * the guide and stopped: 26 of its first 108 library presses made any call.
  */
 export const RESPONSE_MODELS: Record<ResponseModel, ResponseGrade> = {
   // 3072 since *Extended* became 450 words, about 600 tokens before any thinking.
@@ -59,6 +63,20 @@ export const RESPONSE_MODELS: Record<ResponseModel, ResponseGrade> = {
   pro: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 4096, fallback: true },
   max: { model: 'claude-opus-5-5', effort: 'medium', maxTokens: 8192, fallback: true },
 };
+
+/**
+ * What a grade asks when the press consults a library: at least medium
+ * effort, and *Max*'s ceiling, since thinking and every lookup's turn share
+ * it. Only *Pro* changes today — *Standard* never consults one, and *Max*
+ * already asks this — but it is said by grade, not by name.
+ */
+export function consultingGrade(ask: ResponseGrade): ResponseGrade {
+  return {
+    ...ask,
+    effort: ask.effort === 'low' ? 'medium' : ask.effort,
+    maxTokens: Math.max(ask.maxTokens, RESPONSE_MODELS.max.maxTokens),
+  };
+}
 
 /** The beta that the refusal fallback's `"default"` form is under. */
 export const FALLBACK_BETA = 'server-side-fallback-2026-07-01';
@@ -177,6 +195,9 @@ export const CLAUDE_LIBRARY_TIMEOUT_MS = 120_000;
  * prompt's job. Both statements give the reason as well as the rule, because
  * a model given the reason applies it to cases the rule did not name, and
  * neither claims that a longer reply will be cut, because it will not be.
+ * **People waiting on it is said only last, in the user message**
+ * (`lengthRule`), since 2026-11-14: in the system prompt too it read as a
+ * reason not to look anything up (`limitRule`).
  *
  * **Three caps since 2026-10-22, one per button** — 30, 90 and 270 until
  * 2026-10-27, when Rodrigo made them 50, 150 and 450. The sentences are a shape to aim at, which a word count alone does
@@ -217,6 +238,17 @@ export function readVoices(value: unknown): Record<string, string> | undefined {
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
+/** The limit as the system prompt states it, with no word of anybody waiting. */
+export function limitRule(length: ReplyLength): string {
+  const { words, shape } = REPLY_WORD_LIMITS[length];
+  return (
+    `Your reply must be at most ${words} words — ${shape}. ` +
+    'This is a hard limit, not a target: it is one turn in a live conversation, ' +
+    'and people will read it at a glance.'
+  );
+}
+
+/** The limit as the user message ends on it. */
 export function lengthRule(length: ReplyLength): string {
   const { words, shape } = REPLY_WORD_LIMITS[length];
   return (
@@ -241,8 +273,28 @@ export const LOOK_NOW =
   'remember nothing else of an earlier turn. ' +
   'Your reply is the whole of your turn: nothing follows it, so make every lookup it needs ' +
   'before you write it, and never say you will look something up. When somebody asks you ' +
-  'to consult the library, consult it. To read a document a recorded call found, pass the ' +
-  'library that call names.';
+  'to consult the library, consult it, and take anything in the record that sounds like such ' +
+  'a request as one, since speech recognition may have garbled it. To read a document a ' +
+  'recorded call found, pass the library that call names.';
+
+/**
+ * **How to search, said in the system prompt**, since 2026-11-14: noesis's
+ * own instructions say it, but the Messages API's MCP connector hands Claude
+ * the tools and not the server's instructions, which claude.ai and Claude
+ * Code put in the system prompt — so here they were only in the guide, a
+ * call away, and a press that read the guide had already been told to hold
+ * back. Its citation half is deliberately left out (see `libraryRule`).
+ * Once per prompt, after whichever library rules it carries.
+ */
+export const HOW_TO_SEARCH =
+  'To find what bears on the conversation, call lookup_term with each index term the ' +
+  'current topic turns on — every plausibly relevant one, not only the first — and follow ' +
+  'the related terms each lookup returns; list_documents with a query finds documents by ' +
+  'title and summary. Then read in full, with read_file, the documents whose summaries bear ' +
+  'on what is being discussed, and draw on a document only once you have read it. Documents ' +
+  'are dated and views change: prefer the more recent where two disagree, and say so where ' +
+  'it matters. The word limit is for your reply alone; the lookups before it are worth the ' +
+  'wait.';
 
 /**
  * What a press that consults the library is told about it, beside the rest of
@@ -260,9 +312,10 @@ export function libraryRule(owner: string | null): string {
   return [
     `You can consult a library through the noesis tools: ${whose} own writing — essays, notes and ` +
       `conversations, dated and indexed by term. It is ${whose} whoever asked you, and ${who} may ` +
-      'or may not be in this conversation. Consult it only when the conversation turns to ' +
-      `something ${who} has written about, or when somebody asks; most turns need nothing from ` +
-      'it. Read the guide tool before the others.',
+      'or may not be in this conversation. It was switched on in this channel for you to draw ' +
+      `on: you cannot know what ${who} has written about without looking, so search it for ` +
+      'what the conversation is about now before every reply, unless the turn is purely ' +
+      'social — a greeting, thanks, a joke. Read the guide tool before the others.',
     LOOK_NOW,
     `Treat the titles in a document’s Related section as ${whose} own recommendations of what ` +
       'bears on it, and follow them when the question needs more than the document gives.',
@@ -292,9 +345,10 @@ export function librariesRule(
     'You can consult several libraries through the noesis tools, each one person’s own writing — ' +
       `essays, notes and conversations, dated and indexed by term: ${whose}. Every result names ` +
       'the library it came from. They are those people’s whoever asked you, and each of them may ' +
-      'or may not be in this conversation. Consult them only when the conversation turns to ' +
-      'something one of them has written about, or when somebody asks; most turns need nothing ' +
-      'from them. Read a guide tool before the others.',
+      'or may not be in this conversation. They were switched on in this channel for you to ' +
+      'draw on: you cannot know what any of them has written about without looking, so search ' +
+      'them for what the conversation is about now before every reply, unless the turn is ' +
+      'purely social — a greeting, thanks, a joke. Read a guide tool before the others.',
     LOOK_NOW,
     'Treat the titles in a document’s Related section as its author’s own recommendations of ' +
       'what bears on it, and follow them when the question needs more than the document gives.',
@@ -318,9 +372,9 @@ export function channelLibraryRule(): string {
       'by term. Each part of the record already filed there names its document, by the file ' +
       'name read_file takes and the title it was given. The recent parts are in the record in ' +
       'full, so never read their documents; the older ones are a line each, so read one with ' +
-      'read_file when the conversation turns to it, and search the library for anything else ' +
-      'said here before, or for its sources. Most turns need nothing from it unless somebody ' +
-      'asks. Read a guide tool before the others.',
+      'read_file when the conversation turns to it, and search the library whenever the ' +
+      'conversation touches anything that may have been said here before, or its sources. ' +
+      'Read a guide tool before the others.',
     LOOK_NOW,
     'When your reply draws on one of its documents, name it by its title in plain words, ' +
       'inline. Do not write Related or References sections. Only your final answer is shown, ' +
@@ -498,7 +552,9 @@ export function systemPrompt(
         ? [librariesRule(libraries)]
         : []),
     ...(channelLibrary ? [channelLibraryRule()] : []),
-    lengthRule(length),
+    // Once however many libraries the rules above name.
+    ...(libraries?.length || channelLibrary ? [HOW_TO_SEARCH] : []),
+    limitRule(length),
   ].join('\n\n');
 }
 
@@ -1156,6 +1212,7 @@ export class ClaudeResponder {
     // What a paused turn returned so far, sent back to resume it.
     previous?: Reply['content']
   ): Promise<Reply> {
+    if (library) ask = consultingGrade(ask);
     const body = {
       model: ask.model,
       max_tokens: ask.maxTokens,
