@@ -1,0 +1,83 @@
+#!/bin/bash
+#
+# Speaks a text file aloud, in one of the voices Claude's replies are spoken
+# in, through AssemblyAI's text-to-speech — the inverse of ts transcribe, and
+# the provider and the request the server uses for those replies.
+#
+# **A tool for whoever runs it, and nothing to do with the app**, on the same
+# terms as ts transcribe: it runs on this machine and reads no database, and
+# the audio goes to a file beside the text and nowhere else. The server's code
+# is borrowed only so the request cannot drift from the one replies make.
+#
+#   ts speak notes.txt                  in Sara's voice, to notes.wav
+#   ts speak notes.txt --voice Peter    any voice in core/speech.ts, by name
+#   ts speak notes.txt --language es    the language spoken, else the voice's own
+#
+# **Sara by default**, at Rodrigo's word, 2026-11-17. The voices are the
+# catalogue the app's picker shows, and the language has to be named because
+# the API detects none: left to the voice's own, Spanish text is read with an
+# English voice's English (core/speech.ts on `SPEECH_LANGUAGE_NAMES`).
+#
+# **A transcript speaks back as what was said**: a line as ts transcribe
+# writes it, `[1:02] A  text`, loses its time and its voice label. Everything
+# else is read as it stands.
+#
+# The output is the text's path with `.wav` in place of its extension, 16-bit
+# mono at 48 kHz, and an existing one is refused before anything is sent — as
+# ts transcribe refuses, since the audio is paid for. Text past the provider's
+# 5,000-character limit goes as several requests, broken at a line, else a
+# sentence, else a space, and the audio is joined.
+#
+# **It spends money**: the per-character rate in planning/CREDENTIALS.md, on
+# the account's balance. The billed characters are printed at the end.
+#
+# The key is `ASSEMBLYAI_API_KEY` from the environment, else server/.env, else
+# the copy ts env-pull keeps in ~/.config/thefloor/server.env. It is read
+# here and handed to the script in the environment, never printed.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+TSX="$ROOT/server/node_modules/.bin/tsx"
+PULLED=${THEFLOOR_ENV:-$HOME/.config/thefloor/server.env}
+
+file=""
+takes=""
+for arg in "$@"; do
+  if [ -n "$takes" ]; then takes=""; continue; fi
+  case "$arg" in
+    --voice|--language) takes=$arg ;;
+    # The whole comment block, however long it grows — as ts db does.
+    -h|--help)
+      awk 'NR>1 && /^#/ { sub(/^# ?/, ""); print; next } NR>1 { exit }' "$0"
+      exit 0
+      ;;
+    --*) echo "Unknown option: $arg" >&2; exit 1 ;;
+    *)
+      [ -z "$file" ] || { echo "One file at a time" >&2; exit 1; }
+      file=$arg
+      ;;
+  esac
+done
+
+usage="Usage: ts speak <text-file> [--voice <name>] [--language <code>]"
+[ -z "$takes" ] || { echo "$takes needs a value. $usage" >&2; exit 1; }
+[ -n "$file" ] || { echo "$usage" >&2; exit 1; }
+[ -f "$file" ] || { echo "No such file: $file" >&2; exit 1; }
+[ -x "$TSX" ] || { echo "No tsx at $TSX — run ts worktree-setup" >&2; exit 1; }
+
+# The last assignment wins, as it would for a shell sourcing the file; quotes
+# around the value are dropped.
+key_in() {
+  [ -f "$1" ] || return 0
+  sed -n 's/^ASSEMBLYAI_API_KEY=//p' "$1" | tail -n 1 | sed "s/^[\"']//; s/[\"']$//"
+}
+
+key=${ASSEMBLYAI_API_KEY:-}
+[ -n "$key" ] || key=$(key_in "$ROOT/server/.env")
+[ -n "$key" ] || key=$(key_in "$PULLED")
+[ -n "$key" ] || {
+  echo "No ASSEMBLYAI_API_KEY in the environment, server/.env or $PULLED" >&2
+  exit 1
+}
+
+ASSEMBLYAI_API_KEY=$key exec "$TSX" "$ROOT/server/scripts/speak.ts" "$@"
