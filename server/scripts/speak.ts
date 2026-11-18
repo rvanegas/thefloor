@@ -131,13 +131,39 @@ async function main() {
   );
 
   const audio: Buffer[] = [];
+  let bytes = 0;
   let billed = 0;
-  for (const part of parts) {
-    const spoken = await provider.synthesize(
-      { text: part, voice: voice!.id, language: language! },
-      (pcm) => audio.push(pcm)
-    );
-    billed += spoken.billedCharacters;
+  let request = 0;
+  const started = Date.now();
+
+  // **One line, rewritten in place**, four times a second whether audio is
+  // arriving or not — the wait for the first audio is the part that looks
+  // like a hang. Off a terminal, a line per request finished instead.
+  const tty = process.stderr.isTTY;
+  const progress = () =>
+    `${parts.length > 1 ? `Request ${request} of ${parts.length}: ` : ''}` +
+    `${clock((bytes / 2 / SAMPLE_RATE) * 1000)} of audio, ` +
+    `${Math.floor((Date.now() - started) / 1000)}s`;
+  const ticker = tty ? setInterval(() => process.stderr.write(`\r\x1b[K${progress()}`), 250) : null;
+
+  try {
+    for (const part of parts) {
+      request += 1;
+      const spoken = await provider.synthesize(
+        { text: part, voice: voice!.id, language: language! },
+        (pcm) => {
+          audio.push(pcm);
+          bytes += pcm.length;
+        }
+      );
+      billed += spoken.billedCharacters;
+      if (!tty) console.error(progress());
+    }
+  } finally {
+    if (ticker) {
+      clearInterval(ticker);
+      process.stderr.write('\r\x1b[K');
+    }
   }
 
   const pcm = Buffer.concat(audio);
