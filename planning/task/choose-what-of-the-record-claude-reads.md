@@ -25,3 +25,12 @@ Read GLOSSARY *Ask Claude*, *Segment* and *Record*, and
 `decision/2026-11-14-ask-claude-searches-a-library-it-is-given.md`, before
 designing it; STYLE.md before drawing the control, which needs a Spanish
 string too.
+
+**Added 2026-11-18, on the call with Rochelle** (chat
+`2026-11-18-claude-audio-feature-development-and-costs`): Rodrigo wondered
+whether **none of the Record should be sent by default**, only when asked
+for. A press costs about 50 cents, mostly because it carries the whole
+conversation so far and that keeps growing; and now that past conversations
+are in the channel's library, Claude can choose to read them there, and only
+does when asked, where the *Record* is read whole on every press. Another
+point on the same axis as the unit and the budget: settle it with them.
