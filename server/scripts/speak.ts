@@ -111,6 +111,19 @@ function wav(pcm: Buffer): Buffer {
   return Buffer.concat([header, pcm]);
 }
 
+/**
+ * AssemblyAI's price for speech, in dollars per million characters billed —
+ * planning/CREDENTIALS.md's figure, as of 2026-11-13. A copy, so it is the
+ * place to look first when what is printed and the invoice disagree.
+ */
+const DOLLARS_PER_MILLION_CHARACTERS = 15;
+
+/** What `characters` cost: cents under a dollar, since most runs are. */
+function cost(characters: number): string {
+  const dollars = (characters / 1e6) * DOLLARS_PER_MILLION_CHARACTERS;
+  return dollars < 1 ? `${(dollars * 100).toFixed(2)}¢` : `$${dollars.toFixed(2)}`;
+}
+
 /** `m:ss`. */
 function clock(ms: number): string {
   const total = Math.floor(ms / 1000);
@@ -127,7 +140,8 @@ async function main() {
   const parts = pieces(text);
   console.error(
     `Speaking ${[...text].length} characters of ${file} as ${voice!.name}, in ${language}` +
-      (parts.length > 1 ? `, in ${parts.length} requests` : '')
+      (parts.length > 1 ? `, in ${parts.length} requests` : '') +
+      `, about ${cost([...text].length)}`
   );
 
   const audio: Buffer[] = [];
@@ -168,7 +182,7 @@ async function main() {
 
   const pcm = Buffer.concat(audio);
   writeFileSync(out, wav(pcm));
-  console.error(`Done: ${clock((pcm.length / 2 / SAMPLE_RATE) * 1000)}, ${billed} characters billed`);
+  console.error(`Done: ${clock((pcm.length / 2 / SAMPLE_RATE) * 1000)}, ${billed} characters billed, ${cost(billed)}`);
   console.log(out);
 }
 

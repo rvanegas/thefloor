@@ -29,7 +29,9 @@
 # sentence, else a space, and the audio is joined.
 #
 # **It spends money**: the per-character rate in planning/CREDENTIALS.md, on
-# the account's balance. The billed characters are printed at the end.
+# the account's balance. What it should cost is printed before anything is
+# sent, and the characters billed and their cost at the end, from a copy of
+# that rate in the script.
 #
 # The key is `ASSEMBLYAI_API_KEY` from the environment, else server/.env, else
 # the copy ts env-pull keeps in ~/.config/thefloor/server.env. It is read
