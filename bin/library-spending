@@ -68,15 +68,18 @@ printf 'header = "Authorization: Bearer %s"\n' "$token" > "$work/auth"
 
 curl -sS --fail-with-body -K "$work/auth" "$origin/applications/spending${month:+?month=$month}" > "$work/spent.json"
 
-# Every channel with a library, its name, and its members who are Pro now:
-# a subscription unrevoked and unexpired, as ProSubscriptions.activeUntil
-# reads it less its leeway.
+# Every channel with a library, its name, and its members who are Pro now, as
+# the server's isPro reads it: the hand-set `transcripts_unlimited` mark, or a
+# subscription unrevoked and unexpired, as ProSubscriptions.activeUntil reads
+# it less its leeway.
 ts db --json "select c.handle as handle, coalesce(c.name, '') as name,
     (select group_concat(display_name, ', ') from (
        select distinct a.display_name from json_each(c.participants) p
          join accounts a on a.id = p.value
-         join pro_subscriptions s on s.account_id = p.value
-        where s.revoked_at is null and s.expires_at > cast(strftime('%s', 'now') as integer) * 1000
+        where a.transcripts_unlimited = 1
+           or exists (select 1 from pro_subscriptions s
+                       where s.account_id = p.value and s.revoked_at is null
+                         and s.expires_at > cast(strftime('%s', 'now') as integer) * 1000)
      )) as pro
   from channels c where c.handle is not null" > "$work/channels.json"
 
