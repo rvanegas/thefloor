@@ -1,7 +1,7 @@
 # Cache the prompt Ask Claude sends
 
 Rodrigo, 2026-11-18, out of reviewing
-`choose-what-of-the-record-claude-reads.md`. **Set aside**: filed so the cost
+`choose-what-claude-reads.md`. **Set aside**: filed so the cost
 question has a cheaper answer on record than sending less of the *Record*, and
 not to be started until asked.
 
