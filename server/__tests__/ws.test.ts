@@ -945,6 +945,35 @@ describe('websocket', () => {
     b.close();
   });
 
+  /**
+   * Whether the channel is *Pro* rides the snapshot for everybody in it, Pro
+   * or not, since 2026-11-19 — what draws *· Pro* after *Ask Claude* — with
+   * the three fields builds up to 439 read, derived (planning/SHIMS.md).
+   */
+  it('tells every member the channel is Pro while one of them is', async () => {
+    const { alice, bob, channelId } = await pairInSession();
+    const b = new Client(bob.token, baseUrl);
+    await b.open();
+    b.send({ type: 'watch.channel', channelId });
+    const standard = await b.next('channel');
+    expect(standard.view.pro).toBeUndefined();
+    expect(standard.view.channel).toMatchObject({ responseModel: 'standard', readAloud: 'standard' });
+    b.close();
+
+    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.account.id);
+    const again = new Client(bob.token, baseUrl);
+    await again.open();
+    again.send({ type: 'watch.channel', channelId });
+    const pro = await again.next('channel');
+    expect(pro.view.pro).toBe(true);
+    expect(pro.view.channel).toMatchObject({
+      transcriptionModel: 'pro',
+      responseModel: 'pro',
+      readAloud: 'pro',
+    });
+    again.close();
+  });
+
   it('refuses an action from someone outside the channel', async () => {
     const { channelId } = await pairInSession();
     const mallory = await signIn('user9999999@example.com', 'Mallory');

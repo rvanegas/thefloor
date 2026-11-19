@@ -199,6 +199,9 @@ describe('the two languages', () => {
       'homeSettings.planPro',
       // *Plan* is the same word in Spanish.
       'homeSettings.plan',
+      // A *Pro* channel's grade after *Ask Claude*, the same word for the
+      // plan's reason.
+      'channel.claudeProSuffix',
       // The two language names, which are each written in their own language
       // in both catalogues: the person who cannot read the language the screen
       // is drawn in is the one about to change it, and *Inglés* is no use to

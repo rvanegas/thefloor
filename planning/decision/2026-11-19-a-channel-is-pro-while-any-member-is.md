@@ -23,11 +23,16 @@ library press keeps the ceiling it borrowed from it, 8192, as
 `CONSULTING_MAX_TOKENS`. Ledger rows with `grade = 'max'` stay, and
 `bin/usage` still prices them.
 
-**The only word of a grade the app says is the reader's own *Plan***, on
-*Floor Settings*, where the *Pro* card was: *Basic*, *Pro* or *Unlimited*.
-Unlimited is `ProView.pro` with no `until`, so no wire change was needed. The
-*· Pro* / *· Max* after *Ask Claude* went too: "only" in the ask was taken to
-cover it.
+**The reader's own *Plan*** is on *Floor Settings*, where the *Pro* card was:
+*Basic*, *Pro* or *Unlimited*. Unlimited is `ProView.pro` with no `until`, so
+it needed no wire change.
+
+***· Pro* after *Ask Claude* stays**, drawn for everybody in a Pro channel
+from a new `ChannelView.pro`. It went with the cards in the first cut, "only"
+in the ask read as covering it, and came back the same day at Rodrigo's word:
+"It serves as incentive to members who haven't bought 'pro'." It is the one
+place somebody who has not paid sees what somebody else's Pro buys the room.
+*· Max* went with *Max*.
 
 **Which voice card *Read aloud* draws is the reader's plan**: the *Pro voice*
 for Pro and Unlimited, the *Standard voice* for Basic, one card and never

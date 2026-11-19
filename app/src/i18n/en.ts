@@ -1589,6 +1589,8 @@ export const en = {
      * *Preguntar a Claude* in Spanish.
      */
     askClaude: () => 'Ask Claude',
+    /** After *Ask Claude* in a *Pro* channel, while any member is Pro. */
+    claudeProSuffix: () => ' \u00b7 Pro',
     /** The three lengths, 50, 150 and 450 words: of a reply, so feminine in Spanish. */
     replyBrief: () => 'Brief',
     replyMedium: () => 'Medium',

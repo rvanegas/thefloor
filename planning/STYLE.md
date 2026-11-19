@@ -1452,23 +1452,25 @@ a net rather than a layout.
 
 ***Ask Claude* is a line under the row**, since 2026-10-22 — `AskClaude` in
 `RecordTab.tsx`, drawn only where the server can ask Claude. The switches'
-grammar, words then their controls: *Ask Claude* in `switchLabel` — with
-*· Pro* or *· Max* after it by the channel's grade until 2026-11-19, and
-nothing since, the grade being said only as the reader's *Plan* — then
+grammar, words then their controls: *Ask Claude* in `switchLabel`, with
+*· Pro* in a *Pro channel* — *· Max* too on a *Max* one until 2026-11-19 —
+then
 *Brief*, *Medium* and *Extended* as three
 `Button`s at the People card ping's vertical numbers but 6 a side rather than
 8 (`length`). **On a line of its own because the row is full** — a third
 glyph at 40 would take it past 343 — and it is an act about the log, so it
 sits where the reply lands rather than among the people. Its busy state is
-the words, which read *Responding…*, the three buttons greyed
+the words, which read *Responding…* with no *· Pro*, the three buttons greyed
 on every screen while anybody's press is out; who asked, or why a press
 failed, is a muted line under it, the bar's line for its refusals. Grey while
 you are away, as the switches are, with no sentence. **Measured at 15pt with
-the system font**, buttons at their text plus 12 and gaps of 6: *Preguntar a
-Claude* with *Breve Media Extensa* comes to 327 of 343, *Responding…* to 306
-— *Ask Claude · Pro* was 326 and *· Max* 331, and Spanish with either, 362
-and 367, wrapped, until the suffix went on 2026-11-19; the words still wrap
-(`askLabel` shrinks) rather than push the last button off the edge. For its first day it was a card on *People* in a
+the system font**, buttons at their text plus 12 and gaps of 6: *Ask Claude ·
+Pro* and the three come to 326 of 343, *Preguntar a Claude* with *Breve Media
+Extensa* to 327, *Responding…* to 306; at 8 a side the first two were within
+6, which is why the padding came down. Only Spanish in a *Pro* channel, 362,
+does not fit, and its words wrap (`askLabel` shrinks) rather than push the
+last button off the edge. (*Ask Claude · Max*, 331, and its Spanish, 367,
+went with *Max* on 2026-11-19.) For its first day it was a card on *People* in a
 person's shape with the person's marks taken out, and still read as a person
 — which is the reason it is not one; then one *Respond* button beside the
 word *Claude*, until the three lengths the same day.

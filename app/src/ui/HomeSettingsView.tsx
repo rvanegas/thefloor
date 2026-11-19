@@ -977,8 +977,9 @@ function ProCard() {
   const until = view.until;
   const canBuy = purchasesAvailable && !!offer && !!view.offer;
   /**
-   * **Basic, Pro or Unlimited — the one word of a grade the app says**,
-   * since 2026-11-19, at Rodrigo's word: every channel you are a member of
+   * **Basic, Pro or Unlimited**, since 2026-11-19, at Rodrigo's word —
+   * beside *· Pro* after *Ask Claude*, the one other word of a grade the app
+   * says: every channel you are a member of
    * is *Pro* while you are either of the last two. *Unlimited* is the
    * `transcripts_unlimited` mark, Pro with no subscription (`until` null);
    * a subscription says *Pro* even on a marked account, since it is what

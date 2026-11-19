@@ -1217,11 +1217,19 @@ export function AskClaude({
   nameOf,
   onAsk,
   unheard = [],
+  pro = false,
 }: {
   channel: ChannelState;
   me: string;
   nameOf: (id: string) => string;
   onAsk: (length: ReplyLength) => Promise<void>;
+  /**
+   * Whether the channel is *Pro* (`ChannelView.pro`), which says *· Pro*
+   * after the words — kept on 2026-11-19, when the grade stopped being a
+   * choice, at Rodrigo's word: it is what shows a member who has not bought
+   * Pro what somebody else's buys them. *Standard* says nothing.
+   */
+  pro?: boolean;
   /**
    * Who is here on an app from before the room reader, since 2026-11-13 —
    * `ChannelView.roomReaderUnheard`, less the viewer. They may hear a reply twice,
@@ -1276,7 +1284,7 @@ export function AskClaude({
           {/* One string, so it is one run of text to a screen reader. No
               *· Pro* while busy, which would not fit beside the buttons and
               says nothing a press in flight can change. */}
-          {busy ? t.responding() : t.askClaude()}
+          {busy ? t.responding() : `${t.askClaude()}${pro ? t.claudeProSuffix() : ''}`}
         </Text>
         {lengths.map(([length, label]) => (
           <Button

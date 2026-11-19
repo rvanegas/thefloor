@@ -153,12 +153,14 @@ describe('Ask Claude on the Record bar', () => {
     expect(disabled(findButton(tree!, 'Medium')!)).toBe(true);
   });
 
-  it('says no grade beside Ask Claude, the plan being said only on Floor Settings', () => {
+  it('says Pro beside Ask Claude only while the channel is Pro, whoever is reading', () => {
+    // The reader is not Pro; somebody else in the channel is.
+    showChannel(here(), [], { claude: true, pro: true });
+    expect(textOf(record())).toContain('Ask Claude \u00b7 Pro');
+    act(() => tree!.unmount());
     mockApp.pro = true;
     showChannel(here(), [], { claude: true });
-    const text = textOf(record());
-    expect(text).toContain('Ask Claude');
-    expect(text).not.toContain('\u00b7 Pro');
+    expect(textOf(record())).not.toContain('\u00b7 Pro');
   });
 });
 

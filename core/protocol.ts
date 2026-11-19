@@ -1352,6 +1352,16 @@ export interface ChannelView {
    */
   roomReaderUnheard?: string[];
   /**
+   * Present, and true, while this channel is *Pro* — while any member is
+   * *Pro (the subscription)* or marked unlimited, since 2026-11-19
+   * (`isProChannel` in the server). What draws *· Pro* after *Ask Claude*,
+   * kept at Rodrigo's word as the one place a member who has not bought Pro
+   * sees what somebody else's buys them. Here rather than on `ChannelState`
+   * for `pingableAt`'s reason: it is account state no reducer knows.
+   * Absent on a *Standard* channel and from a server that predates it.
+   */
+  pro?: true;
+  /**
    * Present, and true, when this server has a library *Ask Claude* may
    * consult, and Claude to consult it — which is what draws the *Library*
    * card on *Channel Settings*. The server's configuration, as `claude` is,

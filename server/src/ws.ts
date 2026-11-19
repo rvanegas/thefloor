@@ -1369,6 +1369,9 @@ export function registerWebsocket(deps: {
         // Absent rather than false where there is no key, as an old server
         // sends nothing: one reading for both.
         ...(deps.claudeAvailable?.() ? { claude: true as const } : {}),
+        // Whether the channel is *Pro*, for *· Pro* after *Ask Claude*. A
+        // fact about its members' accounts, which no reducer knows.
+        ...(channels.isProChannel(channelId) ? { pro: true as const } : {}),
         // The room reader, since 2026-11-13: absent where the server has no
         // AssemblyAI key, as `claude` is where it has no Anthropic one.
         ...(() => {

@@ -1207,6 +1207,7 @@ export const es: Strings = {
     keepText: () => 'Texto',
     severalVoices: () => 'Varias voces en mi micr\u00f3fono',
     askClaude: () => 'Preguntar a Claude',
+    claudeProSuffix: () => ' \u00b7 Pro',
     replyBrief: () => 'Breve',
     replyMedium: () => 'Media',
     replyExtended: () => 'Extensa',

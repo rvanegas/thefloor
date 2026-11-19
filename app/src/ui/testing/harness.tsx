@@ -989,6 +989,8 @@ export function showChannel(
     roomReaderSaying?: string;
     /** Who here is on an app from before the room reader. */
     roomReaderUnheard?: string[];
+    /** Whether the channel is *Pro*, a member being so. */
+    pro?: true;
   } = {}
 ) {
   const names: Record<string, string> = {

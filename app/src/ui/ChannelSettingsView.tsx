@@ -537,7 +537,8 @@ export function ChannelSettingsView({
         *Transcription model*, *Response model* and *Read aloud* were here,
         each a grade a *Pro* account chose for the channel, until 2026-11-19:
         a channel is *Pro* throughout while any member is, at Rodrigo's word,
-        and the only word of it is the reader's own plan on *Floor Settings*.
+        said as *· Pro* after *Ask Claude* and as the reader's own plan on
+        *Floor Settings*.
       */}
 
       {/*

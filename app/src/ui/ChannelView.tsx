@@ -3108,6 +3108,7 @@ export function ChannelView({
                     // says by sending none in a channel that is not *Pro*:
                     // a phone-read reply cannot be heard twice.
                     unheard={(view.roomReaderUnheard ?? []).filter((id) => id !== me)}
+                    pro={view.pro ?? false}
                   />
                 ) : null
               }

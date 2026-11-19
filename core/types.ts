@@ -1023,8 +1023,8 @@ export interface ChannelState {
    * 2026-11-19, each a grade a *Pro* account chose for the channel. Since
    * then a channel is *Pro* throughout while any member is, and *Standard*
    * otherwise, which is account state the reducer has never known — so the
-   * server decides it at each use (`isProChannel`), and the app shows only
-   * the reader's own Basic, Pro or Unlimited, on *Floor Settings*.
+   * server decides it at each use (`isProChannel`) and says it on the
+   * snapshot as `ChannelView.pro`.
    */
   /**
    * Whether this channel's *Ask Claude* may consult noesis libraries — their

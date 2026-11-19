@@ -73,8 +73,8 @@ caused; the list carries the meaning.
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
 - **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-19, makes every channel you are a member of a *Pro channel* — having chosen a channel's *Transcription model* and *Response model* from 2026-11-08, and its *Read aloud* from 2026-11-13, until then — and chooses your own *Pro voice*, and since 2026-11-10 switches your own *library* on in a channel, noesis being read-only for everybody else; an account marked `transcripts_unlimited` by hand is Pro too, since 2026-11-10, and says *Unlimited* as its *Plan*; not the *Pro* grade of a channel
-- **Pro channel** — A channel any *member* of which is *Pro (the subscription)* or marked unlimited, since 2026-11-19: everything graded in it is *Pro*, for everybody in it, whoever asks — transcripts on Universal-3.5 Pro, *Ask Claude* on Sonnet, replies *read aloud* by *Pro voices* — and *Standard* otherwise. Nobody chooses it and no screen says it; members, never a *guest*, and asked at each use rather than stored. `isProChannel`
-- **Plan** — The one word of a grade the app says, on *Floor Settings*, since 2026-11-19: *Basic*, *Pro* — a subscription — or *Unlimited* — the `transcripts_unlimited` mark. A section and card of its own where the *Pro* card was, with the pitch and *Subscribe* under *Basic* where Pro is sold. Read from `ProView`. *Plan*: *Básico* / *Pro* / *Ilimitado*
+- **Pro channel** — A channel any *member* of which is *Pro (the subscription)* or marked unlimited, since 2026-11-19: everything graded in it is *Pro*, for everybody in it, whoever asks — transcripts on Universal-3.5 Pro, *Ask Claude* on Sonnet, replies *read aloud* by *Pro voices* — and *Standard* otherwise. Nobody chooses it; said only as *· Pro* after *Ask Claude*, for everybody, so a member who has not bought Pro sees what somebody's buys them. Members, never a *guest*, and asked at each use rather than stored. `isProChannel`, `ChannelView.pro`
+- **Plan** — What *Floor Settings* says of your own account, since 2026-11-19: *Basic*, *Pro* — a subscription — or *Unlimited* — the `transcripts_unlimited` mark. A section and card of its own where the *Pro* card was, with the pitch and *Subscribe* under *Basic* where Pro is sold. Read from `ProView`. *Plan*: *Básico* / *Pro* / *Ilimitado*
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who can be told — push granted, or email notifications on for an email address — at the moment they become so, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
@@ -726,8 +726,8 @@ one.
 
 **Claude's one control, on the *Record* bar**, since 2026-10-22: a line of its
 own under the row of the transport and the switches, as *Several voices on my
-microphone* is — the words *Ask Claude* (with *· Pro* or *· Max* after them
-by the channel's *Response model* until 2026-11-19), then three buttons, *Brief*, *Medium* and
+microphone* is — the words *Ask Claude*, with *· Pro* in a *Pro channel*
+(and *· Max* on a *Max* one until 2026-11-19), then three buttons, *Brief*, *Medium* and
 *Extended*. On a line of its own because a third glyph on the row does not fit
 a 375-point phone.
 
@@ -3324,11 +3324,13 @@ that moved as somebody stepped out would change mid-sitting, and membership
 is what a Pro account pays for others with. A *guest*'s Pro reaches no
 channel they are only seated in.
 
-**Nobody chooses it and no screen says it.** Until that day each of the three
-was a card on *Channel Settings* that only Pro could change, and *Ask Claude*
-had a third grade, *Max*; all three cards went, with the *· Pro* / *· Max*
-after *Ask Claude*, and the only word of a grade left is the reader's own
-*Plan* on *Floor Settings*. Builds before 440 still send the three choices,
+**Nobody chooses it, and one place says it**: *· Pro* after *Ask Claude*,
+drawn for everybody in a Pro channel from `ChannelView.pro` — kept at
+Rodrigo's word as the incentive, a member who has not bought Pro seeing what
+somebody else's buys them. Until that day each of the three was a card on
+*Channel Settings* that only Pro could change, and *Ask Claude* had a third
+grade, *Max*; the cards and *· Max* went, and besides the suffix the reader's
+own *Plan* on *Floor Settings* is the only other word of a grade. Builds before 440 still send the three choices,
 answered as done and doing nothing, and are told the grade in the three
 fields they read (planning/SHIMS.md).
 
