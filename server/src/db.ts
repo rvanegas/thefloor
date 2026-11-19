@@ -3191,8 +3191,8 @@ function migrate(db: Db): void {
   }
   /*
     The title noesis gave that document — a model's, from what was said — so
-    the *Record* can name a segment as its library does (task/
-    a-channel-has-its-own-noesis-library.md). Null for one filed before noesis
+    the *Record* can name a segment as its library does (decision/
+    2026-11-07-a-channel-has-its-own-noesis-library.md). Null for one filed before noesis
     said, which keeps its hours alone.
   */
   if (!hasColumn(db, 'segments', 'filed_title')) {

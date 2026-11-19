@@ -1,10 +1,11 @@
 # A channel has its own noesis library
 
-Asked for 2026-11-07. A channel may have a library of its own in noesis: its
+Decided and built 2026-11-07; resolved as a task 2026-11-19, when it had long
+been switched on. A channel may have a library of its own in noesis: its
 transcripts go in by themselves, anybody in it can import source documents,
-and every member of the channel can reach it **and nobody else can**. Today a
-library is only ever a person's (GLOSSARY *Library*), and a room's text
-reaches one only by somebody's *Send to noesis* into their own.
+and every member of the channel can reach it **and nobody else can**. Until
+then a library was only ever a person's (GLOSSARY *Library*), and a room's
+text reached one only by somebody's *Send to noesis* into their own.
 
 ## The design, as agreed at the prompt
 
@@ -34,7 +35,12 @@ reaches one only by somebody's *Send to noesis* into their own.
   unlimited owner at noesis, noesis meters what each channel's library spends
   and reports it, and The Floor divides it among whoever is Pro there. A Pro
   member needs no noesis account to pay their share, only to read the library
-  in noesis itself.
+  in noesis itself. **Pro here is the server's `isPro`**: a subscription, or
+  the hand-set `transcripts_unlimited` mark (GLOSSARY *Pro (the
+  subscription)*). `ts library-spending` read subscriptions alone until
+  2026-11-19, and so reported nobody Pro in channels whose Pro members were
+  all marked by hand, though noesis had been told the right answer
+  throughout.
 - **Every transcript goes in by itself**, with no switch to stop it, each
   *segment* as one document, as if somebody had sent it with *Send to noesis*.
 - **With no Pro member the channel stops taking transcripts** and otherwise
@@ -157,10 +163,12 @@ of everything. The card tells the members it can be recovered for those days.
 - **`ts library-orphans`** clears what the sweep could not, and any library at
   noesis that no channel names, and marks the rows.
 
-## To ship it, in this order
+## Shipped
 
-Each verb Rodrigo's to say: land and deploy noesis — its `titles` and
-`&file=` since 2026-11-07, which The Floor does without where noesis is older; mark the client on
-`commons` (`scripts/client_libraries.py thefloor https://thefloor.rvanegas.co`);
-land and deploy The Floor; then set `CHANNEL_LIBRARIES` and `ts env-push`,
-which turns filing on.
+In this order, each verb Rodrigo's: noesis landed and deployed, with its
+`titles` and `&file=`, which The Floor does without where noesis is older;
+the client marked on `commons` (`scripts/client_libraries.py thefloor
+https://thefloor.rvanegas.co`); The Floor landed and deployed; then
+`CHANNEL_LIBRARIES` set and `ts env-push`, which turned filing on. By
+2026-11-19 thirteen channel libraries had spent $1.64 between them that
+month.

@@ -8,7 +8,7 @@ import { readableLines } from './transcripts';
 
 /**
  * A channel's own noesis library, `thefloor/<handle>`, and every transcript
- * filed into it by itself — task/a-channel-has-its-own-noesis-library.md.
+ * filed into it by itself — decision/2026-11-07-a-channel-has-its-own-noesis-library.md.
  *
  * - **Made the first time a channel has a transcript to file** while somebody
  *   in it is Pro and has connected their own noesis library: the handle minted (`ChannelRegistry.handleFor`), and the

@@ -351,7 +351,7 @@ being a copy elsewhere that every member could still open there; noesis keeps
 it in its trash the month every manual deletion is kept. From 2026-11-08 until
 then the document went with the text, and with the recording its transcript
 came from. See
-task/a-channel-has-its-own-noesis-library.md and
+decision/2026-11-07-a-channel-has-its-own-noesis-library.md and
 `server/src/channelLibraries.ts`.
 
 ## Channel name
@@ -4461,7 +4461,7 @@ channel's name at noesis, where a channel's own library is to be
 `thefloor/<handle>` — The Floor the owner, as a person is the owner of
 `<username>/<library>` — and it is lowercase letters, digits and `-` because
 that is what noesis allows in a library's name. See
-task/a-channel-has-its-own-noesis-library.md.
+decision/2026-11-07-a-channel-has-its-own-noesis-library.md.
 
 **Only a channel that needs one has one.** Nothing mints it but asking, so
 nothing may assume a channel has a handle, as nothing may assume a person has
