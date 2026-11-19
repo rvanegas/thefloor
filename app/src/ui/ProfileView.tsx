@@ -40,6 +40,7 @@ import {
   Reveal,
   Screen,
   SectionLabel,
+  useConfirm,
 } from './components';
 import { CloseIcon } from './icons';
 import {
@@ -341,6 +342,7 @@ export function ProfileView({
   const availabilityWords = useText().availability;
   const namingWords = useText().naming;
   const t = useText().profile;
+  const [confirm, confirmation] = useConfirm();
   const sharedWords = useText().shared;
   const faults = useText().usernameFault;
   /**
@@ -636,28 +638,24 @@ export function ProfileView({
    */
   const removeContact = () => {
     const name = profile?.account.displayName ?? fallbackName;
-    Alert.alert(
-      t.removeAsk(name),
-      t.removeBody(),
-      [
-        { text: t.cancel(), style: 'cancel' },
-        {
-          text: t.remove(),
-          style: 'destructive',
-          onPress: () => {
-            setRemoving(true);
-            setAskError(null);
-            app
-              .removeContact(accountId)
-              .then(() => (onRemoved ?? onBack)())
-              .catch((e: unknown) => {
-                setAskError(e instanceof Error ? e.message : String(e));
-                setRemoving(false);
-              });
-          },
-        },
-      ]
-    );
+    confirm({
+      title: t.removeAsk(name),
+      body: t.removeBody(),
+      cancelLabel: t.cancel(),
+      confirmLabel: t.remove(),
+      destructive: true,
+      onConfirm: () => {
+        setRemoving(true);
+        setAskError(null);
+        app
+          .removeContact(accountId)
+          .then(() => (onRemoved ?? onBack)())
+          .catch((e: unknown) => {
+            setAskError(e instanceof Error ? e.message : String(e));
+            setRemoving(false);
+          });
+      },
+    });
   };
 
   /**
@@ -1933,20 +1931,16 @@ export function ProfileView({
                 <Button
                   label={t.removeThem()}
                   onPress={() =>
-                    Alert.alert(
-                      t.ownerRemoveTitle(
+                    confirm({
+                      title: t.ownerRemoveTitle(
                         profile?.account.displayName ?? fallbackName
                       ),
-                      t.ownerRemoveBody(),
-                      [
-                        { text: t.cancel(), style: 'cancel' },
-                        {
-                          text: t.removeThem(),
-                          style: 'destructive',
-                          onPress: onMoveToRemove,
-                        },
-                      ]
-                    )
+                      body: t.ownerRemoveBody(),
+                      cancelLabel: t.cancel(),
+                      confirmLabel: t.removeThem(),
+                      destructive: true,
+                      onConfirm: onMoveToRemove,
+                    })
                   }
                 />
               </>
@@ -1981,20 +1975,16 @@ export function ProfileView({
                 <Button
                   label={t.confirmRemoval()}
                   onPress={() =>
-                    Alert.alert(
-                      t.confirmRemovalTitle(
+                    confirm({
+                      title: t.confirmRemovalTitle(
                         profile?.account.displayName ?? fallbackName
                       ),
-                      t.confirmRemovalBody(),
-                      [
-                        { text: t.cancel(), style: 'cancel' },
-                        {
-                          text: t.confirmRemoval(),
-                          style: 'destructive',
-                          onPress: onMoveToRemove,
-                        },
-                      ]
-                    )
+                      body: t.confirmRemovalBody(),
+                      cancelLabel: t.cancel(),
+                      confirmLabel: t.confirmRemoval(),
+                      destructive: true,
+                      onConfirm: onMoveToRemove,
+                    })
                   }
                 />
               </>
@@ -2011,20 +2001,16 @@ export function ProfileView({
                 <Button
                   label={t.moveToRemove()}
                   onPress={() =>
-                    Alert.alert(
-                      t.moveToRemoveTitle(
+                    confirm({
+                      title: t.moveToRemoveTitle(
                         profile?.account.displayName ?? fallbackName
                       ),
-                      t.moveToRemoveBody(),
-                      [
-                        { text: t.cancel(), style: 'cancel' },
-                        {
-                          text: t.moveToRemove(),
-                          style: 'destructive',
-                          onPress: onMoveToRemove,
-                        },
-                      ]
-                    )
+                      body: t.moveToRemoveBody(),
+                      cancelLabel: t.cancel(),
+                      confirmLabel: t.moveToRemove(),
+                      destructive: true,
+                      onConfirm: onMoveToRemove,
+                    })
                   }
                 />
               </>
@@ -2032,6 +2018,7 @@ export function ProfileView({
           </Card>
         </>
       ) : null}
+      {confirmation}
     </Screen>
   );
 }

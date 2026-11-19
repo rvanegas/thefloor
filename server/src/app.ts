@@ -5659,8 +5659,8 @@ export function buildApp(options: BuildOptions = {}): App {
    * each cannot leave a segment half deleted. Everything asked for is checked
    * before anything is done. Its text is its live lines, or its recording's
    * batch transcript — which only whoever asked for it may delete on its own,
-   * as the route above has it, and which goes with the audio regardless.
-   * See `deleteSegment` for the terms.
+   * as the route above has it, and which goes with the audio regardless —
+   * and what was pasted while it was kept. See `deleteSegment` for the terms.
    */
   fastify.delete('/channels/:id/segments/:segmentId', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -5685,14 +5685,18 @@ export function buildApp(options: BuildOptions = {}): App {
     if (what.audio && segment.recordingId === null) {
       return reply.code(404).send({ error: 'This kept no audio.' });
     }
-    if (what.text && !segment.text && transcript === null) {
+    const pasted = channels.pastesIn(id, segment);
+    if (what.text && !segment.text && transcript === null && pasted === 0) {
       return reply.code(404).send({ error: 'This kept no text.' });
     }
     if (what.document && !segment.filed) {
       return reply.code(404).send({ error: 'This was not filed.' });
     }
-    const transcriptAlone = what.text && transcript !== null && !what.audio;
-    if (transcriptAlone && !mayRemoveTranscript(account.id, transcript)) {
+    // A transcript not yours is spared, and the rest of the text goes; refused
+    // only where it is all the text there is.
+    const transcriptAlone =
+      what.text && transcript !== null && !what.audio && mayRemoveTranscript(account.id, transcript);
+    if (what.text && transcript !== null && !what.audio && !transcriptAlone && !segment.text && pasted === 0) {
       return reply.code(403).send({
         error: 'Only whoever asked for this transcript may change or remove it.',
       });
@@ -5701,6 +5705,23 @@ export function buildApp(options: BuildOptions = {}): App {
     if (transcriptAlone) {
       transcripts.deleteFor(transcript);
       channels.transcriptDeleted(transcript, false);
+    }
+    return { ok: true };
+  });
+
+  /**
+   * Deletes one paste that stands outside every segment, since 2026-11-18.
+   * See `deletePaste` for the terms.
+   */
+  fastify.delete('/channels/:id/pastes/:pasteId', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, pasteId } = request.params as { id: string; pasteId: string };
+    const result = channels.deletePaste(id, pasteId, account.id);
+    if (!result.ok) {
+      return reply
+        .code(result.code === 'conflict' ? 409 : result.code === 'forbidden' ? 403 : 404)
+        .send({ error: result.error });
     }
     return { ok: true };
   });

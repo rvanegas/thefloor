@@ -19,6 +19,7 @@ import {
   render,
   resetHarness,
   textOf,
+  confirmationIn,
 } from '../testing/harness';
 
 jest.mock('../../api/download', () =>
@@ -167,14 +168,10 @@ it('retries a rename that was only queued', () => {
   });
 });
 
-/** Taps the destructive button in the most recent Alert. */
+/** Takes the choice named in the confirmation open on screen. */
 function confirmAlert(label: string) {
-  const spy = Alert.alert as unknown as jest.Mock;
-  const buttons = spy.mock.calls[spy.mock.calls.length - 1]![2] as Array<{
-    text: string;
-    onPress?: () => void;
-  }>;
-  act(() => buttons.find((b) => b.text === label)!.onPress?.());
+  const buttons = confirmationIn(tree)![2];
+  act(() => buttons.find((b) => b.text === label)!.onPress());
 }
 
 it('leaves the screen only when the leave reached the socket', () => {
@@ -224,7 +221,7 @@ describe('a public page needs a name', () => {
     // disabled `Pressable` swallows the press in the app and this test is
     // calling the handler directly, past it.
     act(() => publicPage().on.props.onPress());
-    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(confirmationIn(tree)).toBeUndefined();
     expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
   });
 
@@ -273,7 +270,7 @@ describe('the public page confirms in both directions', () => {
     open({ name: 'Thursday mornings' });
 
     act(() => publicPage().on.props.onPress());
-    expect(Alert.alert).toHaveBeenCalled();
+    expect(confirmationIn(tree)).toBeDefined();
     expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
 
     confirmAlert('Make it a podcast');
@@ -288,7 +285,7 @@ describe('the public page confirms in both directions', () => {
     open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
 
     act(() => publicPage().off.props.onPress());
-    expect(Alert.alert).toHaveBeenCalled();
+    expect(confirmationIn(tree)).toBeDefined();
     expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
 
     confirmAlert('Turn it off');
@@ -299,14 +296,14 @@ describe('the public page confirms in both directions', () => {
   it('does nothing when On is pressed on a page that is already on', () => {
     open({ name: 'Thursday mornings', publicAt: 1_700_000_000_000 });
     act(() => publicPage().on.props.onPress());
-    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(confirmationIn(tree)).toBeUndefined();
     expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
   });
 
   it('does nothing when Off is pressed on a channel that has no page', () => {
     open({ name: 'Thursday mornings' });
     act(() => publicPage().off.props.onPress());
-    expect(Alert.alert).not.toHaveBeenCalled();
+    expect(confirmationIn(tree)).toBeUndefined();
     expect(mockApp.setChannelPublic).not.toHaveBeenCalled();
   });
 });

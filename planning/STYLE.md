@@ -1424,7 +1424,10 @@ hairline; see § *The pinned header*.
 **A paste is an entry like a speaker's**, since 2026-10-15: the clipboard
 glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*
 as 13-point words in `text` at the end of that line — words and not buttons,
-as the menu is a glyph — and the whole text under it in `type.body`. Drawn
+as the menu is a glyph — and the whole text under it in `type.body`. A paste
+standing outside every segment ends the line with *Delete* in `danger`, since
+2026-11-18, the one word there that destroys; left out rather than greyed
+where it is refused, a line of words having no room for the sentence. Drawn
 among its segment's lines at its moment, or alone where nothing was being
 kept. **Pasting is a glyph at the right end of the pinned bar**, after *Text*,
 since 2026-10-16 — the clipboard, or on iOS Apple's own paste control drawn
@@ -1817,10 +1820,13 @@ rules.
   app's own: a `Card`-shaped panel over the page dimmed in `bg`, its title in
   `heading`, the body, a `Checkbox` each where it asks *what*, sentences in
   `muted`, then *Keep* and the confirm as two `Button`s sharing the row, the
-  confirm `danger` when it destroys; tapping outside cancels. *Delete* on a
-  segment is its first user. The app still has 44 system alerts; moving them
-  is `alert-alert-is-not-for-ordinary-ui.md`, which also settles what, if
-  anything, may still use the system's. There is no
+  confirm `danger` when it destroys; tapping outside cancels. Without a
+  cancel it is a notice, its one button *OK*. Every confirmation and notice in
+  the app is one since 2026-11-18, asked through **`useConfirm`** the way
+  `Alert.alert` was. **The system's dialog is left only for a bare error
+  notice** — *Could not delete* and the server's message, one button — which
+  Rodrigo settled the same day: it is the operating system saying something
+  failed, with nothing to choose. There is no
   `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
   **And no action sheets: a menu opens in the view.** A segment's actions

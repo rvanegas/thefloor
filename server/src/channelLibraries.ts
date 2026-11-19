@@ -206,7 +206,7 @@ export class ChannelLibraries {
     const pastes = this.db
       .prepare(
         `SELECT display_name, pasted_at, text FROM pastes
-          WHERE channel_id = ? AND pasted_at >= ? AND pasted_at <= ?`
+          WHERE channel_id = ? AND pasted_at >= ? AND pasted_at <= ? AND deleted_at IS NULL`
       )
       .all(row.channel_id, row.started_at, row.ended_at) as unknown as Array<{
       display_name: string;

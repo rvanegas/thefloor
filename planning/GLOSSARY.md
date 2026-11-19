@@ -56,7 +56,7 @@ caused; the list carries the meaning.
 - **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; anybody's to choose. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
 - **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **chosen only by *Pro***. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
 - **Room reader** — The participant AssemblyAI's reading of a reply is published as, `room-reader:<channel>`, since 2026-11-13: in the room without being a person, as the film's `media:` is, so nothing that counts people sees it; a build that says `hearsClaude` hears it, an older one is kept off it. Not the native `Reader` that speaks on a phone, nor the person reading a screen. `roomReaderIdentity`
-- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* as a *segment* of its own at the moment it was made — an instant, which breaks no other segment — for anybody to copy, and never deleted; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
+- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* as a *segment* of its own at the moment it was made — an instant, which breaks no other segment — for anybody to copy; deleted with the text of the segment it was made in, Claude's replies included, or on its own outside every segment, since 2026-11-18; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
 - **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared alone as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
@@ -2380,8 +2380,13 @@ falls inside that segment, which carries on, and is drawn among its lines at
 its moment. So a recording is still exactly one segment's audio. Rodrigo's
 choice over a clean break, which would have cut a recording at every paste.
 
-**Never deleted**, by anybody — kept as a transcript line is. **And only from
-inside a room**: the *Record* is laid out in rooms, and an empty channel has
+**Deleted with its segment, or on its own outside one**, since 2026-11-18,
+when Rodrigo decided it. One made while a segment was kept is part of that
+segment, by anybody — a reply of Claude's to what was said is the case that
+asked for it — and goes when its *Delete*'s *Text* is ticked. One standing
+outside every segment has a *Delete* of its own at the end of its line. Either
+way it goes from every screen at once and is removed a month later, as text
+is. Until then a paste was never deleted. **And only from inside a room**: the *Record* is laid out in rooms, and an empty channel has
 none to keep it in, so `canPasteClip` asks `isHere` where it asked *present or
 empty*.
 
@@ -2836,7 +2841,8 @@ another tab. **A segment's
 audio and its text are deleted apart since 2026-11-07**: *Delete recording*
 became *Delete audio*, and *Delete text* takes the batch transcript or, where
 the text was kept live, its lines — offered once the segment has finished and
-has something said in it, never its *pastes*. Text deleted goes from every
+has something said in it, never its *pastes* — which since 2026-11-18 go with
+it. Text deleted goes from every
 screen at once and is removed a month later, as a transcript deleted on its
 own is, and the document it was filed as in the *channel library* goes from
 there at once. A segment whose audio is deleted keeps no audio, and says so; one left

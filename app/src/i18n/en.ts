@@ -54,6 +54,8 @@ export const en = {
      * takes: the fact first, since the greyed button is all that says it.
      */
     copySomethingFirst: () => 'Nothing on your clipboard — copy something first',
+    /** A notice's one button, since 2026-11-18 (`useConfirm`). */
+    ok: () => 'OK',
   },
   offline: {
     partlyConnected: () => 'Partly connected',
@@ -1571,7 +1573,11 @@ export const en = {
       'Everyone in this channel loses what is ticked. It is removed a month from now, and nothing in the app can bring it back.',
     deleteDocument: () => 'Its document in noesis',
     transcriptGoesWithAudio: () => 'The transcript goes with the audio.',
-    pastesStay: () => 'What was pasted stays.',
+    pastesGoToo: () => 'What was pasted here goes with the text.',
+    /** *Delete* on a paste outside every segment, since 2026-11-18. */
+    deletePasteAsk: (who: string) => `Delete ${who}'s paste?`,
+    deletePasteBody: () =>
+      'Everyone in this channel loses it. It is removed a month from now, and nothing in the app can bring it back.',
     /** A segment kept as audio and as text, on its line. */
     keptBoth: () => 'Audio + Text',
     roomTextCopied: () => 'The text is copied.',

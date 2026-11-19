@@ -22,6 +22,7 @@ import {
   render,
   resetHarness,
   textOf,
+  confirmationIn,
 } from "../testing/harness";
 
 /**
@@ -304,29 +305,26 @@ describe("Home settings", () => {
     });
 
     it("asks first, and says what it does not take", async () => {
-      const asked = alertSpy();
       const tree = await openSettings();
 
       act(() => findButton(tree, "Delete account")!.props.onPress());
-      expect(asked).toHaveBeenCalled();
+      expect(confirmationIn(tree)).toBeDefined();
       expect(mockApp.deleteAccount).not.toHaveBeenCalled();
 
       // The part nobody would guess: a channel is not yours to take with you.
       // "This cannot be undone" alone would be true and useless.
-      const body = asked.mock.calls[0][1] as string;
+      const body = confirmationIn(tree)![1] as string;
       expect(body).toContain("carry on without you");
       expect(body).toContain("cannot be undone");
 
-      asked.mockRestore();
       act(() => tree.unmount());
     });
 
     it("does it when the destructive choice is taken", async () => {
-      const asked = alertSpy();
       const tree = await openSettings();
       act(() => findButton(tree, "Delete account")!.props.onPress());
 
-      const actions = asked.mock.calls[0][2] as Array<{
+      const actions = confirmationIn(tree)![2] as Array<{
         style?: string;
         onPress?: () => void;
       }>;
@@ -335,21 +333,19 @@ describe("Home settings", () => {
       );
       expect(mockApp.deleteAccount).toHaveBeenCalled();
 
-      asked.mockRestore();
       act(() => tree.unmount());
     });
 
     it("stays put and says so when the server refused", async () => {
       // The failure that matters: a screen claiming the account is gone while
       // the server still has one would leave nobody able to try again.
-      const asked = alertSpy();
       mockApp.deleteAccount.mockRejectedValueOnce(
         new Error("server said no") as never,
       );
       const tree = await openSettings();
       act(() => findButton(tree, "Delete account")!.props.onPress());
 
-      const actions = asked.mock.calls[0][2] as Array<{
+      const actions = confirmationIn(tree)![2] as Array<{
         style?: string;
         onPress?: () => void;
       }>;
@@ -359,7 +355,6 @@ describe("Home settings", () => {
       expect(textOf(tree)).toContain("server said no");
       expect(findButton(tree, "Delete account")).toBeDefined();
 
-      asked.mockRestore();
       act(() => tree.unmount());
     });
   });
@@ -566,21 +561,19 @@ describe("forgetting this phone", () => {
 
   it("asks first, and says what it cannot do", async () => {
     mockApp.debug = true;
-    const asked = alertSpy();
     const tree = await openSettings();
 
     act(() => findButton(tree, "Forget this phone")!.props.onPress());
-    expect(asked).toHaveBeenCalled();
+    expect(confirmationIn(tree)).toBeDefined();
     expect(mockApp.signOut).not.toHaveBeenCalled();
 
     // The half it cannot reach, and the order that follows from it: the
     // notification permission is the system's, and only deleting the app
     // clears it. Somebody who does this and then expects a fresh prompt
     // without reinstalling has wasted an afternoon.
-    const body = asked.mock.calls[0][1] as string;
+    const body = confirmationIn(tree)![1] as string;
     expect(body).toContain("Delete the app afterwards");
 
-    asked.mockRestore();
     act(() => tree.unmount());
   });
 
@@ -591,11 +584,10 @@ describe("forgetting this phone", () => {
    */
   it("signs out before it forgets the token", async () => {
     mockApp.debug = true;
-    const asked = alertSpy();
     const tree = await openSettings();
     act(() => findButton(tree, "Forget this phone")!.props.onPress());
 
-    const actions = asked.mock.calls[0][2] as Array<{
+    const actions = confirmationIn(tree)![2] as Array<{
       style?: string;
       onPress?: () => void;
     }>;
@@ -604,7 +596,6 @@ describe("forgetting this phone", () => {
     );
     expect(mockApp.signOut).toHaveBeenCalled();
 
-    asked.mockRestore();
     act(() => tree.unmount());
   });
 });
@@ -1476,13 +1467,12 @@ describe("noesis library", () => {
       email: "rvanegas@gmail.com",
       libraries: ["rodvandur/philosophy", "rodvandur/notes"],
     } as never);
-    const ask = jest.spyOn(Alert, "alert").mockImplementation(() => {});
     const tree = await openSettings();
     expect(textOf(tree)).toContain("Connected as rodvandur (rvanegas@gmail.com).");
     expect(textOf(tree)).toContain("Your libraries there: philosophy, notes.");
     act(() => findButton(tree, "Disconnect")!.props.onPress());
     expect(mockApp.disconnectNoesis).not.toHaveBeenCalled();
-    const [title, , buttons] = ask.mock.calls[0] as [string, string, Array<{ text: string; style?: string; onPress?: () => Promise<void> }>];
+    const [title, , buttons] = confirmationIn(tree)! as [string, string, Array<{ text: string; style?: string; onPress?: () => Promise<void> }>];
     expect(title).toBe("Disconnect your noesis library?");
     const confirm = buttons.find((b) => b.style === "destructive")!;
     mockApp.loadNoesis.mockResolvedValue({ available: true, connected: false, user: undefined, email: undefined });
@@ -1491,7 +1481,6 @@ describe("noesis library", () => {
     });
     expect(mockApp.disconnectNoesis).toHaveBeenCalled();
     expect(findButton(tree, "Connect")).toBeDefined();
-    ask.mockRestore();
     act(() => tree.unmount());
   });
 

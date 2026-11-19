@@ -789,6 +789,59 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
+  it('takes what was pasted during a segment with its text, and deletes a paste outside one alone', async () => {
+    const pasted = (id: string, at: number, text: string) => ({
+      id,
+      startedAt: at,
+      endedAt: at,
+      recordingId: null,
+      text: false,
+      paste: { authorId: 'claude', displayName: 'Claude', text },
+    });
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 1_000, 'asked something')],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 120_000, [], [
+          seg('s1', NOW, NOW + 30_000, null, true),
+          pasted('p_in', NOW + 10_000, 'An answer inside.'),
+          pasted('p_out', NOW + 60_000, 'An answer after.'),
+        ]),
+      ],
+    } as never);
+    const deletedPaste = jest.spyOn(api, 'deletePaste').mockResolvedValue({ ok: true } as never);
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    // Only the paste standing alone has a Delete of its own.
+    const deletes = () =>
+      tree.root.findAll(
+        (n: { type: unknown; props: { accessibilityRole?: string; accessibilityLabel?: string } }) =>
+          typeof n.type !== 'string' &&
+          n.props.accessibilityRole === 'button' &&
+          n.props.accessibilityLabel === 'Delete' &&
+          'onPress' in n.props
+      );
+    expect(deletes()).toHaveLength(1);
+
+    openMenu(tree).choose('Delete');
+    expect(confirmation(tree).text).toContain('What was pasted here goes with the text.');
+    confirmation(tree).tick('Text');
+    expect(confirmation(tree).text).not.toContain('What was pasted here');
+    confirmation(tree).tick('Text');
+    await confirmation(tree).press('Keep');
+
+    await act(async () => (deletes()[0].props as { onPress: () => void }).onPress());
+    expect(confirmation(tree).text).toContain("Delete Claude's paste?");
+    await confirmation(tree).press('Delete');
+    expect(deletedPaste).toHaveBeenCalledWith('token', 'sess_1', 'p_out');
+    act(() => tree.unmount());
+  });
+
   it('asks of audio, transcript and document apart, the transcript going with the audio', async () => {
     showChannel(transcribed(), [
       { ...segment('rec_1', 'Planning', NOW + 10_000), transcript: { state: 'ready', provider: 'Memory', requestedBy: { id: ME, displayName: 'Me' } } },

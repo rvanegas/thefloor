@@ -1,7 +1,7 @@
 import { buildApp, type App } from '../src/app';
 import { ChannelLibraries, SETTLE_MS, segmentFilename, segmentText } from '../src/channelLibraries';
 import type { RoomView } from '../../core/protocol';
-import { DELETED_RETENTION_MS } from '../../core/constants';
+import { DELETED_RETENTION_MS, TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
 import { MemoryMailer } from '../src/mail';
 import { finished } from '../src/noesis';
 import { AUTH_ORIGIN, OWN_TOKEN, fakeAuth } from '../__stubs__/fakeAuth';
@@ -547,6 +547,47 @@ describe('deleting what a channel library holds, thirty days on', () => {
     expect((await deleteSegment(channelId, 'seg_1', '')).statusCode).toBe(400);
     expect((await deleteSegment(channelId, 'seg_1', 'text=1&audio=1')).statusCode).toBe(404);
     expect(liveLeft(channelId)).toEqual({ n: 2 });
+  });
+
+  // Pastes, since 2026-11-18: one made while a segment was kept is part of
+  // it and goes with its text; one outside every segment is deleted alone.
+  const pastesLeft = (channelId: string) =>
+    app.db.prepare('SELECT id FROM pastes WHERE channel_id = ? AND deleted_at IS NULL ORDER BY id').all(channelId);
+  const standalonePaste = (channelId: string) =>
+    app.db
+      .prepare(
+        `INSERT INTO pastes (id, channel_id, author_id, display_name, pasted_at, text)
+         VALUES ('paste_out', ?, 'claude', 'Claude', ?, 'Afterwards.')`
+      )
+      .run(channelId, START + 50 * 60_000);
+
+  it("deletes what was pasted during a segment with its text, Claude's reply included", async () => {
+    const { channelId } = await filed();
+    standalonePaste(channelId);
+    expect(pastesLeft(channelId)).toHaveLength(2);
+    expect((await deleteSegment(channelId, 'seg_1', 'text=1')).statusCode).toBe(200);
+    expect(pastesLeft(channelId)).toEqual([{ id: 'paste_out' }]);
+    // And swept with deleted text, a month on.
+    await app.channels.sweepDeletedText(clock + TRANSCRIPT_DELETED_RETENTION_MS);
+    expect(app.db.prepare('SELECT COUNT(*) AS n FROM pastes WHERE channel_id = ?').get(channelId)).toEqual({ n: 1 });
+  });
+
+  it('deletes a paste outside every segment on its own, and refuses one inside a segment', async () => {
+    const { channelId } = await filed();
+    standalonePaste(channelId);
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    const remove = (pasteId: string) =>
+      app.fastify.inject({
+        method: 'DELETE',
+        url: `/channels/${channelId}/pastes/${pasteId}`,
+        headers: { authorization: `Bearer ${erta.token}` },
+      });
+    const inside = (pastesLeft(channelId) as Array<{ id: string }>).find((row) => row.id !== 'paste_out')!.id;
+    expect((await remove(inside)).statusCode).toBe(409);
+    expect((await remove('paste_out')).statusCode).toBe(200);
+    expect(pastesLeft(channelId)).toEqual([{ id: inside }]);
+    expect((await remove('paste_out')).statusCode).toBe(404);
+    expect(app.channels.lastFiledAt(channelId)).toBe(clock);
   });
 
   it("still takes the document with a recording deleted by a build up to 437, at once", async () => {

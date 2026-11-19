@@ -37,10 +37,10 @@ leave a segment half deleted.
   thirty days in noesis's trash. Only words disagreed — *Delete audio*'s "a
   week from now", and the channel library's design saying a week — and they
   say a month now.
-- **Pastes are not touched**: a paste is never deleted, and the dialog says
-  what was pasted stays. Claude's replies going with the segment they answer
-  is `claude-s-paste-belongs-to-the-segment-it-answers.md`; a paste outside a
-  segment being deletable is `a-paste-outside-a-segment-can-be-deleted.md`.
+- **What was pasted while a segment was kept goes with its text**, by
+  anybody, Claude's replies included; a paste outside every segment has a
+  *Delete* of its own (`2026-11-18-a-paste-goes-with-its-segment-or-alone-outside-one.md`).
 - **`Alert.alert` is not for ordinary UI**, which reversed STYLE.md's rule
-  that confirmations use it. `ConfirmModal` is the one built here; moving the
-  rest is `alert-alert-is-not-for-ordinary-ui.md`.
+  that confirmations use it. `ConfirmModal` is the one built here, and every
+  other confirmation moved to it the same day
+  (`2026-11-18-the-system-s-alert-is-for-bare-error-notices-alone.md`).

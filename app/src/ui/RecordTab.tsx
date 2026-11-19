@@ -54,6 +54,7 @@ import {
   Field,
   IconButton,
   useActionMenu,
+  useConfirm,
   useRevealOnKeyboard,
   useScrollPosition,
   type MenuItem,
@@ -478,7 +479,12 @@ function Segment({
       {shown
         ? entriesOf(item).map((entry) =>
             entry.kind === 'paste' ? (
-              <PasteEntry key={entry.segment.id} segment={entry.segment} channelId={channelId} />
+              <PasteEntry
+                key={entry.segment.id}
+                segment={entry.segment}
+                channelId={channelId}
+                deletable={!!item.segment.paste && manageable}
+              />
             ) : (
               <View key={entry.block.lines[0].id} style={styles.entry}>
                 <View style={styles.entryHead}>
@@ -561,11 +567,13 @@ export function SegmentLine({
 }) {
   const t = useText().channel;
   const said = useText().transcript;
+  const shared = useText().shared;
   const recordingWords = useText().recordings;
   const linkWords = useText().links;
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
+  const [notify, notice] = useConfirm();
   /** Whether the voices' names are being edited, under the line. */
   const [naming, setNaming] = React.useState(false);
   const { segment, recording } = item;
@@ -601,7 +609,7 @@ export function SegmentLine({
           name,
           recording?.endedAt ?? segment.endedAt ?? Date.now()
         );
-        if (handed === 'copied') Alert.alert(t.roomTextCopied());
+        if (handed === 'copied') notify({ title: t.roomTextCopied(), confirmLabel: shared.ok() });
         if (handed === 'failed') Alert.alert(t.couldNotShareKept());
       }
     } catch (e) {
@@ -621,14 +629,16 @@ export function SegmentLine({
    * what it has, and for a transcript only where it is yours to delete; one
    * that is not goes with the audio, as it always has, and the boxes say so.
    * Only once it is finished, the server refusing one still being kept.
-   * Its pastes are not its text, and are not deleted.
+   * What was pasted while it was kept is part of its text, since the same
+   * day, by anybody — Claude's replies included.
    */
   const transcript = recording?.transcript;
   const batchText =
     !segment.text && !!transcript && !transcript.live && transcript.state === 'ready';
+  const yourTranscript = batchText && transcript?.mayRemove !== false;
   const has = {
     audio: segment.recordingId !== null,
-    text: (segment.text && item.lines.length > 0) || (batchText && transcript?.mayRemove !== false),
+    text: (segment.text && item.lines.length > 0) || yourTranscript || item.pastes.length > 0,
     document: !!segment.filed,
   };
   const [asking, setAsking] = React.useState<typeof has | null>(null);
@@ -637,8 +647,8 @@ export function SegmentLine({
       if (!was) return was;
       const now = { ...was, [key]: next };
       // A transcript is its recording's, and goes with it.
-      if (batchText && has.text && key === 'audio' && next) now.text = true;
-      if (batchText && key === 'text' && !next) now.audio = false;
+      if (yourTranscript && key === 'audio' && next) now.text = true;
+      if (yourTranscript && key === 'text' && !next) now.audio = false;
       return now;
     });
   const confirmDelete = () => {
@@ -685,8 +695,8 @@ export function SegmentLine({
         asking
           ? [
               ...(batchText && asking.audio ? [t.transcriptGoesWithAudio()] : []),
-              ...(batchText && asking.text && !asking.audio ? [said.deleteCost()] : []),
-              ...(item.pastes.length > 0 && asking.text ? [t.pastesStay()] : []),
+              ...(yourTranscript && asking.text && !asking.audio ? [said.deleteCost()] : []),
+              ...(item.pastes.length > 0 && asking.text ? [t.pastesGoToo()] : []),
             ]
           : []
       }
@@ -783,6 +793,7 @@ export function SegmentLine({
         {title}
         {names}
         {confirmation}
+        {notice}
       </>
     );
   }
@@ -811,6 +822,7 @@ export function SegmentLine({
       {title}
       {names}
       {confirmation}
+      {notice}
     </>
   );
 }
@@ -1521,10 +1533,19 @@ export function intoRooms(
 export function PasteEntry({
   segment,
   channelId,
+  deletable = false,
 }: {
   segment: SegmentView;
   /** Absent where there is no channel to ask, which draws no *Read again*. */
   channelId?: string;
+  /**
+   * Whether it offers *Delete*, since 2026-11-18: a paste standing outside
+   * every segment, to a member who may delete from the *Record* now. One made
+   * while a segment was kept goes with that segment's text instead, and the
+   * word is left out rather than greyed, a line of words having no room for
+   * the sentence a greyed one is owed.
+   */
+  deletable?: boolean;
 }) {
   const t = useText().channel;
   const linkWords = useText().links;
@@ -1548,10 +1569,13 @@ export function PasteEntry({
     const timer = setTimeout(() => setCopied('idle'), 2_500);
     return () => clearTimeout(timer);
   }, [copied]);
+  const recordingWords = useText().recordings;
+  const said = useText().transcript;
+  const [asking, setAsking] = React.useState(false);
   const paste = segment.paste;
   if (!paste) return null;
   const url = isSafeUrl(paste.text.trim()) ? paste.text.trim() : null;
-  const word = (label: string, onPress: () => void) => (
+  const word = (label: string, onPress: () => void, destructive = false) => (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={label}
@@ -1559,9 +1583,18 @@ export function PasteEntry({
       onPress={onPress}
       style={({ pressed }) => (pressed ? styles.pressed : undefined)}
     >
-      <Text style={styles.pasteAction}>{label}</Text>
+      <Text style={[styles.pasteAction, destructive && styles.pasteDelete]}>{label}</Text>
     </Pressable>
   );
+  const remove = () => {
+    setAsking(false);
+    if (!app.token || !channelId) return;
+    api
+      .deletePaste(app.token, channelId, segment.id)
+      .catch((e: unknown) =>
+        Alert.alert(said.couldNotDelete(), e instanceof Error ? e.message : String(e))
+      );
+  };
   return (
     <View style={styles.entry}>
       <View style={styles.entryHead}>
@@ -1582,10 +1615,23 @@ export function PasteEntry({
             void copyText(paste.text).then((ok) => setCopied(ok ? 'done' : 'failed'));
           }
         )}
+        {deletable && channelId ? word(t.deleteSegment(), () => setAsking(true), true) : null}
       </View>
       <Text style={type.body} selectable>
         {paste.text}
       </Text>
+      {deletable ? (
+        <ConfirmModal
+          visible={asking}
+          title={t.deletePasteAsk(paste.displayName)}
+          body={t.deletePasteBody()}
+          cancelLabel={recordingWords.keep()}
+          confirmLabel={recordingWords.delete()}
+          destructive
+          onCancel={() => setAsking(false)}
+          onConfirm={remove}
+        />
+      ) : null}
     </View>
   );
 }
@@ -1646,6 +1692,8 @@ const styles = StyleSheet.create({
   pasteTime: { flex: 1 },
   // A word rather than a button, in the body's colour so it reads as one.
   pasteAction: { color: colors.text, fontSize: 13, fontWeight: '600' },
+  // *Delete*, the one word on the line that destroys, in the colour that says so.
+  pasteDelete: { color: colors.danger },
   entryHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing(1) },
   speaker: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
   // A room's line: the date and hours. The hairline under it is what made it

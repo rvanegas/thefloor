@@ -20,6 +20,7 @@ import {
   render,
   resetHarness,
   textOf,
+  confirmationIn,
 } from '../testing/harness';
 
 /**
@@ -510,19 +511,17 @@ describe('Home', () => {
     };
 
     it('asks first, and says what it costs', () => {
-      const asked = alertSpy();
       const { tree, decline } = invited();
       expect(decline).toBeDefined();
 
       act(() => decline.props.onPress());
-      expect(asked).toHaveBeenCalled();
+      expect(confirmationIn(tree)).toBeDefined();
       // Nothing has happened yet, which is the whole point of asking: this
       // used to be a hide, and it is now a departure that cannot be undone
       // from this screen.
       expect(mockApp.act).not.toHaveBeenCalled();
-      expect(asked.mock.calls[0][1] as string).toContain('fresh invitation');
+      expect(confirmationIn(tree)![1] as string).toContain('fresh invitation');
 
-      asked.mockRestore();
       act(() => tree.unmount());
     });
 
@@ -531,11 +530,10 @@ describe('Home', () => {
       // storage ever saw, so the invitation came back on the next launch and
       // had never gone from any other device. Leaving is the action that
       // already means no, and the server tells every device at once.
-      const asked = alertSpy();
       const { tree, decline } = invited();
       act(() => decline.props.onPress());
 
-      const buttons = asked.mock.calls[0][2] as {
+      const buttons = confirmationIn(tree)![2] as {
         text: string;
         onPress?: () => void;
       }[];
@@ -544,16 +542,14 @@ describe('Home', () => {
         type: 'LEAVE_CHANNEL',
       });
 
-      asked.mockRestore();
       act(() => tree.unmount());
     });
 
     it('does nothing when the ask is cancelled', () => {
-      const asked = alertSpy();
       const { tree, decline } = invited();
       act(() => decline.props.onPress());
 
-      const buttons = asked.mock.calls[0][2] as {
+      const buttons = confirmationIn(tree)![2] as {
         text: string;
         onPress?: () => void;
       }[];
@@ -563,7 +559,6 @@ describe('Home', () => {
       // withdraw rather than this screen's to hide.
       expect(textOf(tree)).toContain('asked you in · waiting');
 
-      asked.mockRestore();
       act(() => tree.unmount());
     });
   });
@@ -1780,7 +1775,6 @@ describe('a guest invitation', () => {
       rejoinable: [],
       contacts: [],
     };
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const opened = jest.fn();
     const tree = render(<HomeView {...homeNav} onEnterChannel={opened} />);
     await act(async () => {
@@ -1789,9 +1783,8 @@ describe('a guest invitation', () => {
     expect(mockApp.enterSeat).toHaveBeenCalledWith('sess_asked');
     expect(opened).toHaveBeenCalledWith('sess_asked');
     // Nothing is said about browsers any more, there being nowhere else to go.
-    expect(alert).not.toHaveBeenCalled();
+    expect(confirmationIn(tree)).toBeUndefined();
     act(() => tree.unmount());
-    alert.mockRestore();
   });
 
   it('leaves an ordinary invitation saying what it always said', () => {

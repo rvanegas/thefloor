@@ -29,6 +29,7 @@ import {
   IconButton,
   Screen,
   SectionLabel,
+  useConfirm,
 } from './components';
 import { CloseIcon } from './icons';
 import { openNoesis } from './links';
@@ -80,6 +81,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
   const app = useApp();
   const t = useText().homeSettings;
   const shared = useText().shared;
+  const [confirm, confirmation] = useConfirm();
   const [deleting, setDeleting] = useState(false);
   const [signingOutOthers, setSigningOutOthers] = useState(false);
   const [forgetting, setForgetting] = useState(false);
@@ -168,10 +170,11 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
     setError(null);
     try {
       const sessions = await app.signOutOthers();
-      Alert.alert(
-        sessions === 0 ? t.nothingElseSignedIn() : t.otherDevicesSignedOut(),
-        t.signedOutBody(sessions)
-      );
+      confirm({
+        title: sessions === 0 ? t.nothingElseSignedIn() : t.otherDevicesSignedOut(),
+        body: t.signedOutBody(sessions),
+        confirmLabel: shared.ok(),
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -549,7 +552,7 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         can clear that. See `state/storage.ts`.
 
         It cannot do the half that matters most on its own: the notification
-        permission belongs to the system. So the alert says the order —
+        permission belongs to the system. So the confirmation says the order —
         forget, then delete, then install — because doing it the other way
         round is the mistake that wastes an afternoon.
       */}
@@ -563,18 +566,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
             label={forgetting ? t.forgetting() : t.forgetThisPhone()}
             disabled={forgetting}
             onPress={() =>
-              Alert.alert(
-                t.forgetThisPhoneAsk(),
-                t.forgetThisPhoneBody(),
-                [
-                  { text: t.cancel(), style: 'cancel' },
-                  {
-                    text: t.forget(),
-                    style: 'destructive',
-                    onPress: () => void forget(),
-                  },
-                ]
-              )
+              confirm({
+                title: t.forgetThisPhoneAsk(),
+                body: t.forgetThisPhoneBody(),
+                cancelLabel: t.cancel(),
+                confirmLabel: t.forget(),
+                destructive: true,
+                onConfirm: () => void forget(),
+              })
             }
           />
           <Text style={type.muted}>{t.forgetNote()}</Text>
@@ -645,18 +644,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
         <Button
           label={t.signOut()}
           onPress={() =>
-            Alert.alert(
-              t.signOutAsk(),
-              t.signOutBody(),
-              [
-                { text: t.cancel(), style: 'cancel' },
-                {
-                  text: t.signOut(),
-                  style: 'destructive',
-                  onPress: () => void app.signOut(),
-                },
-              ]
-            )
+            confirm({
+              title: t.signOutAsk(),
+              body: t.signOutBody(),
+              cancelLabel: t.cancel(),
+              confirmLabel: t.signOut(),
+              destructive: true,
+              onConfirm: () => void app.signOut(),
+            })
           }
         />
         <Text style={type.muted}>{t.signOutNote()}</Text>
@@ -680,18 +675,14 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           label={signingOutOthers ? t.signingOut() : t.signOutOtherDevices()}
           disabled={signingOutOthers}
           onPress={() =>
-            Alert.alert(
-              t.signOutOtherDevicesAsk(),
-              t.signOutOtherDevicesBody(),
-              [
-                { text: t.cancel(), style: 'cancel' },
-                {
-                  text: t.signOutOthers(),
-                  style: 'destructive',
-                  onPress: () => void signOutOthers(),
-                },
-              ]
-            )
+            confirm({
+              title: t.signOutOtherDevicesAsk(),
+              body: t.signOutOtherDevicesBody(),
+              cancelLabel: t.cancel(),
+              confirmLabel: t.signOutOthers(),
+              destructive: true,
+              onConfirm: () => void signOutOthers(),
+            })
           }
         />
         <Text style={type.muted}>{t.signOutOthersNote()}</Text>
@@ -740,23 +731,20 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
           variant="danger"
           disabled={deleting}
           onPress={() =>
-            Alert.alert(
-              t.deleteAccountAsk(),
-              t.deleteAccountBody(),
-              [
-                { text: t.cancel(), style: 'cancel' },
-                {
-                  text: t.deleteConfirm(),
-                  style: 'destructive',
-                  onPress: () => void remove(),
-                },
-              ]
-            )
+            confirm({
+              title: t.deleteAccountAsk(),
+              body: t.deleteAccountBody(),
+              cancelLabel: t.cancel(),
+              confirmLabel: t.deleteConfirm(),
+              destructive: true,
+              onConfirm: () => void remove(),
+            })
           }
         />
       </Card>
 
       {error ? <Text style={styles.error}>{error}</Text> : null}
+      {confirmation}
     </Screen>
   );
 }
@@ -813,6 +801,7 @@ function NoesisCard() {
   const app = useApp();
   const t = useText().homeSettings;
   const linkWords = useText().links;
+  const [confirm, confirmation] = useConfirm();
   const [view, setView] = useState<NoesisView | null>(null);
   const [busy, setBusy] = useState<'connecting' | 'disconnecting' | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -872,12 +861,13 @@ function NoesisCard() {
   };
 
   const disconnect = () =>
-    Alert.alert(t.noesisDisconnectAsk(), t.noesisDisconnectBody(), [
-      { text: t.cancel(), style: 'cancel' },
-      {
-        text: t.noesisDisconnect(),
-        style: 'destructive',
-        onPress: async () => {
+    confirm({
+      title: t.noesisDisconnectAsk(),
+      body: t.noesisDisconnectBody(),
+      cancelLabel: t.cancel(),
+      confirmLabel: t.noesisDisconnect(),
+      destructive: true,
+      onConfirm: async () => {
           setMessage(null);
           setBusy('disconnecting');
           try {
@@ -889,8 +879,7 @@ function NoesisCard() {
             setBusy(null);
           }
         },
-      },
-    ]);
+    });
 
   return (
     <>
@@ -933,6 +922,7 @@ function NoesisCard() {
         ) : null}
         {message ? <Text style={type.muted}>{message}</Text> : null}
       </Card>
+      {confirmation}
     </>
   );
 }

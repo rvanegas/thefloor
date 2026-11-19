@@ -1070,6 +1070,17 @@ export const api = {
     ),
 
   /**
+   * Deletes one paste that stands outside every segment, for everybody, since
+   * 2026-11-18; one inside a segment goes with its text. A server before then
+   * answers 404.
+   */
+  deletePaste: (token: string, channelId: string, pasteId: string) =>
+    request<{ ok: true }>(
+      `/channels/${channelId}/pastes/${encodeURIComponent(pasteId)}`,
+      { method: 'DELETE', token }
+    ),
+
+  /**
    * Names some of one segment's separated voices for everybody, an empty
    * name clearing one back to its letter. Since 2026-11-13; a server before
    * then answers 404.

@@ -1403,8 +1403,8 @@ export class ChannelRegistry {
     // snapshot's `filedAt` is what tells the *Record* to look at the rooms
     // again, and every installed build reads it, so the text goes from every
     // screen at once as the privacy page says. The name now undersells it.
-    // And when a voice was last named, since 2026-11-13, and a document
-    // deleted on its own, since 2026-11-18, for the same reason.
+    // And when a voice was last named, since 2026-11-13, and a document or a
+    // paste deleted, since 2026-11-18, for the same reason.
     const row = this.db
       .prepare(
         `SELECT MAX(at) AS at FROM (
@@ -1415,9 +1415,11 @@ export class ChannelRegistry {
            SELECT MAX(document_deleted_at) FROM segments WHERE channel_id = ?
            UNION ALL
            SELECT MAX(voices_named_at) FROM segments WHERE channel_id = ?
+           UNION ALL
+           SELECT MAX(deleted_at) FROM pastes WHERE channel_id = ?
          )`
       )
-      .get(channelId, channelId, channelId, channelId) as { at: number | null } | undefined;
+      .get(channelId, channelId, channelId, channelId, channelId) as { at: number | null } | undefined;
     return row?.at ?? null;
   }
 
@@ -4751,8 +4753,9 @@ export class ChannelRegistry {
    * and the document it was filed as, each asked of separately and each on
    * the terms its own deletion has always had — marked now, gone for
    * everybody at once, the document at noesis now and in its trash for the
-   * month. A segment found by `segmentToDelete`, which the caller has
-   * checked holds what it asks for. A recording's batch transcript is the
+   * month. Its text takes what was pasted while it was kept, since the same
+   * day. A segment found by `segmentToDelete`, which the caller has checked
+   * holds what it asks for. A recording's batch transcript is the
    * caller's, being `Transcripts`'; deleting the audio takes it as it always
    * has.
    */
@@ -4764,6 +4767,11 @@ export class ChannelRegistry {
     const now = this.now();
     if (what.audio && segment.recordingId !== null) this.markRecordingDeleted(segment.recordingId, now);
     if (what.text && segment.text) this.markTextDeleted(channelId, segment, now);
+    // What was pasted while it was kept is part of it, by anybody, Claude's
+    // replies included — Rodrigo's, 2026-11-18.
+    if (what.text && segment.endedAt !== null) {
+      this.pastes.markWithin(channelId, segment.startedAt, segment.endedAt, now);
+    }
     if (what.document) {
       this.markDocumentDeleted(channelId, segment.id, now);
       this.forgetDocuments();
@@ -4783,6 +4791,50 @@ export class ChannelRegistry {
     this.db
       .prepare('UPDATE segments SET text = 0, text_deleted_at = ? WHERE id = ? AND channel_id = ?')
       .run(now, segment.id, channelId);
+  }
+
+  /** How many pastes were made while a finished segment was kept. */
+  pastesIn(channelId: string, segment: SegmentView): number {
+    return segment.endedAt === null ? 0 : this.pastes.within(channelId, segment.startedAt, segment.endedAt).length;
+  }
+
+  /**
+   * Deletes one paste that stands outside every segment, since 2026-11-18 —
+   * its *Delete* in the *Record*. One made while a segment was kept is part
+   * of that segment and goes only with its text (`deleteSegment`). On the
+   * guards and the terms every deletion from the *Record* has: marked, gone
+   * for everybody at once, swept a month later.
+   */
+  deletePaste(channelId: string, pasteId: string, userId: string): { ok: true } | Refused {
+    const segments = this.isMemberOf(channelId, userId)
+      ? this.rooms.forChannel(channelId, this.now()).flatMap((room) => room.segments)
+      : [];
+    const paste = segments.find((candidate) => candidate.id === pasteId && !!candidate.paste);
+    if (!paste) return { ok: false, error: 'No such paste.', code: 'not_found' };
+    const inside = segments.some(
+      (segment) =>
+        !segment.paste &&
+        paste.startedAt >= segment.startedAt &&
+        (segment.endedAt === null || paste.startedAt <= segment.endedAt)
+    );
+    if (inside) {
+      return {
+        ok: false,
+        error: 'This was pasted while something was being kept. Delete its text to delete it.',
+        code: 'conflict',
+      };
+    }
+    if (!this.holdsTheControlsIn(channelId, userId)) return OWNERS_ALONE;
+    if (!this.presentOrEmptyIn(channelId, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to delete.',
+        code: 'conflict',
+      };
+    }
+    this.pastes.markOne(channelId, pasteId, this.now());
+    this.emit([channelId]);
+    return { ok: true };
   }
 
   private markDocumentDeleted(channelId: string, segmentId: string, now: number): void {
@@ -4856,9 +4908,9 @@ export class ChannelRegistry {
   private forgettingDocuments: Promise<void> | null = null;
 
   /**
-   * Removes the live text `deleteSegmentText` marked, once its window has
-   * passed, and tries again any filed document of deleted text that noesis
-   * did not take when it was asked (`forgetDocuments`).
+   * Removes the live text `deleteSegmentText` marked, and the pastes
+   * deleted, once their window has passed, and tries again any filed document
+   * that noesis did not take when it was asked (`forgetDocuments`).
    */
   async sweepDeletedText(now: number): Promise<void> {
     const cutoff = now - TRANSCRIPT_DELETED_RETENTION_MS;
@@ -4867,6 +4919,7 @@ export class ChannelRegistry {
     this.db
       .prepare('DELETE FROM live_lines WHERE deleted_at IS NOT NULL AND deleted_at <= ?')
       .run(cutoff);
+    this.pastes.sweep(cutoff);
   }
 
   /**

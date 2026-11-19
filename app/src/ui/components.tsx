@@ -511,9 +511,10 @@ export function Checkbox({
  * confirmation's boxes being what is about to go rather than a permission
  * (§ *Checkbox*) — then cancel and confirm, in that order.
  *
- * Its first user is *Delete* on a segment; the rest of the app's alerts move
- * to it under `alert-alert-is-not-for-ordinary-ui.md`. Tapping outside the
- * card cancels, as does Android's back.
+ * Its first user is *Delete* on a segment; every other confirmation and
+ * notice reaches it through `useConfirm`. Without a `cancelLabel` it is a
+ * notice, its one button the confirm. Tapping outside the card cancels, as
+ * does Android's back.
  */
 export function ConfirmModal({
   visible,
@@ -534,7 +535,8 @@ export function ConfirmModal({
   choices?: readonly { label: string; checked: boolean; onChange: (next: boolean) => void }[];
   /** Sentences under the boxes, saying what ticking one takes with it. */
   notes?: readonly string[];
-  cancelLabel: string;
+  /** Absent for a notice, which has only the one button. */
+  cancelLabel?: string;
   confirmLabel: string;
   destructive?: boolean;
   /** Greyed while confirming would do nothing — every box unticked. */
@@ -547,7 +549,7 @@ export function ConfirmModal({
       <View style={styles.modalRoot}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={cancelLabel}
+          accessibilityLabel={cancelLabel ?? confirmLabel}
           onPress={onCancel}
           style={styles.modalScrim}
         />
@@ -574,7 +576,7 @@ export function ConfirmModal({
             </Text>
           ))}
           <View style={styles.modalActions}>
-            <Button label={cancelLabel} onPress={onCancel} style={styles.modalAction} />
+            {cancelLabel ? <Button label={cancelLabel} onPress={onCancel} style={styles.modalAction} /> : null}
             <Button
               label={confirmLabel}
               variant={destructive ? 'danger' : 'primary'}
@@ -587,6 +589,47 @@ export function ConfirmModal({
       </View>
     </Modal>
   );
+}
+
+/** What `useConfirm` asks: `ConfirmModal`'s words, and what each answer does. */
+export interface ConfirmRequest {
+  title: string;
+  body?: string;
+  /** Absent for a notice, whose one button is `confirmLabel`. */
+  cancelLabel?: string;
+  confirmLabel: string;
+  destructive?: boolean;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+}
+
+/**
+ * A `ConfirmModal` asked for the way `Alert.alert` was, since 2026-11-18,
+ * when the app's confirmations moved off the system's dialog: `confirm(...)`
+ * opens it, and the element returned is drawn anywhere in the caller's tree.
+ * One at a time, a second request replacing the first — which is how a
+ * confirmation leading to another, as deleting a channel does, is asked.
+ * Either answer shuts it before its handler runs.
+ */
+export function useConfirm(): [(request: ConfirmRequest) => void, React.ReactNode] {
+  const [request, setRequest] = React.useState<ConfirmRequest | null>(null);
+  const answer = (handler?: () => void) => () => {
+    setRequest(null);
+    handler?.();
+  };
+  const element = (
+    <ConfirmModal
+      visible={request !== null}
+      title={request?.title ?? ''}
+      body={request?.body}
+      cancelLabel={request?.cancelLabel}
+      confirmLabel={request?.confirmLabel ?? ''}
+      destructive={request?.destructive}
+      onCancel={answer(request?.cancelLabel ? request.onCancel : request?.onConfirm)}
+      onConfirm={answer(request?.onConfirm)}
+    />
+  );
+  return [setRequest, element];
 }
 
 /** Keyboards with digits and no return key. */
@@ -1808,6 +1851,7 @@ export function RecordingRow({
   const t = useText().recordings;
   const said = useText().transcript;
   const app = useApp();
+  const [confirm, confirmation] = useConfirm();
   const { open, onToggle } = head;
   /**
    * The rename field, which opens under the line starting on the current
@@ -1847,7 +1891,7 @@ export function RecordingRow({
     }
   };
 
-  const transcript = transcriptActions(recording, manageable, run, t, said);
+  const transcript = transcriptActions(recording, manageable, run, confirm, t, said);
   const items: MenuItem[] = [
     ...(onPlay
       ? [
@@ -1965,6 +2009,7 @@ export function RecordingRow({
           </View>
         ) : null}
       </View>
+      {confirmation}
     </View>
   );
 }
@@ -2067,6 +2112,7 @@ function RenameEditor({
  */
 function PublishControl({ recording }: { recording: RecordingView }) {
   const t = useText().recordings;
+  const [confirm, confirmation] = useConfirm();
   const app = useApp();
   const [busy, setBusy] = React.useState(false);
   const publication = recording.publication;
@@ -2143,17 +2189,17 @@ function PublishControl({ recording }: { recording: RecordingView }) {
         onChange={(next) => {
           if (busy) return;
           if (!next) return void set(false);
-          Alert.alert(
-            t.publishAsk(),
-            t.publishBody(),
-            [
-              { text: t.notNow(), style: 'cancel' },
-              { text: t.iAgree(), onPress: () => void set(true) },
-            ]
-          );
+          confirm({
+            title: t.publishAsk(),
+            body: t.publishBody(),
+            cancelLabel: t.notNow(),
+            confirmLabel: t.iAgree(),
+            onConfirm: () => void set(true),
+          });
         }}
       />
       <Text style={type.muted}>{status}</Text>
+      {confirmation}
     </>
   );
 }
@@ -2182,6 +2228,7 @@ function transcriptActions(
   recording: RecordingView,
   manageable: boolean,
   run: (word: string, failed: string, act: (token: string) => Promise<unknown>) => Promise<void>,
+  confirm: (request: ConfirmRequest) => void,
   t: Strings['recordings'],
   said: Strings['transcript']
 ): { items: MenuItem[]; notes: string[] } {
@@ -2238,20 +2285,16 @@ function transcriptActions(
     // Minutes since 2026-10-10; a server from before them sends the
     // flag alone, which meant the one free transcript.
     const free = spends ? (transcript.freeMinutes ?? true) : false;
-    Alert.alert(
-      free === true ? t.spendFreeAsk() : free ? t.spendMinutesAsk() : t.transcribeAsk(),
-      t.transcribeBody(transcript.provider, free),
-      [
-        { text: t.cancel(), style: 'cancel' },
-        {
-          text: free === true ? t.useIt() : t.transcribe(),
-          onPress: () =>
-            void run(t.starting(), t.couldNotTranscribe(), (token) =>
-              api.startTranscript(token, recording.id)
-            ),
-        },
-      ]
-    );
+    confirm({
+      title: free === true ? t.spendFreeAsk() : free ? t.spendMinutesAsk() : t.transcribeAsk(),
+      body: t.transcribeBody(transcript.provider, free),
+      cancelLabel: t.cancel(),
+      confirmLabel: free === true ? t.useIt() : t.transcribe(),
+      onConfirm: () =>
+        void run(t.starting(), t.couldNotTranscribe(), (token) =>
+          api.startTranscript(token, recording.id)
+        ),
+    });
   };
   return {
     // Not greyed while the recording is still being prepared, though it used

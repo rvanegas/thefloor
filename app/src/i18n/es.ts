@@ -53,6 +53,7 @@ export const es: Strings = {
     labelWithBadge: (label: string, badge: string) => `${label}, ${badge}`,
     copySomethingFirst: () =>
       'No hay nada en tu portapapeles: copia algo primero',
+    ok: () => 'Aceptar',
   },
   offline: {
     partlyConnected: () => 'Conexión parcial',
@@ -1209,7 +1210,10 @@ export const es: Strings = {
       'Todos los de este canal pierden lo marcado. Se elimina dentro de un mes, y nada en la app puede recuperarlo.',
     deleteDocument: () => 'Su documento en noesis',
     transcriptGoesWithAudio: () => 'La transcripci\u00f3n se va con el audio.',
-    pastesStay: () => 'Lo pegado se queda.',
+    pastesGoToo: () => 'Lo pegado aqu\u00ed se va con el texto.',
+    deletePasteAsk: (who: string) => `\u00bfBorrar lo que peg\u00f3 ${who}?`,
+    deletePasteBody: () =>
+      'Todos los de este canal lo pierden. Se elimina dentro de un mes, y nada en la app puede recuperarlo.',
     keptBoth: () => 'Audio + Texto',
     roomTextCopied: () => 'El texto est\u00e1 copiado.',
     openFiledInNoesis: () => 'Abrir en noesis',

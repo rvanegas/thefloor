@@ -1,6 +1,5 @@
 import React from 'react';
 import renderer, { act, type ReactTestRenderer } from 'react-test-renderer';
-import { Alert } from 'react-native';
 
 import { reduce } from '../../../../core/channel';
 import { ChannelView } from '../ChannelView';
@@ -17,6 +16,7 @@ import {
   resetHarness,
   showChannel,
   textOf,
+  confirmationIn,
 } from '../testing/harness';
 
 jest.mock('../../api/download', () =>
@@ -129,31 +129,25 @@ describe('the removal control on a profile', () => {
       [],
       withdrawn
     );
-    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     act(() => buttonFor(tree, 'Stand down').props.onPress());
     // Standing down takes nothing away from anybody, so there is nothing to
     // confirm. The two directions that can cost somebody their place do ask.
-    expect(spy).not.toHaveBeenCalled();
+    expect(confirmationIn(tree)).toBeUndefined();
     expect(withdrawn).toEqual([THEM]);
-    spy.mockRestore();
   });
 
   it('asks before moving, and before agreeing', async () => {
-    const spy = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-
     const proposing = await renderProfile({ wanted: 2, iHaveMoved: false });
     act(() => buttonFor(proposing, 'Move to remove them').props.onPress());
-    expect(spy.mock.calls[0]?.[0]).toContain('Dana Chu');
+    expect(confirmationIn(proposing)?.[0]).toContain('Dana Chu');
     // And it says the thing somebody pressing it needs to know: nothing has
     // happened, and the person is not told.
-    expect(String(spy.mock.calls[0]?.[1])).toContain('not told');
+    expect(String(confirmationIn(proposing)?.[1])).toContain('not told');
 
     const agreeing = await renderProfile({ wanted: 1, iHaveMoved: false });
     act(() => buttonFor(agreeing, 'Agree and remove').props.onPress());
-    expect(spy.mock.calls[1]?.[0]).toContain('Dana Chu');
-    expect(String(spy.mock.calls[1]?.[1])).toContain('recordings');
-
-    spy.mockRestore();
+    expect(confirmationIn(agreeing)?.[0]).toContain('Dana Chu');
+    expect(String(confirmationIn(agreeing)?.[1])).toContain('recordings');
   });
 });
 
@@ -200,19 +194,13 @@ describe('the removal control, through the channel screen', () => {
     const button = buttonFor(tree, 'Move to remove them');
     expect(button).toBeDefined();
 
-    const spy = jest
-      .spyOn(Alert, 'alert')
-      .mockImplementation((_t, _b, actions) => {
-        // The destructive one, which is the button and not Cancel.
-        const go = (actions ?? []).find((a) => a.style === 'destructive');
-        go?.onPress?.();
-      });
     act(() => button.props.onPress());
+    // The destructive one, which is the button and not Cancel.
+    act(() => confirmationIn(tree)![2].find((a) => a.style === 'destructive')!.onPress());
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
       type: 'MOVE_TO_REMOVE',
       targetId: THEM,
     });
-    spy.mockRestore();
     act(() => tree.unmount());
   });
 

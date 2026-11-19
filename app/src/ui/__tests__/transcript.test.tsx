@@ -4,9 +4,10 @@ import renderer, {
   type ReactTestInstance,
   type ReactTestRenderer,
 } from 'react-test-renderer';
-import { Alert, Text } from 'react-native';
+import { Text } from 'react-native';
 import type { RecordingView } from '../../../../core/protocol';
 import { MenuRow, RecordingRow, Screen } from '../components';
+import { confirmationIn } from '../testing/harness';
 
 /**
  * A recording's transcript, from the menu that starts one. Its lines are
@@ -147,12 +148,11 @@ describe("a recording's menu, on its transcript", () => {
   });
 
   it('names the provider before it spends anything', () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const menu = open(recordingWith('none'));
 
     menu.choose('Transcribe');
 
-    const [title, body] = alert.mock.calls[0];
+    const [title, body] = confirmationIn(menu.tree)!;
     expect(title).toContain('Transcribe this recording');
     // The company by name, the fact that it is shared, and the cost. Whoever
     // taps is deciding for everybody who was in the room.
@@ -163,15 +163,13 @@ describe("a recording's menu, on its transcript", () => {
     expect(mockStart).not.toHaveBeenCalled();
 
     act(() => menu.tree.unmount());
-    alert.mockRestore();
   });
 
   it('starts one once the dialog is confirmed', async () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const menu = open(recordingWith('none'));
     menu.choose('Transcribe');
 
-    const buttons = alert.mock.calls[0][2] as Array<{
+    const buttons = confirmationIn(menu.tree)![2] as Array<{
       text: string;
       onPress?: () => void;
     }>;
@@ -181,7 +179,6 @@ describe("a recording's menu, on its transcript", () => {
 
     expect(mockStart).toHaveBeenCalledWith('token', 'rec_1');
     act(() => menu.tree.unmount());
-    alert.mockRestore();
   });
 
   it('says it is working, and offers nothing to press meanwhile', () => {
@@ -255,12 +252,11 @@ describe("a recording's menu, on its transcript", () => {
 
   it('says the free use is being spent, and offers to cancel', () => {
     // The thing that can only be done once should not be discovered
-    // afterwards. Cancel is the first button, as it is on every Alert here.
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    // afterwards. Cancel is the first button, as it is on every confirmation here.
     const menu = open(recordingWith('none', { spendsFreeUse: true }));
     menu.choose('Transcribe');
 
-    const [title, body, buttons] = alert.mock.calls[0] as [
+    const [title, body, buttons] = confirmationIn(menu.tree)! as [
       string,
       string,
       Array<{ text: string; style?: string }>,
@@ -269,18 +265,16 @@ describe("a recording's menu, on its transcript", () => {
     expect(body).toMatch(/deleting this transcript does not give it back/i);
     expect(buttons[0]).toMatchObject({ text: 'Cancel', style: 'cancel' });
     expect(buttons[1].text).toBe('Use it');
-    alert.mockRestore();
     act(() => menu.tree.unmount());
   });
 
   it('says what the minutes are and what is left, from a server that counts them', () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const menu = open(
       recordingWith('none', { spendsFreeUse: true, freeMinutes: { cost: 4, left: 37 } })
     );
     menu.choose('Transcribe');
 
-    const [title, body, buttons] = alert.mock.calls[0] as [
+    const [title, body, buttons] = confirmationIn(menu.tree)! as [
       string,
       string,
       Array<{ text: string; style?: string }>,
@@ -290,19 +284,16 @@ describe("a recording's menu, on its transcript", () => {
     expect(body).not.toMatch(/one free transcript/i);
     expect(buttons[0]).toMatchObject({ text: 'Cancel', style: 'cancel' });
     expect(buttons[1].text).toBe('Transcribe');
-    alert.mockRestore();
     act(() => menu.tree.unmount());
   });
 
   it('does not mention a free use to an account that has no limit', () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const menu = open(recordingWith('none'));
     menu.choose('Transcribe');
 
-    const [title, body] = alert.mock.calls[0] as [string, string];
+    const [title, body] = confirmationIn(menu.tree)!;
     expect(title).toBe('Transcribe this recording?');
     expect(body).not.toMatch(/free/i);
-    alert.mockRestore();
     act(() => menu.tree.unmount());
   });
 

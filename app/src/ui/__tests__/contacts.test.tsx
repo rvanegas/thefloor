@@ -9,7 +9,7 @@ import { ChannelView } from '../ChannelView';
 import { Screen } from '../components';
 import { ProfileView } from '../ProfileView';
 import { ContactsView, answerableRequests } from '../ContactsView';
-import { Alert, Share } from 'react-native';
+import { Share } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import {
   AUDIO,
@@ -25,6 +25,7 @@ import {
   resetHarness,
   showChannel,
   textOf,
+  confirmationIn,
 } from '../testing/harness';
 
 /**
@@ -1299,9 +1300,6 @@ describe('removing a contact', () => {
   });
 
   it('asks first, and says what it costs', async () => {
-    const alert = jest
-      .spyOn(Alert, 'alert')
-      .mockImplementation(() => undefined);
     let tree!: ReactTestRenderer;
     await act(async () => {
       tree = shownFor('accepted');
@@ -1310,7 +1308,7 @@ describe('removing a contact', () => {
     await act(async () => findButton(tree, 'Remove contact')!.props.onPress());
     expect(mockApp.removeContact).not.toHaveBeenCalled();
 
-    const [, body, buttons] = alert.mock.calls[0] as [
+    const [, body, buttons] = confirmationIn(tree)! as [
       string,
       string,
       Array<{ text: string; onPress?: () => void }>,
@@ -1324,7 +1322,6 @@ describe('removing a contact', () => {
       buttons.find((b) => b.text === 'Remove')!.onPress!();
     });
     expect(mockApp.removeContact).toHaveBeenCalledWith(THEM);
-    alert.mockRestore();
     act(() => tree.unmount());
   });
 
@@ -1335,9 +1332,6 @@ describe('removing a contact', () => {
    * about a person. The caller decides where to go; ChannelView sends it Home.
    */
   it('leaves by the route the caller chose', async () => {
-    const alert = jest
-      .spyOn(Alert, 'alert')
-      .mockImplementation(() => undefined);
     const onBack = jest.fn();
     const onRemoved = jest.fn();
     mockApp.home = {
@@ -1360,7 +1354,7 @@ describe('removing a contact', () => {
     });
 
     await act(async () => findButton(tree, 'Remove contact')!.props.onPress());
-    const [, , buttons] = alert.mock.calls[0] as [
+    const [, , buttons] = confirmationIn(tree)! as [
       string,
       string,
       Array<{ text: string; onPress?: () => void }>,
@@ -1371,7 +1365,6 @@ describe('removing a contact', () => {
 
     expect(onRemoved).toHaveBeenCalled();
     expect(onBack).not.toHaveBeenCalled();
-    alert.mockRestore();
     act(() => tree.unmount());
   });
 });

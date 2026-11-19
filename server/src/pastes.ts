@@ -15,7 +15,9 @@ export interface PasteRow {
 /**
  * **What has been pasted into a channel, kept in its *Record*** — since
  * 2026-10-15, when the *Clipboard* tab went. Each paste stands in the log as a
- * segment of its own at the instant it was made, and is never deleted.
+ * segment of its own at the instant it was made. **Deleted since 2026-11-18**:
+ * with the text of the segment it was made in, or on its own where it stands
+ * outside every segment (`markWithin`, `markOne`).
  *
  * **It breaks nothing.** A segment is a stretch kept one way throughout, and
  * every change of *what is kept* ends one; a paste is not such a change. One
@@ -44,15 +46,43 @@ export class Pastes {
     this.write(after.id, clip);
   }
 
-  /** A channel's pastes made inside a span, oldest first, as segments are. */
+  /** A channel's pastes made inside a span, oldest first, as segments are; not the deleted. */
   within(channelId: string, from: number, until: number): PasteRow[] {
     return this.db
       .prepare(
         `SELECT * FROM pastes
-         WHERE channel_id = ? AND pasted_at >= ? AND pasted_at <= ?
+         WHERE channel_id = ? AND pasted_at >= ? AND pasted_at <= ? AND deleted_at IS NULL
          ORDER BY pasted_at, id`
       )
       .all(channelId, from, until) as unknown as PasteRow[];
+  }
+
+  /** Marks deleted every paste made inside a span, ends included; how many. */
+  markWithin(channelId: string, from: number, until: number, now: number): number {
+    return Number(
+      this.db
+        .prepare(
+          `UPDATE pastes SET deleted_at = ?
+            WHERE channel_id = ? AND pasted_at >= ? AND pasted_at <= ? AND deleted_at IS NULL`
+        )
+        .run(now, channelId, from, until).changes ?? 0
+    );
+  }
+
+  /** Marks one paste deleted; whether there was one to mark. */
+  markOne(channelId: string, id: string, now: number): boolean {
+    return (
+      Number(
+        this.db
+          .prepare('UPDATE pastes SET deleted_at = ? WHERE id = ? AND channel_id = ? AND deleted_at IS NULL')
+          .run(now, id, channelId).changes ?? 0
+      ) > 0
+    );
+  }
+
+  /** Removes what was marked deleted on or before `cutoff`. */
+  sweep(cutoff: number): void {
+    this.db.prepare('DELETE FROM pastes WHERE deleted_at IS NOT NULL AND deleted_at <= ?').run(cutoff);
   }
 
   /**

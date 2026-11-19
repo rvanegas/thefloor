@@ -40,6 +40,7 @@ import {
   Reveal,
   Screen,
   SectionLabel,
+  useConfirm,
 } from './components';
 import { CloseIcon } from './icons';
 import { KeepSwitch } from './RecordTab';
@@ -114,6 +115,7 @@ export function ChannelSettingsView({
   const tc = useText().channel;
   const shared = useText().shared;
   const app = useApp();
+  const [confirm, confirmation] = useConfirm();
   /**
    * Held locally as well as on the snapshot, so the On/Off pair answers the
    * press rather than the round trip. The snapshot is the authority and arrives
@@ -359,29 +361,25 @@ export function ChannelSettingsView({
    * by their absence.
    */
   const confirmLeave = () =>
-    Alert.alert(
-      t.leaveAsk(),
-      t.leaveBody(
+    confirm({
+      title: t.leaveAsk(),
+      body: t.leaveBody(
         recordingCount === 0 ? null : t.countOf(recordingCount),
         recordingCount === 1
       ),
-      [
-        { text: t.cancel(), style: 'cancel' },
-        {
-          text: t.leave(),
-          style: 'destructive',
-          // **Only leave the screen if the action left the app.** Queued, this
-          // used to navigate you out as though you had gone — and you were
-          // still a member, which the next snapshot said out loud by putting
-          // the channel back on your home screen. Staying put is the honest
-          // answer, and the wall is what explains it: past
-          // `OFFLINE_AFTER_MS` this screen is not the one you are looking at.
-          onPress: () => {
-            if (app.act(channel.id, { type: 'LEAVE_CHANNEL' })) onLeft();
-          },
-        },
-      ]
-    );
+      cancelLabel: t.cancel(),
+      confirmLabel: t.leave(),
+      destructive: true,
+      // **Only leave the screen if the action left the app.** Queued, this
+      // used to navigate you out as though you had gone — and you were
+      // still a member, which the next snapshot said out loud by putting
+      // the channel back on your home screen. Staying put is the honest
+      // answer, and the wall is what explains it: past
+      // `OFFLINE_AFTER_MS` this screen is not the one you are looking at.
+      onConfirm: () => {
+        if (app.act(channel.id, { type: 'LEAVE_CHANNEL' })) onLeft();
+      },
+    });
 
   /**
    * Deleting, which only the last member can do and which is the end of the
@@ -396,45 +394,36 @@ export function ChannelSettingsView({
    * word "four" before it happens.
    */
   const confirmDelete = () =>
-    Alert.alert(
-      t.deleteAsk(),
+    confirm({
+      title: t.deleteAsk(),
       // An owner deleting a community with people in it is ending it for
       // them too, which the last member's sentence would not say.
-      owner && !lastMember
-        ? t.communityDeleteBody(
-            channel.participants.length,
-            recordingCount === 0 ? null : t.countOf(recordingCount)
-          )
-        : t.deleteBody(recordingCount === 0 ? null : t.countOf(recordingCount)),
-      [
-        { text: t.cancel(), style: 'cancel' },
-        {
-          text: t.continueLabel(),
-          style: 'destructive',
-          onPress: () =>
-            Alert.alert(
-              t.deleteForGood(
-                recordingCount === 0 ? null : t.countOf(recordingCount)
-              ),
-              t.deleteForGoodBody(RETENTION_DAYS),
-              [
-                { text: t.cancel(), style: 'cancel' },
-                {
-                  text: t.deleteConfirm(),
-                  style: 'destructive',
-                  // Gated as leaving is, and it matters more here: this is a
-                  // confirmed, permanent, unrecoverable action, and queued it
-                  // used to take you back to a home screen with the channel
-                  // still on it.
-                  onPress: () => {
-                    if (app.act(channel.id, { type: 'DELETE_CHANNEL' })) onLeft();
-                  },
-                },
-              ]
-            ),
-        },
-      ]
-    );
+      body:
+        owner && !lastMember
+          ? t.communityDeleteBody(
+              channel.participants.length,
+              recordingCount === 0 ? null : t.countOf(recordingCount)
+            )
+          : t.deleteBody(recordingCount === 0 ? null : t.countOf(recordingCount)),
+      cancelLabel: t.cancel(),
+      confirmLabel: t.continueLabel(),
+      destructive: true,
+      onConfirm: () =>
+        confirm({
+          title: t.deleteForGood(recordingCount === 0 ? null : t.countOf(recordingCount)),
+          body: t.deleteForGoodBody(RETENTION_DAYS),
+          cancelLabel: t.cancel(),
+          confirmLabel: t.deleteConfirm(),
+          destructive: true,
+          // Gated as leaving is, and it matters more here: this is a
+          // confirmed, permanent, unrecoverable action, and queued it
+          // used to take you back to a home screen with the channel
+          // still on it.
+          onConfirm: () => {
+            if (app.act(channel.id, { type: 'DELETE_CHANNEL' })) onLeft();
+          },
+        }),
+    });
 
   return (
     <Screen contentStyle={styles.container}>
@@ -952,6 +941,7 @@ export function ChannelSettingsView({
           {owner && !lastMember ? t.ownerCannotLeave() : t.steppingOutInstead()}
         </Text>
       </Card>
+      {confirmation}
     </Screen>
   );
 }
@@ -1212,13 +1202,14 @@ function NotificationLevelPicker({ channelId }: { channelId: string }) {
  * the reason in a line: a box is a question nobody has answered yet, a pair is
  * an answer in force. Whether this channel has a page is the second of those.
  *
- * **Both directions confirm through `Alert.alert`**, which is the other half
- * of the change. Going private used to happen on one tap, on the reasoning
- * that taking a page down is the safe direction — it is not, once anything has
- * subscribed to the feed, and the alert is where what stops answering gets
- * said. Neither button acts on the press itself.
+ * **Both directions confirm** (`useConfirm`; `Alert.alert` until
+ * 2026-11-18), which is the other half of the change. Going private used to
+ * happen on one tap, on the reasoning that taking a page down is the safe
+ * direction — it is not, once anything has subscribed to the feed, and the
+ * confirmation is where what stops answering gets said. Neither button acts
+ * on the press itself.
  *
- * Pressing the one already in force does nothing: no call and no alert. A pair
+ * Pressing the one already in force does nothing: no call and no question. A pair
  * says which is in force by drawing it `primary`, so the press has nothing
  * left to tell anybody.
  *
@@ -1254,6 +1245,7 @@ function Publishing({
 }) {
   const t = useText().channelSettings;
   const app = useApp();
+  const [confirm, confirmation] = useConfirm();
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
   const linkWords = useText().links;
@@ -1301,14 +1293,13 @@ function Publishing({
             // same reasoning `persist` gives for guarding a field it has
             // already made uneditable.
             if (busy || isPublic || !named) return;
-            Alert.alert(
-              t.publishAsk(),
-              t.publishBody(),
-              [
-                { text: t.notNow(), style: 'cancel' },
-                { text: t.createThePage(), onPress: () => void set(true) },
-              ]
-            );
+            confirm({
+              title: t.publishAsk(),
+              body: t.publishBody(),
+              cancelLabel: t.notNow(),
+              confirmLabel: t.createThePage(),
+              onConfirm: () => void set(true),
+            });
           }}
         />
         <Button
@@ -1318,18 +1309,14 @@ function Publishing({
           disabled={busy}
           onPress={() => {
             if (busy || !isPublic) return;
-            Alert.alert(
-              t.unpublishAsk(),
-              t.unpublishBody(),
-              [
-                { text: t.keepThePage(), style: 'cancel' },
-                {
-                  text: t.takeItDown(),
-                  style: 'destructive',
-                  onPress: () => void set(false),
-                },
-              ]
-            );
+            confirm({
+              title: t.unpublishAsk(),
+              body: t.unpublishBody(),
+              cancelLabel: t.keepThePage(),
+              confirmLabel: t.takeItDown(),
+              destructive: true,
+              onConfirm: () => void set(false),
+            });
           }}
         />
       </View>
@@ -1365,6 +1352,7 @@ function Publishing({
       ) : (
         <Text style={type.muted}>{t.nameItFirst()}</Text>
       )}
+      {confirmation}
     </>
   );
 }
@@ -1621,6 +1609,7 @@ function CommunityLink({
 }) {
   const t = useText().channelSettings;
   const app = useApp();
+  const [confirm, confirmation] = useConfirm();
   const [url, setUrl] = useState<string | null | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
 
@@ -1637,11 +1626,15 @@ function CommunityLink({
       .then(setUrl)
       .catch(() => setError(t.thatDidNotWork()));
 
-  const confirm = (title: string, body: string, label: string, open: boolean) =>
-    Alert.alert(title, body, [
-      { text: t.cancel(), style: 'cancel' },
-      { text: label, style: 'destructive', onPress: () => change(open) },
-    ]);
+  const ask = (title: string, body: string, label: string, open: boolean) =>
+    confirm({
+      title,
+      body,
+      cancelLabel: t.cancel(),
+      confirmLabel: label,
+      destructive: true,
+      onConfirm: () => change(open),
+    });
 
   if (error) return <Text style={styles.warning}>{error}</Text>;
   if (url === undefined) return <Text style={type.muted}>{t.reading()}</Text>;
@@ -1672,16 +1665,17 @@ function CommunityLink({
         <Button
           style={styles.choice}
           label={t.resetLink()}
-          onPress={() => confirm(t.resetLinkAsk(), t.resetLinkBody(), t.resetLink(), true)}
+          onPress={() => ask(t.resetLinkAsk(), t.resetLinkBody(), t.resetLink(), true)}
         />
         <Button
           style={styles.choice}
           label={t.turnOffLink()}
           onPress={() =>
-            confirm(t.turnOffLinkAsk(), t.turnOffLinkBody(), t.turnOffLink(), false)
+            ask(t.turnOffLinkAsk(), t.turnOffLinkBody(), t.turnOffLink(), false)
           }
         />
       </View>
+      {confirmation}
     </>
   );
 }
@@ -1773,7 +1767,7 @@ function MakeCommunity({ channel }: { channel: ChannelState }) {
 }
 
 /**
- * *Lock channel*, or what a locked channel is. Confirmed through `Alert`, an
+ * *Lock channel*, or what a locked channel is. Confirmed (`useConfirm`), an
  * irreversible act; grey with a sentence while the lock is refused to *you*
  * — somebody else's community, or a room you are not in — and gone once it
  * is locked, a lock being a fact about everybody rather than a refusal.
@@ -1781,6 +1775,7 @@ function MakeCommunity({ channel }: { channel: ChannelState }) {
 function LockChannel({ channel }: { channel: ChannelState }) {
   const t = useText().channelSettings;
   const app = useApp();
+  const [confirm, confirmation] = useConfirm();
   const me = app.me?.id ?? '';
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -1806,11 +1801,15 @@ function LockChannel({ channel }: { channel: ChannelState }) {
     }
   };
 
-  const confirm = () =>
-    Alert.alert(t.lockAsk(), t.lockBody(), [
-      { text: t.cancel(), style: 'cancel' },
-      { text: t.lock(), style: 'destructive', onPress: () => void lock() },
-    ]);
+  const confirmLock = () =>
+    confirm({
+      title: t.lockAsk(),
+      body: t.lockBody(),
+      cancelLabel: t.cancel(),
+      confirmLabel: t.lock(),
+      destructive: true,
+      onConfirm: () => void lock(),
+    });
 
   const allowed = canLockChannel(channel, me);
   const refusal = allowed
@@ -1825,10 +1824,11 @@ function LockChannel({ channel }: { channel: ChannelState }) {
       <Button
         label={busy ? t.lockingBusy() : t.lockChannel()}
         disabled={!allowed || busy}
-        onPress={confirm}
+        onPress={confirmLock}
       />
       {refusal ? <Text style={type.muted}>{refusal}</Text> : null}
       {error ? <Text style={styles.warning}>{error}</Text> : null}
+      {confirmation}
     </>
   );
 }

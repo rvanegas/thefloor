@@ -19,7 +19,7 @@ import { describeQuiet, sentence } from './availability';
 import { useOfflineNotice } from './useOfflineNotice';
 import { useApp } from '../state/AppProvider';
 import { leaveSeat, leaveSeatChannel } from './handover';
-import { Button, Card, Empty, SectionLabel } from './components';
+import { Button, Card, Empty, SectionLabel, useConfirm } from './components';
 import { colors, radius, spacing, type } from './theme';
 
 /**
@@ -111,6 +111,7 @@ export function ChannelsView({
    */
   const [seatTrouble, setSeatTrouble] = React.useState<string | null>(null);
   const t = useText().channels;
+  const [confirm, confirmation] = useConfirm();
   const words: CardWords = { channels: t, naming: useText().naming };
 
   /**
@@ -134,18 +135,14 @@ export function ChannelsView({
    * see the ones that are there.
    */
   const declineInvite = (card: Card) =>
-    Alert.alert(
-      t.declineTitle(),
-      t.declineBody(card.from ?? null),
-      [
-        { text: t.cancel(), style: 'cancel' },
-        {
-          text: t.decline(),
-          style: 'destructive',
-          onPress: () => app.act(card.channelId, { type: 'LEAVE_CHANNEL' }),
-        },
-      ]
-    );
+    confirm({
+      title: t.declineTitle(),
+      body: t.declineBody(card.from ?? null),
+      cancelLabel: t.cancel(),
+      confirmLabel: t.decline(),
+      destructive: true,
+      onConfirm: () => app.act(card.channelId, { type: 'LEAVE_CHANNEL' }),
+    });
 
   // One list from two sources, minus the channel the banner is already
   // showing — the two are alternative presentations of the same row, not a
@@ -549,6 +546,7 @@ export function ChannelsView({
           </View>
         </>
       ) : null}
+      {confirmation}
     </>
   );
 }

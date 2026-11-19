@@ -2593,12 +2593,14 @@ describe('pasting into the record', () => {
     act(() => tree.unmount());
   });
 
-  it('offers no way to take a paste back', async () => {
+  // Deletable since 2026-11-18, standing outside every segment as this one
+  // does; still never cleared, the clipboard slot being gone.
+  it('offers Delete on a paste standing alone, and no Clear', async () => {
     withPaste();
     showChannel(channelOf());
     const tree = await open();
     expect(findButton(tree, 'Clear')).toBeUndefined();
-    expect(findButton(tree, 'Delete')).toBeUndefined();
+    expect(findButton(tree, 'Delete')).toBeDefined();
     act(() => tree.unmount());
   });
 

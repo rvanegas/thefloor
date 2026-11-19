@@ -505,6 +505,48 @@ export function audioWith(...speaking: string[]) {
   return { ...AUDIO, speaking };
 }
 
+/** A button of an open confirmation, as `Alert.alert` was given one. */
+export interface AskedButton {
+  text: string;
+  style?: 'cancel' | 'destructive';
+  onPress: () => void;
+}
+
+/**
+ * The confirmation open in `tree`, in the shape `Alert.alert` was called
+ * with — title, body, buttons, cancel first — or undefined. Since
+ * 2026-11-18 the app asks in its own `ConfirmModal` (`useConfirm`), so a
+ * test reads the question off the screen rather than spying on the system.
+ */
+export function confirmationIn(
+  tree: ReactTestRenderer
+): [string, string | undefined, AskedButton[]] | undefined {
+  // Known by its props rather than its type: importing `components` here would
+  // run before the provider's mock that `components` imports is defined.
+  const open = tree.root.findAll(
+    (n) => n.props.visible === true && 'confirmLabel' in n.props && 'onConfirm' in n.props
+  );
+  if (open.length === 0) return undefined;
+  const props = open[open.length - 1].props as {
+    title: string;
+    body?: string;
+    cancelLabel?: string;
+    confirmLabel: string;
+    destructive?: boolean;
+    onCancel: () => void;
+    onConfirm: () => void;
+  };
+  const buttons: AskedButton[] = [
+    ...(props.cancelLabel ? [{ text: props.cancelLabel, style: 'cancel' as const, onPress: props.onCancel }] : []),
+    {
+      text: props.confirmLabel,
+      ...(props.destructive ? { style: 'destructive' as const } : {}),
+      onPress: props.onConfirm,
+    },
+  ];
+  return [props.title, props.body, buttons];
+}
+
 
 
 export function textOf(tree: ReactTestRenderer): string {

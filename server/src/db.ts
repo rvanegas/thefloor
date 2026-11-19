@@ -3259,6 +3259,18 @@ function migrate(db: Db): void {
     on everything that exists from what took the document until now: the
     segment's text being deleted, or the recording its transcript came from.
   */
+  /*
+    When a paste was deleted, since 2026-11-18: with the text of the segment
+    it was made in, or on its own where it stands outside every segment
+    (decision/2026-11-18-a-paste-goes-with-its-segment-or-alone-outside-one.md).
+    Marked, gone from every
+    read at once, and swept TRANSCRIPT_DELETED_RETENTION_MS later as deleted
+    text is. Null on everything that exists, nothing pasted having been
+    deletable until then.
+  */
+  if (!hasColumn(db, 'pastes', 'deleted_at')) {
+    db.exec('ALTER TABLE pastes ADD COLUMN deleted_at INTEGER');
+  }
   if (!hasColumn(db, 'segments', 'document_deleted_at')) {
     db.exec('ALTER TABLE segments ADD COLUMN document_deleted_at INTEGER');
     db.exec('UPDATE segments SET document_deleted_at = text_deleted_at');
