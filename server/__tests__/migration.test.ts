@@ -827,3 +827,43 @@ it('names a noesis grant by auth’s scopes', () => {
   expect(scopes).toEqual({ acc_import: 'noesis:read noesis:import', acc_none: null });
   again.close();
 });
+
+/**
+ * Every paste that exists is placed in a segment once, by the rule a new one
+ * is written by (2026-11-18): the text segment whose span holds it, the one
+ * beginning at a seam, and none for audio alone or nothing kept.
+ */
+it('places every paste that exists in the text segment it was made in', () => {
+  const path = join(dir, 'paste-segments.db');
+  const db = openDb(path);
+  db.exec('PRAGMA foreign_keys = OFF');
+  const segment = db.prepare(
+    'INSERT INTO segments (id, channel_id, started_at, ended_at, recording_id, text) VALUES (?, ?, ?, ?, ?, ?)'
+  );
+  segment.run('seg_text', 'chan', 1_000, 2_000, null, 1);
+  segment.run('seg_next', 'chan', 2_000, 3_000, null, 1);
+  segment.run('seg_audio', 'chan', 3_000, 4_000, 'rec_1', 0);
+  // The table as deployed until 2026-11-18, before segment_id.
+  db.exec('DROP TABLE pastes');
+  db.exec(`CREATE TABLE pastes (
+    id TEXT PRIMARY KEY, channel_id TEXT NOT NULL, author_id TEXT NOT NULL,
+    display_name TEXT NOT NULL, pasted_at INTEGER NOT NULL, text TEXT NOT NULL, working TEXT
+  )`);
+  const paste = db.prepare(
+    `INSERT INTO pastes (id, channel_id, author_id, display_name, pasted_at, text)
+     VALUES (?, 'chan', 'acc', 'Ann', ?, 'x')`
+  );
+  paste.run('inside', 1_500);
+  paste.run('seam', 2_000);
+  paste.run('audio', 3_500);
+  paste.run('nothing', 5_000);
+  db.close();
+
+  const again = openDb(path);
+  const homes = Object.fromEntries(
+    (again.prepare('SELECT id, segment_id FROM pastes').all() as Array<{ id: string; segment_id: string | null }>)
+      .map((row) => [row.id, row.segment_id])
+  );
+  expect(homes).toEqual({ inside: 'seg_text', seam: 'seg_next', audio: null, nothing: null });
+  again.close();
+});

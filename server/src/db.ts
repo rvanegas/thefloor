@@ -2142,10 +2142,10 @@ CREATE TABLE IF NOT EXISTS segment_voices (
 );
 
 -- A paste: a piece of text somebody here put into the channel, kept in the
--- Record as a segment of its own at pasted_at, and never deleted. Its
--- author's name as it was then, as live_lines keeps a speaker's. See
--- pastes.ts. None exist before 2026-10-15; the clipboard they replace held
--- one and kept none.
+-- Record at pasted_at, and deleted only by hand (deleted_at, since
+-- 2026-11-18). Its author's name as it was then,
+-- as live_lines keeps a speaker's. See pastes.ts. None exist before
+-- 2026-10-15; the clipboard they replace held one and kept none.
 CREATE TABLE IF NOT EXISTS pastes (
   id            TEXT PRIMARY KEY,
   channel_id    TEXT NOT NULL REFERENCES channels(id) ON DELETE CASCADE,
@@ -2156,7 +2156,11 @@ CREATE TABLE IF NOT EXISTS pastes (
   -- A reply of Claude's only: the library calls it made before it, as JSON,
   -- written by the server from the response's own blocks (claude.ts
   -- workingSteps). Null on every other paste, and on a reply that made none.
-  working       TEXT
+  working       TEXT,
+  -- The segment it is part of, since 2026-11-18: the one being transcribed
+  -- when it was made (pasteHomeSql). Null where none was, and the paste is a
+  -- segment of its own.
+  segment_id    TEXT
 );
 CREATE INDEX IF NOT EXISTS pastes_channel
   ON pastes(channel_id, pasted_at);
@@ -2408,6 +2412,21 @@ export function hasSearchIndex(db: Db): boolean {
 }
 
 /** Whether a table of this name exists. */
+/**
+ * **The segment a paste is part of**, as a subquery: the one being
+ * transcribed at that instant — `text` set, its span holding the moment —
+ * and at a boundary the one beginning there, which is where `withPastes`
+ * always drew it. A segment keeping audio alone takes none, by Rodrigo's rule
+ * of 2026-11-18, and nor does a moment nothing was kept. The two arguments
+ * are SQL: the channel and the instant, each `?` or a column.
+ */
+export function pasteHomeSql(channel: string, at: string): string {
+  return `SELECT s.id FROM segments s
+           WHERE s.channel_id = ${channel} AND s.text = 1
+             AND s.started_at <= ${at} AND (s.ended_at IS NULL OR s.ended_at >= ${at})
+           ORDER BY s.started_at DESC LIMIT 1`;
+}
+
 function hasTable(db: Db, name: string): boolean {
   return !!db
     .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?")
@@ -3235,6 +3254,16 @@ function migrate(db: Db): void {
   if (!hasColumn(db, 'pastes', 'working')) {
     db.exec('ALTER TABLE pastes ADD COLUMN working TEXT');
   }
+  // Every paste that exists placed by the rule a new one is written by, once:
+  // in the text segment whose span holds it, or none. One whose segment's text
+  // has since been deleted finds none, and stands as a segment of its own.
+  if (!hasColumn(db, 'pastes', 'segment_id')) {
+    db.exec('ALTER TABLE pastes ADD COLUMN segment_id TEXT');
+    db.exec(
+      `UPDATE pastes SET segment_id = (${pasteHomeSql('pastes.channel_id', 'pastes.pasted_at')})`
+    );
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS pastes_segment ON pastes(segment_id)');
   /*
     A segment's live text deleted on its own, since 2026-11-07 (*Delete
     text*): each line marked, and unreachable from the mark, and swept on

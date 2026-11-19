@@ -2531,7 +2531,7 @@ describe('pasting into the record', () => {
     } as never);
     roomWith([
       { id: 'seg_text', startedAt: NOW, endedAt: NOW + 60_000, recordingId: null, text: true },
-      PASTE,
+      { ...PASTE, paste: { ...PASTE.paste, segmentId: 'seg_text', offsetMs: 4_000 } },
     ]);
     showChannel(channelOf((c) => reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW)));
     const tree = await open();
@@ -2539,6 +2539,24 @@ describe('pasting into the record', () => {
     const text = textOf(tree);
     expect(text.indexOf('before the paste')).toBeLessThan(text.indexOf('example.com/the-thing'));
     expect(text.indexOf('example.com/the-thing')).toBeLessThan(text.indexOf('after the paste'));
+    act(() => tree.unmount());
+  });
+
+  it('draws a paste that names no segment as an item of its own, even inside one', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        { id: 'l1', identity: ME, displayName: 'Me', startAt: NOW + 1_000, endAt: NOW + 2_000, text: 'before the paste', confidence: null },
+        { id: 'l2', identity: ME, displayName: 'Me', startAt: NOW + 9_000, endAt: NOW + 10_000, text: 'after the paste', confidence: null },
+      ],
+      more: false,
+    } as never);
+    // The server names none where it was made with nothing transcribed.
+    roomWith([{ id: 'seg_text', startedAt: NOW, endedAt: NOW + 60_000, recordingId: null, text: true }, PASTE]);
+    showChannel(channelOf((c) => reduce(c, { type: 'SET_LIVE_TRANSCRIPTION', on: true }, NOW)));
+    const tree = await open();
+    openSegments(tree);
+    const text = textOf(tree);
+    expect(text.indexOf('after the paste')).toBeLessThan(text.indexOf('example.com/the-thing'));
     act(() => tree.unmount());
   });
 

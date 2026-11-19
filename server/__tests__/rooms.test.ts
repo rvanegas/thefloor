@@ -306,6 +306,7 @@ describe('rooms', () => {
             recordingId: string | null;
             text: boolean;
             voices?: Array<{ identity: string; speaker: string; name: string }>;
+            paste?: { authorId: string; displayName: string; text: string; segmentId?: string; offsetMs?: number };
           }>;
         }>;
       }
@@ -390,6 +391,33 @@ describe('rooms', () => {
         text: false,
         paste: { authorId: bob.account.id, displayName: 'Bob', text: 'https://example.com/a-thing' },
       },
+    ]);
+  });
+
+  it('name the segment being transcribed as the one a paste is part of, and how far into it', async () => {
+    const { alice, bob, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
+    const t0 = clock;
+    app.channels.setLiveTranscription(channelId, alice.account.id, true);
+    clock += 4_000;
+    app.channels.dispatch(channelId, bob.account.id, { type: 'PASTE_CLIP', text: 'inside' } as never);
+    clock += 6_000;
+    app.channels.setLiveTranscription(channelId, alice.account.id, false);
+    clock += 1_000;
+    app.channels.dispatch(channelId, bob.account.id, { type: 'PASTE_CLIP', text: 'after' } as never);
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    app.channels.dispatch(channelId, bob.account.id, { type: 'STEP_OUT' });
+
+    const [room] = await roomsOf(channelId, alice.token);
+    const text = room.segments.find((segment) => segment.text)!;
+    expect(text).toMatchObject({ startedAt: t0, endedAt: t0 + 10_000 });
+    expect(room.segments.filter((segment) => segment.paste).map((segment) => segment.paste)).toEqual([
+      { authorId: bob.account.id, displayName: 'Bob', text: 'inside', segmentId: text.id, offsetMs: 4_000 },
+      // Made with nothing kept: a segment of its own.
+      { authorId: bob.account.id, displayName: 'Bob', text: 'after' },
     ]);
   });
 

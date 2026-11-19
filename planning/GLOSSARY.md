@@ -56,7 +56,7 @@ caused; the list carries the meaning.
 - **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; anybody's to choose. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
 - **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **chosen only by *Pro***. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
 - **Room reader** — The participant AssemblyAI's reading of a reply is published as, `room-reader:<channel>`, since 2026-11-13: in the room without being a person, as the film's `media:` is, so nothing that counts people sees it; a build that says `hearsClaude` hears it, an older one is kept off it. Not the native `Reader` that speaks on a phone, nor the person reading a screen. `roomReaderIdentity`
-- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* as a *segment* of its own at the moment it was made — an instant, which breaks no other segment — for anybody to copy; deleted with the text of the segment it was made in, Claude's replies included, or on its own outside every segment, since 2026-11-18; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
+- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* at the moment it was made — part of the *segment* being transcribed then, since 2026-11-18, and otherwise a segment of its own, an instant; it breaks no segment — for anybody to copy; deleted with the text of the segment it is part of, Claude's replies included, or on its own where it is a segment of its own, since 2026-11-18; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
 - **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared alone as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
@@ -225,7 +225,7 @@ caused; the list carries the meaning.
 - **Reconcile / restate** — Comparing what was stated to the media plane against what the room carries, once a tick
 - **Reported call** — A step-in reported to iOS through CallKit as an *outgoing* call, whoever arrived first, shown under the *channel title* and lasting exactly as long as `mediaRoom` — never cycled by a reconnect (`modules/reported-call`). It buys Recents and the green pill and has no call screen, Channel View being that. Its muted flag, which CarPlay and the Watch show and set, follows the lock screen card's mute both ways. Not `CALL`, which is an audio session configuration
 - **Restore** — Reviving every unended channel from its state blob at startup
-- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, with every action on it and its recording in one menu at the line's end since 2026-11-07, behind the ellipsis and in groups since 2026-11-09; its *Play* loads the recording into *Listen*, opens that tab and starts it. The user's word, not drawn on screen, where a segment is named by its hours — and once filed in the *channel library*, since 2026-11-07, by the title noesis gave it there too, under them — for somebody whose own *library* is connected, since 2026-11-10. Since 2026-10-10. `segments`, `SegmentView`; or, since 2026-10-15, a *paste* — an instant inside the rest, breaking nothing
+- **Segment** — A stretch of a *room* kept one way throughout — as audio, as text, or as both — and a new one at every change of what is kept, Pause and Resume included, so that where both are kept they cover the same span; one line of the *Record* log, with every action on it and its recording in one menu at the line's end since 2026-11-07, behind the ellipsis and in groups since 2026-11-09; its *Play* loads the recording into *Listen*, opens that tab and starts it. The user's word, not drawn on screen, where a segment is named by its hours — and once filed in the *channel library*, since 2026-11-07, by the title noesis gave it there too, under them — for somebody whose own *library* is connected, since 2026-11-10. Since 2026-10-10. `segments`, `SegmentView`; it holds the *pastes* made while it was transcribed, since 2026-11-18, and a paste made while nothing was is a segment of its own — an instant, breaking nothing
 - **Room** — One LiveKit room from creation to deletion: a channel's sitting, first step in to last step out (`rooms`, `RoomView`), the unit the *Record* log is laid out in, holding one *segment* or more. `mediaRoom` is the name a channel's rooms are opened under. Since 2026-10-09 it means nothing else: the people present are *here*, their sound is *everyone*, and *has the room* is *present or empty*
 - **Root** — An account at depth 0 in the invitation forest: the top of a tree, whatever grew under it — most grow nothing
 - **Reach** — How many people somebody can get to through contacts, counting themselves and counting *pending* rows as edges, bounded by whatever limit was asked. One of the two things a *getting-started channel* is gated on — being reachable, by push or by email, being the other — and deliberately **not** the *island* of `ts growth`, which walks accepted edges alone
@@ -2366,7 +2366,7 @@ while retrying and is not sticky. See decision/2026-09-16-being-offline-is-one-s
 ## Paste
 
 **A piece of text somebody here put into the channel**, kept in the *Record*
-as a *segment* of its own at the moment it was made, since 2026-10-15. Drawn
+at the moment it was made, since 2026-10-15. Drawn
 in the log as an entry like a speaker's — the clipboard glyph, its author's
 name as it was then, the time — with the whole text under it, *Copy*, and
 *Open* when the whole of it is one link. Pasted with the paste glyph at the
@@ -2380,13 +2380,22 @@ falls inside that segment, which carries on, and is drawn among its lines at
 its moment. So a recording is still exactly one segment's audio. Rodrigo's
 choice over a clean break, which would have cut a recording at every paste.
 
-**Deleted with its segment, or on its own outside one**, since 2026-11-18,
-when Rodrigo decided it. One made while a segment was kept is part of that
-segment, by anybody — a reply of Claude's to what was said is the case that
-asked for it — and goes when its *Delete*'s *Text* is ticked. One standing
-outside every segment has a *Delete* of its own at the end of its line. Either
-way it goes from every screen at once and is removed a month later, as text
-is. Until then a paste was never deleted. **And only from inside a room**: the *Record* is laid out in rooms, and an empty channel has
+**Part of the segment being transcribed when it is made**, since
+2026-11-18, Rodrigo's rule: kept with that segment's id
+(`pastes.segment_id`; `PasteView.segmentId` and `offsetMs` on the wire), it
+is filed in the *channel library* with that segment, read by *Ask Claude*
+inside it at its moment, and so left out with it. Made while nothing is
+transcribed — nothing kept, or audio alone — it is a segment of its own, the
+instant it was made, drawn as an item of its own in the log.
+
+**Deleted with its segment, or on its own**, since 2026-11-18, when Rodrigo
+decided it. One that is part of a segment, by anybody — a reply of Claude's
+to what was said is the case that asked for it — goes when that segment's
+*Delete* has *Text* ticked. One that is a segment of its own has a *Delete*
+at the end of its line. Either way it goes from every screen at once and is
+removed a month later, as text is. Until then a paste was never deleted.
+**And only from inside a room**: the *Record* is laid out in rooms, and an
+empty channel has
 none to keep it in, so `canPasteClip` asks `isHere` where it asked *present or
 empty*.
 
@@ -4992,11 +5001,14 @@ and showing the one beside the other is how they are matched. A recording
 made as audio alone may be given a *transcript* afterwards, which makes it
 a segment kept both ways; one kept as text live is not offered one.
 
-**A *paste* is one too**, since 2026-10-15, and the exception to the rest:
-an instant (`startedAt === endedAt`, `paste` set) that is not a change of
-what is kept, so it breaks nothing and is the one segment that may fall
-inside another. Written in `pastes`, not `segments`, and listed among them by
-`Rooms.forChannel`.
+**A *paste* is part of one** — of the segment being transcribed when it was
+made, since 2026-11-18 — **or one of its own**, an instant
+(`startedAt === endedAt`, `paste` set) made while nothing was transcribed.
+Either way it is not a change of what is kept, and breaks nothing. Written in
+`pastes`, not `segments`, with its segment's id where it has one, and listed
+among them by `Rooms.forChannel` as an instant naming it
+(`PasteView.segmentId`), which the app and *Ask Claude* draw it inside.
+Each paste was a segment of its own from 2026-10-15 until then.
 
 **Not the stem's pieces**, which the server's capture also calls segments in
 places — the objects one participant's audio is written in, several when an

@@ -666,26 +666,68 @@ function saidIn(sources: RecordSources, channelId: string, segment: SegmentView,
   return lettered(sources.liveLines(channelId, segment.startedAt, segment.endedAt ?? now), segment.voices);
 }
 
+/** A segment as the *Record* is read: with the pastes that are part of it. */
+interface WithPastes {
+  segment: SegmentView;
+  pastes: SegmentView[];
+}
+
+/**
+ * A room's segments with each paste moved inside the segment it names, since
+ * 2026-11-18 — listed among them, a paste read after the whole of the one it
+ * was made in. One naming none stands as a segment of its own, in its place.
+ */
+function withTheirPastes(segments: readonly SegmentView[]): WithPastes[] {
+  const homes = new Map<string, WithPastes>();
+  for (const segment of segments) if (!segment.paste) homes.set(segment.id, { segment, pastes: [] });
+  const all: WithPastes[] = [];
+  for (const segment of segments) {
+    const home = segment.paste?.segmentId ? homes.get(segment.paste.segmentId) : undefined;
+    if (home) home.pastes.push(segment);
+    else all.push(homes.get(segment.id) ?? { segment, pastes: [] });
+  }
+  return all;
+}
+
+function renderPaste(sources: RecordSources, segment: SegmentView): string[] {
+  const { authorId, displayName, text } = segment.paste!;
+  const who = authorId === CLAUDE_ID ? 'Claude' : `${displayName} (pasted)`;
+  const working = authorId === CLAUDE_ID ? (sources.working?.(segment.id) ?? []) : [];
+  return [...renderWorking(working), `[${hhmm(segment.startedAt)}] ${who}: ${text}`];
+}
+
+/**
+ * One segment's lines, its pastes among them: each after the lines said by
+ * its moment, as the log draws it (`entriesOf` in the app).
+ */
 function renderSegment(
   sources: RecordSources,
   channelId: string,
   segment: SegmentView,
-  now: number
+  now: number,
+  pastes: readonly SegmentView[] = []
 ): string[] {
-  if (segment.paste) {
-    const { authorId, displayName, text } = segment.paste;
-    const who = authorId === CLAUDE_ID ? 'Claude' : `${displayName} (pasted)`;
-    const working = authorId === CLAUDE_ID ? (sources.working?.(segment.id) ?? []) : [];
-    return [...renderWorking(working), `[${hhmm(segment.startedAt)}] ${who}: ${text}`];
-  }
+  if (segment.paste) return renderPaste(sources, segment);
   if (segment.text) {
-    return saidIn(sources, channelId, segment, now).map(
-      (line) => `[${hhmm(line.startAt)}] ${line.displayName}: ${line.text}`
-    );
+    const said = saidIn(sources, channelId, segment, now);
+    const lines: string[] = [];
+    let next = 0;
+    for (const paste of pastes) {
+      while (next < said.length && said[next].startAt <= paste.startedAt) {
+        const line = said[next++];
+        lines.push(`[${hhmm(line.startAt)}] ${line.displayName}: ${line.text}`);
+      }
+      lines.push(...renderPaste(sources, paste));
+    }
+    for (const line of said.slice(next)) lines.push(`[${hhmm(line.startAt)}] ${line.displayName}: ${line.text}`);
+    return lines;
   }
+  // A segment whose text has since been deleted keeps its pastes, after
+  // whatever of it is left.
+  const after = pastes.flatMap((paste) => renderPaste(sources, paste));
   if (segment.recordingId) {
     const recording = sources.recording(segment.recordingId);
-    if (!recording || recording.lines.length === 0) return [];
+    if (!recording || recording.lines.length === 0) return after;
     // Headed by the recording's start rather than a time per line: a batch
     // transcript is timed against the recorded audio, which pauses, so its
     // offsets are not wall-clock times and would be wrong as ones.
@@ -694,9 +736,10 @@ function renderSegment(
       ...readableLines(recording.lines, recording.names, segment.voices).map(
         (line) => `${line.displayName ?? 'Someone'}: ${line.text}`
       ),
+      ...after,
     ];
   }
-  return [];
+  return after;
 }
 
 /**
@@ -718,7 +761,9 @@ export function composeRecord(
     .rooms(channelId, now)
     .map((room) => ({
       heading: roomHeading(room),
-      lines: room.segments.flatMap((segment) => renderSegment(sources, channelId, segment, now)),
+      lines: withTheirPastes(room.segments).flatMap(({ segment, pastes }) =>
+        renderSegment(sources, channelId, segment, now, pastes)
+      ),
     }))
     .filter((room) => room.lines.length > 0);
   if (rooms.length === 0) return null;
@@ -773,7 +818,8 @@ function speakersOf(
  * it is wanted. A filed segment given in full names its document too, so
  * Claude knows it already holds it. Whatever the library does not hold — the
  * segment still being kept, one closed in the last minute, one closed while
- * nobody was Pro, everything from before 2026-11-07, a paste — stays in full,
+ * nobody was Pro, everything from before 2026-11-07, a paste standing alone —
+ * stays in full,
  * within the usual `budget`, past which the oldest goes as `composeRecord`
  * lets it.
  */
@@ -788,8 +834,8 @@ export function composeLibraryRecord(
     .rooms(channelId, now)
     .map((room) => ({
       heading: roomHeading(room),
-      segments: room.segments
-        .map((segment) => ({ segment, lines: renderSegment(sources, channelId, segment, now) }))
+      segments: withTheirPastes(room.segments)
+        .map(({ segment, pastes }) => ({ segment, lines: renderSegment(sources, channelId, segment, now, pastes) }))
         .filter((each) => each.lines.length > 0),
     }))
     .filter((room) => room.segments.length > 0);
