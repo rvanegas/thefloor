@@ -396,6 +396,8 @@ export const mockApp = {
   // "it went", which is what every screen reading the answer is written
   // against. See `AppProvider.actAsSeat`.
   actAsSeat: jest.fn(() => true),
+  // *Read again* on a reply of Claude's, from its paste's menu.
+  readAgain: jest.fn(async (_channelId: string, _pasteId: string) => {}),
   clearError: jest.fn(),
   dismissRefusal: jest.fn(),
   removeContact: jest.fn(async () => {}),
@@ -669,7 +671,9 @@ export interface OpenedMenu {
  * as a press on its glyph does, and says what the column under the line
  * offers. One already open is read as it is rather than pressed shut. A
  * glyph is found by its accessible name, *Actions for* its hours, and is
- * missing while something it started is under way, when it names that.
+ * missing while something it started is under way, when it names that. A
+ * paste's menu is counted among them, since 2026-11-19, named *Actions for*
+ * its author's paste and its time.
  */
 export function openMenu(tree: ReactTestRenderer, which = 0): OpenedMenu {
   const glyph = menuGlyphs(tree)[which];
@@ -722,7 +726,7 @@ export function isButton(n: ReactTestInstance): boolean {
   );
 }
 
-/** Every segment's menu glyph in the log, top to bottom. */
+/** Every segment's and paste's menu glyph in the log, top to bottom. */
 export function menuGlyphs(tree: ReactTestRenderer): ReactTestInstance[] {
   return tree.root.findAll(
     (n) =>

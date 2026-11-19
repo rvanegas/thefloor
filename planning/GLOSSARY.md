@@ -56,7 +56,7 @@ caused; the list carries the meaning.
 - **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; anybody's to choose. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
 - **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **chosen only by *Pro***. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
 - **Room reader** — The participant AssemblyAI's reading of a reply is published as, `room-reader:<channel>`, since 2026-11-13: in the room without being a person, as the film's `media:` is, so nothing that counts people sees it; a build that says `hearsClaude` hears it, an older one is kept off it. Not the native `Reader` that speaks on a phone, nor the person reading a screen. `roomReaderIdentity`
-- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* at the moment it was made — part of the *segment* being transcribed then, since 2026-11-18, and otherwise a segment of its own, an instant; it breaks no segment — for anybody to copy; deleted with the text of the segment it is part of, Claude's replies included, or on its own where it is a segment of its own, since 2026-11-18; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
+- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* at the moment it was made — part of the *segment* being transcribed then, since 2026-11-18, and otherwise a segment of its own, an instant; it breaks no segment — for anybody to copy, from a menu at the end of its line like a segment's since 2026-11-19; deleted with the text of the segment it is part of, Claude's replies included, or on its own where it is a segment of its own, since 2026-11-18; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
 - **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared alone as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
@@ -2368,8 +2368,11 @@ while retrying and is not sticky. See decision/2026-09-16-being-offline-is-one-s
 **A piece of text somebody here put into the channel**, kept in the *Record*
 at the moment it was made, since 2026-10-15. Drawn
 in the log as an entry like a speaker's — the clipboard glyph, its author's
-name as it was then, the time — with the whole text under it, *Copy*, and
-*Open* when the whole of it is one link. Pasted with the paste glyph at the
+name as it was then, the time — with the whole text under it, and its
+actions in a menu at the end of that line like a segment's since 2026-11-19
+— *Read again* on a reply of Claude's whose speech is kept, *Open* when the
+whole of it is one link, *Copy*, and *Delete* where it is a segment of its
+own — which had been words there. Pasted with the paste glyph at the
 right end of *Record*'s pinned bar, after *Text* — a button at the foot of the
 log on its first day — by anybody here, guests included; silent, so not
 governed by the *floor*.
@@ -2392,7 +2395,7 @@ instant it was made, drawn as an item of its own in the log.
 decided it. One that is part of a segment, by anybody — a reply of Claude's
 to what was said is the case that asked for it — goes when that segment's
 *Delete* has *Text* ticked. One that is a segment of its own has a *Delete*
-at the end of its line. Either way it goes from every screen at once and is
+in its menu. Either way it goes from every screen at once and is
 removed a month later, as text is. Until then a paste was never deleted.
 **And only from inside a room**: the *Record* is laid out in rooms, and an
 empty channel has

@@ -1202,6 +1202,7 @@ export const es: Strings = {
     preparingKept: () => 'Preparando\u2026',
     couldNotShareKept: () => 'No se pudo compartir',
     segmentActions: (span: string) => `Acciones de ${span}`,
+    pasteActions: (who: string, at: string) => `Acciones de lo pegado por ${who}, ${at}`,
     shareAudio: () => 'Compartir audio',
     shareText: () => 'Compartir texto',
     deleteSegment: () => 'Borrar',

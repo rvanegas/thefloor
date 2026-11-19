@@ -32,6 +32,8 @@ import {
   render,
   resetHarness,
   showChannel,
+  menuGlyphs,
+  openMenu,
   openSegments,
   showRecord,
   showWatch,
@@ -2449,8 +2451,9 @@ describe('Channel, watching together', () => {
 });
 
 /**
- * Pasting, which since 2026-10-15 is on *Record*: a paste is kept in the log as
- * a segment of its own, at the moment it was made, and is never deleted. Two
+ * Pasting, which since 2026-10-15 is on *Record*: a paste is kept in the log
+ * at the moment it was made, part of the segment being transcribed or a
+ * segment of its own. Two
  * halves — the control at the foot of the tab, and the paste as the log draws
  * it, from a room the server lists with it among its segments.
  */
@@ -2560,16 +2563,39 @@ describe('pasting into the record', () => {
     act(() => tree.unmount());
   });
 
-  it('copies the whole of a paste', async () => {
+  // Its actions are a menu like a segment's since 2026-11-19, where they had
+  // been words at the end of its line; how a copy went is said on the line.
+  it('copies the whole of a paste, and says so on its line', async () => {
     const long = `https://example.com/${'x'.repeat(400)}`;
     withPaste({ text: long });
     showChannel(channelOf());
     const tree = await open();
-    await act(async () => {
-      findButton(tree, 'Copy')!.props.onPress();
-    });
+    expect(findButton(tree, 'Copy')).toBeUndefined();
+    const menu = openMenu(tree);
+    expect(menu.options).toEqual(['Open', 'Copy', 'Delete']);
+    menu.choose('Copy');
+    await act(async () => {});
     expect(Clipboard.setStringAsync).toHaveBeenCalledWith(long);
     expect(textOf(tree)).toContain('✓ copied');
+    act(() => tree.unmount());
+  });
+
+  it("puts Read again first in a reply of Claude's whose speech is kept", async () => {
+    withPaste({ authorId: 'claude', displayName: 'Claude', text: 'A reply.' });
+    showChannel(channelOf(), [], { speechKept: ['clip_1'] });
+    const tree = await open();
+    const menu = openMenu(tree);
+    expect(menu.options).toEqual(['Read again', 'Copy', 'Delete']);
+    menu.choose('Read again');
+    expect(mockApp.readAgain).toHaveBeenCalledWith('sess_1', 'clip_1');
+    act(() => tree.unmount());
+  });
+
+  it('names the menu by who pasted and when', async () => {
+    withPaste();
+    showChannel(channelOf());
+    const tree = await open();
+    expect(menuGlyphs(tree)[0].props.accessibilityLabel).toMatch(/^Actions for Dana Chu's paste, /);
     act(() => tree.unmount());
   });
 
@@ -2578,9 +2604,8 @@ describe('pasting into the record', () => {
     withPaste();
     showChannel(channelOf());
     const tree = await open();
-    await act(async () => {
-      findButton(tree, 'Copy')!.props.onPress();
-    });
+    openMenu(tree).choose('Copy');
+    await act(async () => {});
     expect(textOf(tree)).toContain('✗ copy failed');
     act(() => tree.unmount());
   });
@@ -2589,7 +2614,7 @@ describe('pasting into the record', () => {
     withPaste();
     showChannel(channelOf());
     const tree = await open();
-    expect(findButton(tree, 'Open')).toBeDefined();
+    expect(openMenu(tree).options).toContain('Open');
     act(() => tree.unmount());
   });
 
@@ -2599,7 +2624,7 @@ describe('pasting into the record', () => {
     withPaste({ text: 'have a look at https://example.com when you can' });
     showChannel(channelOf());
     const tree = await open();
-    expect(findButton(tree, 'Open')).toBeUndefined();
+    expect(openMenu(tree).options).not.toContain('Open');
     act(() => tree.unmount());
   });
 
@@ -2607,7 +2632,7 @@ describe('pasting into the record', () => {
     withPaste({ text: 'javascript:alert(1)' });
     showChannel(channelOf());
     const tree = await open();
-    expect(findButton(tree, 'Open')).toBeUndefined();
+    expect(openMenu(tree).options).not.toContain('Open');
     act(() => tree.unmount());
   });
 
@@ -2618,7 +2643,10 @@ describe('pasting into the record', () => {
     showChannel(channelOf());
     const tree = await open();
     expect(findButton(tree, 'Clear')).toBeUndefined();
-    expect(findButton(tree, 'Delete')).toBeDefined();
+    const menu = openMenu(tree);
+    expect(menu.options[menu.options.length - 1]).toBe('Delete');
+    expect(menu.destructive('Delete')).toBe(true);
+    expect(menu.disabled('Delete')).toBe(false);
     act(() => tree.unmount());
   });
 
@@ -2679,7 +2707,11 @@ describe('pasting into the record', () => {
 
     expect(findButton(tree, 'Paste my clipboard')!.props.accessibilityState.disabled).toBe(true);
     // Copying out is not restricted: the content is already on this phone.
-    expect(findButton(tree, 'Copy')!.props.disabled).toBeFalsy();
+    // Deleting is, greyed with why, as a segment's is.
+    const menu = openMenu(tree);
+    expect(menu.disabled('Copy')).toBe(false);
+    expect(menu.disabled('Delete')).toBe(true);
+    expect(menu.message).toContain('Step in to delete.');
     act(() => tree.unmount());
   });
 });

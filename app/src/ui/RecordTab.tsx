@@ -483,7 +483,8 @@ function Segment({
                 key={entry.segment.id}
                 segment={entry.segment}
                 channelId={channelId}
-                deletable={!!item.segment.paste && manageable}
+                deletable={!!item.segment.paste}
+                manageable={manageable}
               />
             ) : (
               <View key={entry.block.lines[0].id} style={styles.entry}>
@@ -771,7 +772,7 @@ export function SegmentLine({
   });
 
   // A paste is an instant, said by its own entry's name and time; there are
-  // no hours to give it and nothing to do with it but what Copy already does.
+  // no hours to give it and nothing to do with it but what its entry's menu does.
   if (segment.paste) return null;
 
   const title = connected && segment.filed?.title ? <FiledTitle title={segment.filed.title} /> : null;
@@ -1520,13 +1521,26 @@ export function intoRooms(
 
 /**
  * One paste in the log: the clipboard glyph, its author's name and the time,
- * then *Copy* — and *Open* when the whole of it is one link, on the allowlist
- * a description's links are held to — at the end of that line, and the text
- * under it. **Words at the end of the line rather than buttons under it**, as
- * a segment's menu is a glyph at the end of its: this tab is a log with
- * nothing around its entries (STYLE.md), and a button row under every paste
- * would be the loudest thing in it. Finding a link *inside* longer text is deliberately not attempted:
- * it would mean guessing which of several somebody meant.
+ * then the segment's menu glyph at the end of that line (`useActionMenu`), and
+ * the text under it.
+ *
+ * **A menu like a segment's since 2026-11-19**, at Rodrigo's asking, where
+ * the line had ended in 13-point words — *Open*, *Read again*, *Copy* and,
+ * for a day, a red *Delete*. Four words at the end of a line was a second way
+ * to act on an entry beside the segments' glyph, and the one that grew: each
+ * word took width from the author's name, and a refused one could only be
+ * left out, there being no room for the sentence a greyed one is owed. The
+ * rows are *Read again*, *Open* when the whole of it is one link, on the
+ * allowlist a description's links are held to, then *Copy*, and *Delete*
+ * last where the paste is a segment of its own. Finding a link *inside*
+ * longer text is deliberately not attempted: it would mean guessing which of
+ * several somebody meant.
+ *
+ * **Copying says how it went on the line**, *✓ copied* or the failure in
+ * `type.muted` before the glyph for two and a half seconds, as the word
+ * itself used to flip: the menu closes when a row is chosen, so the line is
+ * where the eye is, and a dialog for something that worked would be louder
+ * than the act.
  *
  * **Drawn whole**, unlike the one line the *Clipboard* tab gave the newest
  * paste: in a log it is an entry like any other, and a transcript does not
@@ -1536,18 +1550,22 @@ export function PasteEntry({
   segment,
   channelId,
   deletable = false,
+  manageable = true,
 }: {
   segment: SegmentView;
-  /** Absent where there is no channel to ask, which draws no *Read again*. */
+  /** Absent where there is no channel to ask, which draws no *Read again* and no *Delete*. */
   channelId?: string;
   /**
-   * Whether it offers *Delete*, since 2026-11-18: a paste that is a segment
-   * of its own, to a member who may delete from the *Record* now. One that is
-   * part of a segment goes with that segment's text instead, and the
-   * word is left out rather than greyed, a line of words having no room for
-   * the sentence a greyed one is owed.
+   * Whether its menu has *Delete*, since 2026-11-18: a paste that is a
+   * segment of its own. One that is part of a segment goes with that
+   * segment's text instead.
    */
   deletable?: boolean;
+  /**
+   * Whether you may delete from the *Record* now (`RecordTab`'s); not, and
+   * *Delete* is greyed with the sentence saying why, as a segment's is.
+   */
+  manageable?: boolean;
 }) {
   const t = useText().channel;
   const linkWords = useText().links;
@@ -1556,7 +1574,7 @@ export function PasteEntry({
   /**
    * *Read again*, since 2026-11-13: on a reply of Claude's whose speech the
    * server still keeps — an hour — for anybody in the room, who are the
-   * people it is said to. A paste segment's id is its paste's. Not drawn
+   * people it is said to. A paste segment's id is its paste's. Left out
    * rather than greyed outside the room, where a press could only be refused
    * and there is nobody it would be said to.
    */
@@ -1575,19 +1593,45 @@ export function PasteEntry({
   const said = useText().transcript;
   const [asking, setAsking] = React.useState(false);
   const paste = segment.paste;
+  const text = paste?.text ?? '';
+  const url = isSafeUrl(text.trim()) ? text.trim() : null;
+  const offersDelete = deletable && !!channelId;
+  // Called before the return below, being a hook.
+  const own = useActionMenu({
+    label: t.pasteActions(paste?.displayName ?? '', t.liveTime(segment.startedAt)),
+    items: [
+      ...(again
+        ? [
+            {
+              label: t.readAgain(),
+              group: 'play' as const,
+              onPress: () => void app.readAgain(channelId!, segment.id).catch(() => undefined),
+            },
+          ]
+        : []),
+      ...(url
+        ? [{ label: t.open(), group: 'share' as const, onPress: () => void openUrl(url, linkWords) }]
+        : []),
+      {
+        label: t.copy(),
+        group: 'share' as const,
+        onPress: () => void copyText(text).then((ok) => setCopied(ok ? 'done' : 'failed')),
+      },
+      ...(offersDelete
+        ? [
+            {
+              label: t.deleteSegment(),
+              group: 'delete' as const,
+              destructive: true,
+              disabled: !manageable,
+              onPress: () => setAsking(true),
+            },
+          ]
+        : []),
+    ],
+    notes: offersDelete && !manageable ? [said.stepInToDelete()] : [],
+  });
   if (!paste) return null;
-  const url = isSafeUrl(paste.text.trim()) ? paste.text.trim() : null;
-  const word = (label: string, onPress: () => void, destructive = false) => (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      hitSlop={spacing(1)}
-      onPress={onPress}
-      style={({ pressed }) => (pressed ? styles.pressed : undefined)}
-    >
-      <Text style={[styles.pasteAction, destructive && styles.pasteDelete]}>{label}</Text>
-    </Pressable>
-  );
   const remove = () => {
     setAsking(false);
     if (!app.token || !channelId) return;
@@ -1607,22 +1651,18 @@ export function PasteEntry({
           {paste.displayName}
         </Text>
         <Text style={[type.muted, styles.pasteTime]}>{t.liveTime(segment.startedAt)}</Text>
-        {url ? word(t.open(), () => void openUrl(url, linkWords)) : null}
-        {again
-          ? word(t.readAgain(), () => void app.readAgain(channelId!, segment.id).catch(() => undefined))
-          : null}
-        {word(
-          copied === 'done' ? t.copied() : copied === 'failed' ? t.copyFailed() : t.copy(),
-          () => {
-            void copyText(paste.text).then((ok) => setCopied(ok ? 'done' : 'failed'));
-          }
-        )}
-        {deletable && channelId ? word(t.deleteSegment(), () => setAsking(true), true) : null}
+        {copied !== 'idle' ? (
+          <Text style={type.muted} accessibilityLiveRegion="polite">
+            {copied === 'done' ? t.copied() : t.copyFailed()}
+          </Text>
+        ) : null}
+        <View style={styles.pasteMenu}>{own.button}</View>
       </View>
+      {own.panel}
       <Text style={type.body} selectable>
         {paste.text}
       </Text>
-      {deletable ? (
+      {offersDelete ? (
         <ConfirmModal
           visible={asking}
           title={t.deletePasteAsk(paste.displayName)}
@@ -1689,13 +1729,11 @@ const styles = StyleSheet.create({
   voiceNames: { gap: spacing(1) },
   voiceName: { gap: spacing(0.5) },
   // The glyph before the name, so a paste reads as an entry and as not
-  // somebody talking; the time takes the room, pushing Copy to the end.
+  // somebody talking; the time takes the room, pushing the menu to the end.
   pasteMark: { alignSelf: 'center' },
   pasteTime: { flex: 1 },
-  // A word rather than a button, in the body's colour so it reads as one.
-  pasteAction: { color: colors.text, fontSize: 13, fontWeight: '600' },
-  // *Delete*, the one word on the line that destroys, in the colour that says so.
-  pasteDelete: { color: colors.danger },
+  // The menu's glyph, centred on a line whose words sit on one baseline.
+  pasteMenu: { alignSelf: 'center' },
   entryHead: { flexDirection: 'row', alignItems: 'baseline', gap: spacing(1) },
   speaker: { color: colors.text, fontSize: 14, fontWeight: '600', flexShrink: 1 },
   // A room's line: the date and hours. The hairline under it is what made it

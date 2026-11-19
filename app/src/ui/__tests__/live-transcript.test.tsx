@@ -822,16 +822,16 @@ describe('rooms on the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
 
-    // Only the paste standing alone has a Delete of its own.
-    const deletes = () =>
-      tree.root.findAll(
-        (n: { type: unknown; props: { accessibilityRole?: string; accessibilityLabel?: string } }) =>
-          typeof n.type !== 'string' &&
-          n.props.accessibilityRole === 'button' &&
-          n.props.accessibilityLabel === 'Delete' &&
-          'onPress' in n.props
-      );
-    expect(deletes()).toHaveLength(1);
+    // Each paste has a menu of its own, the one inside the segment drawn once
+    // it is opened; only the one standing alone has a Delete in it.
+    openSegments(tree);
+    expect(menuGlyphs(tree).map((g) => String(g.props.accessibilityLabel))).toEqual([
+      expect.stringMatching(/^Actions for \d/),
+      expect.stringMatching(/^Actions for Claude's paste, /),
+      expect.stringMatching(/^Actions for Claude's paste, /),
+    ]);
+    expect(openMenu(tree, 1).options).toEqual(['Copy']);
+    expect(openMenu(tree, 2).options).toEqual(['Copy', 'Delete']);
 
     openMenu(tree).choose('Delete');
     expect(confirmation(tree).text).toContain('What was pasted here goes with the text.');
@@ -840,7 +840,7 @@ describe('rooms on the Record tab', () => {
     confirmation(tree).tick('Text');
     await confirmation(tree).press('Keep');
 
-    await act(async () => (deletes()[0].props as { onPress: () => void }).onPress());
+    openMenu(tree, 2).choose('Delete');
     expect(confirmation(tree).text).toContain("Delete Claude's paste?");
     await confirmation(tree).press('Delete');
     expect(deletedPaste).toHaveBeenCalledWith('token', 'sess_1', 'p_out');

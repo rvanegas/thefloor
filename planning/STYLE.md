@@ -1350,9 +1350,9 @@ Claude's reply*, muted, then *Restart* and *Stop* as two `default` buttons,
 first is *Read again* where the room is hearing the reply**, the server
 speaking it to everybody: it asks for it again *for everybody*, so it says so,
 while *Stop* stays this phone's alone — one shared and one local control on
-one bar, which the labels are what tell apart. The same *Read again* is a
-word beside *Copy* on Claude's reply in the *Record* for the hour its speech
-is kept, drawn only for somebody in the room. Built as the footer
+one bar, which the labels are what tell apart. The same *Read again* is the
+first row of the menu on Claude's reply in the *Record* for the hour its speech
+is kept, offered only to somebody in the room. Built as the footer
 is, `surface` and a top hairline. `Screen` draws it between the body and the
 footer (`ReadingBar`, from `ReadingContext`), so when it comes and goes it
 takes its height from the scroll and **the footer's targets do not move** —
@@ -1422,14 +1422,21 @@ the dot, so it reads as the header's own, and drawn shut or open, since it
 names the segment. Each room starts with its line — date and hours, no menu — over a
 hairline; see § *The pinned header*.
 **A paste is an entry like a speaker's**, since 2026-10-15: the clipboard
-glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*
-as 13-point words in `text` at the end of that line — words and not buttons,
-as the menu is a glyph — and the whole text under it in `type.body`. A paste
-that is a segment of its own ends the line with *Delete* in `danger`, since
-2026-11-18, the one word there that destroys; left out rather than greyed
-where it is refused, a line of words having no room for the sentence. Drawn
-among its segment's lines at its moment, or alone where nothing was being
-kept. **Pasting is a glyph at the right end of the pinned bar**, after *Text*,
+glyph at 14 in `textMuted` before the name, the time, then a segment's menu
+glyph at the end of that line, and the whole text under it in `type.body`.
+**Its actions are a menu like a segment's since 2026-11-19**, at Rodrigo's
+asking (`useActionMenu`, the same rows under the line): *Read again* on a
+reply of Claude's whose speech is kept, *Open* when the whole of it is one
+link, *Copy*, and, on a paste that is a segment of its own, *Delete* in
+`danger`, greyed with *Step in to delete* under it where it is refused, as a
+segment's is (groups play, share, delete). They had been 13-point words in
+`text` at the end of the line, *Delete* the fourth for a day; four words
+took the author's name's width, and a refused one could only be left out, a
+line of words having no room for the sentence. **How a copy went is said on
+the line**, *✓ copied* or the failure in `type.muted` before the glyph for
+two and a half seconds, as the word itself had flipped: the menu closes on
+the press, so the line is where the eye is. Drawn among its segment's lines
+at its moment, or alone where nothing was being kept. **Pasting is a glyph at the right end of the pinned bar**, after *Text*,
 since 2026-10-16 — the clipboard, or on iOS Apple's own paste control drawn
 icon-only (`displayMode="iconOnly"`), which is what spares the *Allow Paste?*
 sheet. It was a full-width button at the foot of the log for a day. It sits
@@ -1700,7 +1707,9 @@ the copy.
   the room's from 2026-10-09 and each segment's from the next day — when a
   segment's actions became one list, since a share glyph opening *Rename*
   and *Delete audio* would say less than what it opens. Its accessible name
-  is *Actions for* the segment's hours.
+  is *Actions for* the segment's hours. **A paste's line ends in the same
+  glyph since 2026-11-19**, named *Actions for* its author's paste and its
+  time.
 - **The *Invite card*, since 2026-10-16**, is *Add a contact*'s row on the
   People tab, the `+` and its word in the floor's colour, and so the third
   place that shape stands for *make something new* — the two existing ones

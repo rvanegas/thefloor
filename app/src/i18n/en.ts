@@ -1557,6 +1557,12 @@ export const en = {
      * the segment by its hours (`roomSpan`); see `SegmentLine`.
      */
     segmentActions: (span: string) => `Actions for ${span}`,
+    /**
+     * What a screen reader calls a paste's menu, since 2026-11-19, naming it
+     * by its author and its time (`liveTime`), as its line does; see
+     * `PasteEntry`.
+     */
+    pasteActions: (who: string, at: string) => `Actions for ${who}'s paste, ${at}`,
     /** In a segment's menu: its audio, or its text, as a file. */
     shareAudio: () => 'Share audio',
     shareText: () => 'Share text',
