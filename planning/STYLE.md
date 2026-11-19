@@ -546,6 +546,12 @@ commitment somebody presses once. A permission is neither: it has to start
 clear, stay clear if nobody touches it, and read as unticked rather than as
 *off*, which is a distinction a switch cannot draw.
 
+**That rule is a setting's, and a confirmation's boxes start ticked**, said at
+the prompt 2026-11-18. In a confirmation a box is not a permission but an item
+about to go, and unticking it spares it — *Delete* on a segment, with audio,
+text and the noesis document each its own box
+(`one-delete-for-a-segment-with-what-goes-checked.md`).
+
 **It has no `disabled`, and the attempt to give it one is the clearest reading
 of that rule there is.** The public page's switch on *Channel Settings* was a
 fourth user for a few hours on 2026-09-22, greyed until the channel had a name;
@@ -1801,10 +1807,16 @@ rules.
   refusal a rule can enumerate against *you* is grey with a sentence; a
   refusal that is a fact about the state everybody is in is gone with a
   sentence.
-- **Destructive and irreversible acts confirm through `Alert.alert`**, with
-  `style: 'cancel'` first and `style: 'destructive'` second, and the body says
-  what is actually lost and for how long. There are 36 of these; there are no
-  custom modal dialogs and no `Alert.prompt` — a rename happens in a `Field`
+- **Destructive and irreversible acts confirm**, cancel first and the
+  destructive choice second, and the body says what is actually lost and for
+  how long. **`Alert.alert` is not for ordinary UI**, Rodrigo said on
+  2026-11-18, reversing what this bullet said until then: it draws nothing of
+  this guide and holds no control but buttons, so a confirmation that has to
+  ask *what* goes — *Delete* on a segment, with a box each for audio, text and
+  the document — cannot be one. The app still has 53 calls today; moving them
+  to one custom modal is `alert-alert-is-not-for-ordinary-ui.md`, which also
+  settles what, if anything, may still use the system's. There is no
+  `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
   **And no action sheets: a menu opens in the view.** A segment's actions
   (`useActionMenu`) are a list of rows the glyph opens under its line
