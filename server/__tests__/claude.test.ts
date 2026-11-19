@@ -122,6 +122,28 @@ describe('the Record as Claude reads it', () => {
     expect(record.text.indexOf('Ben:')).toBeLessThan(record.text.indexOf('Ana (pasted)'));
   });
 
+  it('reads a paste inside the segment it is part of, at its moment, and one alone in its place', () => {
+    const inside = {
+      ...pasted(T0 + 30_000, 'acct_a', 'Ana', 'a link'),
+      paste: { authorId: 'acct_a', displayName: 'Ana', text: 'a link', segmentId: `seg_${T0}`, offsetMs: 30_000 },
+    };
+    const record = composeRecord(
+      sources(
+        [room(T0, [spoken(T0, T0 + 60_000), inside, pasted(T0 + 90_000, 'acct_b', 'Ben', 'alone')])],
+        [
+          { displayName: 'Ben', startAt: T0 + 1_000, text: 'Before it.' },
+          { displayName: 'Ben', startAt: T0 + 40_000, text: 'After it.' },
+        ]
+      ),
+      'c',
+      T0 + 120_000
+    )!;
+    const at = (text: string) => record.text.indexOf(text);
+    expect(at('Before it.')).toBeLessThan(at('Ana (pasted): a link'));
+    expect(at('Ana (pasted): a link')).toBeLessThan(at('After it.'));
+    expect(at('After it.')).toBeLessThan(at('Ben (pasted): alone'));
+  });
+
   it("reads a separated voice by its letter, or by the name given it in the segment's menu", () => {
     const segment = { ...spoken(T0, T0 + 60_000), voices: [{ identity: 'acct_b', speaker: 'B', name: 'Cy' }] };
     const record = composeRecord(
@@ -187,6 +209,21 @@ describe('the Record beside the channel’s own library', () => {
     expect(record.text).toMatch(/\[\d\d:\d\d–\d\d:\d\d\] Speaker0\. In this channel's library as 2023-11-14-\d+\.chat\.md, titled "On Names"\./);
     expect(record.text.match(/said/g)).toHaveLength(1);
     expect(userMessage(record, 'medium')).toContain('one line naming its document');
+  });
+
+  it('carries a paste inside a filed segment in its line, and not in full beside it', () => {
+    const [oldest, ...rest] = rooms;
+    const segment = oldest.segments[0];
+    const withPaste = room(oldest.openedAt, [
+      segment,
+      {
+        ...pasted(segment.startedAt + 30_000, 'acct_a', 'Ana', 'pasted early'),
+        paste: { authorId: 'acct_a', displayName: 'Ana', text: 'pasted early', segmentId: segment.id, offsetMs: 30_000 },
+      },
+    ]);
+    const record = composeLibraryRecord(sources([withPaste, ...rest], lines), 'c', now, 300)!;
+    expect(record.text).toContain('Speaker0. In this channel');
+    expect(record.text).not.toContain('pasted early');
   });
 
   it('is the whole Record, documents named, while it all fits', () => {

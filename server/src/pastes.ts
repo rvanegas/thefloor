@@ -1,6 +1,6 @@
 import type { ChannelState, Clip } from '../../core/types';
 import type { PasteView } from '../../core/protocol';
-import type { Db } from './db';
+import { pasteHomeSql, type Db } from './db';
 
 export interface PasteRow {
   id: string;
@@ -10,12 +10,13 @@ export interface PasteRow {
   pasted_at: number;
   text: string;
   working?: string | null;
+  /** The segment it is part of, or null where it is one of its own. */
+  segment_id?: string | null;
 }
 
 /**
  * **What has been pasted into a channel, kept in its *Record*** — since
- * 2026-10-15, when the *Clipboard* tab went. Each paste stands in the log as a
- * segment of its own at the instant it was made, and is never deleted.
+ * 2026-10-15, when the *Clipboard* tab went — and never deleted.
  *
  * **It breaks nothing.** A segment is a stretch kept one way throughout, and
  * every change of *what is kept* ends one; a paste is not such a change. One
@@ -23,6 +24,13 @@ export interface PasteRow {
  * carries on, so a recording is still exactly one segment's audio. Rodrigo's
  * choice over the clean break, which would have cut a recording in two at
  * every paste.
+ *
+ * **It is part of the segment being transcribed when it is made**, since
+ * 2026-11-18, and kept with that segment's id (`pasteHomeSql`): it is filed
+ * with it, and read by Claude inside it at its moment. Made while nothing is
+ * transcribed — nothing kept, or audio alone — it is a segment of its own, the
+ * instant it was made. Rodrigo's, so that choosing what of the *Record* Claude
+ * reads by segment takes what was pasted into one with it.
  *
  * Written on the transition, by the channel registry, as rooms and segments
  * are: the reducer's `clip` changing to a new one is a paste, whatever route
@@ -64,10 +72,20 @@ export class Pastes {
     this.db
       .prepare(
         `INSERT OR IGNORE INTO pastes
-           (id, channel_id, author_id, display_name, pasted_at, text)
-         VALUES (?, ?, ?, ?, ?, ?)`
+           (id, channel_id, author_id, display_name, pasted_at, text, segment_id)
+         VALUES (?, ?, ?, ?, ?, ?, (${pasteHomeSql('?', '?')}))`
       )
-      .run(clip.id, channelId, clip.authorId, this.nameOf(clip.authorId), clip.pastedAt, clip.text);
+      .run(
+        clip.id,
+        channelId,
+        clip.authorId,
+        this.nameOf(clip.authorId),
+        clip.pastedAt,
+        clip.text,
+        channelId,
+        clip.pastedAt,
+        clip.pastedAt
+      );
   }
 
   /**
@@ -88,7 +106,16 @@ export class Pastes {
   }
 }
 
-/** A paste as the wire carries it inside its segment. */
-export function pasteView(row: PasteRow): PasteView {
-  return { authorId: row.author_id, displayName: row.display_name, text: row.text };
+/**
+ * A paste as the wire carries it, and the segment it is part of when that
+ * segment began at `startedAt` — the caller's, since only a segment it lists
+ * is one the paste may name.
+ */
+export function pasteView(row: PasteRow, home?: { id: string; startedAt: number }): PasteView {
+  return {
+    authorId: row.author_id,
+    displayName: row.display_name,
+    text: row.text,
+    ...(home ? { segmentId: home.id, offsetMs: row.pasted_at - home.startedAt } : {}),
+  };
 }

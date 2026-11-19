@@ -49,7 +49,7 @@ export interface RoomRow {
 export class Rooms {
   /** Where each room's segments are read from; set by the registry. */
   segments?: Segments;
-  /** Where its pastes are, each a segment of its own; set by the registry. */
+  /** Where its pastes are, listed as instants among its segments; set by the registry. */
   pastes?: Pastes;
 
   constructor(private db: Db) {}
@@ -142,6 +142,10 @@ export class Rooms {
         !!transcribedIn.get(channelId, row.opened_at, until) || anyBatch(recordingIds);
       const pasted = this.pastes?.within(channelId, row.opened_at, until) ?? [];
       if (recordingIds.length === 0 && !transcribed && pasted.length === 0) continue;
+      const segments = this.segmentsOf(channelId, row.opened_at, until, recordingIds);
+      // A paste names its segment only where that one is listed here: one
+      // whose text has since gone, and so is not, leaves it standing alone.
+      const listed = new Map(segments.map((segment) => [segment.id, segment]));
       rooms.push({
         id: row.id,
         openedAt: row.opened_at,
@@ -149,14 +153,14 @@ export class Rooms {
         recordingIds,
         transcribed,
         segments: withPastes(
-          this.segmentsOf(channelId, row.opened_at, until, recordingIds),
+          segments,
           pasted.map((paste) => ({
             id: paste.id,
             startedAt: paste.pasted_at,
             endedAt: paste.pasted_at,
             recordingId: null,
             text: false,
-            paste: pasteView(paste),
+            paste: pasteView(paste, paste.segment_id ? listed.get(paste.segment_id) : undefined),
           }))
         ),
       });

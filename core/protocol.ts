@@ -1212,6 +1212,15 @@ export interface PasteView {
   /** Their name when they pasted it, as a live line keeps its speaker's. */
   displayName: string;
   text: string;
+  /**
+   * The segment it is part of, since 2026-11-18: the one being transcribed
+   * when it was made, and listed in the same room. Absent where none was —
+   * nothing kept, or audio alone — and the paste is a segment of its own.
+   * Ignored by older builds, which place it by its moment.
+   */
+  segmentId?: string;
+  /** How far into that segment it was made, in milliseconds. */
+  offsetMs?: number;
 }
 
 /**

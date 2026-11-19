@@ -1410,9 +1410,11 @@ export function voicesIn(item: SegmentItem): SeparatedVoice[] {
  * `from`, the oldest live line loaded, waits for the earlier pages, so that
  * nothing is drawn above talk not loaded yet.
  *
- * **A paste goes inside the segment it was made in**, the first drawn one
- * whose span holds it, and is otherwise an item of its own at its moment —
- * including inside a segment that is not drawn, whose paste is no less kept.
+ * **A paste goes inside the segment it is part of**, the one the server names
+ * (`PasteView.segmentId`, since 2026-11-18) — the one being transcribed when
+ * it was made — and is otherwise an item of its own at its moment: made while
+ * only audio was kept, or inside a segment that is not drawn, whose paste is
+ * no less kept.
  */
 export function intoRooms(
   rooms: readonly RoomView[],
@@ -1442,7 +1444,7 @@ export function intoRooms(
         items.push({ segment, recording, lines: said, pastes: [] });
       }
       for (const paste of pastes) {
-        const home = items.find((item) => covers(item.segment, paste.startedAt));
+        const home = items.find((item) => item.segment.id === paste.paste?.segmentId);
         if (home) home.pastes.push(paste);
         else items.push({ segment: paste, recording: null, lines: [], pastes: [] });
       }

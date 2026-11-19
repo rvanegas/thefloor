@@ -200,12 +200,11 @@ export class ChannelLibraries {
       }
     }
     if (entries.length === 0) return null;
+    // Its own, by id since 2026-11-18: by span, a paste at the instant one
+    // segment ended and the next began went into both documents.
     const pastes = this.db
-      .prepare(
-        `SELECT display_name, pasted_at, text FROM pastes
-          WHERE channel_id = ? AND pasted_at >= ? AND pasted_at <= ?`
-      )
-      .all(row.channel_id, row.started_at, row.ended_at) as unknown as Array<{
+      .prepare('SELECT display_name, pasted_at, text FROM pastes WHERE segment_id = ?')
+      .all(row.id) as unknown as Array<{
       display_name: string;
       pasted_at: number;
       text: string;

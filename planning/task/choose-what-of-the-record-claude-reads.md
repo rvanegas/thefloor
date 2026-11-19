@@ -14,10 +14,10 @@ there for Claude to read and need not be sent as well; then **cost**, whose
 cheaper answer is `cache-the-prompt-ask-claude-sends.md`. Where the three
 point different ways, distraction decides.
 
-**First, `a-paste-is-part-of-the-segment-it-was-made-in.md`**: a paste is a
-segment of its own today, so leaving a segment out would keep what was
-pasted into it, Claude's replies included, and a paste inside a filed
-segment is sent in full as well as filed.
+**Done first: `2026-11-18-a-paste-is-part-of-the-segment-it-was-made-in.md`**:
+a paste is part of the segment being transcribed when it was made, so
+leaving a segment out leaves out what was pasted into it, Claude's replies
+included, and a filed segment's pastes go with its line.
 
 Open, and the user's to answer:
 

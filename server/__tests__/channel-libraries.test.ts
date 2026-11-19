@@ -149,10 +149,10 @@ function textSegment(channelId: string, id = 'seg_1', at = START) {
   line.run(`${id}_b`, channelId, at + 62_000, at + 63_000, 'I was there.');
   app.db
     .prepare(
-      `INSERT INTO pastes (id, channel_id, author_id, display_name, pasted_at, text)
-       VALUES (?, ?, 'claude', 'Claude', ?, 'Bach reads Kant.')`
+      `INSERT INTO pastes (id, channel_id, author_id, display_name, pasted_at, text, segment_id)
+       VALUES (?, ?, 'claude', 'Claude', ?, 'Bach reads Kant.', ?)`
     )
-    .run(`${id}_p`, channelId, at + 120_000);
+    .run(`${id}_p`, channelId, at + 120_000, id);
 }
 
 const filedAt = (id: string) =>
@@ -195,6 +195,35 @@ describe('a channel library, filed into by itself', () => {
     ]);
     await app.channelLibraries!.sweep();
     expect(sent).toHaveLength(3);
+  });
+
+  it('files a paste with the segment it is part of, and not with the one it borders', async () => {
+    const { channelId, ertaId } = await bookClub();
+    makeFiling(ertaId);
+    textSegment(channelId);
+    // Pasted at the instant seg_1 ended and seg_2 began, so part of seg_2.
+    const end = START + 45 * 60_000;
+    app.db
+      .prepare('INSERT INTO segments (id, channel_id, started_at, ended_at, text) VALUES (?, ?, ?, ?, 1)')
+      .run('seg_2', channelId, end, end + 10 * 60_000);
+    app.db
+      .prepare(
+        `INSERT INTO live_lines (id, channel_id, identity, display_name, start_at, end_at, text)
+         VALUES ('seg_2_a', ?, 'erta', 'Erta Example', ?, ?, 'Resumed.')`
+      )
+      .run(channelId, end + 60_000, end + 61_000);
+    app.db
+      .prepare(
+        `INSERT INTO pastes (id, channel_id, author_id, display_name, pasted_at, text, segment_id)
+         VALUES ('edge', ?, ?, 'Erta Example', ?, 'At the seam.', 'seg_2')`
+      )
+      .run(channelId, ertaId, end);
+    clock = end + 10 * 60_000 + SETTLE_MS;
+    await app.channelLibraries!.sweep();
+    const bodies = sent.filter((s) => s.path.endsWith('/import')).map((s) => s.body);
+    expect(bodies).toHaveLength(2);
+    expect(bodies[0]).not.toContain('At the seam.');
+    expect(bodies[1]).toContain('Pasted by Erta Example · 14:50\nAt the seam.');
   });
 
   it("files a separated voice's letter on its name, as the Record shows it", async () => {
