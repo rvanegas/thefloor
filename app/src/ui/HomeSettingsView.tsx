@@ -515,12 +515,12 @@ export function HomeSettingsView({ onBack }: { onBack: () => void }) {
       </Card>
 
       {/*
-        ***Read aloud*: which voice of each grade reads the replies you ask
-        for**, at Rodrigo's word, 2026-11-13 — *Standard*, this phone's own,
-        and *Pro*, the server's. **Which grade reads is the channel's**, on
-        *Channel Settings* (`ChannelState.readAloud`); for a few hours that
-        day it was a choice here too. Each card is drawn only where it can
-        apply, and the label only over one.
+        ***Read aloud*: which voice reads the replies you ask for**, at
+        Rodrigo's word, 2026-11-13. **Which grade reads is the channel's** —
+        *Pro* while any member is, since 2026-11-19 — **and which voice you
+        choose is your own plan's**, at his word the same day: the *Pro
+        voice* card for Pro and Unlimited, this phone's *Standard voice* for
+        Basic. One card, and the label only over it.
       */}
       <ReadAloudSection />
 
@@ -976,7 +976,15 @@ function ProCard() {
   if (!view) return null;
   const until = view.until;
   const canBuy = purchasesAvailable && !!offer && !!view.offer;
-  if (until === null && !canBuy) return null;
+  /**
+   * **Basic, Pro or Unlimited — the one word of a grade the app says**,
+   * since 2026-11-19, at Rodrigo's word: every channel you are a member of
+   * is *Pro* while you are either of the last two. *Unlimited* is the
+   * `transcripts_unlimited` mark, Pro with no subscription (`until` null);
+   * a subscription says *Pro* even on a marked account, since it is what
+   * *Manage subscription* manages.
+   */
+  const plan = until !== null ? t.planPro() : view.pro ? t.planUnlimited() : t.planBasic();
 
   const buy = async () => {
     if (!offer || !view.offer) return;
@@ -1018,13 +1026,18 @@ function ProCard() {
 
   return (
     <>
-      <SectionLabel>{t.pro()}</SectionLabel>
+      <SectionLabel>{t.plan()}</SectionLabel>
       <Card style={styles.stack}>
+        <Text style={type.heading}>{plan}</Text>
         {until !== null ? (
           <Text style={type.muted}>{t.proUntil(until)}</Text>
-        ) : (
+        ) : view.pro ? (
+          <Text style={type.muted}>{t.planUnlimitedNote()}</Text>
+        ) : canBuy ? (
+          // The pitch only where it can be bought: anywhere else it is an
+          // advertisement for nothing, and *Basic* says enough.
           <Text style={type.muted}>{t.proPitch(view.freeMinutes)}</Text>
-        )}
+        ) : null}
         {until === null && canBuy ? (
           <Button
             label={t.proSubscribe(offer!.price)}
@@ -1062,7 +1075,7 @@ function ProCard() {
   );
 }
 
-/** *Read aloud*'s label and two cards. See the comment where it is drawn. */
+/** *Read aloud*'s label and its one card. See the comment where it is drawn. */
 function ReadAloudSection() {
   const app = useApp();
   const t = useText().homeSettings;
@@ -1072,16 +1085,16 @@ function ReadAloudSection() {
     : ['en', 'es'];
   const { found, choose } = useReadAloudVoices(languages);
   const standard = Platform.OS === 'ios' && found !== null ? found : null;
-  // Only where this server speaks at all, which a channel's snapshot is the
-  // one thing to say (`ChannelView.speech`).
-  const pro = Object.values(app.channelViews ?? {}).some((view) => view?.speech);
+  // *Pro* voices only for a Pro account, and only where this server speaks
+  // at all, which a channel's snapshot is the one thing to say
+  // (`ChannelView.speech`); anybody else reads with this phone's.
+  const pro = app.pro && Object.values(app.channelViews ?? {}).some((view) => view?.speech);
   if (!standard && !pro) return null;
   return (
     <>
       <SectionLabel>{t.readAloud()}</SectionLabel>
       <View style={styles.cards}>
-        {standard ? <StandardVoiceCard found={standard} choose={choose} /> : null}
-        {pro ? <ProVoiceCard languages={languages} /> : null}
+        {pro ? <ProVoiceCard languages={languages} /> : <StandardVoiceCard found={standard!} choose={choose} />}
       </View>
     </>
   );
@@ -1236,7 +1249,6 @@ function ProVoiceCard({ languages }: { languages: SpokenLanguage[] }) {
               {t.proVoiceIs(language, nameOf(speechVoiceFor(app.speechVoices, language)))}
             </Text>
           ))}
-      {open && !app.pro ? <Text style={type.muted}>{t.proVoiceWho()}</Text> : null}
       <View style={styles.disclosure}>
         <Button
           label={open ? more.seeLess() : more.seeMore()}

@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { TRANSCRIPT_DELETED_RETENTION_MS } from '../../core/constants';
-import type { TranscriptionModel } from '../../core/types';
 import { intoBlocks, readable, type TranscriptLine, type VoiceName } from '../../core/transcript';
 import { MEDIA_IDENTITY } from './channels';
+import type { TranscriptionModel } from './transcription';
 import { CLAUDE_ID } from '../../core/constants';
 import { hasSearchIndex, type Db, type RecordingRow } from './db';
 import { encodeStem, type ExportRequest } from './export';

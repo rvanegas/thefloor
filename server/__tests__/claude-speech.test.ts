@@ -120,9 +120,9 @@ async function room2() {
   const channelId = created.channel.id;
   app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
   app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
-  // Alice is *Pro*, and has the channel's replies read by *Pro* voices.
+  // Alice is marked unlimited, which makes the channel *Pro*: its replies
+  // are read by *Pro* voices whoever asks.
   app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.account.id);
-  app.channels.dispatch(channelId, alice.account.id, { type: 'SET_READ_ALOUD', readAloud: 'pro' } as never);
   clock += 1_000;
   app.channels.dispatch(channelId, bob.account.id, {
     type: 'PASTE_CLIP',
@@ -219,6 +219,13 @@ describe("Claude's reply, spoken", () => {
     expect(app.channels.roomReaderUnheard(channelId)).toEqual([]);
   });
 
+  it('names nobody in a channel no member is Pro in, whose replies the phones read', async () => {
+    boot();
+    const { alice, channelId } = await room2();
+    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 0 WHERE id = ?').run(alice.account.id);
+    expect(app.channels.roomReaderUnheard(channelId)).toEqual([]);
+  });
+
   it('is spoken in the language of the channel’s first transcript', async () => {
     boot();
     const { alice, channelId } = await room2();
@@ -290,31 +297,11 @@ describe("Claude's reply, spoken", () => {
   it('is read by the phones, at no cost, in a Standard channel', async () => {
     boot();
     const { alice, channelId } = await room2();
-    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_READ_ALOUD', readAloud: 'standard' } as never);
+    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 0 WHERE id = ?').run(alice.account.id);
     await press(channelId, alice.token);
     await settle();
     expect(speech.requests).toEqual([]);
     expect(app.channels.get(channelId)!.clip!.speech).toBeUndefined();
-  });
-
-  it('keeps the channel’s grade across a restart', async () => {
-    boot();
-    const { channelId } = await room2();
-    app.channels.stop();
-    await app.fastify.close();
-    boot();
-    expect(app.channels.get(channelId)!.readAloud).toBe('pro');
-  });
-
-  it('is chosen Standard or Pro by Pro alone', async () => {
-    boot();
-    const { bob, channelId } = await room2();
-    const refused = app.channels.dispatch(channelId, bob.account.id, {
-      type: 'SET_READ_ALOUD',
-      readAloud: 'standard',
-    } as never);
-    expect(refused.ok).toBe(false);
-    expect(app.channels.get(channelId)!.readAloud).toBe('pro');
   });
 
   it('is not spoken by a server without a provider', async () => {

@@ -163,14 +163,6 @@ export function createChannel(params: {
     autoRecord: false,
     liveTranscription: false,
     autoTranscribe: false,
-    // The cheap grade, which is what every transcript is asked for unless a
-    // `debug` account has said otherwise.
-    transcriptionModel: 'standard',
-    // Haiku, for the same reason: the cheap grade unless a `debug` account
-    // has said otherwise.
-    responseModel: 'standard',
-    // The phones' own voices, free, until somebody *Pro* says otherwise.
-    readAloud: 'standard',
     // Off until the library's owner says otherwise, channel by channel.
     library: false,
     recording: initialRecordingState(),
@@ -229,9 +221,6 @@ export const COMMUNITY_OWNER_ACTIONS: ReadonlySet<ChannelAction['type']> = new S
   'SET_NAME',
   'SET_DESCRIPTION',
   'SET_AUTO_RECORD',
-  'SET_TRANSCRIPTION_MODEL',
-  'SET_RESPONSE_MODEL',
-  'SET_READ_ALOUD',
   'SET_LIBRARY',
   'START_RECORDING',
   'PAUSE_RECORDING',
@@ -3571,31 +3560,8 @@ function reduceAction(
       return { ...state, autoRecord: action.autoRecord };
     }
 
-    case 'SET_TRANSCRIPTION_MODEL': {
-      // Guarded like `SET_AUTO_RECORD`. Who has `debug` is not channel state,
-      // so that half of the rule is the server's, applied before this runs.
-      if (!canEditChannel(state, action.userId)) return state;
-      if (action.transcriptionModel === state.transcriptionModel) return state;
-      return { ...state, transcriptionModel: action.transcriptionModel };
-    }
-
-    case 'SET_RESPONSE_MODEL': {
-      // Guarded like `SET_TRANSCRIPTION_MODEL`, and for the same reason the
-      // `debug` half of the rule is the server's.
-      if (!canEditChannel(state, action.userId)) return state;
-      if (action.responseModel === (state.responseModel ?? 'standard')) return state;
-      return { ...state, responseModel: action.responseModel };
-    }
-
-    case 'SET_READ_ALOUD': {
-      // Guarded like `SET_RESPONSE_MODEL`, the *Pro* half being the server's.
-      if (!canEditChannel(state, action.userId)) return state;
-      if (action.readAloud === (state.readAloud ?? 'standard')) return state;
-      return { ...state, readAloud: action.readAloud };
-    }
-
     case 'SET_LIBRARY': {
-      // Guarded like `SET_RESPONSE_MODEL`. Whether somebody has a library to
+      // Guarded like `SET_AUTO_RECORD`. Whether somebody has a library to
       // offer is not channel state, so that half of the rule is the server's.
       // On sets the switcher's own choice beside anybody else's; off is
       // anybody's who may edit, for one owner or for all of them.

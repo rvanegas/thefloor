@@ -5491,10 +5491,10 @@ export function buildApp(options: BuildOptions = {}): App {
     }
 
     try {
-      // The grade is the channel's, read now and stored on the transcript,
-      // so changing the setting afterwards changes nothing already asked for.
-      const model =
-        channels.get(allowed.row.channel_id)?.transcriptionModel ?? 'standard';
+      // The grade is the channel's — *Pro* while a member is
+      // (`isProChannel`) — read now and stored on the transcript, so a
+      // member's Pro lapsing afterwards changes nothing already asked for.
+      const model = channels.isProChannel(allowed.row.channel_id) ? 'pro' : 'standard';
       // Read before the request, which is what the gate measured against.
       const estimate = transcripts.costEstimateMs(id) ?? 0;
       await transcripts.request(id, account.id, model);

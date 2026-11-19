@@ -37,7 +37,14 @@
  * not use the part that justifies it, on four endpoints, is the wrong trade.
  */
 
-import type { TranscriptionModel } from '../../core/types';
+/**
+ * Which grade of speech model a transcript is asked for: `pro` where the
+ * channel is *Pro* when it is requested (`isProChannel` in channels.ts),
+ * `standard` otherwise, and stored on the transcript. Named by grade rather
+ * than by the provider's model id, so that it survives a change of provider;
+ * the mapping is `ASSEMBLYAI_MODELS` below.
+ */
+export type TranscriptionModel = 'standard' | 'pro';
 
 /**
  * One utterance — a stretch of speech from one person, with the times it ran

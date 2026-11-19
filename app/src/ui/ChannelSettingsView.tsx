@@ -21,7 +21,7 @@ import {
   NOTIFICATION_LEVELS,
   type NotificationLevel,
 } from '../../../core/notifications';
-import type { ChannelState, ReadAloud, ResponseModel, TranscriptionModel } from '../../../core/types';
+import type { ChannelState } from '../../../core/types';
 import type { ChannelLibraryView, NoesisView } from '../../../core/protocol';
 import { API_URL } from '../api/config';
 import { api, type GuestLinkSummary } from '../api/http';
@@ -180,10 +180,6 @@ export function ChannelSettingsView({
    */
   const view = app.channelViews[channel.id];
   const mayAutoTranscribe = view?.mayAutoTranscribe ?? view?.mayTranscribeLive ?? false;
-  /** `?? 'standard'` for the same reason. See `transcriptionModel`. */
-  const transcriptionModel = channel.transcriptionModel ?? 'standard';
-  /** `?? 'standard'` again. See `ChannelState.responseModel`. */
-  const responseModel = channel.responseModel ?? 'standard';
   /** `?? false`: a channel from a server before the switch never had it on. */
   const library = channel.library ?? false;
   const mayChangeLibrary = view?.mayChangeLibrary ?? false;
@@ -538,113 +534,11 @@ export function ChannelSettingsView({
       </Card>
 
       {/*
-        Which grade of speech model this channel's transcripts are asked for,
-        drawn for everybody since 2026-11-08 on the response model's terms
-        below: which grade a transcript is asked of is something everybody in
-        the channel may know, and only a *Pro* account may change it, which
-        the server enforces. It was drawn for `debug` alone until then. Beside
-        *Record automatically* because it is the same kind of thing: a
-        setting about what the channel keeps, on the same terms.
+        *Transcription model*, *Response model* and *Read aloud* were here,
+        each a grade a *Pro* account chose for the channel, until 2026-11-19:
+        a channel is *Pro* throughout while any member is, at Rodrigo's word,
+        and the only word of it is the reader's own plan on *Floor Settings*.
       */}
-      <Card style={styles.stack}>
-        <Text style={type.heading}>{t.transcriptionModel()}</Text>
-        <View style={styles.choices}>
-          {(
-            [
-              ['standard', t.transcriptionStandard()],
-              ['pro', t.transcriptionPro()],
-            ] as Array<[TranscriptionModel, string]>
-          ).map(([value, label]) => (
-            <Button
-              key={value}
-              label={label}
-              style={styles.choice}
-              disabled={!mayEdit || !app.pro}
-              variant={transcriptionModel === value ? 'primary' : 'default'}
-              onPress={() => app.act(channel.id, {
-                type: 'SET_TRANSCRIPTION_MODEL',
-                transcriptionModel: value,
-              })}
-            />
-          ))}
-        </View>
-        <Text style={type.muted}>{t.transcriptionModelNote()}</Text>
-        {app.pro ? null : <Text style={type.muted}>{t.modelWho()}</Text>}
-      </Card>
-
-      {/*
-        **Which model *Ask Claude* asks, since 2026-10-22** — drawn for
-        everybody: which model is answering in a channel is something
-        everybody in it may know. Settable only by a *Pro* account since
-        2026-11-08 (`debug` until then), which the server enforces; for
-        anybody else it is grey, with the sentence that says why, STYLE.md's
-        case of a refusal a rule can name against you. Drawn only where this
-        server can ask Claude at all, since a choice of model for nothing is a
-        control the state overrules.
-      */}
-      {view?.claude ? (
-        <Card style={styles.stack}>
-          <Text style={type.heading}>{t.responseModel()}</Text>
-          <View style={styles.choices}>
-            {(
-              [
-                ['standard', t.responseStandard()],
-                ['pro', t.responsePro()],
-                ['max', t.responseMax()],
-              ] as Array<[ResponseModel, string]>
-            ).map(([value, label]) => (
-              <Button
-                key={value}
-                label={label}
-                style={styles.choice}
-                disabled={!mayEdit || !app.pro}
-                variant={responseModel === value ? 'primary' : 'default'}
-                onPress={() => app.act(channel.id, {
-                  type: 'SET_RESPONSE_MODEL',
-                  responseModel: value,
-                })}
-              />
-            ))}
-          </View>
-          <Text style={type.muted}>{t.responseModelNote()}</Text>
-          {app.pro ? null : <Text style={type.muted}>{t.modelWho()}</Text>}
-        </Card>
-      ) : null}
-
-      {/*
-        **Whether *Standard* or *Pro* voices read the channel's Claude
-        replies, since 2026-11-13** — the *Response model* card's terms and
-        shape, at Rodrigo's word: the channel's whoever asks, drawn for
-        everybody, settable only by *Pro*, which the server enforces, and grey
-        with the same sentence for anybody else. Two grades, so a `choices`
-        row. Which voice of each is the asker's, on *Floor Settings*; the
-        *Pro voice* card was here that morning. Drawn only where the server
-        speaks and Claude can be asked.
-      */}
-      {view?.claude && view.speech ? (
-        <Card style={styles.stack}>
-          <Text style={type.heading}>{t.readAloud()}</Text>
-          <View style={styles.choices}>
-            {(
-              [
-                ['standard', t.readAloudStandard()],
-                ['pro', t.readAloudPro()],
-              ] as Array<[ReadAloud, string]>
-            ).map(([value, label]) => (
-              <Button
-                key={value}
-                label={label}
-                style={styles.choice}
-                disabled={!mayEdit || !app.pro}
-                variant={(channel.readAloud ?? 'standard') === value ? 'primary' : 'default'}
-                onPress={() => app.act(channel.id, { type: 'SET_READ_ALOUD', readAloud: value })}
-              />
-            ))}
-          </View>
-          <Text style={type.muted}>{t.readAloudNote()}</Text>
-          {app.pro ? null : <Text style={type.muted}>{t.modelWho()}</Text>}
-        </Card>
-      ) : null}
 
       {/*
         **Whether *Ask Claude* may consult the library, since 2026-10-27** —

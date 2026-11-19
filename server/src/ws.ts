@@ -378,6 +378,15 @@ function deviceKey(connection: Connection): string {
 }
 
 /**
+ * The channel's grade in the three fields builds before 440 read it from,
+ * `ChannelState`'s until 2026-11-19. Shim: see planning/SHIMS.md.
+ */
+export function legacyGradesOf(pro: boolean): Record<string, 'standard' | 'pro'> {
+  const grade = pro ? 'pro' : 'standard';
+  return { transcriptionModel: grade, responseModel: grade, readAloud: grade };
+}
+
+/**
  * The same key from its two ingredients, for a request that is not a socket —
  * `POST /live-activities`, which has to file a card under the device that will
  * later be displaced. `device` is passed through `claimedDevice` here so the
@@ -1316,7 +1325,14 @@ export function registerWebsocket(deps: {
         // is shipped whole, so the withholding has to happen on the way out.
         // `withoutRemovalsAgainst` returns the state unchanged when there is
         // nothing to hide, which is nearly every push.
-        channel: withoutRemovalsAgainst(channel, connection.userId),
+        // **Shim, until the floor passes 440** (planning/SHIMS.md): the three
+        // grades an older build draws on *Channel Settings* and reads for
+        // *Read aloud*, said as `isProChannel` decides them. Spread from a
+        // variable because `ChannelState` no longer has them.
+        channel: {
+          ...withoutRemovalsAgainst(channel, connection.userId),
+          ...legacyGradesOf(channels.isProChannel(channelId)),
+        },
         participants,
         recordings: recordingsInChannel(channelId, connection.userId),
         pingableAt: channels.pingWindows(channelId),

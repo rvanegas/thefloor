@@ -193,23 +193,12 @@ describe('the two languages', () => {
       'home.podcasts',
       'channelSettings.podcast',
       'transcript.data',
-      // A grade name taken from the provider's own model name, which is not
-      // translated where they sell it either.
-      'channelSettings.transcriptionPro',
-      // The response model's grade, the same word for the same reason — and,
-      // like the one above, not the subscription below.
-      'channelSettings.responsePro',
-      'channel.claudeProSuffix',
-      // *Max*, the third grade, on the same reasoning.
-      'channelSettings.responseMax',
-      'channel.claudeMaxSuffix',
-      // *Pro* voices, since 2026-11-13: the grade's word, the same for the
-      // response model's reason. *Standard* is translated, as that one is.
-      'channelSettings.readAloudPro',
-      // The subscription's name — a different Pro from the grade above, and
-      // the name it is sold under in the App Store, which is not translated
-      // either. GLOSSARY.md, *Pro (the subscription)*.
-      'homeSettings.pro',
+      // The subscription's name, and the plan it makes you — the name it is
+      // sold under in the App Store, which is not translated either.
+      // GLOSSARY.md, *Pro (the subscription)*. *Basic* and *Unlimited* are.
+      'homeSettings.planPro',
+      // *Plan* is the same word in Spanish.
+      'homeSettings.plan',
       // The two language names, which are each written in their own language
       // in both catalogues: the person who cannot read the language the screen
       // is drawn in is the one about to change it, and *Inglés* is no use to

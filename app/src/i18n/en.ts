@@ -899,7 +899,6 @@ export const en = {
     /** One line per language while the card is shut. */
     proVoiceIs: (language: 'en' | 'es', voice: string) =>
       `${language === 'es' ? 'Spanish' : 'English'}: ${voice}`,
-    proVoiceWho: () => 'Only somebody subscribed to Pro can change it.',
     chooseWhereSoundComesOut: () => 'Choose where sound comes out',
     chooseWhereSoundComesOutSub: () => 'Headphones, AirPlay, or anything paired',
     on: () => 'On',
@@ -968,12 +967,17 @@ export const en = {
     privacyNote: () =>
       'What is stored, why, and for how long. It opens in your browser.',
     /**
-     * *Pro*, the subscription that lifts the weekly transcription limit — not
-     * the *Pro* transcription model a channel can choose. GLOSSARY.md, *Pro*.
+     * The section over the reader's own plan, since 2026-11-19: *Basic*,
+     * *Pro* or *Unlimited*, the one word of a grade the app says.
+     * GLOSSARY.md, *Plan*.
      */
-    pro: () => 'Pro',
+    plan: () => 'Plan',
+    planBasic: () => 'Basic',
+    planPro: () => 'Pro',
+    planUnlimited: () => 'Unlimited',
+    planUnlimitedNote: () => 'Everything Pro gives, without a subscription.',
     proPitch: (freeMinutes: number) =>
-      `Transcription without the weekly limit of ${freeMinutes} free minutes, and the choice of a channel's transcription and response models. Nothing else is for sale.`,
+      `Transcription without the weekly limit of ${freeMinutes} free minutes, and every channel you are a member of on Pro — its transcripts, Claude's replies and the voices that read them — for everybody in it. Nothing else is for sale.`,
     /** `price` is the App Store's own, already in the buyer's currency. */
     proSubscribe: (price: string) => `Subscribe for ${price} a month`,
     proUntil: (until: number) =>
@@ -1129,42 +1133,6 @@ export const en = {
     autoRecordStepIn: () =>
       'Step in to change this. What is kept from a conversation is for whoever is in it.',
     /**
-     * Drawn for everybody, greyed with `modelWho` for anybody without *Pro*
-     * since 2026-11-08. See `transcriptionModel`.
-     */
-    transcriptionModel: () => 'Transcription model',
-    transcriptionStandard: () => 'Standard',
-    transcriptionPro: () => 'Pro',
-    transcriptionModelNote: () =>
-      'Standard is Universal-2. Pro is Universal-3.5 Pro, which costs about 40% more and handles a change of language mid-sentence. It applies to transcripts asked for from now on.',
-    /**
-     * The model *Ask Claude* asks, since 2026-10-22: drawn for everybody, and
-     * greyed with `modelWho` for anybody without *Pro*. *Pro* here
-     * is a grade of model, not *Pro (the subscription)*; *Max*, the third
-     * since the same day, is the largest model, thinking harder.
-     */
-    responseModel: () => 'Response model',
-    responseStandard: () => 'Standard',
-    responsePro: () => 'Pro',
-    responseMax: () => 'Max',
-    responseModelNote: () =>
-      'Standard: faster and cheaper. Pro: a larger model, a little slower. Max: the largest model, thinking harder, and the slowest. It applies to whoever asks Claude.',
-    /**
-     * Under both model cards for anybody not *Pro (the subscription)*, which
-     * is what may change them. Says *subscribed* because the grades on the
-     * buttons above are called *Pro* too.
-     */
-    modelWho: () => 'Only somebody subscribed to Pro can change it.',
-    /**
-     * *Read aloud*, since 2026-11-13: whether *Standard* or *Pro* voices read
-     * the channel's Claude replies, whoever asks — chosen by *Pro*, for cost.
-     */
-    readAloud: () => 'Read aloud',
-    readAloudStandard: () => 'Standard',
-    readAloudPro: () => 'Pro',
-    readAloudNote: () =>
-      'Which voices read Claude’s replies aloud here, whoever asks. Pro voices are heard by everybody in the call and kept in recordings, and each reply costs a little. Standard voices are each iPhone’s own: free, but each iPhone reads the reply on its own, and it is never recorded. Which voice of each is the asker’s, on Floor Settings.',
-    /**
      * Whether *Ask Claude* may consult the server's library, since
      * 2026-10-27: drawn, since 2026-11-09, only for somebody whose own is
      * connected. A *library* of writing, not the app's own recordings; see
@@ -1173,7 +1141,7 @@ export const en = {
     library: () => 'Library',
     libraryConsult: () => 'Consult',
     libraryNote: () =>
-      'When on, Claude may draw on each library owner’s own writing while it answers, and names any piece it quotes and whose it is. It applies on Pro and Max, to whoever asks Claude.',
+      'When on, Claude may draw on each library owner’s own writing while it answers, and names any piece it quotes and whose it is. It applies while the channel is Pro, to whoever asks Claude.',
     /** The toggles, one per library of yours: each is consent for that one. */
     libraryChoose: () =>
       'Turn on the libraries Claude may consult here. Each one you turn on is your consent to its writing reaching this channel’s Record.',
@@ -1195,7 +1163,7 @@ export const en = {
     /** Whether *Ask Claude* consults it: on by default, any member who may edit the channel switches it. */
     channelLibraryConsult: () => 'Claude consults it',
     channelLibraryConsultNote: () =>
-      'When on, Claude may draw on this channel’s earlier conversations and sources while it answers. It applies on Pro and Max, to whoever asks Claude.',
+      'When on, Claude may draw on this channel’s earlier conversations and sources while it answers. It applies while the channel is Pro, to whoever asks Claude.',
     /** One per somebody else whose libraries are on here; several may be. */
     libraryTheirs: (name: string, libraries: string[]) =>
       libraries.length === 1
@@ -1621,10 +1589,6 @@ export const en = {
      * *Preguntar a Claude* in Spanish.
      */
     askClaude: () => 'Ask Claude',
-    /** After *Ask Claude* when the channel's *Response model* is *Pro*. */
-    claudeProSuffix: () => ' \u00b7 Pro',
-    /** After *Ask Claude* when the channel's *Response model* is *Max*. */
-    claudeMaxSuffix: () => ' \u00b7 Max',
     /** The three lengths, 50, 150 and 450 words: of a reply, so feminine in Spanish. */
     replyBrief: () => 'Brief',
     replyMedium: () => 'Medium',

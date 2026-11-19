@@ -7,10 +7,6 @@ import type {
   ChannelState,
   Clip,
   NearbyWhen,
-  ReadAloud,
-  ResponseModel,
-
-  TranscriptionModel,
   UserId,
 } from './types';
 import type { PlayerState, Rest, Rung } from './watch';
@@ -1914,20 +1910,6 @@ export type ClientAction =
    * would otherwise flip on screen and be corrected by the next snapshot.
    */
   | { type: 'SET_AUTO_RECORD'; autoRecord: boolean }
-  /**
-   * Refused by the server from an account without `debug`, so an app offers it
-   * only to those. A server that predates it refuses it as unknown, so it
-   * ships to the server before any build sends it.
-   */
-  | { type: 'SET_TRANSCRIPTION_MODEL'; transcriptionModel: TranscriptionModel }
-  /**
-   * Refused by the server from an account without `debug`, as the
-   * transcription model is — but an app draws it for everybody, greyed for
-   * those who may not change it. Unknown to a server that predates it.
-   */
-  | { type: 'SET_RESPONSE_MODEL'; responseModel: ResponseModel }
-  /** Refused by the server from an account that is not *Pro*, as the response model is. */
-  | { type: 'SET_READ_ALOUD'; readAloud: ReadAloud }
   /**
    * On sets your own libraries here, and is refused from anybody without one
    * connected; off is `owner`'s, or everybody's. Refused from every account

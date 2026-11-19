@@ -1257,11 +1257,6 @@ export function AskClaude({
       : t.claudeAsked(nameOf(asked.askedBy))
     : failure;
 
-  // The grade beside the words, on *Pro* or *Max*; *Standard* says nothing.
-  const grade = channel.responseModel ?? 'standard';
-  const gradeSuffix =
-    grade === 'pro' ? t.claudeProSuffix() : grade === 'max' ? t.claudeMaxSuffix() : '';
-
   const lengths: Array<[ReplyLength, string]> = [
     ['brief', t.replyBrief()],
     ['medium', t.replyMedium()],
@@ -1281,7 +1276,7 @@ export function AskClaude({
           {/* One string, so it is one run of text to a screen reader. No
               *· Pro* while busy, which would not fit beside the buttons and
               says nothing a press in flight can change. */}
-          {busy ? t.responding() : `${t.askClaude()}${gradeSuffix}`}
+          {busy ? t.responding() : t.askClaude()}
         </Text>
         {lengths.map(([length, label]) => (
           <Button

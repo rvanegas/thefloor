@@ -36,7 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
-- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro* and has connected their own *library* — since 2026-11-09; Pro alone before —, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro and connected nothing new goes in. Told on *Channel Settings*' card, to a member whose own library is connected, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis* to a member whose own library is connected. Deleted thirty days after the channel is, and one *segment*'s document by that segment's *Delete*, since 2026-11-18. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
+- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro* and has connected their own *library* — since 2026-11-09; Pro alone before —, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro and connected nothing new goes in. Told on *Channel Settings*' card, to a member whose own library is connected, with *Open in noesis*; *Ask Claude* consults it in a *Pro channel* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis* to a member whose own library is connected. Deleted thirty days after the channel is, and one *segment*'s document by that segment's *Delete*, since 2026-11-18. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
@@ -50,11 +50,11 @@ caused; the list carries the meaning.
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
 - **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the channel's whole *Record* and posts one turn into it, as a *paste* by *Claude*, of at most 50, 150 or 450 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*; the reply is *read aloud* as it lands. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
-- **Read aloud** — A reply from *Ask Claude*, its words read out the moment it lands: **Claude writes only the words, and *Standard* or *Pro* voices read them** — iOS's and AssemblyAI's, names said only in the code and on `/privacy`. *Pro* where the channel's *Read aloud* is *Pro*, on *Channel Settings*, whoever asks (`ChannelState.readAloud`), since 2026-11-13: synthesised once by the server in the asker's *Pro voice*, in the language of the channel's first transcript (the asker's *Language* where there is none), and published as *the room reader*, so everybody *present* hears it through the call and a running recording keeps it, as a stem under `CLAUDE_ID` that is never transcribed; `Clip.speech` marks such a reply. *Standard* otherwise — the channel's default, or with no AssemblyAI key, on a refusal or a language AssemblyAI does not speak — each iPhone reading it on its own, free and never recorded, in the asker's *Standard voice* where it has it (`Clip.voices`), else its own. A build from before the room reader is kept off it, best-effort, and may hear an AssemblyAI reply twice, so the *Ask Claude* bar names whoever here has not updated, in a channel whose replies *Pro* voices read — a warning, not a refusal (`roomReaderUnheard`). The only thing the app speaks, with no switch. While a reply is being heard a bar immediately above every screen's footer says *Reading Claude's reply* with **two controls: *Read again* — the reply, from the top, for everybody — where the room is hearing it (*Restart* where the phone is reading it), and *Stop*, which quiets it on this phone alone**, since 2026-10-29. Which voice of each grade is the asker's, on *Floor Settings*' *Read aloud*: *Standard voice* and *Pro voice*. `useClaudeReadAloud`, `ReadingBar`, `roomReaderSaying`; *Leer en voz alta*, *Leyendo a Claude*, *Repetir*, *Reiniciar*, *Parar*
+- **Read aloud** — A reply from *Ask Claude*, its words read out the moment it lands: **Claude writes only the words, and *Standard* or *Pro* voices read them** — iOS's and AssemblyAI's, names said only in the code and on `/privacy`. *Pro* in a *Pro channel*, whoever asks, since 2026-11-19 — where the channel's *Read aloud* was *Pro*, on *Channel Settings*, from 2026-11-13: synthesised once by the server in the asker's *Pro voice*, in the language of the channel's first transcript (the asker's *Language* where there is none), and published as *the room reader*, so everybody *present* hears it through the call and a running recording keeps it, as a stem under `CLAUDE_ID` that is never transcribed; `Clip.speech` marks such a reply. *Standard* otherwise — in a channel no member is Pro in, or with no AssemblyAI key, on a refusal or a language AssemblyAI does not speak — each iPhone reading it on its own, free and never recorded, in the asker's *Standard voice* where it has it (`Clip.voices`), else its own. A build from before the room reader is kept off it, best-effort, and may hear an AssemblyAI reply twice, so the *Ask Claude* bar names whoever here has not updated, in a channel whose replies *Pro* voices read — a warning, not a refusal (`roomReaderUnheard`). The only thing the app speaks, with no switch. While a reply is being heard a bar immediately above every screen's footer says *Reading Claude's reply* with **two controls: *Read again* — the reply, from the top, for everybody — where the room is hearing it (*Restart* where the phone is reading it), and *Stop*, which quiets it on this phone alone**, since 2026-10-29. Which voice is the asker's, on *Floor Settings*' *Read aloud*: their *Pro voice* on *Pro* or *Unlimited*, their *Standard voice* on *Basic* (*Plan*). `useClaudeReadAloud`, `ReadingBar`, `roomReaderSaying`; *Leer en voz alta*, *Leyendo a Claude*, *Repetir*, *Reiniciar*, *Parar*
 - **Read again** — Claude's reply said into the room once more, for everybody present, from its paste in the *Record* or the reading bar, while the server keeps its speech: an hour, since 2026-11-13. Anybody present may press it; the latest press or reply wins. Not synthesised again, so it costs nothing. `readAgain`, `speechKept`; *Repetir*
-- **Standard voices / Pro voices** — The two grades of voice that *Read aloud* Claude's replies, since 2026-11-13: *Standard*, each iPhone's own (iOS), free, heard on that phone alone and never recorded; *Pro*, AssemblyAI's, said once into the room for everybody and recorded, billed per reply. Which reads is a channel setting, *Read aloud* on *Channel Settings*, since the evening of 2026-11-13: *Standard* by default, the channel's whoever asks and changeable only by *Pro (the subscription)*, *Response model*'s terms — each asker's own on *Floor Settings* for the few hours before. **A grade, as *Response model*'s *Pro* is, and not the subscription** — the third sense of the word here. `ReadAloud`, `SET_READ_ALOUD`; *Estándar* / *Pro*
-- **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; anybody's to choose. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
-- **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **chosen only by *Pro***. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
+- **Standard voices / Pro voices** — The two grades of voice that *Read aloud* Claude's replies, since 2026-11-13: *Standard*, each iPhone's own (iOS), free, heard on that phone alone and never recorded; *Pro*, AssemblyAI's, said once into the room for everybody and recorded, billed per reply. Which reads is the channel's grade, whoever asks: *Pro* in a *Pro channel*, since 2026-11-19 — a setting on *Channel Settings* from the evening of 2026-11-13 until then, changeable only by *Pro (the subscription)*, and each asker's own on *Floor Settings* for the few hours before. **A grade, as a *Pro channel*'s is, and not the subscription**. `isProChannel`; *Estándar* / *Pro*
+- **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; drawn for a *Basic* account alone since 2026-11-19, a *Pro* or *Unlimited* one choosing its *Pro voice* there instead. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
+- **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **drawn for *Pro* and *Unlimited* alone** since 2026-11-19 — for everybody, chosen only by Pro, until then. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
 - **Room reader** — The participant AssemblyAI's reading of a reply is published as, `room-reader:<channel>`, since 2026-11-13: in the room without being a person, as the film's `media:` is, so nothing that counts people sees it; a build that says `hearsClaude` hears it, an older one is kept off it. Not the native `Reader` that speaks on a phone, nor the person reading a screen. `roomReaderIdentity`
 - **Paste** — A piece of text somebody here put into the channel, kept in the *Record* at the moment it was made — part of the *segment* being transcribed then, since 2026-11-18, and otherwise a segment of its own, an instant; it breaks no segment — for anybody to copy, from a menu at the end of its line like a segment's since 2026-11-19; deleted with the text of the segment it is part of, Claude's replies included, or on its own where it is a segment of its own, since 2026-11-18; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
@@ -72,7 +72,9 @@ caused; the list carries the meaning.
 - **Email notifications** — A *Floor Settings* switch, `emailNotifications`: every notification also sent as email to the address you sign in with, arrivals included and paused with them. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
-- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-08, chooses a channel's *Transcription model* and *Response model* — and since 2026-11-13 its *Read aloud*, and their own *Pro voice* — and since 2026-11-10 switches your own *library* on in a channel, noesis being read-only for everybody else; an account marked `transcripts_unlimited` by hand is Pro too, since 2026-11-10; not the *Pro* grade of either
+- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-19, makes every channel you are a member of a *Pro channel* — having chosen a channel's *Transcription model* and *Response model* from 2026-11-08, and its *Read aloud* from 2026-11-13, until then — and chooses your own *Pro voice*, and since 2026-11-10 switches your own *library* on in a channel, noesis being read-only for everybody else; an account marked `transcripts_unlimited` by hand is Pro too, since 2026-11-10, and says *Unlimited* as its *Plan*; not the *Pro* grade of a channel
+- **Pro channel** — A channel any *member* of which is *Pro (the subscription)* or marked unlimited, since 2026-11-19: everything graded in it is *Pro*, for everybody in it, whoever asks — transcripts on Universal-3.5 Pro, *Ask Claude* on Sonnet, replies *read aloud* by *Pro voices* — and *Standard* otherwise. Nobody chooses it and no screen says it; members, never a *guest*, and asked at each use rather than stored. `isProChannel`
+- **Plan** — The one word of a grade the app says, on *Floor Settings*, since 2026-11-19: *Basic*, *Pro* — a subscription — or *Unlimited* — the `transcripts_unlimited` mark. A section and card of its own where the *Pro* card was, with the pitch and *Subscribe* under *Basic* where Pro is sold. Read from `ProView`. *Plan*: *Básico* / *Pro* / *Ilimitado*
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who can be told — push granted, or email notifications on for an email address — at the moment they become so, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
@@ -139,9 +141,9 @@ caused; the list carries the meaning.
 - **Free minutes** — What an account without the `transcripts_unlimited` mark may spend on transcription each calendar week, from Monday 00:00 UTC: `FREE_TRANSCRIPT_MINUTES`, 60 unless set, shared between a recording's *transcript* (length times stems, held when asked for) and the *live transcript* (each session's open time, billed to whoever switched it on), and kept in `transcript_usage`. Since 2026-10-10, replacing one free transcript per account
 - **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10, and with a server restart since 2026-10-28; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes; a finished *segment*'s deleted on its own by *Delete*'s *Text* box since 2026-11-18, *Delete text* from 2026-11-07. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
-- **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a *Pro* account chose otherwise; shown to every member, changeable only by *Pro*. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by *Pro*. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
-- **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — on *Pro* and *Max*, whoever presses; shown, since 2026-11-09, only to a member whose own is connected — to every member before — where the server offers libraries, switched on only by somebody *Pro* with one connected — since 2026-11-10; a connection without Pro reads and nothing more —, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, at noesis, copying a *channel library*'s transcript into it
+- **Transcription model** — The grade of speech model a *recording*'s transcripts are asked for, *Standard* or *Pro* — *Pro* in a *Pro channel* since 2026-11-19, a channel setting only *Pro* could change from 2026-11-08 until then; not the *live transcript*, which streams on a model of its own. `TranscriptionModel`, server-side — and its *Pro* is a grade of model, not *Pro (the subscription)*
+- **Response model** — Which model *Ask Claude* asks, *Standard* (Haiku) or *Pro* (Sonnet) — *Pro* in a *Pro channel*, whoever presses, since 2026-11-19; a channel setting only *Pro* could change until then, with a third grade, *Max* (Opus), from 2026-10-22. `ResponseModel`, server-side — and its *Pro* is a grade of model, not *Pro (the subscription)*
+- **Library** — A body of somebody's own writing, kept in noesis, that *Ask Claude* may consult while it answers; connected by its owner on *Floor Settings*' *noesis library* card, by signing in at noesis, since 2026-11-01; and the channel setting, a switch off by default, that lets it — in a *Pro channel*, whoever presses; shown, since 2026-11-09, only to a member whose own is connected — to every member before — where the server offers libraries, switched on only by somebody *Pro* with one connected — since 2026-11-10; a connection without Pro reads and nothing more —, a toggle per library of theirs, several people's at once (`ChannelState.libraries`, by owner), and off — one owner's or all — by anybody who may edit the channel. `ChannelState.library`. Claude never writes into one; its owner may, at noesis, copying a *channel library*'s transcript into it
 - **Username** — A name for somebody, unique across everybody, written with an `@`. Derived from their *display name* at signup, editable on the Contact screen, and can be given up — except where noesis decides it — wherever The Floor's noesis client is configured — when it is their noesis user name too; and **fixed, with the address, while a noesis library is connected**
 - **Voice** — One speaker within a transcript: one *stem*, labelled with its owner's display name or *Played audio*, except where the stem was separated — the shared track always, a member's microphone under *Several voices* — and came back with more than one, each then its name and a bare letter, *Played audio (B)* — or the name somebody gave that voice in that *segment* with *Name voices* (*Nombrar voces*) in its menu, since 2026-11-13, the segment's and no wider
 - **Several voices on my microphone** — The *Record* tab's switch under *Audio* and *Text*, since 2026-10-16: your own microphone's track told apart into *voices* by the transcriber, live and in a recording's transcript, for this *room* only and nobody's but your own. `ChannelState.diarize`, `SET_DIARIZE`
@@ -327,7 +329,7 @@ Settings*' *Channel library* card, which opens it in the browser with *Open
 in noesis* once it exists — **drawn only for a member whose own library is
 connected**, since 2026-11-09, as is the *Library* card above it: somebody
 with nothing at noesis has nothing there to open. **Ask Claude consults
-it**, on *Pro* and *Max* as a library, by a token noesis confines to it —
+it**, in a *Pro channel* as a library, by a token noesis confines to it —
 needing nobody's connection — unless *Claude consults it* on the card is
 switched off, by anybody who may edit the channel; Claude is told it holds the
 channel's earlier conversations and its sources, the *Record* being the recent
@@ -724,8 +726,8 @@ one.
 
 **Claude's one control, on the *Record* bar**, since 2026-10-22: a line of its
 own under the row of the transport and the switches, as *Several voices on my
-microphone* is — the words *Ask Claude*, with *· Pro* when the channel's
-*Response model* is *Pro*, then three buttons, *Brief*, *Medium* and
+microphone* is — the words *Ask Claude* (with *· Pro* or *· Max* after them
+by the channel's *Response model* until 2026-11-19), then three buttons, *Brief*, *Medium* and
 *Extended*. On a line of its own because a third glyph on the row does not fit
 a 375-point phone.
 
@@ -1556,7 +1558,7 @@ then there was one per server, Rodrigo's, configured by `NOESIS_TOKEN`. See
 **And the channel setting that lets it**: a switch on *Channel Settings*,
 *Library* / *Consult*, off on every channel until somebody with a library
 connected turns one of theirs on — **and then theirs are among what the
-channel consults**, on *Pro* and *Max* for **every press there, whoever
+channel consults**, in a *Pro channel* for **every press there, whoever
 presses** — the response model's terms — and each owner's only while they are
 in the channel. **Which of their libraries is a toggle each**, since
 2026-11-01 (`ChannelState.libraries`, by owner): the grant at noesis reaches all
@@ -3279,9 +3281,12 @@ the text.
 unmetered** — the hand-set `transcripts_unlimited` mark, bought rather than
 granted. Offered in a card on *Floor Settings*, on an iPhone only; being Pro
 shows on every platform. It lifts the weekly free minutes, and **since
-2026-11-08 it is what may choose a channel's *Transcription model* and
-*Response model*** — `debug`'s until then, moved because both grades are a
-cost carried by the channel, and Pro is the people paying for transcription.
+2026-11-19 it makes every channel its account is a member of a *Pro
+channel***, for everybody in it — from 2026-11-08 until then it was what
+might *choose* a channel's *Transcription model* and *Response model*, and
+from 2026-11-13 its *Read aloud*, three cards on *Channel Settings* and a
+*Max* grade among them; `debug`'s before that. The only word of it the app
+says is the *Plan* on *Floor Settings*.
 It is the only thing The Floor sells. **Since 2026-11-10 it is also what
 switches one's own *library* on in a channel**, noesis being read-only for
 everybody else. **And the hand-set `transcripts_unlimited` mark is Pro too,
@@ -3289,10 +3294,9 @@ since 2026-11-10**, everywhere Pro decides (`isPro`, app.ts) — the operator's,
 testers' and App Review's accounts — where until then it metered nothing but
 chose nothing either. `ProView.until` still says only what was bought.
 
-**Not the *Pro* transcription model**, which is a grade of speech model a
-channel asks for — being Pro is what may choose it, and a channel on it costs
-its members nothing more. The refusal under the two cards says *subscribed to
-Pro* for that reason. In code the subscription is never a
+**Not the *Pro* grade**, which is what a *Pro channel* asks for — being Pro
+is what makes one, and a channel on it costs its other members nothing. In
+code the subscription is never a
 bare `'pro'`, which is the model's value: it is `ProView`, `ProSubscriptions`,
 `pro_subscriptions`, `GET /pro`. **Not a donation either**: *Chip in* is still
 the Ko-fi link and unlocks nothing. See the 2026-10-19 decision.
@@ -3302,43 +3306,74 @@ UUID the server gives each account — not by whoever uploads it, and deleting
 the account does not cancel it: Apple bills it until its owner cancels it
 there. `server/src/pro.ts` and `app/src/state/purchases.ts` have the rest.
 
+## Pro channel
+
+**A channel any member of which is *Pro (the subscription)*, or marked
+unlimited, since 2026-11-19, at Rodrigo's word** — and then everything graded
+in it is *Pro*, for everybody in it, whoever asks: its transcripts are asked
+of Universal-3.5 Pro, *Ask Claude* asks Sonnet, and *Pro voices* read the
+replies into the room. *Standard* otherwise. `isProChannel` in
+`server/src/channels.ts` decides it, and the server asks it at each use —
+when a transcript is requested, when Claude is asked, when a reply is to be
+spoken — rather than storing it, a subscription lapsing being account state
+no commit of the channel hears of. What each grade means is the three entries
+below.
+
+**Members, not whoever is present** — the *channel library*'s terms: a grade
+that moved as somebody stepped out would change mid-sitting, and membership
+is what a Pro account pays for others with. A *guest*'s Pro reaches no
+channel they are only seated in.
+
+**Nobody chooses it and no screen says it.** Until that day each of the three
+was a card on *Channel Settings* that only Pro could change, and *Ask Claude*
+had a third grade, *Max*; all three cards went, with the *· Pro* / *· Max*
+after *Ask Claude*, and the only word of a grade left is the reader's own
+*Plan* on *Floor Settings*. Builds before 440 still send the three choices,
+answered as done and doing nothing, and are told the grade in the three
+fields they read (planning/SHIMS.md).
+
+## Plan
+
+**What *Floor Settings* says about the reader's own account, since
+2026-11-19: *Basic*, *Pro* or *Unlimited*.** *Pro* is a subscription (with
+when it renews), *Unlimited* the `transcripts_unlimited` mark (Pro without
+one), *Basic* neither — with the pitch and *Subscribe* under it only where Pro
+is sold. A section and card of its own where the *Pro* card was; read from
+`ProView`, *Unlimited* being `pro` with no `until`. It also decides which voice
+card *Read aloud* draws: the *Pro voice* for Pro and Unlimited, the *Standard
+voice* for Basic. *Básico* / *Pro* / *Ilimitado*.
+
 ## Transcription model
 
-**A channel setting, shown to every member and changeable only by a *Pro*
-account**, since 2026-11-08 — drawn for `debug` alone from 2026-10-09 until
-then. A choice outlives its chooser's Pro, and stays until somebody who is Pro
-changes it. *Standard* is the cheap grade and every channel's default; *Pro*
-is the flagship. `transcriptionModel` on `ChannelState`, of type
-`TranscriptionModel`, whose values are `'standard'` and `'pro'`.
+**The grade of speech model a *recording*'s transcripts are asked for**:
+*Pro* in a *Pro channel*, *Standard* otherwise, since 2026-11-19. Until then
+it was a channel setting (`ChannelState.transcriptionModel`) changeable only
+by a *Pro* account from 2026-11-08, and by `debug` from 2026-10-09; rows
+written then keep the field, unread. `TranscriptionModel` in
+`server/src/transcription.ts`, whose values are `'standard'` and `'pro'`.
 
-Named by **grade rather than by model**, so the setting outlives a change of
-provider: which model each grade means is `ASSEMBLYAI_MODELS` in
-`server/src/transcription.ts` — Universal-2 for *Standard*, Universal-3.5 Pro
-falling back to Universal-2 for *Pro*. Read when a transcript is asked for
-and stored on its row, so changing the setting changes nothing already asked
-for.
+Named by **grade rather than by model**, so the grade outlives a change of
+provider: which model each grade means is `ASSEMBLYAI_MODELS` —
+Universal-2 for *Standard*, Universal-3.5 Pro falling back to Universal-2 for
+*Pro*. Read when a transcript is asked for and stored on its row, so a
+member's Pro lapsing changes nothing already asked for.
 
 **Batch only.** The *live transcript* streams on
 `universal-streaming-multilingual` whatever this says.
 
 ## Response model
 
-**A channel setting, *Standard*, *Pro* or *Max*, naming which model *Ask
-Claude* asks**, since 2026-10-22: *Standard* is Haiku and *Pro* is Sonnet,
-both at low effort, and *Max*, added the same day, is Opus at medium — a
-press that consults a *library* at medium at the least, since 2026-11-14 —
-`RESPONSE_MODELS` in `server/src/claude.ts`. `responseModel` on
-`ChannelState`, of type `ResponseModel` — *Transcription model*'s union under
-its own name until *Max*, and now one grade longer, since the two move
-independently. *Max* is said beside *Ask Claude* as *Pro* is.
+**Which model *Ask Claude* asks**: *Pro* — Sonnet — in a *Pro channel*,
+*Standard* — Haiku — otherwise, both at low effort, a press that consults a
+*library* at medium at the least, since 2026-11-14 — `RESPONSE_MODELS` in
+`server/src/claude.ts`, with its `ResponseModel`. Written to the press's
+ledger row, so a member's Pro lapsing never rewrites an earlier reply.
 
-**The channel's, whoever presses**, for the transcription model's reason, and
-written to the press's ledger row so a change never rewrites an earlier
-reply. **Shown to every member, changeable only by a *Pro* account**, since
-2026-11-08 and `debug`'s until then, on the transcription model's terms:
-which model is answering in a channel is something everybody in it may know.
-Its *Pro* is a grade of model, as that one's is, and never *Pro (the
-subscription)*; *Max* is a grade too, and the same word in Spanish.
+From 2026-10-22 until 2026-11-19 it was a channel setting
+(`ChannelState.responseModel`), shown to every member and changeable only by
+a *Pro* account from 2026-11-08, with a third grade, ***Max*** — Opus at
+medium — that went with the setting. Ledger rows from then keep `max`. Its
+*Pro* is a grade of model, never *Pro (the subscription)*.
 
 ## Pro voice
 
@@ -5444,12 +5479,10 @@ are settled:
     Ask Claude            Preguntar a Claude
     Brief / Medium / Extended  Breve / Media / Extensa — of a *respuesta*
     Responding…           Respondiendo…
-    Response model        Modelo de respuesta — *Estándar* / *Pro* / *Max*
+    Plan                  Plan — *Básico* / *Pro* / *Ilimitado*
     Pro voice             Voz Pro
     Standard voice        Voz Estándar
-    Standard / Pro voices Voces Estándar / Pro — *Leer en voz alta*'s two
-                          buttons on *Ajustes del canal*, *Estándar* / *Pro*,
-                          as the grades are
+    Standard / Pro voices Voces Estándar / Pro, as the grades are
     Read again            Repetir — on the bar and on Claude's reply alike
     Library               Biblioteca — its switch *Consultar*; its owner is
                           *el dueño*, as a community's is; the Floor Settings

@@ -200,8 +200,9 @@ export interface AccountSettings {
   /*
    * `iosVoices` was here for a few hours of 2026-11-13: whether *Standard*
    * or *Pro* voices read the replies this person asked for. It is the
-   * channel's since that evening, `ChannelState.readAloud`, at Rodrigo's
-   * word; the `ios_voices` column stays behind unread.
+   * channel's from that evening, `ChannelState.readAloud`, at Rodrigo's
+   * word, and since 2026-11-19 whether a member is *Pro*; the
+   * `ios_voices` column stays behind unread.
    */
   /**
    * Which *Pro voice* reads the replies this person asks for, one per

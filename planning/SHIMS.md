@@ -70,6 +70,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 388 | *Ask Claude* with no `length` taken as *Medium* | `server/src/claude.ts`, `server/src/app.ts` |
 | 364 | `CLEAR_CLIP`, for the *Clipboard* tab | `core/channel.ts`, `core/types.ts`, `core/protocol.ts`, `server/src/channels.ts` |
 | 438 | *Delete audio* and *Delete text*'s three routes | `server/src/app.ts`, `server/src/channels.ts` |
+| 440 | The three grade choices answered as done, and the grades sent in their old fields | `server/src/channels.ts`, `server/src/ws.ts` |
 
 The floor is **189**, raised there on 2026-11-07 once `oldestBuild` had
 already read 189. That frees every entry gated at or below it — 110, 121,
@@ -1136,3 +1137,29 @@ length there is no button for, which are validation rather than
 compatibility.
 
 Gate 388 because `build/387` is tagged and is the last build with one button.
+
+## Gate 440 — the three grade choices answered as done, and the grades sent in their old fields
+
+A channel is *Pro* while any member is, since 2026-11-19 — GLOSSARY.md,
+*Pro channel* — so `ChannelState.transcriptionModel`, `responseModel` and
+`readAloud` went, with `SET_TRANSCRIPTION_MODEL`, `SET_RESPONSE_MODEL`,
+`SET_READ_ALOUD` and the *Max* grade. **Builds up to 439 still draw the three
+cards on *Channel Settings*** and send those actions to a *Pro* account's
+press, draw *· Pro* / *· Max* after *Ask Claude*, and read
+`channel.readAloud === 'pro'` before naming who will hear a reply twice. So
+`dispatch` answers the three as done and changes nothing
+(`LEGACY_GRADE_ACTIONS`), and the channel snapshot carries the three fields
+again, each saying `isProChannel`'s grade (`legacyGradesOf`) — so the old
+cards show the grade in force, and a press on one is answered without an
+error and bounces back. A *Max* the old card sends is answered the same way
+and never asked.
+
+**What goes at 440**: `LEGACY_GRADE_ACTIONS` and its check in
+`server/src/channels.ts`, `legacyGradesOf` and its spread into `channel` in
+`server/src/ws.ts`, and the *the choices an older build sends* describe in
+`server/__tests__/channel-grade.test.ts`. **What must not go with it**:
+`isProChannel`, which is the rule itself, and `roomReaderUnheard`'s empty
+answer in a channel that is not Pro, which the new app relies on.
+
+Gate 440 because `build/439` is tagged and is the last build drawing the three
+cards.

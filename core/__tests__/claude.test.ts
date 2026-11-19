@@ -73,53 +73,6 @@ describe('asking Claude', () => {
   });
 });
 
-describe('the response model', () => {
-  it('is standard on a channel nobody has set it on', () => {
-    expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).responseModel).toBe(
-      'standard'
-    );
-  });
-
-  it('is changed by somebody in the room, and changes nothing else', () => {
-    const before = bothHere();
-    const after = reduce(before, { type: 'SET_RESPONSE_MODEL', userId: A, responseModel: 'pro' }, T0 + 1);
-    expect(after.responseModel).toBe('pro');
-    expect({ ...after, responseModel: 'standard' }).toEqual(before);
-  });
-
-  it('is guarded like the other channel settings', () => {
-    // Whether the account has `debug` is the server's half of the rule.
-    let s = bothHere();
-    s = reduce(s, { type: 'STEP_OUT', userId: A }, T0 + 1);
-    expect(reduce(s, { type: 'SET_RESPONSE_MODEL', userId: A, responseModel: 'pro' }, T0 + 2)).toBe(s);
-  });
-
-  it('is no change when it would change nothing', () => {
-    const s = bothHere();
-    expect(reduce(s, { type: 'SET_RESPONSE_MODEL', userId: A, responseModel: 'standard' }, T0 + 1)).toBe(s);
-  });
-
-  it('moves independently of the transcription model', () => {
-    const s = reduce(bothHere(), { type: 'SET_RESPONSE_MODEL', userId: A, responseModel: 'pro' }, T0 + 1);
-    expect(s.transcriptionModel).toBe('standard');
-  });
-});
-
-describe('read aloud', () => {
-  it('is Standard on a new channel', () => {
-    expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).readAloud).toBe('standard');
-  });
-
-  it('is set by anybody who may edit the channel, the Pro half being the server’s', () => {
-    const s = reduce(bothHere(), { type: 'SET_READ_ALOUD', userId: A, readAloud: 'pro' }, T0 + 1);
-    expect(s.readAloud).toBe('pro');
-    expect(reduce(s, { type: 'SET_READ_ALOUD', userId: A, readAloud: 'pro' }, T0 + 2)).toBe(s);
-    let away = bothHere();
-    away = reduce(away, { type: 'STEP_OUT', userId: A }, T0 + 1);
-    expect(reduce(away, { type: 'SET_READ_ALOUD', userId: A, readAloud: 'pro' }, T0 + 2)).toBe(away);
-  });
-});
-
 describe('the library', () => {
   it('is off on a new channel', () => {
     expect(createChannel({ id: 's1', initiator: A, invitees: [B], now: T0 }).library).toBe(false);
@@ -182,10 +135,5 @@ describe('the library', () => {
 
   it('is the community owner’s alone, and refused by name', () => {
     expect(COMMUNITY_OWNER_ACTIONS.has('SET_LIBRARY')).toBe(true);
-  });
-
-  it('moves independently of the response model', () => {
-    const s = reduce(bothHere(), { type: 'SET_LIBRARY', userId: A, library: true, libraries: ['a/x'] }, T0 + 1);
-    expect(s.responseModel).toBe('standard');
   });
 });

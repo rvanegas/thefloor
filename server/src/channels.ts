@@ -395,6 +395,17 @@ function quantise(
  * recording it is forbidden to stop. SET_TRACK is excluded too, since a track
  * names a file only the server can put there.
  */
+/**
+ * The grade choices builds before 440 send, which `dispatch` answers as done
+ * and does nothing with. Strings rather than action types, the reducer no
+ * longer knowing them. Shim: see planning/SHIMS.md.
+ */
+const LEGACY_GRADE_ACTIONS = new Set<string>([
+  'SET_TRANSCRIPTION_MODEL',
+  'SET_RESPONSE_MODEL',
+  'SET_READ_ALOUD',
+]);
+
 export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'ENTER',
   'STEP_OUT',
@@ -420,12 +431,7 @@ export const CLIENT_ACTIONS = new Set<ChannelAction['type']>([
   'SET_NAME',
   'SET_DESCRIPTION',
   'SET_AUTO_RECORD',
-  'SET_TRANSCRIPTION_MODEL',
-  // *Pro* only, refused in `dispatch` beside the transcription model.
-  'SET_RESPONSE_MODEL',
-  // *Pro* only, refused in `dispatch` beside the response model.
-  'SET_READ_ALOUD',
-  // The library's owner only, refused in `dispatch` beside the response model.
+  // The library's owner only, refused in `dispatch`.
   'SET_LIBRARY',
   'CLAIM_FLOOR',
   'RELEASE_FLOOR',
@@ -1148,16 +1154,38 @@ export class ChannelRegistry {
   private pingAnsweredFor = new Map<string, number>();
 
   /**
-   * Whether this account is *Pro (the subscription)* now, which is what may
-   * choose a channel's two model grades. Set by the composition root on
+   * Whether this account is *Pro (the subscription)* now, or marked
+   * unlimited — which makes every channel it is a member of *Pro*
+   * (`isProChannel`). Set by the composition root on
    * `onGuestConsentChanged`'s terms; absent, nobody is Pro.
    */
   isPro?: (userId: string) => boolean;
 
   /**
+   * **Whether this channel is *Pro*: while any member is *Pro (the
+   * subscription)* or marked unlimited, since 2026-11-19, at Rodrigo's
+   * word.** Everything graded at once and for everybody in it — the
+   * transcription model, *Ask Claude*'s model and its *Read aloud* voices —
+   * and *Standard* otherwise. Until then each was a channel setting only a
+   * Pro account could change, and *Ask Claude* had a third grade, *Max*.
+   *
+   * **Members, not whoever is present**, on the *channel library*'s terms:
+   * a grade that changed as somebody stepped out would change mid-reply and
+   * mid-sitting, and membership is what a Pro account pays for others with.
+   * A guest's Pro reaches no channel they are only seated in. Asked at each
+   * use rather than stored, a subscription lapsing being account state that
+   * no commit of the channel hears of.
+   */
+  isProChannel(channelId: string): boolean {
+    const state = this.channels.get(channelId);
+    const isPro = this.isPro;
+    return !!state && !!isPro && state.participants.some((id) => isPro(id));
+  }
+
+  /**
    * Claude's spoken reply, since 2026-11-13: set by the composition root where
-   * there is an AssemblyAI key, and used where the channel's `readAloud` is
-   * `pro`; absent, nothing is spoken
+   * there is an AssemblyAI key, and used where the channel is *Pro*
+   * (`isProChannel`); absent, nothing is spoken
    * by the server and every phone reads a reply with its own voice, as before.
    */
   speech?: ClaudeSpeech;
@@ -2919,6 +2947,12 @@ export class ChannelRegistry {
     if (!isParticipant(channel, userId)) {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }
+    // **Shim, until the floor passes 440** (planning/SHIMS.md): the three
+    // grade choices an older build still offers a *Pro* account, answered
+    // as done and doing nothing. The channel's grade has been nobody's
+    // choice since 2026-11-19 — see `isProChannel` — and refusing them would
+    // put an error on the screen of exactly the people paying.
+    if (LEGACY_GRADE_ACTIONS.has(action.type)) return { ok: true, channel };
     if (!CLIENT_ACTIONS.has(action.type)) {
       return { ok: false, error: 'Not an action.', code: 'invalid' };
     }
@@ -3104,60 +3138,6 @@ export class ChannelRegistry {
     if (action.type === 'SET_AUTO_RECORD') {
       if (typeof (action as { autoRecord?: unknown }).autoRecord !== 'boolean') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
-      }
-    }
-
-    // **A *Pro* account's alone, since 2026-11-08**, and here because the
-    // reducer knows nothing about accounts. The grade is a cost somebody
-    // else's transcript would carry, so it is offered to the people paying
-    // for transcription; it was `debug`'s until then. The app greys the
-    // control for everybody else, so reaching here without it is a client
-    // asking directly — or an older build, which offered it to `debug`.
-    if (action.type === 'SET_TRANSCRIPTION_MODEL') {
-      const model = (action as { transcriptionModel?: unknown }).transcriptionModel;
-      if (model !== 'standard' && model !== 'pro') {
-        return { ok: false, error: 'Not an action.', code: 'invalid' };
-      }
-      if (!this.isPro?.(userId)) {
-        return {
-          ok: false,
-          error: 'Only a Pro account can choose the transcription model.',
-          code: 'forbidden',
-        };
-      }
-    }
-
-    // The same rule for the same reason: *Pro* costs about twenty times what
-    // *Standard* does a press, *Max* at least twice *Pro*, and the grade is
-    // the channel's whoever presses. A choice outlives its chooser's Pro:
-    // it stays until somebody who is Pro changes it.
-    if (action.type === 'SET_RESPONSE_MODEL') {
-      const model = (action as { responseModel?: unknown }).responseModel;
-      if (model !== 'standard' && model !== 'pro' && model !== 'max') {
-        return { ok: false, error: 'Not an action.', code: 'invalid' };
-      }
-      if (!this.isPro?.(userId)) {
-        return {
-          ok: false,
-          error: 'Only a Pro account can choose the response model.',
-          code: 'forbidden',
-        };
-      }
-    }
-
-    // *Read aloud*, on the same rule, at Rodrigo's word, 2026-11-13: *Pro*
-    // voices are billed per reply, and the grade is the channel's whoever asks.
-    if (action.type === 'SET_READ_ALOUD') {
-      const grade = (action as { readAloud?: unknown }).readAloud;
-      if (grade !== 'standard' && grade !== 'pro') {
-        return { ok: false, error: 'Not an action.', code: 'invalid' };
-      }
-      if (!this.isPro?.(userId)) {
-        return {
-          ok: false,
-          error: 'Only a Pro account can choose how replies are read aloud.',
-          code: 'forbidden',
-        };
       }
     }
 
@@ -8224,7 +8204,7 @@ export class ChannelRegistry {
     const speech = this.speech;
     const channel = this.channels.get(channelId);
     if (!speech || !channel) return false;
-    if ((channel.readAloud ?? 'standard') !== 'pro') return false;
+    if (!this.isProChannel(channelId)) return false;
     if ([...text].length > SPEECH_MAX_CHARACTERS) return false;
     const language = this.speechLanguage(channelId, askerId, askerLanguage);
     if (!language) return false;
@@ -8300,11 +8280,12 @@ export class ChannelRegistry {
   /**
    * Who is in the room on an app that has not said it hears the room reader —
    * see `ChannelView.roomReaderUnheard`. Somebody present who has not fetched a
-   * room token yet counts, being on no app this server has heard from.
+   * room token yet counts, being on no app this server has heard from. None
+   * in a channel that is not *Pro*, whose replies the room reader never says.
    */
   roomReaderUnheard(channelId: string): string[] {
     const state = this.channels.get(channelId);
-    if (!state || !this.speech) return [];
+    if (!state || !this.speech || !this.isProChannel(channelId)) return [];
     const hearing = this.hearsClaude.get(channelId);
     return peopleHere(state).filter((id) => hearing?.get(id) !== true);
   }
@@ -9248,14 +9229,10 @@ export class ChannelRegistry {
         ? { liveTranscriptionPaidBy: channel.liveTranscriptionPaidBy }
         : {}),
       autoTranscribe: channel.autoTranscribe ?? false,
-      // Durable for the same reason: it is a setting somebody chose.
-      transcriptionModel: channel.transcriptionModel,
-      // And this one, beside it. `claude`, the ask in flight, is not: the
-      // request dies with the process, and restoring it would leave the card
-      // saying *Responding…* to an answer that is never coming.
-      responseModel: channel.responseModel ?? 'standard',
-      // Beside it, for the same reason.
-      readAloud: channel.readAloud ?? 'standard',
+      // `transcriptionModel`, `responseModel` and `readAloud` were written
+      // here until 2026-11-19, when the grade became the members' Pro
+      // (`isProChannel`); a row that has them keeps them unread. `claude`,
+      // the ask in flight, never was: the request dies with the process.
       // A setting somebody chose, beside the model it applies to, and whose
       // library it is.
       library: channel.library ?? false,
@@ -9643,9 +9620,6 @@ export class ChannelRegistry {
       liveTranscription?: boolean;
       liveTranscriptionPaidBy?: string;
       autoTranscribe?: boolean;
-      transcriptionModel?: ChannelState['transcriptionModel'];
-      responseModel?: ChannelState['responseModel'];
-      readAloud?: ChannelState['readAloud'];
       library?: boolean;
       libraries?: Record<string, string[]>;
       initiator?: string;
@@ -9713,10 +9687,6 @@ export class ChannelRegistry {
       // this a deploy would quietly stop transcribing the channels somebody
       // had switched on.
       autoTranscribe: durable.autoTranscribe ?? durable.liveTranscription ?? false,
-      // The default on a row written before the field existed.
-      transcriptionModel: durable.transcriptionModel ?? 'standard',
-      responseModel: durable.responseModel ?? 'standard',
-      readAloud: durable.readAloud ?? 'standard',
       // `speechVoices`, the channel's Pro voices of 2026-11-13, is left
       // unread on a row that has it: the voice is the asker's since that day.
       // On only with somebody's libraries chosen: off for a channel written

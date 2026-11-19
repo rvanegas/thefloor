@@ -75,7 +75,7 @@ describe('Ask Claude on the Record bar', () => {
   });
 
   it('warns, without refusing, while somebody here is on an app from before the room reader', () => {
-    showChannel({ ...here(), readAloud: 'pro' }, [], {
+    showChannel(here(), [], {
       claude: true,
       speech: true,
       speechKept: [],
@@ -88,14 +88,6 @@ describe('Ask Claude on the Record bar', () => {
     );
     expect(textOf(tree!)).not.toContain('Me needs');
     expect(disabled(findButton(tree!, 'Medium')!)).toBeFalsy();
-  });
-
-  it('says nothing where the phones will read the reply', () => {
-    // A *Standard* channel: the server speaks nothing here.
-    mockApp.pro = true;
-    showChannel(here(), [], { claude: true, speech: true, speechKept: [], roomReaderUnheard: [THEM] });
-    record();
-    expect(textOf(tree!)).not.toContain('to update The Floor');
   });
 
   it('says nothing while everybody here has updated', () => {
@@ -161,97 +153,26 @@ describe('Ask Claude on the Record bar', () => {
     expect(disabled(findButton(tree!, 'Medium')!)).toBe(true);
   });
 
-  it('says Max beside Ask Claude on a Max channel', () => {
-    const max = reduce(here(), { type: 'SET_RESPONSE_MODEL', userId: ME, responseModel: 'max' }, NOW);
-    showChannel(max, [], { claude: true });
-    const text = textOf(record());
-    expect(text).toContain('Ask Claude \u00b7 Max');
-    expect(text).not.toContain('\u00b7 Pro');
-  });
-
-  it('says Pro beside Claude only when the channel is on Pro', () => {
-    const pro = reduce(here(), { type: 'SET_RESPONSE_MODEL', userId: ME, responseModel: 'pro' }, NOW);
-    showChannel(pro, [], { claude: true });
-    expect(textOf(record())).toContain('Ask Claude \u00b7 Pro');
-    act(() => tree!.unmount());
-    showChannel(here(), [], { claude: true });
-    expect(textOf(record())).not.toContain('\u00b7 Pro');
-  });
-});
-
-describe('the response model', () => {
-  const open = () => {
-    mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
-    const channel = here();
-    return (tree = render(
-      <ChannelSettingsView
-        publicAt={null}
-        channel={channel}
-        derivedTitle="Dana Chu"
-        onBack={() => {}}
-        onLeft={() => {}}
-      />
-    ));
-  };
-
-  it('is drawn for everybody where the server can ask Claude, and greyed without Pro', () => {
-    mockApp.debug = true;
-    showChannel(here(), [], { claude: true });
-    open();
-    expect(textOf(tree!)).toContain('Response model');
-    expect(textOf(tree!)).toContain('Only somebody subscribed to Pro can change it.');
-    for (const label of ['Pro', 'Max']) {
-      const button = findButton(tree!, label);
-      expect(button).toBeDefined();
-      expect(button!.props.accessibilityState?.disabled ?? button!.props.disabled).toBe(true);
-    }
-  });
-
-  it('is settable by Pro, and sends the choice', () => {
+  it('says no grade beside Ask Claude, the plan being said only on Floor Settings', () => {
     mockApp.pro = true;
     showChannel(here(), [], { claude: true });
-    open();
-    expect(textOf(tree!)).not.toContain('Only somebody subscribed to Pro');
-    const buttons = tree!.root.findAll(
-      (n) =>
-        n.props?.accessibilityRole === 'button' &&
-        typeof n.props?.onPress === 'function' &&
-        labelOf(n).trim() === 'Pro'
-    );
-    // The transcription model's Pro is drawn too; the response
-    // model's is the last.
-    const pro = buttons[buttons.length - 1];
-    act(() => pro.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
-      type: 'SET_RESPONSE_MODEL',
-      responseModel: 'pro',
-    });
-    // Max is the response model's alone.
-    const max = findButton(tree!, 'Max')!;
-    expect(max.props.accessibilityState?.disabled ?? max.props.disabled).toBeFalsy();
-    act(() => max.props.onPress());
-    expect(mockApp.act).toHaveBeenLastCalledWith('sess_1', {
-      type: 'SET_RESPONSE_MODEL',
-      responseModel: 'max',
-    });
-  });
-
-  it('is not drawn where the server cannot ask Claude', () => {
-    showChannel(here());
-    open();
-    expect(textOf(tree!)).not.toContain('Response model');
+    const text = textOf(record());
+    expect(text).toContain('Ask Claude');
+    expect(text).not.toContain('\u00b7 Pro');
   });
 });
 
 /**
- * *Read aloud*, on *Channel Settings* since 2026-11-13: *Standard* or *Pro*
- * voices for the channel's replies, whoever asks, on the response model's
- * terms.
+ * *Transcription model*, *Response model* and *Read aloud* were cards on
+ * *Channel Settings* until 2026-11-19, when a channel became *Pro* while any
+ * member is: nothing on the screen chooses a grade now, for anybody.
  */
-describe('read aloud', () => {
-  const open = () => {
+describe('Channel Settings', () => {
+  it('draws no grade to choose, even for Pro where the server speaks', () => {
+    mockApp.pro = true;
     mockApp.me = { id: ME, displayName: 'Me' } as typeof mockApp.me;
-    return (tree = render(
+    showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
+    tree = render(
       <ChannelSettingsView
         publicAt={null}
         channel={here()}
@@ -259,39 +180,11 @@ describe('read aloud', () => {
         onBack={() => {}}
         onLeft={() => {}}
       />
-    ));
-  };
-
-  it('is drawn only where the server speaks', () => {
-    showChannel(here(), [], { claude: true });
-    open();
-    expect(textOf(tree!)).not.toContain('Read aloud');
-  });
-
-  it('is Standard on a new channel, and greyed without Pro', () => {
-    showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
-    open();
-    expect(textOf(tree!)).toContain('Which voices read Claude’s replies aloud here');
-    const standard = findButton(tree!, 'Standard')!;
-    expect(disabled(standard)).toBe(true);
-  });
-
-  it('is chosen by Pro, and sends the choice', () => {
-    mockApp.pro = true;
-    showChannel(here(), [], { claude: true, speech: true, speechKept: [] });
-    open();
-    const buttons = tree!.root.findAll(
-      (n) =>
-        n.props?.accessibilityRole === 'button' &&
-        typeof n.props?.onPress === 'function' &&
-        labelOf(n).trim() === 'Pro'
     );
-    // The two models' Pro are drawn above it; read aloud's is the last.
-    act(() => buttons[buttons.length - 1].props.onPress());
-    expect(mockApp.act).toHaveBeenLastCalledWith('sess_1', {
-      type: 'SET_READ_ALOUD',
-      readAloud: 'pro',
-    });
+    const text = textOf(tree!);
+    for (const gone of ['Transcription model', 'Response model', 'Read aloud']) {
+      expect(text).not.toContain(gone);
+    }
+    expect(findButton(tree!, 'Max')).toBeUndefined();
   });
 });
-

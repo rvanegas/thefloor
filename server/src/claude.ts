@@ -2,7 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 
 import { CLAUDE_ID } from '../../core/constants';
 import type { FiledView, RoomView, SegmentView } from '../../core/protocol';
-import type { ChannelState, ReplyLength, ResponseModel } from '../../core/types';
+import type { ChannelState, ReplyLength } from '../../core/types';
 import { lettered } from '../../core/transcript';
 import { newId, type Db } from './db';
 import { readableLines, type TranscriptLine } from './transcripts';
@@ -48,33 +48,42 @@ export interface ResponseGrade {
  * Effort is sent explicitly because Sonnet 5.5 defaults to `high` and Haiku
  * 5.5 to `medium`.
  *
- * ***Max*, since 2026-10-22, is Opus 5.5 at medium** — Rodrigo's call, the
- * one grade that buys thinking as well as size, and so the slowest under
- * *Responding…*. Medium is Opus 5.5's own default, sent anyway so the table
- * says it. Its ceiling is the largest because medium thinks the most.
+ * ***Max*, Opus 5.5 at medium, was a third grade from 2026-10-22 until
+ * 2026-11-19**, when the grade stopped being a choice (`isProChannel` in
+ * channels.ts); its ledger rows keep `max`.
  *
  * **A press that consults a library thinks at medium at the least**, since
  * 2026-11-14 — Rodrigo's call (`consultingGrade`). At low effort *Pro* read
  * the guide and stopped: 26 of its first 108 library presses made any call.
  */
+/**
+ * The grade of model a channel's *Ask Claude* asks: `pro` while the channel
+ * is *Pro* (`isProChannel` in channels.ts), `standard` otherwise.
+ */
+export type ResponseModel = 'standard' | 'pro';
+
 export const RESPONSE_MODELS: Record<ResponseModel, ResponseGrade> = {
   // 3072 since *Extended* became 450 words, about 600 tokens before any thinking.
   standard: { model: 'claude-haiku-5-5', effort: 'low', maxTokens: 3072, fallback: false },
   pro: { model: 'claude-sonnet-5-5', effort: 'low', maxTokens: 4096, fallback: true },
-  max: { model: 'claude-opus-5-5', effort: 'medium', maxTokens: 8192, fallback: true },
 };
 
 /**
+ * A library press's ceiling: thinking and every lookup's turn share it, and
+ * medium thinks more than low. *Max*'s, which it was until that grade went.
+ */
+const CONSULTING_MAX_TOKENS = 8192;
+
+/**
  * What a grade asks when the press consults a library: at least medium
- * effort, and *Max*'s ceiling, since thinking and every lookup's turn share
- * it. Only *Pro* changes today — *Standard* never consults one, and *Max*
- * already asks this — but it is said by grade, not by name.
+ * effort, and `CONSULTING_MAX_TOKENS`. Only *Pro* changes today —
+ * *Standard* never consults one — but it is said by grade, not by name.
  */
 export function consultingGrade(ask: ResponseGrade): ResponseGrade {
   return {
     ...ask,
     effort: ask.effort === 'low' ? 'medium' : ask.effort,
-    maxTokens: Math.max(ask.maxTokens, RESPONSE_MODELS.max.maxTokens),
+    maxTokens: Math.max(ask.maxTokens, CONSULTING_MAX_TOKENS),
   };
 }
 
@@ -941,6 +950,8 @@ export type ClaudeOutcome =
 /** What the registry does for a press. See `ChannelRegistry.askClaude`. */
 export interface ClaudeChannels {
   get(channelId: string): ChannelState | undefined;
+  /** Whether a member is *Pro*, which is the grade. See channels.ts. */
+  isProChannel(channelId: string): boolean;
   askClaude(
     channelId: string,
     userId: string
@@ -975,7 +986,7 @@ const FAILURES: Record<Exclude<ClaudeOutcome, 'posted'>, { status: number; error
  * a press may let Claude consult through the Messages API's MCP connector:
  * Anthropic's servers call noesis, not this one. Reading only. A library is an
  * account's own, connected on *Floor Settings* (noesis.ts), and is consulted
- * only in a channel whose *Library* switch its owner turned on, on Pro and Max.
+ * only in a channel whose *Library* switch its owner turned on, on Pro.
  * See planning/decision/2026-10-27-claude-consults-its-owner-s-library-channel-by-channel.md
  * and planning/decision/2026-11-01-each-account-connects-its-own-mdc-library.md.
  */
@@ -1011,7 +1022,7 @@ export interface ConsultedLibrary {
 /**
  * The libraries a press consults, an entry per owner, or none: only where
  * this server has noesis, the channel's *Library* is on, and the grade is *Pro*
- * or *Max* — *Standard* stays the plain, fast call. **Whoever presses**: the
+ * — *Standard* stays the plain, fast call. **Whoever presses**: the
  * switches are the channel's, as the grade is, and each owner's consent was
  * given when they turned theirs on, so who asks is deliberately not an
  * argument here.
@@ -1114,8 +1125,8 @@ export class ClaudeResponder {
     }
 
     // The grade is read at the press and written to the ledger with it, so
-    // changing the setting later never changes what an earlier reply was.
-    const grade = channel.responseModel ?? 'standard';
+    // a member's Pro lapsing later never changes what an earlier reply was.
+    const grade: ResponseModel = channels.isProChannel(channelId) ? 'pro' : 'standard';
     const ask = RESPONSE_MODELS[grade];
     // Read at the press with the grade, for the same reason.
     // None consulted is no library at all, as the request is concerned.
@@ -1280,7 +1291,7 @@ export class ClaudeResponder {
       output_config: { effort: ask.effort },
     };
     // Either reason takes the beta endpoint. Today they coincide — the
-    // library is offered only on Pro and Max, the grades with the fallback —
+    // library is offered only on Pro, the grade with the fallback —
     // but each is said on its own, so neither depends on the other staying so.
     if (!ask.fallback && !library) return this.options.client.messages.create(body, { signal });
     // `fallbacks` and the MCP connector's fields are newer than the SDK pinned

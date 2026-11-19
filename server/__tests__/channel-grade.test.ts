@@ -2,15 +2,15 @@ import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
 import { MemoryMediaServer } from '../src/media';
 import { MemoryRecordingStore } from '../src/storage';
+import { legacyGradesOf } from '../src/ws';
 
 /**
- * Who may choose a channel's transcription model.
- *
- * The reducer's half — that it is guarded like the other channel settings — is
- * in core. What is here is the half only the server can answer, since the
- * reducer knows nothing of accounts: a *Pro* account may, nobody else may —
- * `debug` included, since 2026-11-08 —
- * and nothing but the two grades gets through.
+ * A channel's grade, since 2026-11-19: *Pro* — transcription, *Ask Claude*
+ * and *Read aloud* at once, for everybody in it — while any member is *Pro
+ * (the subscription)* or marked unlimited, and *Standard* otherwise. Nobody
+ * chooses it any more; the three choices an older build still sends are
+ * answered as done and change nothing. What each grade asks is tested where
+ * it is used: claude.test.ts and claude-speech.test.ts.
  */
 
 let app: App;
@@ -83,12 +83,6 @@ async function channelOfTwo() {
 
 const channel = (channelId: string) => app.channels.get(channelId)!;
 
-const choose = (channelId: string, userId: string, transcriptionModel: unknown) =>
-  app.channels.dispatch(channelId, userId, {
-    type: 'SET_TRANSCRIPTION_MODEL',
-    transcriptionModel,
-  } as never);
-
 /** Makes an account *Pro*, with a subscription that runs to 2100. */
 const makePro = (id: string, expiresAt = 4_102_444_800_000) =>
   app.db
@@ -97,54 +91,64 @@ const makePro = (id: string, expiresAt = 4_102_444_800_000) =>
          expires_at, latest_transaction_id, updated_at, raw) VALUES (?, ?, 'pro', 'Sandbox', ?, ?, 0, '{}')`
     )
     .run(`t-${id}`, id, expiresAt, `t-${id}`);
-describe('choosing the transcription model', () => {
-  it('is standard until somebody chooses otherwise', async () => {
+describe("a channel's grade", () => {
+  it('is Standard while no member is Pro', async () => {
     const { channelId } = await channelOfTwo();
-    expect(channel(channelId).transcriptionModel).toBe('standard');
+    expect(app.channels.isProChannel(channelId)).toBe(false);
   });
 
-  it('is refused to an account without Pro, debug or not, and changes nothing', async () => {
+  it('is Pro while any member subscribes, whether or not they are here', async () => {
+    const { bob, channelId } = await channelOfTwo();
+    makePro(bob.id);
+    expect(app.channels.isProChannel(channelId)).toBe(true);
+  });
+
+  it('is Pro while any member is marked unlimited', async () => {
     const { alice, channelId } = await channelOfTwo();
-    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.id);
-    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
-
-    const result = choose(channelId, alice.id, 'pro');
-
-    expect(result).toMatchObject({ ok: false, code: 'forbidden' });
-    expect(channel(channelId).transcriptionModel).toBe('standard');
+    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.id);
+    expect(app.channels.isProChannel(channelId)).toBe(true);
   });
 
-  it('is refused once Pro has lapsed', async () => {
+  it('is Standard again once that Pro has lapsed', async () => {
     const { alice, channelId } = await channelOfTwo();
     makePro(alice.id, clock - 2 * 86_400_000);
-    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
-
-    expect(choose(channelId, alice.id, 'pro')).toMatchObject({ ok: false, code: 'forbidden' });
-    expect(channel(channelId).transcriptionModel).toBe('standard');
+    expect(app.channels.isProChannel(channelId)).toBe(false);
   });
 
-  it('is taken from a Pro account in the room, and back again', async () => {
-    const { alice, channelId } = await channelOfTwo();
-    makePro(alice.id);
-    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
-
-    expect(choose(channelId, alice.id, 'pro')).toMatchObject({ ok: true });
-    expect(channel(channelId).transcriptionModel).toBe('pro');
-    expect(choose(channelId, alice.id, 'standard')).toMatchObject({ ok: true });
-    expect(channel(channelId).transcriptionModel).toBe('standard');
+  it('is nothing for a channel that does not exist', () => {
+    expect(app.channels.isProChannel('nope')).toBe(false);
   });
+});
 
-  it('refuses anything but the two grades, even from Pro', async () => {
+describe('the choices an older build sends', () => {
+  it('are answered as done, from anybody, and change nothing', async () => {
     const { alice, channelId } = await channelOfTwo();
-    makePro(alice.id);
-    app.channels.dispatch(channelId, alice.id, { type: 'ENTER' });
-
-    for (const value of ['universal-3-5-pro', undefined, true]) {
-      expect(choose(channelId, alice.id, value)).toMatchObject({
-        ok: false,
-        code: 'invalid',
-      });
+    const before = app.channels.get(channelId);
+    for (const action of [
+      { type: 'SET_TRANSCRIPTION_MODEL', transcriptionModel: 'pro' },
+      { type: 'SET_RESPONSE_MODEL', responseModel: 'max' },
+      { type: 'SET_READ_ALOUD', readAloud: 'pro' },
+    ]) {
+      expect(app.channels.dispatch(channelId, alice.id, action as never)).toMatchObject({ ok: true });
     }
-    expect(channel(channelId).transcriptionModel).toBe('standard');
+    expect(app.channels.get(channelId)).toBe(before);
+    expect(app.channels.isProChannel(channelId)).toBe(false);
+  });
+
+  it('are still refused from somebody not in the channel', async () => {
+    const { channelId } = await channelOfTwo();
+    const carol = await signIn('carol@example.com', 'Carol');
+    expect(
+      app.channels.dispatch(channelId, carol.account.id, { type: 'SET_READ_ALOUD', readAloud: 'pro' } as never)
+    ).toMatchObject({ ok: false, code: 'forbidden' });
+  });
+
+  it('are told the grade in the three fields they read', () => {
+    expect(legacyGradesOf(true)).toEqual({ transcriptionModel: 'pro', responseModel: 'pro', readAloud: 'pro' });
+    expect(legacyGradesOf(false)).toEqual({
+      transcriptionModel: 'standard',
+      responseModel: 'standard',
+      readAloud: 'standard',
+    });
   });
 });

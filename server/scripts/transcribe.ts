@@ -14,8 +14,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { parse, join } from 'path';
 
-import type { TranscriptionModel } from '../../core/types';
-import { AssemblyAiTranscription, type Utterance } from '../src/transcription';
+import { AssemblyAiTranscription, type TranscriptionModel, type Utterance } from '../src/transcription';
 
 /** How often to ask whether the job has finished. */
 const POLL_MS = 3_000;

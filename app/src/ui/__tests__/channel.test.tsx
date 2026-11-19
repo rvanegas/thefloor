@@ -3656,52 +3656,6 @@ describe('Channel', () => {
     act(() => tree.unmount());
   });
 
-  it('shows the transcription model to everybody and lets only Pro change it', () => {
-    // The server refuses the change from anybody without Pro, so for them it
-    // is drawn grey with the sentence that says why — `debug` included.
-    const open = () => {
-      const tree = render(<ChannelView
-          channelId="sess_1"
-          audio={AUDIO}
-          onClose={() => {}}
-          onExit={() => {}}
-        />);
-      act(() => findButton(tree, 'Settings')!.props.onPress());
-      return tree;
-    };
-    const disabled = (button: ReturnType<typeof findButton>) =>
-      button!.props.accessibilityState?.disabled ?? button!.props.disabled;
-    showChannel(channelOf());
-
-    mockApp.debug = true;
-    const plain = open();
-    expect(textOf(plain)).toContain('Transcription model');
-    expect(textOf(plain)).toContain('Only somebody subscribed to Pro can change it.');
-    expect(disabled(findButton(plain, 'Pro'))).toBe(true);
-    act(() => plain.unmount());
-
-    mockApp.pro = true;
-    const pro = open();
-    expect(textOf(pro)).not.toContain('Only somebody subscribed to Pro');
-    expect(disabled(findButton(pro, 'Pro'))).toBeFalsy();
-    act(() => findButton(pro, 'Pro')!.props.onPress());
-    expect(mockApp.act).toHaveBeenCalledWith('sess_1', {
-      type: 'SET_TRANSCRIPTION_MODEL',
-      transcriptionModel: 'pro',
-    });
-    act(() => pro.unmount());
-  });
-
-  /*
-    The sentence this asserted until 2026-09-13 is gone, and its absence is
-    what is asserted now.
-
-    It said, under the transport, that the channel records itself and what it
-    was waiting for. True, and said to somebody who had switched the setting
-    on themselves in this channel's own settings, every time they opened the
-    tab — and it was one of four muted paragraphs there. The transport carries
-    its words now, and prose under it is reserved for a capture that failed.
-  */
   it('offers Record to somebody alone in the room, and withdraws it when they mute', () => {
     // The user-visible half of 2026-09-14. Alone with an open microphone the
     // control is live; alone with nothing to capture it is not, and that is

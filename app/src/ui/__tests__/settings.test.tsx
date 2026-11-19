@@ -108,6 +108,7 @@ describe("Home settings", () => {
   it('draws its sections in their order', async () => {
     mockApp.debug = true;
     mockApp.channelViews.sess_1 = { speech: true } as never;
+    mockApp.pro = true;
     mockApp.loadNoesis.mockResolvedValueOnce({ available: true, connected: false } as never);
     // A subscriber, whose card is drawn whether or not Pro is on sale.
     mockApp.loadPro.mockResolvedValueOnce({
@@ -130,7 +131,7 @@ describe("Home settings", () => {
       'noesis library',
       'Diagnostics',
       'Privacy',
-      'Pro',
+      'Plan',
       'Account',
     ]);
     act(() => tree.unmount());
@@ -175,9 +176,9 @@ describe("Home settings", () => {
   });
 
   /**
-   * *Pro voice*, here since 2026-11-13 (the channel's that morning): every
-   * member sees the voices under their languages and can tap one to hear it;
-   * only *Pro* chooses one by tapping.
+   * *Pro voice*, here since 2026-11-13 (the channel's that morning): drawn
+   * since 2026-11-19 only for *Pro* and *Unlimited*, a *Basic* account
+   * choosing among this phone's *Standard voices* instead.
    */
   describe('Pro voice', () => {
     const speaking = () => {
@@ -193,6 +194,7 @@ describe("Home settings", () => {
 
     it('is shut on arrival, saying which voice reads each language', async () => {
       speaking();
+      mockApp.pro = true;
       mockApp.speechVoices = { es: 'aai-oriol' };
       const tree = await openSettings();
       expect(textOf(tree)).toContain('English: Kyla');
@@ -204,15 +206,11 @@ describe("Home settings", () => {
       expect(findButton(tree, 'Sara')).toBeUndefined();
     });
 
-    it('lists the voices for everybody to hear, and chooses nothing without Pro', async () => {
+    it('is not drawn for Basic, whose replies the phones read', async () => {
       speaking();
       const tree = await openSettings();
-      seeMore(tree);
-      expect(textOf(tree)).toContain('Only somebody subscribed to Pro can change it.');
-      const sara = findButton(tree, 'Sara')!;
-      expect(sara.props.accessibilityState?.disabled ?? sara.props.disabled).toBeFalsy();
-      act(() => sara.props.onPress());
-      expect(mockApp.setSpeechVoice).not.toHaveBeenCalled();
+      expect(textOf(tree)).not.toContain('Pro voice');
+      expect(findButton(tree, 'See more')).toBeUndefined();
     });
 
     it('chooses the voice tapped, for Pro', async () => {
@@ -1217,14 +1215,28 @@ describe("Pro", () => {
     platform: "ios",
   };
 
-  it("draws nothing where Pro is not sold and nobody has it", async () => {
+  it("says Basic, and sells nothing, where Pro is not sold and nobody has it", async () => {
     const tree = await openSettings();
+    expect(textOf(tree)).toContain("Plan Basic");
     expect(textOf(tree)).not.toContain("weekly limit");
     expect(textOf(tree)).not.toContain("You are Pro");
     act(() => tree.unmount());
   });
 
-  it("draws nothing where the store has not priced it", async () => {
+  it("says Pro for a subscriber, and Unlimited for an account marked so by hand", async () => {
+    mockApp.loadPro.mockResolvedValueOnce({ pro: true, until: NOW + 86_400_000, freeMinutes: 60, offer: null });
+    const subscriber = await openSettings();
+    expect(textOf(subscriber)).toContain("Plan Pro You are Pro until");
+    act(() => subscriber.unmount());
+
+    mockApp.loadPro.mockResolvedValueOnce({ pro: true, until: null, freeMinutes: 60, offer: null });
+    const marked = await openSettings();
+    expect(textOf(marked)).toContain("Plan Unlimited Everything Pro gives, without a subscription.");
+    expect(textOf(marked)).not.toContain("weekly limit");
+    act(() => marked.unmount());
+  });
+
+  it("sells nothing where the store has not priced it", async () => {
     // App Store Connect not set up yet: a button that cannot work is worse
     // than no card.
     onSale();

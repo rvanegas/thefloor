@@ -428,16 +428,13 @@ is the pattern (four, with a `sublabel` each), and since 2026-11-13 *Pro voice* 
 the second: AssemblyAI's voices stacked under a plain line naming
 each language, a group per language as the *Standard voice* card draws the
 phone's installed ones — both on *Floor Settings* under *Read aloud*, since
-the evening of that day. **The *Pro voice*'s buttons are live for everybody,
-unlike every other choice drawn for *Pro***,
-because a tap plays the voice's sample before it chooses anything — trying a
-voice is what the list is for — and only *Pro*'s tap also chooses; the
-*Response model* card's sentence, in its words, under it says who may; the
-*Standard voice*'s are anybody's, being free. *Read aloud* on *Channel
-Settings*, since the same evening, is a plain pair in a `choices` row under
-*Response model*, and in its shape — *Standard* and *Pro*, in that order as
-every grade runs, which are iOS's voices and AssemblyAI's, Claude writing
-only the words — greyed without *Pro* with that card's sentence. The chime
+the evening of that day. **Only one of the two is drawn, by the reader's
+*Plan***, since 2026-11-19: the *Pro voice* for *Pro* and *Unlimited*, a tap
+playing the voice's sample and choosing it; the *Standard voice* for *Basic*.
+Nothing on the page is drawn greyed for want of Pro any more. *Channel
+Settings*' three grade cards — *Transcription model*, *Response model* and
+*Read aloud*, `choices` rows greyed without *Pro* — went the same day, a
+channel's grade being its members' Pro (GLOSSARY.md, *Pro channel*). The chime
 loudness on Floor Settings was the second — five, bare — for the day that
 setting existed, and the arithmetic above is what decided its shape. It is the
 same arithmetic § *The pinned footer* makes about five slots in 620.
@@ -653,7 +650,8 @@ being kept; the switch says only what was chosen. A refused switch is the
 platform's grey and its word goes to `textFaint`.
 
 **One alone on *Channel Settings*' *Library* card, since 2026-10-27**:
-*Consult*, under *Response model*, the same `KeepSwitch` in the same row
+*Consult*, under *Record automatically* since 2026-11-19 (*Response model*
+until then), the same `KeepSwitch` in the same row
 style as *Record automatically*'s pair. Drawn where the server has a
 library, refused — the platform's grey, its word `textFaint` — for anybody
 but the library's owner, with the sentence that says so under it; and since
@@ -1454,22 +1452,23 @@ a net rather than a layout.
 
 ***Ask Claude* is a line under the row**, since 2026-10-22 — `AskClaude` in
 `RecordTab.tsx`, drawn only where the server can ask Claude. The switches'
-grammar, words then their controls: *Ask Claude* in `switchLabel`, with
-*· Pro* on a *Pro* channel or *· Max* on a *Max* one, then *Brief*, *Medium* and *Extended* as three
+grammar, words then their controls: *Ask Claude* in `switchLabel` — with
+*· Pro* or *· Max* after it by the channel's grade until 2026-11-19, and
+nothing since, the grade being said only as the reader's *Plan* — then
+*Brief*, *Medium* and *Extended* as three
 `Button`s at the People card ping's vertical numbers but 6 a side rather than
 8 (`length`). **On a line of its own because the row is full** — a third
 glyph at 40 would take it past 343 — and it is an act about the log, so it
 sits where the reply lands rather than among the people. Its busy state is
-the words, which read *Responding…* with no *· Pro*, the three buttons greyed
+the words, which read *Responding…*, the three buttons greyed
 on every screen while anybody's press is out; who asked, or why a press
 failed, is a muted line under it, the bar's line for its refusals. Grey while
 you are away, as the switches are, with no sentence. **Measured at 15pt with
-the system font**, buttons at their text plus 12 and gaps of 6: *Ask Claude ·
-Pro* and the three come to 326 of 343, *Preguntar a Claude* with *Breve Media
-Extensa* to 327, *Responding…* to 306; at 8 a side the first two were within
-6, which is why the padding came down; *Ask Claude · Max* comes to 331. Only
-Spanish on a *Pro* or *Max* channel, 362 and 367, does not fit, and its words wrap (`askLabel` shrinks) rather than push the
-last button off the edge. For its first day it was a card on *People* in a
+the system font**, buttons at their text plus 12 and gaps of 6: *Preguntar a
+Claude* with *Breve Media Extensa* comes to 327 of 343, *Responding…* to 306
+— *Ask Claude · Pro* was 326 and *· Max* 331, and Spanish with either, 362
+and 367, wrapped, until the suffix went on 2026-11-19; the words still wrap
+(`askLabel` shrinks) rather than push the last button off the edge. For its first day it was a card on *People* in a
 person's shape with the person's marks taken out, and still read as a person
 — which is the reason it is not one; then one *Respond* button beside the
 word *Claude*, until the three lengths the same day.

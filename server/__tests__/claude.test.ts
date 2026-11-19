@@ -460,7 +460,7 @@ describe('the instructions', () => {
     expect(prompt).toContain(limitRule('medium'));
   });
 
-  it('asks Standard and Pro at low effort and Max at medium, with the larger two’s fallback', () => {
+  it('asks Standard and Pro at low effort, with Pro’s fallback', () => {
     expect(RESPONSE_MODELS.standard).toEqual({
       model: 'claude-haiku-5-5',
       effort: 'low',
@@ -473,21 +473,14 @@ describe('the instructions', () => {
       maxTokens: 4096,
       fallback: true,
     });
-    expect(RESPONSE_MODELS.max).toEqual({
-      model: 'claude-opus-5-5',
-      effort: 'medium',
-      maxTokens: 8192,
-      fallback: true,
-    });
   });
 
-  it('asks at medium effort at the least, with Max’s ceiling, where a press consults a library', () => {
+  it('asks at medium effort at the least, with a larger ceiling, where a press consults a library', () => {
     expect(consultingGrade(RESPONSE_MODELS.pro)).toEqual({
       ...RESPONSE_MODELS.pro,
       effort: 'medium',
       maxTokens: 8192,
     });
-    expect(consultingGrade(RESPONSE_MODELS.max)).toEqual(RESPONSE_MODELS.max);
   });
 });
 
@@ -1009,7 +1002,7 @@ describe('which presses consult the library', () => {
     url: 'https://noesis.example/mcp',
     tokenFor: async (accountId) => ({ a: 'ta', b: 'tb' })[accountId] ?? null,
   };
-  const grades = ['standard', 'pro', 'max'] as const;
+  const grades = ['standard', 'pro'] as const;
   const on = { library: true, libraries: { a: ['a/x', 'a/y'] }, participants: ['a', 'b'] };
   const a = { url: 'https://noesis.example/mcp?libraries=a%2Fx%2Ca%2Fy', token: 'ta', owner: 'a', libraries: ['a/x', 'a/y'] };
   const b = { url: 'https://noesis.example/mcp?libraries=b%2Fz', token: 'tb', owner: 'b', libraries: ['b/z'] };
@@ -1020,15 +1013,14 @@ describe('which presses consult the library', () => {
     }
   });
 
-  it('is none on Standard even with it on, and its owner’s libraries on Pro and Max', async () => {
+  it('is none on Standard even with it on, and its owner’s libraries on Pro', async () => {
     expect(await librariesFor(LIB, on, 'standard')).toEqual([]);
     expect(await librariesFor(LIB, on, 'pro')).toEqual([a]);
-    expect(await librariesFor(LIB, on, 'max')).toEqual([a]);
   });
 
   it('is every owner’s, in a stable order, each with their own token', async () => {
     const both = { ...on, libraries: { b: ['b/z'], a: ['a/x', 'a/y'] } };
-    expect(await librariesFor(LIB, both, 'max')).toEqual([a, b]);
+    expect(await librariesFor(LIB, both, 'pro')).toEqual([a, b]);
   });
 
   it('is none on a server without one, whatever the channel says', async () => {
@@ -1036,13 +1028,13 @@ describe('which presses consult the library', () => {
   });
 
   it('reads a channel from before the switch as off', async () => {
-    expect(await librariesFor(LIB, { participants: ['a'] } as never, 'max')).toEqual([]);
+    expect(await librariesFor(LIB, { participants: ['a'] } as never, 'pro')).toEqual([]);
   });
 
   it('passes over an owner who has left or has no token, and keeps everybody else’s', async () => {
     const both = { ...on, libraries: { a: ['a/x', 'a/y'], b: ['b/z'] } };
-    expect(await librariesFor(LIB, { ...both, participants: ['b'] }, 'max')).toEqual([b]);
-    expect(await librariesFor(LIB, { ...on, libraries: { c: ['c/w'] } }, 'max')).toEqual([]);
+    expect(await librariesFor(LIB, { ...both, participants: ['b'] }, 'pro')).toEqual([b]);
+    expect(await librariesFor(LIB, { ...on, libraries: { c: ['c/w'] } }, 'pro')).toEqual([]);
   });
 });
 
@@ -1050,7 +1042,7 @@ describe('a press with the library', () => {
   const LIBRARY = NOESIS;
 
   const setUp = async (
-    grade: 'standard' | 'pro' | 'max',
+    grade: 'standard' | 'pro',
     on = true,
     answer: (call: Call) => Promise<unknown> | unknown = () => reply('From the library.'),
     timeoutMs?: number,
@@ -1062,16 +1054,17 @@ describe('a press with the library', () => {
     const { alice, channelId } = people;
     await connect(alice.account.id);
     makePro(alice.account.id);
-    app.channels.dispatch(channelId, alice.account.id, {
-      type: 'SET_RESPONSE_MODEL',
-      responseModel: grade,
-    } as never);
     if (on) {
       app.channels.dispatch(channelId, alice.account.id, {
         type: 'SET_LIBRARY',
         library: true,
         libraries: ['alice/philosophy'],
       } as never);
+    }
+    // Standard is a channel no member is Pro in, which leaves a library on
+    // only where its owner's Pro has lapsed since.
+    if (grade === 'standard') {
+      app.db.prepare('DELETE FROM pro_subscriptions WHERE account_id = ?').run(alice.account.id);
     }
     return { ...fake, ...people };
   };
@@ -1181,10 +1174,6 @@ describe('a press with the library', () => {
     boot(fake.client, undefined, LIBRARY);
     const { alice, bob, channelId } = await room2();
     makePro(alice.account.id);
-    app.channels.dispatch(channelId, alice.account.id, {
-      type: 'SET_RESPONSE_MODEL',
-      responseModel: 'pro',
-    } as never);
     app.channels.dispatch(channelId, alice.account.id, { type: 'SET_LIBRARY', library: true } as never);
 
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
@@ -1387,13 +1376,6 @@ describe('a press with the library', () => {
     const { calls, bob, channelId } = await setUp('pro', false);
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
     expect(calls[0].body.system).toBe(systemPrompt('medium'));
-  });
-
-  it('hands it over on Max too', async () => {
-    const { calls, bob, channelId } = await setUp('max');
-    expect((await press(channelId, bob.token)).statusCode).toBe(200);
-    expect(calls[0].body).toMatchObject({ model: 'claude-opus-5-5', betas: [MCP_BETA, FALLBACK_BETA] });
-    expect(calls[0].body).toHaveProperty('mcp_servers');
   });
 
   it('leaves Standard the plain call even with it on', async () => {
@@ -1645,7 +1627,6 @@ describe('the library switch', () => {
     const { alice, bob, channelId } = await room2();
     makePro(alice.account.id);
     set(channelId, alice.account.id, false);
-    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_RESPONSE_MODEL', responseModel: 'pro' } as never);
     await connect(alice.account.id);
     makePro(alice.account.id);
     set(channelId, alice.account.id, true);
@@ -1976,38 +1957,21 @@ describe('sending a room’s text to noesis', () => {
 });
 
 describe('the response model', () => {
-  const choose = (channelId: string, userId: string, responseModel: unknown) =>
-    app.channels.dispatch(channelId, userId, { type: 'SET_RESPONSE_MODEL', responseModel } as never);
-
-  it('is refused to an account without Pro, debug or not, and changes nothing', async () => {
-    boot(fakeClient(() => reply('x')).client);
-    const { alice, channelId } = await room2();
-    app.db.prepare('UPDATE accounts SET debug = 1 WHERE id = ?').run(alice.account.id);
-    for (const grade of ['pro', 'max']) {
-      expect(choose(channelId, alice.account.id, grade)).toMatchObject({
-        ok: false,
-        code: 'forbidden',
-        error: 'Only a Pro account can choose the response model.',
-      });
-    }
-    expect(app.channels.get(channelId)!.responseModel).toBe('standard');
+  it('is Haiku, without the fallback, while no member is Pro', async () => {
+    const { client, calls } = fakeClient(() => reply('Plain answer.'));
+    boot(client);
+    const { bob, channelId } = await room2();
+    expect((await press(channelId, bob.token)).statusCode).toBe(200);
+    expect(calls[0].beta).toBe(false);
+    expect(calls[0].body).toMatchObject({ model: 'claude-haiku-5-5', max_tokens: 3072 });
+    expect(usageRows()[0]).toMatchObject({ grade: 'standard', model: 'claude-haiku-5-5' });
   });
 
-  it('refuses anything but the three grades, even from Pro', async () => {
-    boot(fakeClient(() => reply('x')).client);
-    const { alice, channelId } = await room2();
-    makePro(alice.account.id);
-    for (const value of ['opus', undefined, 1]) {
-      expect(choose(channelId, alice.account.id, value)).toMatchObject({ ok: false, code: 'invalid' });
-    }
-  });
-
-  it('on Pro, asks Sonnet with the fallback whoever presses, and survives a restart', async () => {
+  it('is Sonnet with the fallback while any member is Pro, whoever presses', async () => {
     const { client, calls } = fakeClient(() => reply('Pro answer.', { model: 'claude-sonnet-5-5' }));
     boot(client);
     const { alice, bob, channelId } = await room2();
     makePro(alice.account.id);
-    expect(choose(channelId, alice.account.id, 'pro')).toMatchObject({ ok: true });
 
     // Bob is not Pro; the grade is the channel's, not the presser's.
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
@@ -2020,32 +1984,6 @@ describe('the response model', () => {
       fallbacks: 'default',
     });
     expect(usageRows()[0]).toMatchObject({ grade: 'pro', model: 'claude-sonnet-5-5' });
-
-    // A restart keeps the setting, and comes back with nobody being asked.
-    app.channels.stop();
-    await app.fastify.close();
-    boot(client);
-    expect(app.channels.get(channelId)!.responseModel).toBe('pro');
-    expect(app.channels.get(channelId)!.claude).toBeNull();
-  });
-
-  it('on Max, asks Opus at medium effort with the fallback, and ledgers the grade', async () => {
-    const { client, calls } = fakeClient(() => reply('Max answer.', { model: 'claude-opus-5-5' }));
-    boot(client);
-    const { alice, bob, channelId } = await room2();
-    makePro(alice.account.id);
-    expect(choose(channelId, alice.account.id, 'max')).toMatchObject({ ok: true });
-
-    expect((await press(channelId, bob.token, 'extended')).statusCode).toBe(200);
-    expect(calls[0].beta).toBe(true);
-    expect(calls[0].body).toMatchObject({
-      model: 'claude-opus-5-5',
-      max_tokens: 8192,
-      output_config: { effort: 'medium' },
-      betas: [FALLBACK_BETA],
-      fallbacks: 'default',
-    });
-    expect(usageRows()[0]).toMatchObject({ grade: 'max', model: 'claude-opus-5-5' });
   });
 });
 
@@ -2060,8 +1998,7 @@ describe("a press with the channel's own library", () => {
     boot(fake.client, undefined, NOESIS, undefined, true);
     const people = await room2();
     const { alice, channelId } = people;
-    makePro(alice.account.id);
-    app.channels.dispatch(channelId, alice.account.id, { type: 'SET_RESPONSE_MODEL', responseModel: grade } as never);
+    if (grade === 'pro') makePro(alice.account.id);
     const handle = withLibrary ? app.channels.handleFor(channelId) : null;
     return { ...fake, ...people, handle };
   }
@@ -2085,7 +2022,7 @@ describe("a press with the channel's own library", () => {
     expect(calls[0].body.system).toContain(channelLibraryRule());
   });
 
-  it('consults it on Pro and Max only, and not once switched off on its card', async () => {
+  it('consults it on Pro only, and not once switched off on its card', async () => {
     const standard = await setUp('standard');
     await press(standard.channelId, standard.bob.token);
     expect(standard.calls[0].body).not.toHaveProperty('mcp_servers');

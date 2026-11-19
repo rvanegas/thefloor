@@ -675,7 +675,6 @@ export const es: Strings = {
     proVoiceLanguage: (language: 'en' | 'es') => (language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'),
     proVoiceIs: (language: 'en' | 'es', voice: string) =>
       `${language === 'es' ? 'Espa\u00f1ol' : 'Ingl\u00e9s'}: ${voice}`,
-    proVoiceWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
     chooseWhereSoundComesOut: () => 'Elegir por d\u00f3nde sale el sonido',
     chooseWhereSoundComesOutSub: () =>
       'Auriculares, AirPlay o cualquier cosa emparejada',
@@ -730,9 +729,13 @@ export const es: Strings = {
     privacyPolicy: () => 'Pol\u00edtica de privacidad',
     privacyNote: () =>
       'Qu\u00e9 se guarda, por qu\u00e9 y durante cu\u00e1nto tiempo. Se abre en tu navegador.',
-    pro: () => 'Pro',
+    plan: () => 'Plan',
+    planBasic: () => 'B\u00e1sico',
+    planPro: () => 'Pro',
+    planUnlimited: () => 'Ilimitado',
+    planUnlimitedNote: () => 'Todo lo que da Pro, sin suscripci\u00f3n.',
     proPitch: (freeMinutes: number) =>
-      `Transcripci\u00f3n sin el l\u00edmite semanal de ${freeMinutes} minutos gratis, y la elecci\u00f3n de los modelos de transcripci\u00f3n y de respuesta de un canal. No hay nada m\u00e1s a la venta.`,
+      `Transcripci\u00f3n sin el l\u00edmite semanal de ${freeMinutes} minutos gratis, y en Pro cada canal del que eres miembro \u2014 sus transcripciones, las respuestas de Claude y las voces que las leen \u2014 para todos los que est\u00e1n en \u00e9l. No hay nada m\u00e1s a la venta.`,
     proSubscribe: (price: string) => `Suscribirse por ${price} al mes`,
     proUntil: (until: number) =>
       `Eres Pro hasta el ${new Date(until).toLocaleDateString('es', {
@@ -853,28 +856,11 @@ export const es: Strings = {
       'Desactivar cualquiera de los dos en la pesta\u00f1a Grabado dura hasta que todo el mundo haya salido del canal y haya vuelto.',
     autoRecordStepIn: () =>
       'Entra para cambiar esto. Lo que se conserva de una conversaci\u00f3n es cosa de quien est\u00e1 en ella.',
-    transcriptionModel: () => 'Modelo de transcripci\u00f3n',
-    transcriptionStandard: () => 'Est\u00e1ndar',
-    transcriptionPro: () => 'Pro',
-    transcriptionModelNote: () =>
-      'Est\u00e1ndar es Universal-2. Pro es Universal-3.5 Pro, que cuesta un 40% m\u00e1s y entiende un cambio de idioma a mitad de frase. Se aplica a las transcripciones que se pidan a partir de ahora.',
-    responseModel: () => 'Modelo de respuesta',
-    responseStandard: () => 'Est\u00e1ndar',
-    responsePro: () => 'Pro',
-    responseMax: () => 'Max',
-    responseModelNote: () =>
-      'Est\u00e1ndar: m\u00e1s r\u00e1pido y m\u00e1s barato. Pro: un modelo m\u00e1s grande, algo m\u00e1s lento. Max: el modelo m\u00e1s grande, que piensa m\u00e1s y es el m\u00e1s lento. Se aplica a quien pregunte a Claude.',
-    modelWho: () => 'Solo puede cambiarlo quien est\u00e9 suscrito a Pro.',
-    readAloud: () => 'Leer en voz alta',
-    readAloudStandard: () => 'Est\u00e1ndar',
-    readAloudPro: () => 'Pro',
-    readAloudNote: () =>
-      'Qu\u00e9 voces leen en voz alta las respuestas de Claude aqu\u00ed, pregunte quien pregunte. Las voces Pro las oyen todos en la llamada y quedan en las grabaciones, y cada respuesta cuesta un poco. Las voces Est\u00e1ndar son las de cada iPhone: gratis, pero cada iPhone lee la respuesta por su cuenta y nunca se graba. Qu\u00e9 voz de cada una es la de quien pregunta, en Ajustes de The Floor.',
     library: () => 'Biblioteca',
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.
     libraryNote: () =>
-      'Si está activada, Claude puede apoyarse en los escritos del dueño de cada biblioteca al responder, y nombra cualquier texto que cite y de quién es. Se aplica en Pro y Max, a quien pregunte a Claude.',
+      'Si está activada, Claude puede apoyarse en los escritos del dueño de cada biblioteca al responder, y nombra cualquier texto que cite y de quién es. Se aplica mientras el canal es Pro, a quien pregunte a Claude.',
     libraryChoose: () =>
       'Activa las bibliotecas que Claude puede consultar aquí. Cada una que actives es tu consentimiento para que sus escritos lleguen al Grabado de este canal.',
     libraryNoneYet: () => 'Todavía no tienes ninguna biblioteca en noesis. Crea una allí y aparecerá aquí.',
@@ -887,7 +873,7 @@ export const es: Strings = {
     channelLibraryOpen: () => 'Abrir en noesis',
     channelLibraryConsult: () => 'Claude la consulta',
     channelLibraryConsultNote: () =>
-      'Si está activada, Claude puede apoyarse en las conversaciones anteriores y las fuentes de este canal al responder. Se aplica en Pro y Max, a quien pregunte a Claude.',
+      'Si está activada, Claude puede apoyarse en las conversaciones anteriores y las fuentes de este canal al responder. Se aplica mientras el canal es Pro, a quien pregunte a Claude.',
     libraryTheirs: (name: string, libraries: string[]) =>
       libraries.length === 1
         ? `Consultando la biblioteca de ${name}: ${libraries[0]}. Cualquiera aquí puede desactivarla.`
@@ -1221,8 +1207,6 @@ export const es: Strings = {
     keepText: () => 'Texto',
     severalVoices: () => 'Varias voces en mi micr\u00f3fono',
     askClaude: () => 'Preguntar a Claude',
-    claudeProSuffix: () => ' \u00b7 Pro',
-    claudeMaxSuffix: () => ' \u00b7 Max',
     replyBrief: () => 'Breve',
     replyMedium: () => 'Media',
     replyExtended: () => 'Extensa',

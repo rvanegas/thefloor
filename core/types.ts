@@ -270,40 +270,6 @@ export interface FloorState {
 export type RecordingStatus = 'idle' | 'recording' | 'paused';
 
 /**
- * Which grade of speech model a channel's transcripts are asked for.
- *
- * Named by grade rather than by the provider's model id, so that the setting
- * survives a change of provider — the mapping to an actual model is the
- * provider's, in `server/src/transcription.ts`. `standard` is the cheap one
- * and the default; `pro` is the flagship, about 40% dearer per hour and a
- * little more accurate, and is offered only to `debug` accounts while the
- * difference is being measured.
- */
-export type TranscriptionModel = 'standard' | 'pro';
-
-/**
- * The grade of model a channel's *Ask Claude* asks, since 2026-10-22: `standard`
- * is Haiku and the default, `pro` is Sonnet, both at low effort, and `max`,
- * since the same day, Opus at medium. The mapping is the server's, in
- * `server/src/claude.ts`.
- *
- * **Its own union, not `TranscriptionModel`'s**, because the two settings
- * move independently and a shared type would invite one to be read for the
- * other — which is also why the third grade went here alone. And *Pro* here
- * is a grade of model, as it is there — not *Pro (the subscription)*.
- */
-export type ResponseModel = 'standard' | 'pro' | 'max';
-
-/**
- * Which grade of voice reads this channel's Claude replies aloud, since
- * 2026-11-13: `standard`, each iPhone's own, free and heard on that phone
- * alone; `pro`, AssemblyAI's, said once by the server into the room and
- * billed per reply. Its own union for `ResponseModel`'s reason, and its *Pro*
- * is a grade, not *Pro (the subscription)*.
- */
-export type ReadAloud = 'standard' | 'pro';
-
-/**
  * A *Pro voice* — an AssemblyAI voice slug from `SPEECH_VOICES` — or null for
  * the default voice of the language a reply is spoken in
  * (`defaultSpeechVoice`). Since 2026-11-13.
@@ -1052,50 +1018,20 @@ export interface ChannelState {
    * it, and read through `keepOf` as whatever was running.
    */
   keep?: Keep;
-  /**
-   * The grade of speech model this channel's next transcript is asked for.
-   * See `TranscriptionModel`.
-   *
-   * The channel's for the reason `autoRecord` is: a transcript is a shared
-   * artefact of the channel, so whoever presses the button gets the grade the
-   * channel was set to. Read when a transcript is *requested*, and stored on
-   * it then, so changing it later never changes what an existing one was.
-   *
-   * **Only a `debug` account may change it**, which the reducer cannot know —
-   * the server refuses everyone else before dispatching. Absent on a snapshot
-   * from a server that predates the field, which the app reads as `standard`.
+  /*
+   * `transcriptionModel`, `responseModel` and `readAloud` were here until
+   * 2026-11-19, each a grade a *Pro* account chose for the channel. Since
+   * then a channel is *Pro* throughout while any member is, and *Standard*
+   * otherwise, which is account state the reducer has never known — so the
+   * server decides it at each use (`isProChannel`), and the app shows only
+   * the reader's own Basic, Pro or Unlimited, on *Floor Settings*.
    */
-  transcriptionModel: TranscriptionModel;
-  /**
-   * The grade of model this channel's *Ask Claude* asks. See `ResponseModel`.
-   *
-   * The channel's for `transcriptionModel`'s reason: a reply is a shared
-   * artefact of the channel, so whoever presses gets the grade the channel
-   * was set to. **Only a `debug` account may change it**, refused by the
-   * server before dispatch as `transcriptionModel` is — but unlike that one it
-   * is drawn for every member, so that everybody can see which model is
-   * answering. Absent on a snapshot from a server that predates it, which the
-   * app reads as `standard`.
-   */
-  responseModel: ResponseModel;
-  /**
-   * Whether *Standard* or *Pro* voices read this channel's Claude replies
-   * aloud, since 2026-11-13 — on *Channel Settings*, at Rodrigo's word, after
-   * a few hours as each asker's own on *Floor Settings*. **The channel's,
-   * whoever asks**, `responseModel`'s rule, so a *Pro* channel's replies are
-   * billed whoever asks; **changed only by *Pro***, refused by the server
-   * before dispatch as that one is, and a choice outlives its chooser's Pro.
-   * Which voice of each grade reads is the asker's, on *Floor Settings*
-   * (`speechVoices`, `Clip.voices`). Absent on a row written before it,
-   * which reads as `standard`.
-   */
-  readAloud: ReadAloud;
   /**
    * Whether this channel's *Ask Claude* may consult noesis libraries — their
-   * owners' own writing — on *Pro* and *Max*; *Standard* never does. Off on
+   * owners' own writing — while the channel is *Pro*; *Standard* never does. Off on
    * every new channel, and true exactly while `libraries` names somebody.
    *
-   * The channel's, whoever presses, for `responseModel`'s reason. **Switched
+   * The channel's, whoever presses. **Switched
    * on only by somebody who has connected their own library** on *Floor
    * Settings*, refused by the server before dispatch, since turning it on is
    * consent to that writing reaching the room's Record; switched off by
@@ -1477,29 +1413,7 @@ export type ChannelAction =
    */
   | { type: 'SET_AUTO_RECORD'; userId: UserId; autoRecord: boolean }
   /**
-   * Chooses the grade of speech model for the channel's transcripts. The
-   * reducer guards it as it guards `SET_AUTO_RECORD`; the server additionally
-   * refuses it from any account without `debug`.
-   */
-  | {
-      type: 'SET_TRANSCRIPTION_MODEL';
-      userId: UserId;
-      transcriptionModel: TranscriptionModel;
-    }
-  /**
-   * Chooses the grade of model for the channel's *Ask Claude*. Guarded as
-   * `SET_TRANSCRIPTION_MODEL` is, and refused by the server, as that one is,
-   * from any account without `debug`.
-   */
-  | { type: 'SET_RESPONSE_MODEL'; userId: UserId; responseModel: ResponseModel }
-  /**
-   * Chooses the grade of voice that reads the channel's Claude replies.
-   * Guarded as `SET_RESPONSE_MODEL` is, and refused by the server, as that one
-   * is, from any account that is not *Pro*.
-   */
-  | { type: 'SET_READ_ALOUD'; userId: UserId; readAloud: ReadAloud }
-  /**
-   * Switches libraries on or off. Guarded as `SET_RESPONSE_MODEL` is; on,
+   * Switches libraries on or off. Guarded as `SET_AUTO_RECORD` is; on,
    * refused by the server from anybody without a library of their own
    * connected, and sets the switcher's own choice beside anybody else's.
    */
