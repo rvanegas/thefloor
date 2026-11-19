@@ -5685,7 +5685,7 @@ export function buildApp(options: BuildOptions = {}): App {
     if (what.audio && segment.recordingId === null) {
       return reply.code(404).send({ error: 'This kept no audio.' });
     }
-    const pasted = channels.pastesIn(id, segment);
+    const pasted = channels.pastesIn(segment);
     if (what.text && !segment.text && transcript === null && pasted === 0) {
       return reply.code(404).send({ error: 'This kept no text.' });
     }

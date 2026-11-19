@@ -1425,7 +1425,7 @@ hairline; see § *The pinned header*.
 glyph at 14 in `textMuted` before the name, the time, then *Open* and *Copy*
 as 13-point words in `text` at the end of that line — words and not buttons,
 as the menu is a glyph — and the whole text under it in `type.body`. A paste
-standing outside every segment ends the line with *Delete* in `danger`, since
+that is a segment of its own ends the line with *Delete* in `danger`, since
 2026-11-18, the one word there that destroys; left out rather than greyed
 where it is refused, a line of words having no room for the sentence. Drawn
 among its segment's lines at its moment, or alone where nothing was being

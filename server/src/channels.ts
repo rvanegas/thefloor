@@ -4753,7 +4753,7 @@ export class ChannelRegistry {
    * and the document it was filed as, each asked of separately and each on
    * the terms its own deletion has always had — marked now, gone for
    * everybody at once, the document at noesis now and in its trash for the
-   * month. Its text takes what was pasted while it was kept, since the same
+   * month. Its text takes the pastes that are part of it, since the same
    * day. A segment found by `segmentToDelete`, which the caller has checked
    * holds what it asks for. A recording's batch transcript is the
    * caller's, being `Transcripts`'; deleting the audio takes it as it always
@@ -4767,11 +4767,9 @@ export class ChannelRegistry {
     const now = this.now();
     if (what.audio && segment.recordingId !== null) this.markRecordingDeleted(segment.recordingId, now);
     if (what.text && segment.text) this.markTextDeleted(channelId, segment, now);
-    // What was pasted while it was kept is part of it, by anybody, Claude's
-    // replies included — Rodrigo's, 2026-11-18.
-    if (what.text && segment.endedAt !== null) {
-      this.pastes.markWithin(channelId, segment.startedAt, segment.endedAt, now);
-    }
+    // What was pasted into it is part of it (`pastes.segment_id`), by
+    // anybody, Claude's replies included — Rodrigo's, 2026-11-18.
+    if (what.text) this.pastes.markInSegment(segment.id, now);
     if (what.document) {
       this.markDocumentDeleted(channelId, segment.id, now);
       this.forgetDocuments();
@@ -4793,15 +4791,16 @@ export class ChannelRegistry {
       .run(now, segment.id, channelId);
   }
 
-  /** How many pastes were made while a finished segment was kept. */
-  pastesIn(channelId: string, segment: SegmentView): number {
-    return segment.endedAt === null ? 0 : this.pastes.within(channelId, segment.startedAt, segment.endedAt).length;
+  /** How many pastes are part of a segment. */
+  pastesIn(segment: SegmentView): number {
+    return this.pastes.countInSegment(segment.id);
   }
 
   /**
-   * Deletes one paste that stands outside every segment, since 2026-11-18 —
-   * its *Delete* in the *Record*. One made while a segment was kept is part
-   * of that segment and goes only with its text (`deleteSegment`). On the
+   * Deletes one paste that is a segment of its own, since 2026-11-18 — its
+   * *Delete* in the *Record*. One that is part of a segment, which the
+   * listing says by its `segmentId`, goes only with that segment's text
+   * (`deleteSegment`). On the
    * guards and the terms every deletion from the *Record* has: marked, gone
    * for everybody at once, swept a month later.
    */
@@ -4811,16 +4810,10 @@ export class ChannelRegistry {
       : [];
     const paste = segments.find((candidate) => candidate.id === pasteId && !!candidate.paste);
     if (!paste) return { ok: false, error: 'No such paste.', code: 'not_found' };
-    const inside = segments.some(
-      (segment) =>
-        !segment.paste &&
-        paste.startedAt >= segment.startedAt &&
-        (segment.endedAt === null || paste.startedAt <= segment.endedAt)
-    );
-    if (inside) {
+    if (paste.paste?.segmentId) {
       return {
         ok: false,
-        error: 'This was pasted while something was being kept. Delete its text to delete it.',
+        error: 'This was pasted while something was being transcribed. Delete its text to delete it.',
         code: 'conflict',
       };
     }

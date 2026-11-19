@@ -789,14 +789,19 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
-  it('takes what was pasted during a segment with its text, and deletes a paste outside one alone', async () => {
-    const pasted = (id: string, at: number, text: string) => ({
+  it('takes the pastes that are part of a segment with its text, and deletes one of its own alone', async () => {
+    const pasted = (id: string, at: number, text: string, segmentId?: string) => ({
       id,
       startedAt: at,
       endedAt: at,
       recordingId: null,
       text: false,
-      paste: { authorId: 'claude', displayName: 'Claude', text },
+      paste: {
+        authorId: 'claude',
+        displayName: 'Claude',
+        text,
+        ...(segmentId ? { segmentId, offsetMs: at - NOW } : {}),
+      },
     });
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [line('l1', ME, 'Me', NOW + 1_000, 'asked something')],
@@ -806,7 +811,7 @@ describe('rooms on the Record tab', () => {
       rooms: [
         room('room_1', NOW, NOW + 120_000, [], [
           seg('s1', NOW, NOW + 30_000, null, true),
-          pasted('p_in', NOW + 10_000, 'An answer inside.'),
+          pasted('p_in', NOW + 10_000, 'An answer inside.', 's1'),
           pasted('p_out', NOW + 60_000, 'An answer after.'),
         ]),
       ],

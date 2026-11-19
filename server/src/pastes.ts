@@ -65,16 +65,19 @@ export class Pastes {
       .all(channelId, from, until) as unknown as PasteRow[];
   }
 
-  /** Marks deleted every paste made inside a span, ends included; how many. */
-  markWithin(channelId: string, from: number, until: number, now: number): number {
-    return Number(
-      this.db
-        .prepare(
-          `UPDATE pastes SET deleted_at = ?
-            WHERE channel_id = ? AND pasted_at >= ? AND pasted_at <= ? AND deleted_at IS NULL`
-        )
-        .run(now, channelId, from, until).changes ?? 0
-    );
+  /** How many pastes are part of a segment, the deleted left out. */
+  countInSegment(segmentId: string): number {
+    const row = this.db
+      .prepare('SELECT COUNT(*) AS n FROM pastes WHERE segment_id = ? AND deleted_at IS NULL')
+      .get(segmentId) as { n: number };
+    return row.n;
+  }
+
+  /** Marks deleted every paste that is part of a segment. */
+  markInSegment(segmentId: string, now: number): void {
+    this.db
+      .prepare('UPDATE pastes SET deleted_at = ? WHERE segment_id = ? AND deleted_at IS NULL')
+      .run(now, segmentId);
   }
 
   /** Marks one paste deleted; whether there was one to mark. */

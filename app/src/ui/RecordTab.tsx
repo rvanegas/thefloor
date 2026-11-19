@@ -629,8 +629,8 @@ export function SegmentLine({
    * what it has, and for a transcript only where it is yours to delete; one
    * that is not goes with the audio, as it always has, and the boxes say so.
    * Only once it is finished, the server refusing one still being kept.
-   * What was pasted while it was kept is part of its text, since the same
-   * day, by anybody — Claude's replies included.
+   * The pastes that are part of it go with its text, since the same day, by
+   * anybody — Claude's replies included.
    */
   const transcript = recording?.transcript;
   const batchText =
@@ -1541,9 +1541,9 @@ export function PasteEntry({
   /** Absent where there is no channel to ask, which draws no *Read again*. */
   channelId?: string;
   /**
-   * Whether it offers *Delete*, since 2026-11-18: a paste standing outside
-   * every segment, to a member who may delete from the *Record* now. One made
-   * while a segment was kept goes with that segment's text instead, and the
+   * Whether it offers *Delete*, since 2026-11-18: a paste that is a segment
+   * of its own, to a member who may delete from the *Record* now. One that is
+   * part of a segment goes with that segment's text instead, and the
    * word is left out rather than greyed, a line of words having no room for
    * the sentence a greyed one is owed.
    */
