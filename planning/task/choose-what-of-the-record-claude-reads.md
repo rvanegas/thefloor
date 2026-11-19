@@ -8,6 +8,17 @@ each (`composeLibraryRecord`, `server/src/claude.ts`). What is in that window
 is all in it, so an unrelated earlier stretch can distract the reply. **Asked:
 deciding by hand what is included and what is left out.**
 
+**Why, in order** (Rodrigo, 2026-11-18): **distraction first**; then
+**redundancy**, since a segment already filed in the channel's library is
+there for Claude to read and need not be sent as well; then **cost**, whose
+cheaper answer is `cache-the-prompt-ask-claude-sends.md`. Where the three
+point different ways, distraction decides.
+
+**First, `a-paste-is-part-of-the-segment-it-was-made-in.md`**: a paste is a
+segment of its own today, so leaving a segment out would keep what was
+pasted into it, Claude's replies included, and a paste inside a filed
+segment is sent in full as well as filed.
+
 Open, and the user's to answer:
 
 - **The unit**: a segment, which is the line that already carries every
