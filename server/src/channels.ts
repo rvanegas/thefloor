@@ -100,6 +100,7 @@ import type {
   PublicAccount,
   RejoinableView,
   RemovalNoticeView,
+  SegmentView,
   SharedChannelView,
 } from '../../core/protocol';
 import type { Accounts, InviteRefusal } from './accounts';
@@ -1402,7 +1403,8 @@ export class ChannelRegistry {
     // snapshot's `filedAt` is what tells the *Record* to look at the rooms
     // again, and every installed build reads it, so the text goes from every
     // screen at once as the privacy page says. The name now undersells it.
-    // And when a voice was last named, since 2026-11-13, for the same reason.
+    // And when a voice was last named, since 2026-11-13, and a document
+    // deleted on its own, since 2026-11-18, for the same reason.
     const row = this.db
       .prepare(
         `SELECT MAX(at) AS at FROM (
@@ -1410,10 +1412,12 @@ export class ChannelRegistry {
            UNION ALL
            SELECT MAX(text_deleted_at) FROM segments WHERE channel_id = ?
            UNION ALL
+           SELECT MAX(document_deleted_at) FROM segments WHERE channel_id = ?
+           UNION ALL
            SELECT MAX(voices_named_at) FROM segments WHERE channel_id = ?
          )`
       )
-      .get(channelId, channelId, channelId) as { at: number | null } | undefined;
+      .get(channelId, channelId, channelId, channelId) as { at: number | null } | undefined;
     return row?.at ?? null;
   }
 
@@ -4642,15 +4646,32 @@ export class ChannelRegistry {
         code: 'conflict',
       };
     }
+    const now = this.now();
+    this.markRecordingDeleted(recordingId, now);
+    // Its transcript's document with it, as builds up to 437 were told, at
+    // once since 2026-11-18 — noesis's trash keeps it the month the recording
+    // is kept — rather than when the sweep took the recording. *Delete* on a
+    // segment asks about the document separately (`deleteSegment`).
     this.db
       .prepare(
-        'UPDATE recordings SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL'
+        `UPDATE segments SET document_deleted_at = ?
+          WHERE recording_id = ? AND text = 0 AND filed_file IS NOT NULL
+            AND document_deleted_at IS NULL`
       )
-      .run(this.now(), recordingId);
+      .run(now, recordingId);
+    this.forgetDocuments();
     // So the channel screen loses the row now rather than whenever something
     // else happens to change.
     this.emit([row.channel_id]);
     return { ok: true };
+  }
+
+  private markRecordingDeleted(recordingId: string, now: number): void {
+    this.db
+      .prepare(
+        'UPDATE recordings SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL'
+      )
+      .run(now, recordingId);
   }
 
   /**
@@ -4663,31 +4684,54 @@ export class ChannelRegistry {
    * gone for everybody at once, and swept TRANSCRIPT_DELETED_RETENTION_MS
    * later (`sweepDeletedText`). The document it was filed as goes now
    * (`forgetDocuments`). And on a recording's guards, which a segment shares,
-   * being part of the same room.
+   * being part of the same room (`segmentToDelete`). A paste kept inside it
+   * is not its text: pastes are never deleted.
    *
-   * The segment is found by its id among what `Rooms.forChannel` lists, which
-   * is the one place a segment from before 2026-10-10 exists at all. A paste
-   * kept inside it is not its text: pastes are never deleted.
+   * **The route builds up to 437 use**; *Delete* on a segment replaced it on
+   * 2026-11-18 (`deleteSegment`, SHIMS.md gate 438).
    */
   deleteSegmentText(
     channelId: string,
     segmentId: string,
     userId: string
   ): { ok: true } | Refused {
+    const found = this.segmentToDelete(channelId, segmentId, userId);
+    if (!found.ok) return found;
+    const { segment } = found;
+    if (!segment.text) return { ok: false, error: 'No such text.', code: 'not_found' };
     const now = this.now();
+    this.markTextDeleted(channelId, segment, now);
+    // And the document with it, as builds up to 437 were told; *Delete* on a
+    // segment asks about the two separately since 2026-11-18.
+    this.markDocumentDeleted(channelId, segment.id, now);
+    this.forgetDocuments();
+    this.emit([channelId]);
+    return { ok: true };
+  }
+
+  /**
+   * One finished segment, found for deleting some of it: by its id among what
+   * `Rooms.forChannel` lists, which is the one place a segment from before
+   * 2026-10-10 exists at all, and on the guards every deletion from a
+   * channel's *Record* shares — a member holding the controls, present or
+   * the channel empty. Not a paste, which is not deleted from here.
+   */
+  segmentToDelete(
+    channelId: string,
+    segmentId: string,
+    userId: string
+  ): { ok: true; segment: SegmentView } | Refused {
     const segment = this.isMemberOf(channelId, userId)
       ? this.rooms
-          .forChannel(channelId, now)
+          .forChannel(channelId, this.now())
           .flatMap((room) => room.segments)
           .find((candidate) => candidate.id === segmentId && !candidate.paste)
       : undefined;
-    if (!segment || !segment.text) {
-      return { ok: false, error: 'No such text.', code: 'not_found' };
-    }
+    if (!segment) return { ok: false, error: 'No such segment.', code: 'not_found' };
     if (segment.endedAt === null) {
       return {
         ok: false,
-        error: 'This is still being written down. Switch Text off to delete it.',
+        error: 'This is still being kept. Stop it to delete it.',
         code: 'conflict',
       };
     }
@@ -4695,10 +4739,40 @@ export class ChannelRegistry {
     if (!this.presentOrEmptyIn(channelId, userId)) {
       return {
         ok: false,
-        error: 'Somebody is in this channel. Step in to delete text.',
+        error: 'Somebody is in this channel. Step in to delete.',
         code: 'conflict',
       };
     }
+    return { ok: true, segment };
+  }
+
+  /**
+   * *Delete* on a segment, since 2026-11-18: any of its audio, its live text
+   * and the document it was filed as, each asked of separately and each on
+   * the terms its own deletion has always had — marked now, gone for
+   * everybody at once, the document at noesis now and in its trash for the
+   * month. A segment found by `segmentToDelete`, which the caller has
+   * checked holds what it asks for. A recording's batch transcript is the
+   * caller's, being `Transcripts`'; deleting the audio takes it as it always
+   * has.
+   */
+  deleteSegment(
+    channelId: string,
+    segment: SegmentView,
+    what: { audio: boolean; text: boolean; document: boolean }
+  ): void {
+    const now = this.now();
+    if (what.audio && segment.recordingId !== null) this.markRecordingDeleted(segment.recordingId, now);
+    if (what.text && segment.text) this.markTextDeleted(channelId, segment, now);
+    if (what.document) {
+      this.markDocumentDeleted(channelId, segment.id, now);
+      this.forgetDocuments();
+    }
+    this.emit([channelId]);
+  }
+
+  /** A segment's live lines and its `text`, marked deleted. */
+  private markTextDeleted(channelId: string, segment: SegmentView, now: number): void {
     // The span the *Record* draws the segment's lines from, ends included.
     this.db
       .prepare(
@@ -4708,49 +4782,65 @@ export class ChannelRegistry {
       .run(now, channelId, segment.startedAt, segment.endedAt);
     this.db
       .prepare('UPDATE segments SET text = 0, text_deleted_at = ? WHERE id = ? AND channel_id = ?')
+      .run(now, segment.id, channelId);
+  }
+
+  private markDocumentDeleted(channelId: string, segmentId: string, now: number): void {
+    this.db
+      .prepare(
+        `UPDATE segments SET document_deleted_at = ?
+          WHERE id = ? AND channel_id = ? AND document_deleted_at IS NULL`
+      )
       .run(now, segmentId, channelId);
-    this.forgetDocuments();
-    this.emit([channelId]);
-    return { ok: true };
   }
 
   /**
-   * A recording's batch transcript was deleted on its own, by its route: the
-   * segment it is the text of is marked as `deleteSegmentText` marks one, so
-   * the document it was filed as goes too, and goes now. Since 2026-11-08;
-   * until then it stayed in the channel's library until the recording went.
-   * Not for a transcript going with its recording, whose document goes with
-   * the recording a week later (`documentsGone`).
+   * A recording's batch transcript was deleted on its own: the segment it is
+   * the text of is marked as `deleteSegmentText` marks one. With `document`,
+   * which is how its route has always asked, the document it was filed as
+   * goes too, and goes now — since 2026-11-08; until then it stayed until the
+   * recording went. *Delete* on a segment asks about the document on its own,
+   * since 2026-11-18, and passes false. Not for a transcript going with its
+   * recording, whose document is the recording's deletion's business.
    */
-  transcriptDeleted(recordingId: string): void {
+  transcriptDeleted(recordingId: string, document = true): void {
+    const now = this.now();
     const marked = this.db
       .prepare(
         `UPDATE segments SET text_deleted_at = ?
           WHERE recording_id = ? AND text = 0 AND text_deleted_at IS NULL
           RETURNING channel_id`
       )
-      .all(this.now(), recordingId) as unknown as Array<{ channel_id: string }>;
+      .all(now, recordingId) as unknown as Array<{ channel_id: string }>;
     if (marked.length === 0) return;
-    this.forgetDocuments();
+    if (document) {
+      this.db
+        .prepare(
+          `UPDATE segments SET document_deleted_at = ?
+            WHERE recording_id = ? AND text = 0 AND document_deleted_at IS NULL`
+        )
+        .run(now, recordingId);
+      this.forgetDocuments();
+    }
     // So the segment's line drops the title of a document on its way out.
     this.emit([...new Set(marked.map((row) => row.channel_id))]);
   }
 
   /**
    * Deletes from the channel's library every document a segment was filed as
-   * whose text has since been deleted on its own — at once, and again at each
-   * sweep for any noesis did not take. **Now, not on the text's window**, for
-   * the reason the transcription provider is told at once (`Transcripts.
-   * deleteFor`): it is a copy somewhere else, which every member can still
-   * open there, and the text it was made from is still here for the month a
-   * recovery by hand would need. Not awaited by anybody.
+   * that has been marked deleted — at once, and again at each sweep for any
+   * noesis did not take. **Now, not on a window of ours**, for the reason the
+   * transcription provider is told at once (`Transcripts.deleteFor`): it is a
+   * copy somewhere else, which every member could still open there. noesis
+   * keeps a deleted file in its trash for thirty days, which is the month
+   * every manual deletion here has. Not awaited by anybody.
    */
   private forgetDocuments(): void {
     this.forgettingDocuments ??= (async () => {
       const filed = this.db
         .prepare(
           `SELECT s.id, s.filed_file, c.handle FROM segments s JOIN channels c ON c.id = s.channel_id
-            WHERE s.text_deleted_at IS NOT NULL AND s.filed_file IS NOT NULL
+            WHERE s.document_deleted_at IS NOT NULL AND s.filed_file IS NOT NULL
               AND c.handle IS NOT NULL`
         )
         .all() as unknown as Array<{ id: string; filed_file: string; handle: string }>;
@@ -5054,9 +5144,11 @@ export class ChannelRegistry {
   }
 
   /**
-   * Whether every document a deleted recording's transcript was filed as is
-   * gone from its channel's library, deleting each where a cleaner is
-   * attached and nulling `filed_file` once it is. A recording with none,
+   * Whether every document of a deleted recording's segments that was marked
+   * deleted too is gone from its channel's library, deleting each where a
+   * cleaner is attached and nulling `filed_file` once it is — a retry by now,
+   * `forgetDocuments` having asked at once. A document left unticked in
+   * *Delete* on its segment stays, since 2026-11-18. A recording with none,
    * or whose channel is deleted too — its library going whole — has nothing
    * to wait for.
    */
@@ -5064,7 +5156,7 @@ export class ChannelRegistry {
     const filed = this.db
       .prepare(
         `SELECT s.id, s.filed_file, c.handle FROM segments s JOIN channels c ON c.id = s.channel_id
-          WHERE s.recording_id = ? AND s.text = 0 AND s.filed_file IS NOT NULL
+          WHERE s.recording_id = ? AND s.document_deleted_at IS NOT NULL AND s.filed_file IS NOT NULL
             AND c.deleted_at IS NULL AND c.handle IS NOT NULL`
       )
       .all(recordingId) as unknown as Array<{ id: string; filed_file: string; handle: string }>;

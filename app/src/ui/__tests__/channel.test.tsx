@@ -441,7 +441,7 @@ describe('Channel', () => {
     // refused. Sharing is not, and that is the assertion worth having.
     const menu = openMenu(tree);
     expect(menu.disabled('Rename')).toBe(true);
-    expect(menu.disabled('Delete audio')).toBe(true);
+    expect(menu.disabled('Delete')).toBe(true);
     expect(menu.disabled('Share audio')).toBe(false);
     expect(menu.message).toContain('Step in to rename or delete');
     act(() => tree.unmount());
@@ -500,7 +500,7 @@ describe('Channel', () => {
     showRecord(tree);
     const menu = openMenu(tree);
     expect(menu.disabled('Rename')).toBe(false);
-    expect(menu.disabled('Delete audio')).toBe(false);
+    expect(menu.disabled('Delete')).toBe(false);
     // **Except pasting, since 2026-10-15**: a paste is kept in a room, and an
     // empty channel has none, so it waits for somebody to step in.
     expect(on('Paste my clipboard')).toEqual({ disabled: true });
@@ -3280,7 +3280,7 @@ describe('Channel', () => {
       'Play',
       'Share audio',
       'Rename',
-      'Delete audio',
+      'Delete',
     ]);
     // Under the line, and put away by the glyph that opened it.
     expect(findExactButton(tree, 'Rename')).toBeDefined();
@@ -3301,8 +3301,9 @@ describe('Channel', () => {
 
   it('asks before deleting one, and marks it when told to', async () => {
     // Deleting is marking: it leaves every list now and the audio goes in the
-    // sweep a week later. Everyone in the channel loses it, which is why this
-    // is the one row action that asks first.
+    // sweep a month later. Everyone in the channel loses it, which is why it
+    // asks first — in a confirmation the app draws, since 2026-11-18, with a
+    // box for each thing the segment has.
     const recording: RecordingView = {
       id: 'rec_1',
       channelId: 'sess_1',
@@ -3322,31 +3323,38 @@ describe('Channel', () => {
     showRecord(tree);
     act(() => findRecording(tree, 'Tuesday')!.props.onPress());
 
-    const { Alert } = require('react-native');
-    const asked = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
     const { api } = require('../../api/http');
     const deleted = jest
-      .spyOn(api, 'deleteRecording')
+      .spyOn(api, 'deleteSegment')
       .mockResolvedValue({ ok: true } as never);
 
     const menu = openMenu(tree);
-    // Red in the sheet, and asked about anyway.
-    expect(menu.destructive('Delete audio')).toBe(true);
-    menu.choose('Delete audio');
-    expect(asked).toHaveBeenCalled();
+    // Red in the menu, and asked about anyway.
+    expect(menu.destructive('Delete')).toBe(true);
+    menu.choose('Delete');
+    const { Modal } = require('react-native');
+    const open = () => tree.root.findAll((n) => n.type === Modal && n.props.visible === true);
+    expect(open()).toHaveLength(1);
+    const box = open()[0].findAll(
+      (n) => typeof n.type !== 'string' && n.props.accessibilityRole === 'checkbox' && 'onPress' in n.props
+    );
+    expect(box.map((n) => [n.props.accessibilityLabel, n.props.accessibilityState.checked])).toEqual([
+      ['Audio', true],
+    ]);
     // Nothing has happened yet — the question is the point.
     expect(deleted).not.toHaveBeenCalled();
 
-    // Take the destructive choice the alert offered.
-    const actions = asked.mock.calls[0][2] as Array<{
-      style?: string;
-      onPress?: () => void;
-    }>;
-    const confirm = actions.find((a) => a.style === 'destructive')!;
-    await act(async () => confirm.onPress!());
-    expect(deleted).toHaveBeenCalledWith('token', 'rec_1');
+    const confirm = open()[0]
+      .findAll((n) => typeof n.type !== 'string' && n.props.accessibilityRole === 'button' && 'onPress' in n.props)
+      .find((n) => n.props.accessibilityLabel === 'Delete' || n.findAll((c) => c.props.children === 'Delete').length > 0)!;
+    await act(async () => confirm.props.onPress());
+    expect(deleted).toHaveBeenCalledWith('token', 'sess_1', expect.any(String), {
+      audio: true,
+      text: false,
+      document: false,
+    });
+    expect(open()).toHaveLength(0);
 
-    asked.mockRestore();
     deleted.mockRestore();
     act(() => tree.unmount());
   });

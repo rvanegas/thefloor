@@ -49,6 +49,7 @@ import { useApp } from '../state/AppProvider';
 import { useText, type Strings } from '../i18n';
 import {
   Button,
+  ConfirmModal,
   Empty,
   Field,
   IconButton,
@@ -70,8 +71,9 @@ import { colors, formatDuration, measure, spacing, type } from './theme';
 export interface SegmentHead {
   label: string;
   /**
-   * `remove` is *Delete text* where the segment kept its text live, which
-   * `RecordingRow` puts after its own *Delete audio*. Since 2026-11-07.
+   * `remove` is the segment's *Delete*, which `RecordingRow` puts last, since
+   * 2026-11-18; *Delete text* from 2026-11-07, after the recording's own
+   * *Delete audio*.
    */
   menu: {
     label: string;
@@ -610,44 +612,92 @@ export function SegmentLine({
   };
 
   /**
-   * Deletes the text this segment kept live, for everybody, after asking:
-   * *Delete text*, since 2026-11-07. Nothing to do on success — the snapshot
-   * that follows moves the rooms, which drop it.
+   * *Delete*, since 2026-11-18: one item for what was *Delete audio* and
+   * *Delete text*, opening a confirmation with a box for each of the three
+   * things a segment can have — its audio, its text, live or its recording's
+   * transcript, and the document it was filed as in the channel's library —
+   * each ticked, unticking one sparing it
+   * (decision/2026-11-18-one-delete-for-a-segment-with-what-goes-checked.md). A box only for
+   * what it has, and for a transcript only where it is yours to delete; one
+   * that is not goes with the audio, as it always has, and the boxes say so.
+   * Only once it is finished, the server refusing one still being kept.
+   * Its pastes are not its text, and are not deleted.
    */
-  const removeText = () =>
-    Alert.alert(said.deleteThisText(), said.deleteLiveBody(), [
-      { text: recordingWords.keep(), style: 'cancel' },
-      {
-        text: recordingWords.delete(),
-        style: 'destructive',
-        onPress: () => {
-          if (!app.token) return;
-          const token = app.token;
-          setDeleting(true);
-          api
-            .deleteSegmentText(token, channelId, segment.id)
-            .catch((e: unknown) =>
-              Alert.alert(said.couldNotDelete(), e instanceof Error ? e.message : String(e))
-            )
-            .finally(() => setDeleting(false));
-        },
-      },
-    ]);
-  // Only once it is finished, while it is still being written down there
-  // being more to come, which the server refuses; and only with something
-  // said in it. Its pastes are not its text, and are never deleted.
+  const transcript = recording?.transcript;
+  const batchText =
+    !segment.text && !!transcript && !transcript.live && transcript.state === 'ready';
+  const has = {
+    audio: segment.recordingId !== null,
+    text: (segment.text && item.lines.length > 0) || (batchText && transcript?.mayRemove !== false),
+    document: !!segment.filed,
+  };
+  const [asking, setAsking] = React.useState<typeof has | null>(null);
+  const tick = (key: keyof typeof has) => (next: boolean) =>
+    setAsking((was) => {
+      if (!was) return was;
+      const now = { ...was, [key]: next };
+      // A transcript is its recording's, and goes with it.
+      if (batchText && has.text && key === 'audio' && next) now.text = true;
+      if (batchText && key === 'text' && !next) now.audio = false;
+      return now;
+    });
+  const confirmDelete = () => {
+    if (!asking || !app.token) return;
+    const what = asking;
+    setAsking(null);
+    setDeleting(true);
+    api
+      .deleteSegment(app.token, channelId, segment.id, what)
+      .catch((e: unknown) =>
+        Alert.alert(said.couldNotDelete(), e instanceof Error ? e.message : String(e))
+      )
+      .finally(() => setDeleting(false));
+  };
   const remove =
-    segment.text && segment.endedAt !== null && item.lines.length > 0
+    segment.endedAt !== null && (has.audio || has.text || has.document)
       ? [
           {
-            label: said.deleteText(),
+            label: t.deleteSegment(),
             group: 'delete' as const,
             destructive: true,
             disabled: !manageable,
-            onPress: removeText,
+            onPress: () => setAsking(has),
           },
         ]
       : [];
+  const confirmation = (
+    <ConfirmModal
+      visible={asking !== null}
+      title={t.deleteSegmentAsk(span)}
+      body={t.deleteSegmentBody()}
+      choices={
+        asking
+          ? [
+              ...(has.audio ? [{ label: t.audio(), checked: asking.audio, onChange: tick('audio') }] : []),
+              ...(has.text ? [{ label: t.keepText(), checked: asking.text, onChange: tick('text') }] : []),
+              ...(has.document
+                ? [{ label: t.deleteDocument(), checked: asking.document, onChange: tick('document') }]
+                : []),
+            ]
+          : []
+      }
+      notes={
+        asking
+          ? [
+              ...(batchText && asking.audio ? [t.transcriptGoesWithAudio()] : []),
+              ...(batchText && asking.text && !asking.audio ? [said.deleteCost()] : []),
+              ...(item.pastes.length > 0 && asking.text ? [t.pastesStay()] : []),
+            ]
+          : []
+      }
+      cancelLabel={recordingWords.keep()}
+      confirmLabel={recordingWords.delete()}
+      destructive
+      confirmDisabled={!asking || (!asking.audio && !asking.text && !asking.document)}
+      onCancel={() => setAsking(null)}
+      onConfirm={confirmDelete}
+    />
+  );
 
   const menu: SegmentHead['menu'] = {
     label: t.segmentActions(span),
@@ -732,6 +782,7 @@ export function SegmentLine({
         {renderRecording(recording, { label, menu, open, onToggle })}
         {title}
         {names}
+        {confirmation}
       </>
     );
   }
@@ -759,6 +810,7 @@ export function SegmentLine({
       {own.panel}
       {title}
       {names}
+      {confirmation}
     </>
   );
 }

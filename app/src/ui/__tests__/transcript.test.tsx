@@ -11,9 +11,10 @@ import { MenuRow, RecordingRow, Screen } from '../components';
 /**
  * A recording's transcript, from the menu that starts one. Its lines are
  * drawn in the *Record* log since 2026-10-10 — `live-transcript.test.tsx` —
- * so what is left here is asking for one and deleting it, which are actions
- * in its segment's menu since 2026-11-07, with the sentences saying why one
- * is greyed under them.
+ * so what is left here is asking for one, an action in its segment's menu
+ * since 2026-11-07, with the sentences saying why it is greyed under it.
+ * Deleting one is the segment's *Delete* since 2026-11-18, in
+ * `live-transcript.test.tsx`.
  *
  * The thing worth a test rather than a look: that asking names the provider
  * before it spends anything, because whoever taps is deciding for everybody
@@ -24,11 +25,9 @@ const ME = 'acct_me';
 const NOW = 1_700_000_000_000;
 
 const mockStart = jest.fn(async () => ({ ok: true as const }));
-const mockDelete = jest.fn(async () => ({ ok: true as const }));
 jest.mock('../../api/http', () => ({
   api: {
     startTranscript: (...args: unknown[]) => mockStart(...(args as [])),
-    deleteTranscript: (...args: unknown[]) => mockDelete(...(args as [])),
   },
 }));
 
@@ -207,36 +206,10 @@ describe("a recording's menu, on its transcript", () => {
     act(() => menu.tree.unmount());
   });
 
-  it('offers to delete one that is ready, and nothing more', () => {
+  it('offers nothing on one that is ready, deleting it being the segment\'s', () => {
     const menu = open(recordingWith('ready'));
-    expect(menu.labels).toContain('Delete text');
     expect(menu.labels).not.toContain('Transcribe');
-    act(() => menu.tree.unmount());
-  });
-
-  it('warns that deleting is not free to undo', async () => {
-    const alert = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
-    const menu = open(recordingWith('ready'));
-    menu.choose('Delete text');
-
-    const [, body, buttons] = alert.mock.calls[0] as [
-      string,
-      string,
-      Array<{ text: string; onPress?: () => void }>,
-    ];
-    expect(body).toContain('The recording is kept');
-    expect(body).toContain('costs the same as the first time');
-    await act(async () => {
-      buttons.find((b) => b.text === 'Delete')!.onPress!();
-    });
-    expect(mockDelete).toHaveBeenCalledWith('token', 'rec_1');
-    act(() => menu.tree.unmount());
-    alert.mockRestore();
-  });
-
-  it('greys deleting for somebody who is not in the room', () => {
-    const menu = open(recordingWith('ready'), false);
-    expect(menu.disabled('Delete text')).toBe(true);
+    expect(menu.labels).not.toContain('Delete text');
     act(() => menu.tree.unmount());
   });
 

@@ -3,8 +3,8 @@
 Decided at the prompt, 2026-11-18: **a paste that stands outside any segment
 can be deleted on its own**, from its own menu, on the same terms as other
 manual deletions — confirmed in a custom modal
-(`alert-alert-is-not-for-ordinary-ui.md`), for everybody, with a month's grace
-(`every-manual-deletion-has-a-month-s-grace.md`). Today a paste is "never
+(`ConfirmModal`), for everybody, with the month's grace every manual deletion
+has. Today a paste is "never
 deleted" (GLOSSARY § *Paste*), which the glossary changes in the same commit
 as the code.
 

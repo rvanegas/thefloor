@@ -141,19 +141,19 @@ channel's sittings share its name), the *Record* names a segment by its hours.
 
 ## Deleting
 
-Agreed at the prompt: **what a channel library holds goes as recordings do, a
-week after it was deleted**, and the privacy policy's *Deleting things* already
-says so of everything. The card tells the members it can be recovered for those
-seven days.
+Agreed at the prompt: **what a channel library holds goes as recordings do,
+thirty days after it was deleted** — the week this said until 2026-11-18 was
+never the code's — and the privacy policy's *Deleting things* already says so
+of everything. The card tells the members it can be recovered for those days.
 
 - **A deleted channel's library** is closed at once — noesis is told nobody
-  belongs — and deleted whole at noesis by the hourly sweep a week later,
+  belongs — and deleted whole at noesis by the hourly sweep thirty days later,
   before the row that names it (`channels.library_cleared_at`), as audio goes
   before its recording.
-- **A deleted recording's document**, where its segment was filed from the
-  recording's transcript (`segments.filed_file`), the same way, before the
-  recording's row. A segment kept as text too was filed from its live lines,
-  which deleting the recording leaves.
+- **A segment's document** goes when its *Delete* has that box ticked, since
+  2026-11-18, at once — noesis's trash keeping it thirty days — and no longer
+  with the text or the recording (`segments.document_deleted_at`). A build up
+  to 437 deleting a recording or a text still takes the document with it.
 - **`ts library-orphans`** clears what the sweep could not, and any library at
   noesis that no channel names, and marks the rows.
 

@@ -727,12 +727,6 @@ export const en = {
     headerKind: () => 'Guest',
   },
   transcript: {
-    /** *Delete audio*'s other half, whichever way the text was kept. */
-    deleteText: () => 'Delete text',
-    deleteThisText: () => 'Delete this text?',
-    /** For text kept live, which nobody paid to have made. */
-    deleteLiveBody: () =>
-      'Everyone in this channel loses it, and nothing in the app can bring it back.',
     stepInToDelete: () =>
       "Step in to delete. Deleting takes it out of everybody's Record too.",
     /** A segment's separated voices, named for everybody, since 2026-11-13. */
@@ -745,7 +739,6 @@ export const en = {
     naming: () => 'Naming\u2026',
     deleteCost: () =>
       'The recording is kept. Transcribing it again costs the same as the first time.',
-    deleteConfirm: () => 'Delete',
     couldNotDelete: () => 'Could not delete',
     transcribingFailedWith: (reason: string) =>
       `Transcribing failed — ${reason}`,
@@ -1195,7 +1188,7 @@ export const en = {
     channelLibraryNotYet: () => 'It is made with the first transcript while somebody here is Pro.',
     /** What deleting does to it: `sweepDeleted`'s thirty days, as *Delete for good* says it. */
     channelLibraryDeleting: (days: number) =>
-      `Deleting the channel deletes its library, and deleting a recording deletes its transcript there. Either can be recovered for ${days} days.`,
+      `Deleting the channel deletes its library, and Delete on a line of the Record can delete its document there. Either can be recovered for ${days} days.`,
     channelLibraryOpen: () => 'Open in noesis',
     /** Whether *Ask Claude* consults it: on by default, any member who may edit the channel switches it. */
     channelLibraryConsult: () => 'Claude consults it',
@@ -1565,6 +1558,20 @@ export const en = {
     /** In a segment's menu: its audio, or its text, as a file. */
     shareAudio: () => 'Share audio',
     shareText: () => 'Share text',
+    /**
+     * *Delete* in a segment's menu, since 2026-11-18, and its confirmation:
+     * a box for each of the segment's audio, its text — `audio` and
+     * `keepText`, the words its line already uses — and its document in the
+     * channel's library. Asked by its hours, as its line is named
+     * (`roomSpan`). The body's month is every manual deletion's.
+     */
+    deleteSegment: () => 'Delete',
+    deleteSegmentAsk: (span: string) => `Delete from ${span}?`,
+    deleteSegmentBody: () =>
+      'Everyone in this channel loses what is ticked. It is removed a month from now, and nothing in the app can bring it back.',
+    deleteDocument: () => 'Its document in noesis',
+    transcriptGoesWithAudio: () => 'The transcript goes with the audio.',
+    pastesStay: () => 'What was pasted stays.',
     /** A segment kept as audio and as text, on its line. */
     keptBoth: () => 'Audio + Text',
     roomTextCopied: () => 'The text is copied.',
@@ -1849,16 +1856,8 @@ export const en = {
     cancel: () => 'Cancel',
     couldNotDelete: () => 'Could not delete',
     deleting: () => 'Deleting\u2026',
-    /**
-     * In a segment's menu, since 2026-11-07, beside *Delete text*: what each
-     * takes is said in the item, the segment being both. `delete` is the
-     * confirmation's button, the question having already said which.
-     */
-    deleteAudio: () => 'Delete audio',
+    /** A segment's *Delete* confirmation's two buttons, since 2026-11-18. */
     delete: () => 'Delete',
-    deleteAsk: () => 'Delete this audio?',
-    deleteBody: () =>
-      'Everyone in this channel loses it. It is removed a week from now, and nothing in the app can bring it back.',
     keep: () => 'Keep',
     publishedPreparing: () => 'Published — the audio is still being prepared.',
     published: () => 'Published. Anybody with the address can listen.',

@@ -69,6 +69,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 339 | `myEmailShown` sent as true, and the show/stop email routes | `core/protocol.ts`, `server/src/app.ts` |
 | 388 | *Ask Claude* with no `length` taken as *Medium* | `server/src/claude.ts`, `server/src/app.ts` |
 | 364 | `CLEAR_CLIP`, for the *Clipboard* tab | `core/channel.ts`, `core/types.ts`, `core/protocol.ts`, `server/src/channels.ts` |
+| 438 | *Delete audio* and *Delete text*'s three routes | `server/src/app.ts`, `server/src/channels.ts` |
 
 The floor is **189**, raised there on 2026-11-07 once `oldestBuild` had
 already read 189. That frees every entry gated at or below it — 110, 121,
@@ -209,6 +210,35 @@ What goes, once `oldestBuild` has passed 429:
 
 - **`connectedReply` stays**: `/noesis/callback` ends with it, for every
   connection auth will not vouch for.
+
+---
+
+## Gate 438 — *Delete audio* and *Delete text*'s three routes
+
+Build 438 replaces a segment's *Delete audio* and *Delete text* with one
+*Delete* (2026-11-18, `decision/2026-11-18-one-delete-for-a-segment-with-what-goes-checked.md`),
+which asks in boxes and calls `DELETE /channels/:id/segments/:segmentId`
+alone. Builds up to 437 still call the three routes those two items used, and
+are answered on their old terms — the document going with the text, or with
+the recording its transcript came from — which is what they told whoever
+tapped.
+
+What goes, once `oldestBuild` has passed 437:
+
+- `DELETE /recordings/:id`, `DELETE /recordings/:id/transcript` and
+  `DELETE /channels/:id/segments/:segmentId/text` in `server/src/app.ts`
+- `deleteRecording` and `deleteSegmentText` in `server/src/channels.ts`, and
+  `transcriptDeleted`'s `document` parameter, whose default is theirs
+
+**What must not be deleted alongside it:**
+
+- **`markRecordingDeleted`, `markTextDeleted`, `markDocumentDeleted` and
+  `segmentToDelete`**, which *Delete* is built from.
+- **`documentsGone`**, which retries before a recording's row goes — a
+  document marked deleted by *Delete* needs it as much as one of these did.
+- **`mayRemoveTranscript`**, which *Delete* asks of a transcript deleted
+  without its audio, and **`mayManageRecording`**, which asking for one
+  still uses.
 
 ---
 

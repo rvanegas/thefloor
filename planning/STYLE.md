@@ -29,7 +29,7 @@ from `app/src/ui/theme.ts` or a named style block, and **that file wins**.
 | *Colour* | the seventeen tokens, the two palettes, which colour may mean what |
 | *Type* | the six roles, and every place something departs from them |
 | *Space, shape and width* | the 8pt grid, the radii, the measure, the breakpoint |
-| *Controls* | Button and its five variants, PasteButton and the one control Apple draws, IconButton, Field, Checkbox, Segmented, Switch, FooterAction — and when a set of choices stops being a row |
+| *Controls* | Button and its five variants, PasteButton and the one control Apple draws, IconButton, Field, Checkbox, Segmented, Switch, FooterAction — and when a set of choices stops being a row; ConfirmModal is under *Destructive and irreversible acts confirm* |
 | *Cards and rows* | the card, its tinted states, the notice card, a profile's section order, packed rows against spread ones, when a card that repeats the footer stops earning its place |
 | *Dots, pills and rules* | the small marks, and what each diameter means |
 | *The shape of a screen* | Screen, the keyboard, the pinned header and the room line that is pinned only once it scrolls off, the pinned footer, the film that is pinned or floating, the two shapes of the watch body, the second device's own screen, split panes, the one screen that overlays its chrome |
@@ -550,7 +550,7 @@ clear, stay clear if nobody touches it, and read as unticked rather than as
 the prompt 2026-11-18. In a confirmation a box is not a permission but an item
 about to go, and unticking it spares it — *Delete* on a segment, with audio,
 text and the noesis document each its own box
-(`one-delete-for-a-segment-with-what-goes-checked.md`).
+(`2026-11-18-one-delete-for-a-segment-with-what-goes-checked.md`).
 
 **It has no `disabled`, and the attempt to give it one is the clearest reading
 of that rule there is.** The public page's switch on *Channel Settings* was a
@@ -1813,9 +1813,14 @@ rules.
   2026-11-18, reversing what this bullet said until then: it draws nothing of
   this guide and holds no control but buttons, so a confirmation that has to
   ask *what* goes — *Delete* on a segment, with a box each for audio, text and
-  the document — cannot be one. The app still has 53 calls today; moving them
-  to one custom modal is `alert-alert-is-not-for-ordinary-ui.md`, which also
-  settles what, if anything, may still use the system's. There is no
+  the document — cannot be one. **`ConfirmModal`** (`components.tsx`) is the
+  app's own: a `Card`-shaped panel over the page dimmed in `bg`, its title in
+  `heading`, the body, a `Checkbox` each where it asks *what*, sentences in
+  `muted`, then *Keep* and the confirm as two `Button`s sharing the row, the
+  confirm `danger` when it destroys; tapping outside cancels. *Delete* on a
+  segment is its first user. The app still has 44 system alerts; moving them
+  is `alert-alert-is-not-for-ordinary-ui.md`, which also settles what, if
+  anything, may still use the system's. There is no
   `Alert.prompt` — a rename happens in a `Field`
   in the row, which is also what naming a channel looks like one screen away.
   **And no action sheets: a menu opens in the view.** A segment's actions

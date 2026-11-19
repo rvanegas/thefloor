@@ -436,7 +436,7 @@ describe('rooms on the Record tab', () => {
     showTab(tree, 'Record');
     await settle();
     expect(textOf(tree)).not.toContain('Bach Reads Kant');
-    expect(openMenu(tree, 0).options).toEqual(['Share text', 'Delete text']);
+    expect(openMenu(tree, 0).options).toEqual(['Share text', 'Delete']);
     act(() => tree.unmount());
 
     const noesis = jest
@@ -665,7 +665,7 @@ describe('rooms on the Record tab', () => {
 
     const menu = openMenu(tree);
     // The segment's own between Play and the recording's.
-    expect(menu.options).toEqual(['Play', 'Share audio', 'Share text', 'Rename', 'Delete audio', 'Delete text']);
+    expect(menu.options).toEqual(['Play', 'Share audio', 'Share text', 'Rename', 'Delete']);
     expect(menu.disabled('Share audio')).toBe(false);
     expect(menu.disabled('Share text')).toBe(false);
     menu.choose('Share audio');
@@ -696,7 +696,7 @@ describe('rooms on the Record tab', () => {
 
     const menu = openMenu(tree);
     // Left out rather than greyed: a segment kept as text never will have any.
-    expect(menu.options).toEqual(['Share text', 'Delete text']);
+    expect(menu.options).toEqual(['Share text', 'Delete']);
     menu.choose('Share text');
     await settle();
     expect(shareRecording).not.toHaveBeenCalled();
@@ -711,7 +711,46 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
-  it("deletes a finished segment's text after asking, and offers it only once it is finished", async () => {
+  // *Delete* since 2026-11-18: one item, and a confirmation the app draws
+  // with a box, ticked, for each thing the segment has.
+  type Node = {
+    type: unknown;
+    props: Record<string, unknown> & { children?: unknown };
+    findAll: (match: (n: Node) => boolean) => Node[];
+  };
+  const words = (node: Node) =>
+    node
+      .findAll((n) => typeof n.props.children === 'string')
+      .map((n) => n.props.children as string)
+      .join(' ');
+  /** The open confirmation — each segment has its own, shut — or none. */
+  const confirmation = (tree: ReturnType<typeof render>) => {
+    const { Modal } = require('react-native');
+    const modal = (tree.root as unknown as Node).findAll((n) => n.type === Modal && n.props.visible === true)[0];
+    const hosts = (role: string) =>
+      modal
+        ? modal.findAll((n) => typeof n.type !== 'string' && n.props.accessibilityRole === role && 'onPress' in n.props)
+        : [];
+    return {
+      visible: !!modal,
+      text: modal ? words(modal) : '',
+      boxes: () =>
+        hosts('checkbox').map((n) => [
+          n.props.accessibilityLabel,
+          (n.props.accessibilityState as { checked: boolean }).checked,
+        ]),
+      tick: (label: string) =>
+        act(() => {
+          (hosts('checkbox').find((n) => n.props.accessibilityLabel === label)!.props.onPress as () => void)();
+        }),
+      press: async (label: string) => {
+        const button = hosts('button').find((n) => words(n).includes(label))!;
+        await act(async () => (button.props.onPress as () => void)());
+      },
+    };
+  };
+
+  it("deletes a finished segment's text after asking in a box, and offers it only once it is finished", async () => {
     jest.spyOn(api, 'liveTranscript').mockResolvedValue({
       lines: [
         line('l1', ME, 'Me', NOW + 1_000, 'only written down'),
@@ -727,27 +766,79 @@ describe('rooms on the Record tab', () => {
         ]),
       ],
     } as never);
-    const deleted = jest.spyOn(api, 'deleteSegmentText').mockResolvedValue({ ok: true } as never);
-    const { Alert } = require('react-native');
-    const asked = jest.spyOn(Alert, 'alert').mockImplementation(() => {});
+    const deleted = jest.spyOn(api, 'deleteSegment').mockResolvedValue({ ok: true } as never);
     showChannel(transcribed());
     const tree = render(screen());
     showTab(tree, 'Record');
     await settle();
 
     // Still being written down: more is coming, and the server refuses.
-    expect(openMenu(tree, 1).options).not.toContain('Delete text');
+    expect(openMenu(tree, 1).options).not.toContain('Delete');
 
     const menu = openMenu(tree);
-    expect(menu.destructive('Delete text')).toBe(true);
-    menu.choose('Delete text');
-    expect(asked).toHaveBeenCalledWith('Delete this text?', expect.any(String), expect.any(Array));
+    expect(menu.destructive('Delete')).toBe(true);
+    menu.choose('Delete');
+    const asked = confirmation(tree);
+    expect(asked.visible).toBe(true);
+    expect(asked.text).toContain('removed a month from now');
+    expect(asked.boxes()).toEqual([['Text', true]]);
     expect(deleted).not.toHaveBeenCalled();
-    const actions = asked.mock.calls[0][2] as Array<{ style?: string; onPress?: () => void }>;
-    await act(async () => actions.find((a) => a.style === 'destructive')!.onPress!());
-    expect(deleted).toHaveBeenCalledWith('token', 'sess_1', 's1');
+    await asked.press('Delete');
+    expect(deleted).toHaveBeenCalledWith('token', 'sess_1', 's1', { audio: false, text: true, document: false });
+    expect(confirmation(tree).visible).toBe(false);
+    act(() => tree.unmount());
+  });
 
-    asked.mockRestore();
+  it('asks of audio, transcript and document apart, the transcript going with the audio', async () => {
+    showChannel(transcribed(), [
+      { ...segment('rec_1', 'Planning', NOW + 10_000), transcript: { state: 'ready', provider: 'Memory', requestedBy: { id: ME, displayName: 'Me' } } },
+    ]);
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({ lines: [], more: false } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, ['rec_1'], [
+          {
+            ...seg('s1', NOW + 10_000, NOW + 40_000, 'rec_1', false),
+            filed: { file: '2026/x.chat.md', title: 'Planning' },
+          },
+        ]),
+      ],
+    } as never);
+    const deleted = jest.spyOn(api, 'deleteSegment').mockResolvedValue({ ok: true } as never);
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    openMenu(tree).choose('Delete');
+    let asked = confirmation(tree);
+    expect(asked.boxes()).toEqual([
+      ['Audio', true],
+      ['Text', true],
+      ['Its document in noesis', true],
+    ]);
+    expect(asked.text).toContain('The transcript goes with the audio.');
+    // Sparing the transcript spares the audio it belongs to, and says what
+    // asking again would cost.
+    asked.tick('Text');
+    asked = confirmation(tree);
+    expect(asked.boxes()).toEqual([
+      ['Audio', false],
+      ['Text', false],
+      ['Its document in noesis', true],
+    ]);
+    asked.tick('Audio');
+    expect(confirmation(tree).boxes()).toEqual([
+      ['Audio', true],
+      ['Text', true],
+      ['Its document in noesis', true],
+    ]);
+    // The audio spared alone keeps the recording, and asking again costs.
+    confirmation(tree).tick('Audio');
+    expect(confirmation(tree).text).toContain('costs the same as the first time');
+    expect(confirmation(tree).text).not.toContain('goes with the audio');
+    confirmation(tree).tick('Text');
+    await confirmation(tree).press('Delete');
+    expect(deleted).toHaveBeenCalledWith('token', 'sess_1', 's1', { audio: false, text: false, document: true });
     act(() => tree.unmount());
   });
 
@@ -788,7 +879,7 @@ describe('rooms on the Record tab', () => {
     expect(openMenu(tree, 1).options).not.toContain('Name voices');
 
     const menu = openMenu(tree);
-    expect(menu.options).toEqual(['Share text', 'Name voices', 'Delete text']);
+    expect(menu.options).toEqual(['Share text', 'Name voices', 'Delete']);
     menu.choose('Name voices');
     const fields = tree.root.findAll((node) => node.type === TextInput);
     // Each voice under what it is called with no name, starting on the name given.
@@ -887,7 +978,7 @@ describe('rooms on the Record tab', () => {
     await settle();
     // Gone since 2026-11-10: the channel's library holds it, and a copy of
     // one's own is made at noesis.
-    expect(openMenu(tree).options).toEqual(['Share text', 'Delete text']);
+    expect(openMenu(tree).options).toEqual(['Share text', 'Delete']);
     act(() => tree.unmount());
     noesis.mockRestore();
   });

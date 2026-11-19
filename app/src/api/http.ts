@@ -956,17 +956,6 @@ export const api = {
     ),
 
   /**
-   * Marks a recording for deletion. It leaves every list at once and its audio
-   * is removed by the sweep thirty days later, which is the whole of the recovery
-   * story and is only reachable by hand.
-   */
-  deleteRecording: (token: string, recordingId: string) =>
-    request<{ ok: true }>(`/recordings/${recordingId}`, {
-      method: 'DELETE',
-      token,
-    }),
-
-  /**
    * Renames a recording, for everybody in its channel rather than only for
    * whoever typed — the name is one shared thing, which is what makes it
    * worth having. The server refuses an empty one; nothing here needs to
@@ -1061,24 +1050,22 @@ export const api = {
     ),
 
   /**
-   * Removes a transcript and leaves the recording.
-   *
-   * Nothing is refunded — asking again costs again, which is why the caller
-   * says so before it does this.
+   * *Delete* on a segment, since 2026-11-18: whichever of its audio, its text
+   * and its document in the channel's library are ticked, together. Each is
+   * marked, gone for everybody at once, and removed a month later. A server
+   * before then answers 404.
    */
-  deleteTranscript: (token: string, recordingId: string) =>
-    request<{ ok: true }>(`/recordings/${recordingId}/transcript`, {
-      method: 'DELETE',
-      token,
-    }),
-
-  /**
-   * Removes the live text one finished segment kept, and leaves its audio.
-   * Since 2026-11-07; a server before then answers 404.
-   */
-  deleteSegmentText: (token: string, channelId: string, segmentId: string) =>
+  deleteSegment: (
+    token: string,
+    channelId: string,
+    segmentId: string,
+    what: { audio: boolean; text: boolean; document: boolean }
+  ) =>
     request<{ ok: true }>(
-      `/channels/${channelId}/segments/${encodeURIComponent(segmentId)}/text`,
+      `/channels/${channelId}/segments/${encodeURIComponent(segmentId)}?${(['audio', 'text', 'document'] as const)
+        .filter((key) => what[key])
+        .map((key) => `${key}=1`)
+        .join('&')}`,
       { method: 'DELETE', token }
     ),
 

@@ -5636,6 +5636,8 @@ export function buildApp(options: BuildOptions = {}): App {
    * Removes the live text one segment kept, leaving its audio — *Delete
    * text*, since 2026-11-07. The batch transcript, where that is a segment's
    * text, goes by the route above. See `deleteSegmentText` for the terms.
+   * Only builds up to 437 call it, or the two above, from a segment's menu
+   * (SHIMS.md gate 438).
    */
   fastify.delete('/channels/:id/segments/:segmentId/text', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -5646,6 +5648,59 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply
         .code(result.code === 'conflict' ? 409 : result.code === 'forbidden' ? 403 : 404)
         .send({ error: result.error });
+    }
+    return { ok: true };
+  });
+
+  /**
+   * *Delete* on a segment, since 2026-11-18: whichever of its audio, its text
+   * and the document it was filed as the query names (`audio`, `text`,
+   * `document`, each `1`), together, so that a confirmation with a box for
+   * each cannot leave a segment half deleted. Everything asked for is checked
+   * before anything is done. Its text is its live lines, or its recording's
+   * batch transcript — which only whoever asked for it may delete on its own,
+   * as the route above has it, and which goes with the audio regardless.
+   * See `deleteSegment` for the terms.
+   */
+  fastify.delete('/channels/:id/segments/:segmentId', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, segmentId } = request.params as { id: string; segmentId: string };
+    const query = request.query as { audio?: string; text?: string; document?: string };
+    const what = { audio: query.audio === '1', text: query.text === '1', document: query.document === '1' };
+    if (!what.audio && !what.text && !what.document) {
+      return reply.code(400).send({ error: 'Say what to delete.' });
+    }
+    const found = channels.segmentToDelete(id, segmentId, account.id);
+    if (!found.ok) {
+      return reply
+        .code(found.code === 'conflict' ? 409 : found.code === 'forbidden' ? 403 : 404)
+        .send({ error: found.error });
+    }
+    const { segment } = found;
+    const transcript =
+      !segment.text && segment.recordingId !== null && transcripts.viewFor(segment.recordingId)?.state === 'ready'
+        ? segment.recordingId
+        : null;
+    if (what.audio && segment.recordingId === null) {
+      return reply.code(404).send({ error: 'This kept no audio.' });
+    }
+    if (what.text && !segment.text && transcript === null) {
+      return reply.code(404).send({ error: 'This kept no text.' });
+    }
+    if (what.document && !segment.filed) {
+      return reply.code(404).send({ error: 'This was not filed.' });
+    }
+    const transcriptAlone = what.text && transcript !== null && !what.audio;
+    if (transcriptAlone && !mayRemoveTranscript(account.id, transcript)) {
+      return reply.code(403).send({
+        error: 'Only whoever asked for this transcript may change or remove it.',
+      });
+    }
+    channels.deleteSegment(id, segment, what);
+    if (transcriptAlone) {
+      transcripts.deleteFor(transcript);
+      channels.transcriptDeleted(transcript, false);
     }
     return { ok: true };
   });

@@ -4,6 +4,7 @@ import {
   Animated,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -498,6 +499,93 @@ export function Checkbox({
       </View>
       <Text style={[type.muted, styles.checkLabel]}>{label}</Text>
     </Pressable>
+  );
+}
+
+/**
+ * A confirmation the app draws rather than the system, since 2026-11-18, when
+ * Rodrigo said `Alert.alert` is not for ordinary UI (STYLE.md § *Destructive
+ * and irreversible acts confirm*): the system's dialog draws nothing of this
+ * app and holds no control but buttons. A title, what is lost and for how
+ * long, an optional box for each thing it would take — ticked, a
+ * confirmation's boxes being what is about to go rather than a permission
+ * (§ *Checkbox*) — then cancel and confirm, in that order.
+ *
+ * Its first user is *Delete* on a segment; the rest of the app's alerts move
+ * to it under `alert-alert-is-not-for-ordinary-ui.md`. Tapping outside the
+ * card cancels, as does Android's back.
+ */
+export function ConfirmModal({
+  visible,
+  title,
+  body,
+  choices = [],
+  notes = [],
+  cancelLabel,
+  confirmLabel,
+  destructive = false,
+  confirmDisabled = false,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  title: string;
+  body?: string;
+  choices?: readonly { label: string; checked: boolean; onChange: (next: boolean) => void }[];
+  /** Sentences under the boxes, saying what ticking one takes with it. */
+  notes?: readonly string[];
+  cancelLabel: string;
+  confirmLabel: string;
+  destructive?: boolean;
+  /** Greyed while confirming would do nothing — every box unticked. */
+  confirmDisabled?: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={styles.modalRoot}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={cancelLabel}
+          onPress={onCancel}
+          style={styles.modalScrim}
+        />
+        <View style={styles.modalCard} accessibilityViewIsModal>
+          <Text style={type.heading} accessibilityRole="header">
+            {title}
+          </Text>
+          {body ? <Text style={type.body}>{body}</Text> : null}
+          {choices.length > 0 ? (
+            <View>
+              {choices.map((choice) => (
+                <Checkbox
+                  key={choice.label}
+                  label={choice.label}
+                  checked={choice.checked}
+                  onChange={choice.onChange}
+                />
+              ))}
+            </View>
+          ) : null}
+          {notes.map((note) => (
+            <Text key={note} style={type.muted}>
+              {note}
+            </Text>
+          ))}
+          <View style={styles.modalActions}>
+            <Button label={cancelLabel} onPress={onCancel} style={styles.modalAction} />
+            <Button
+              label={confirmLabel}
+              variant={destructive ? 'danger' : 'primary'}
+              disabled={confirmDisabled}
+              onPress={onConfirm}
+              style={styles.modalAction}
+            />
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -1358,6 +1446,35 @@ export function Empty({ children }: { children: React.ReactNode }) {
 }
 
 const styles = StyleSheet.create({
+  modalRoot: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: spacing(2),
+  },
+  // The page behind, dimmed with its own colour rather than a new one: the
+  // palette has no scrim, and a black one would be a token dark mode lacks.
+  modalScrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.bg,
+    opacity: 0.8,
+  },
+  modalCard: {
+    ...measure,
+    maxWidth: 420,
+    // `Card`'s shape.
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing(2),
+    gap: spacing(1.5),
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing(1),
+    marginTop: spacing(0.5),
+  },
+  modalAction: { flex: 1 },
   screen: { flex: 1 },
   readingBar: {
     backgroundColor: colors.surface,
@@ -1758,39 +1875,10 @@ export function RecordingRow({
         setRenaming(true);
       },
     },
-    ...transcript.items
-      .filter((item) => !item.destructive)
-      .map((item) => ({ ...item, group: 'edit' as const })),
-    // *Delete audio*, then *Delete text*, since 2026-11-07, when *Delete
-    // recording* became the first: a segment is both, and either may go
-    // alone. The text is the batch transcript's, or the segment's own where
-    // it was kept live; only one of the two is ever offered.
-    {
-      label: t.deleteAudio(),
-      group: 'delete',
-      destructive: true,
-      disabled: !manageable,
-      // Confirmed first, and the confirmation says what the week is for. This
-      // is the only action in the app that destroys somebody else's copy of
-      // something — a recording belongs to the channel, so every member loses
-      // it, not just whoever tapped. Deleting is marking: it leaves every list
-      // at once, and the sweep removes the audio thirty days later.
-      onPress: () =>
-        Alert.alert(t.deleteAsk(), t.deleteBody(), [
-          { text: t.keep(), style: 'cancel' },
-          {
-            text: t.delete(),
-            style: 'destructive',
-            onPress: () =>
-              void run(t.deleting(), t.couldNotDelete(), (token) =>
-                api.deleteRecording(token, recording.id)
-              ),
-          },
-        ]),
-    },
-    ...transcript.items
-      .filter((item) => item.destructive)
-      .map((item) => ({ ...item, group: 'delete' as const })),
+    ...transcript.items.map((item) => ({ ...item, group: 'edit' as const })),
+    // One *Delete* since 2026-11-18, the segment's (`SegmentLine`), which asks
+    // in a box each for the audio, the text and the document. *Delete audio*
+    // and *Delete text* before it, from 2026-11-07.
     ...(head.menu.remove ?? []),
   ];
   const notes = [
@@ -2071,8 +2159,9 @@ function PublishControl({ recording }: { recording: RecordingView }) {
 }
 
 /**
- * What a recording's menu offers of its transcript — asking for one, or
- * deleting it — and the sentences saying where the one there is stands.
+ * What a recording's menu offers of its transcript — asking for one; deleting
+ * it is the segment's *Delete* since 2026-11-18 — and the sentences saying
+ * where the one there is stands.
  *
  * **The transcript itself is not here since 2026-10-10.** Its lines are drawn
  * in the *Record* log under this recording's line, the way the live
@@ -2112,29 +2201,8 @@ function transcriptActions(
   }
   if (transcript.state === 'ready') {
     const notes = transcript.missing ? [said.missing(transcript.missing)] : [];
-    if (transcript.mayRemove === false) return { items: [], notes };
-    const remove = () =>
-      Alert.alert(
-        said.deleteThisText(),
-        // Says the cost out loud. Nothing is refunded, and the app
-        // should not let somebody find that out by asking again.
-        said.deleteCost(),
-        [
-          { text: t.cancel(), style: 'cancel' },
-          {
-            text: said.deleteConfirm(),
-            style: 'destructive',
-            onPress: () =>
-              void run(t.deleting(), said.couldNotDelete(), (token) =>
-                api.deleteTranscript(token, recording.id)
-              ),
-          },
-        ]
-      );
-    return {
-      items: [{ label: said.deleteText(), destructive: true, disabled: !manageable, onPress: remove }],
-      notes,
-    };
+    // Deleting it is the segment's *Delete*, since 2026-11-18.
+    return { items: [], notes };
   }
 
   // A failed one says why and may be asked for again, which is the retry.

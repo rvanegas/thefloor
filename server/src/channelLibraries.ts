@@ -118,12 +118,15 @@ export class ChannelLibraries {
 
   private async fileOwed(): Promise<void> {
     const now = this.deps.now();
+    // Never one whose document was deleted, which naming a voice since would
+    // otherwise file again.
     const owed = this.db
       .prepare(
         `SELECT s.id, s.channel_id, s.started_at, s.ended_at, s.recording_id, s.text, s.filed_file,
                 t.state AS transcript
            FROM segments s LEFT JOIN transcripts t ON t.recording_id = s.recording_id
           WHERE s.filed_at IS NULL AND s.ended_at IS NOT NULL AND s.ended_at >= ?
+            AND s.document_deleted_at IS NULL
           ORDER BY s.ended_at`
       )
       .all(now - OWED_FOR_MS) as unknown as OwedRow[];
@@ -263,9 +266,10 @@ export class ChannelLibraries {
   }
 
   /**
-   * Deletes one document a segment was filed as, thirty days after its recording
-   * was deleted: noesis asks for the file's hash to delete it, so it is read
-   * from the library's listing first. True once it is gone.
+   * Deletes one document a segment was filed as, once it is marked deleted
+   * (`ChannelRegistry.forgetDocuments`): noesis asks for the file's hash to
+   * delete it, so it is read from the library's listing first, and keeps it
+   * in its trash thirty days. True once it is gone.
    */
   async deleteDocument(handle: string, file: string): Promise<boolean> {
     const doFetch = this.options.fetch ?? fetch;

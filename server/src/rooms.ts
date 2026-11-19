@@ -228,10 +228,10 @@ export class Rooms {
           endedAt: row.ended_at,
           recordingId: row.recording_id && !gone(row.recording_id) ? row.recording_id : null,
           text: row.text === 1,
-          // Not the document of text since deleted, which is on its way out.
-          // Still while it is owed again, a voice having been named since
-          // 2026-11-13: the old document stands until the new one replaces it.
-          ...(row.filed_file && !row.text_deleted_at
+          // Not a document since deleted, which is on its way out. Still while
+          // it is owed again, a voice having been named since 2026-11-13: the
+          // old document stands until the new one replaces it.
+          ...(row.filed_file && !row.document_deleted_at
             ? { filed: { file: row.filed_file, title: row.filed_title } }
             : {}),
           ...voicesOf(row),

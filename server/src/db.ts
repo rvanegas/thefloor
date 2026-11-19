@@ -3251,6 +3251,25 @@ function migrate(db: Db): void {
     db.exec('ALTER TABLE segments ADD COLUMN text_deleted_at INTEGER');
   }
   /*
+    When the document a segment was filed as was deleted, since 2026-11-18,
+    when the document stopped going with the text: *Delete* on a segment asks
+    of each separately (decision/2026-11-18-one-delete-for-a-segment-with-what-goes-checked.md).
+    Set, it is deleted at noesis at once — whose trash keeps it the month
+    every manual deletion keeps — and retried by each sweep until it is. Set
+    on everything that exists from what took the document until now: the
+    segment's text being deleted, or the recording its transcript came from.
+  */
+  if (!hasColumn(db, 'segments', 'document_deleted_at')) {
+    db.exec('ALTER TABLE segments ADD COLUMN document_deleted_at INTEGER');
+    db.exec('UPDATE segments SET document_deleted_at = text_deleted_at');
+    db.exec(
+      `UPDATE segments SET document_deleted_at =
+         (SELECT deleted_at FROM recordings WHERE recordings.id = segments.recording_id)
+        WHERE document_deleted_at IS NULL AND text = 0 AND filed_file IS NOT NULL
+          AND recording_id IN (SELECT id FROM recordings WHERE deleted_at IS NOT NULL)`
+    );
+  }
+  /*
     When a voice of the segment was last named or a name cleared, since
     2026-11-13: the snapshot's `filedAt` carries it (`lastFiledAt`), which is
     what sends every *Record* to read the rooms again. Null on everything

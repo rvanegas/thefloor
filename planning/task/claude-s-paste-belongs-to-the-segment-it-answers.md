@@ -13,5 +13,6 @@ obvious first answer. A person's paste is unchanged by this, and pastes
 outside any segment are `a-paste-outside-a-segment-can-be-deleted.md`.
 
 The glossary's *Paste* and *Ask Claude* change in the same commit as the code.
-`one-delete-for-a-segment-with-what-goes-checked.md` takes these pastes once
-this ships.
+The segment's *Delete* then takes them, and its sentence that what was pasted
+stays changes to say which
+(`2026-11-18-one-delete-for-a-segment-with-what-goes-checked.md`).

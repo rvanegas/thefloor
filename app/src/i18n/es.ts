@@ -545,10 +545,6 @@ export const es: Strings = {
     headerKind: () => 'Invitado',
   },
   transcript: {
-    deleteText: () => 'Borrar texto',
-    deleteThisText: () => '\u00bfBorrar este texto?',
-    deleteLiveBody: () =>
-      'Todos los de este canal lo pierden, y nada en la app puede recuperarlo.',
     stepInToDelete: () =>
       'Entra para borrar. Borrar lo quita tambi\u00e9n del Grabado de todos.',
     nameVoices: () => 'Nombrar voces',
@@ -560,7 +556,6 @@ export const es: Strings = {
     naming: () => 'Nombrando\u2026',
     deleteCost: () =>
       'La grabaci\u00f3n se conserva. Volver a transcribirla cuesta lo mismo que la primera vez.',
-    deleteConfirm: () => 'Borrar',
     couldNotDelete: () => 'No se ha podido borrar',
     transcribingFailedWith: (reason: string) =>
       `Fall\u00f3 la transcripci\u00f3n — ${reason}`,
@@ -887,7 +882,7 @@ export const es: Strings = {
       'Cada transcripción hecha aquí va a la biblioteca propia de este canal en noesis, que puede abrir cualquier miembro y nadie más. La pagan los miembros Pro del canal; mientras no haya ninguno, no entra nada nuevo.',
     channelLibraryNotYet: () => 'Se crea con la primera transcripción mientras alguien aquí sea Pro.',
     channelLibraryDeleting: (days: number) =>
-      `Al eliminar el canal se elimina su biblioteca, y al eliminar una grabación, su transcripción allí. Se pueden recuperar durante ${days} días.`,
+      `Al eliminar el canal se elimina su biblioteca, y Borrar en una línea del Grabado puede eliminar su documento allí. Se pueden recuperar durante ${days} días.`,
     channelLibraryOpen: () => 'Abrir en noesis',
     channelLibraryConsult: () => 'Claude la consulta',
     channelLibraryConsultNote: () =>
@@ -1208,6 +1203,13 @@ export const es: Strings = {
     segmentActions: (span: string) => `Acciones de ${span}`,
     shareAudio: () => 'Compartir audio',
     shareText: () => 'Compartir texto',
+    deleteSegment: () => 'Borrar',
+    deleteSegmentAsk: (span: string) => `\u00bfBorrar de ${span}?`,
+    deleteSegmentBody: () =>
+      'Todos los de este canal pierden lo marcado. Se elimina dentro de un mes, y nada en la app puede recuperarlo.',
+    deleteDocument: () => 'Su documento en noesis',
+    transcriptGoesWithAudio: () => 'La transcripci\u00f3n se va con el audio.',
+    pastesStay: () => 'Lo pegado se queda.',
     keptBoth: () => 'Audio + Texto',
     roomTextCopied: () => 'El texto est\u00e1 copiado.',
     openFiledInNoesis: () => 'Abrir en noesis',
@@ -1434,11 +1436,7 @@ export const es: Strings = {
     cancel: () => 'Cancelar',
     couldNotDelete: () => 'No se ha podido borrar',
     deleting: () => 'Borrando\u2026',
-    deleteAudio: () => 'Borrar audio',
     delete: () => 'Borrar',
-    deleteAsk: () => '\u00bfBorrar este audio?',
-    deleteBody: () =>
-      'Todos los de este canal lo pierden. Se elimina dentro de una semana, y nada en la app puede recuperarlo.',
     keep: () => 'Conservar',
     publishedPreparing: () => 'Publicada: el audio a\u00fan se est\u00e1 preparando.',
     published: () => 'Publicada. Cualquiera con la direcci\u00f3n puede escucharla.',

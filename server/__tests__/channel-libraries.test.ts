@@ -361,7 +361,9 @@ describe('deleting what a channel library holds, thirty days on', () => {
     expect(channelRow(channelId)).toBeUndefined();
   });
 
-  it("deletes a deleted recording's document thirty days after, and only then the recording", async () => {
+  // Asked at once since 2026-11-18 (`deleteRecording`); the sweep is the retry,
+  // and still goes before the recording's row.
+  it("deletes a deleted recording's marked document before the recording", async () => {
     const { channelId, ertaId, handle } = await filed();
     app.db
       .prepare(
@@ -372,10 +374,11 @@ describe('deleting what a channel library holds, thirty days on', () => {
       .run(channelId, ertaId, ertaId, START, START + 1, clock, clock);
     app.db
       .prepare(
-        `INSERT INTO segments (id, channel_id, started_at, ended_at, recording_id, text, filed_at, filed_file)
-         VALUES ('seg_r', ?, ?, ?, 'rec_1', 0, ?, '2026/x.chat.md')`
+        `INSERT INTO segments (id, channel_id, started_at, ended_at, recording_id, text, filed_at, filed_file,
+           document_deleted_at)
+         VALUES ('seg_r', ?, ?, ?, 'rec_1', 0, ?, '2026/x.chat.md', ?)`
       )
-      .run(channelId, START, START + 1, clock);
+      .run(channelId, START, START + 1, clock, clock);
     await app.channels.sweepDeleted(clock + WINDOW);
     expect(sent.map((s) => [s.method, s.path])).toEqual([
       ['GET', `/libraries/thefloor/${handle}/files`],
@@ -443,6 +446,115 @@ describe('deleting what a channel library holds, thirty days on', () => {
     expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_r'").get()).toEqual({ filed_file: null });
     // The recording stays, and so does the segment, keeping its audio.
     expect(app.db.prepare("SELECT deleted_at FROM recordings WHERE id = 'rec_1'").get()).toEqual({ deleted_at: null });
+  });
+
+  // *Delete* on a segment, since 2026-11-18: each of the three asked of
+  // separately, the document no longer going with the text.
+  const deleteSegment = async (channelId: string, segmentId: string, query: string) => {
+    const erta = await signIn('erta@example.com', 'Erta Example');
+    return app.fastify.inject({
+      method: 'DELETE',
+      url: `/channels/${channelId}/segments/${segmentId}?${query}`,
+      headers: { authorization: `Bearer ${erta.token}` },
+    });
+  };
+  const liveLeft = (channelId: string) =>
+    app.db.prepare('SELECT COUNT(*) AS n FROM live_lines WHERE channel_id = ? AND deleted_at IS NULL').get(channelId);
+  const recordedSegment = (channelId: string, ertaId: string) => {
+    app.db
+      .prepare(
+        `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id, participants, started_at,
+           duration_ms, s3_key, stems, ended_at)
+         VALUES ('rec_1', ?, ?, ?, ?, ?, 0, '', '{}', ?)`
+      )
+      .run(channelId, ertaId, ertaId, JSON.stringify([ertaId]), START + 3_600_000, START + 3_600_001);
+    app.db
+      .prepare(
+        `INSERT INTO transcripts (recording_id, state, requested_by, requested_at, provider, billed_ms)
+         VALUES ('rec_1', 'ready', ?, ?, 'Memory', 0)`
+      )
+      .run(ertaId, clock);
+    app.db
+      .prepare(
+        `INSERT INTO segments (id, channel_id, started_at, ended_at, recording_id, text, filed_at, filed_file)
+         VALUES ('seg_r', ?, ?, ?, 'rec_1', 0, ?, '2026/x.chat.md')`
+      )
+      .run(channelId, START + 3_600_000, START + 3_600_001, clock);
+  };
+
+  it('deletes only the text when only the text is ticked, and leaves its document', async () => {
+    const { channelId } = await filed();
+    const response = await deleteSegment(channelId, 'seg_1', 'text=1');
+    expect(response.statusCode).toBe(200);
+    await settle();
+    expect(liveLeft(channelId)).toEqual({ n: 0 });
+    expect(sent).toEqual([]);
+    expect(app.db.prepare("SELECT filed_file, document_deleted_at FROM segments WHERE id = 'seg_1'").get()).toEqual({
+      filed_file: '2026/x.chat.md',
+      document_deleted_at: null,
+    });
+  });
+
+  it('deletes only the document when only the document is ticked, and never files it again', async () => {
+    const { channelId, handle } = await filed();
+    expect((await deleteSegment(channelId, 'seg_1', 'document=1')).statusCode).toBe(200);
+    await settle();
+    expect(sent.map((s) => [s.method, s.path])).toEqual(deletes(handle));
+    expect(liveLeft(channelId)).toEqual({ n: 2 });
+    // Owed again, as naming a voice makes it.
+    app.db.prepare("UPDATE segments SET filed_at = NULL WHERE id = 'seg_1'").run();
+    sent = [];
+    await app.channelLibraries!.sweep();
+    expect(sent).toEqual([]);
+  });
+
+  it('deletes audio, transcript and document together, each at once for everybody', async () => {
+    const { channelId, ertaId, handle } = await filed();
+    recordedSegment(channelId, ertaId);
+    const response = await deleteSegment(channelId, 'seg_r', 'audio=1&text=1&document=1');
+    expect(response.statusCode).toBe(200);
+    await settle();
+    expect(sent.map((s) => [s.method, s.path])).toEqual(deletes(handle));
+    expect(app.db.prepare("SELECT deleted_at FROM recordings WHERE id = 'rec_1'").get()).toEqual({ deleted_at: clock });
+  });
+
+  it("keeps a recording's document when only its audio is deleted, through the recording's sweep", async () => {
+    const { channelId, ertaId } = await filed();
+    recordedSegment(channelId, ertaId);
+    expect((await deleteSegment(channelId, 'seg_r', 'audio=1')).statusCode).toBe(200);
+    app.db.prepare("UPDATE recordings SET objects_cleared_at = ? WHERE id = 'rec_1'").run(clock);
+    await app.channels.sweepDeleted(clock + WINDOW);
+    expect(sent).toEqual([]);
+    expect(app.db.prepare("SELECT filed_file FROM segments WHERE id = 'seg_r'").get()).toEqual({
+      filed_file: '2026/x.chat.md',
+    });
+  });
+
+  it('deletes a transcript alone, leaving the audio and the document', async () => {
+    const { channelId, ertaId } = await filed();
+    recordedSegment(channelId, ertaId);
+    expect((await deleteSegment(channelId, 'seg_r', 'text=1')).statusCode).toBe(200);
+    await settle();
+    expect(sent).toEqual([]);
+    expect(app.db.prepare("SELECT deleted_at FROM recordings WHERE id = 'rec_1'").get()).toEqual({ deleted_at: null });
+    expect(app.db.prepare("SELECT deleted_at IS NOT NULL AS gone FROM transcripts WHERE recording_id = 'rec_1'").get()).toEqual({
+      gone: 1,
+    });
+  });
+
+  it('refuses to delete nothing, or what the segment never kept, and deletes nothing then', async () => {
+    const { channelId } = await filed();
+    expect((await deleteSegment(channelId, 'seg_1', '')).statusCode).toBe(400);
+    expect((await deleteSegment(channelId, 'seg_1', 'text=1&audio=1')).statusCode).toBe(404);
+    expect(liveLeft(channelId)).toEqual({ n: 2 });
+  });
+
+  it("still takes the document with a recording deleted by a build up to 437, at once", async () => {
+    const { channelId, ertaId, handle } = await filed();
+    recordedSegment(channelId, ertaId);
+    expect(app.channels.deleteRecording('rec_1', ertaId)).toEqual({ ok: true });
+    await settle();
+    expect(sent.map((s) => [s.method, s.path])).toEqual(deletes(handle));
   });
 
   it('keeps the file each segment was filed as, and the title noesis gave it', async () => {

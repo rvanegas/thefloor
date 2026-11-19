@@ -17,9 +17,14 @@ export interface SegmentRow {
   filed_title: string | null;
   /**
    * When its text was deleted on its own — live, `text` 0 from then, or its
-   * recording's transcript since 2026-11-08 — and its filed document with it.
+   * recording's transcript since 2026-11-08.
    */
   text_deleted_at: number | null;
+  /**
+   * When its filed document was deleted, since 2026-11-18 on its own — with
+   * the text only where a build up to 437 deleted the text.
+   */
+  document_deleted_at: number | null;
   /** When one of its voices was last named, or a name cleared; null never. */
   voices_named_at: number | null;
 }

@@ -36,7 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
-- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro* and has connected their own *library* — since 2026-11-09; Pro alone before —, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro and connected nothing new goes in. Told on *Channel Settings*' card, to a member whose own library is connected, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis* to a member whose own library is connected. Deleted a week after the channel is. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
+- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro* and has connected their own *library* — since 2026-11-09; Pro alone before —, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro and connected nothing new goes in. Told on *Channel Settings*' card, to a member whose own library is connected, with *Open in noesis*; *Ask Claude* consults it on *Pro* and *Max* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis* to a member whose own library is connected. Deleted thirty days after the channel is, and one *segment*'s document by that segment's *Delete*, since 2026-11-18. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
@@ -137,7 +137,7 @@ caused; the list carries the meaning.
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Text made from a recording, on request, by a provider — offered only for a recording made with no *live transcript*, and drawn in the *Record* log under it as live lines are, since 2026-10-10, when its own screen went; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
 - **Free minutes** — What an account without the `transcripts_unlimited` mark may spend on transcription each calendar week, from Monday 00:00 UTC: `FREE_TRANSCRIPT_MINUTES`, 60 unless set, shared between a recording's *transcript* (length times stems, held when asked for) and the *live transcript* (each session's open time, billed to whoever switched it on), and kept in `transcript_usage`. Since 2026-10-10, replacing one free transcript per account
-- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10, and with a server restart since 2026-10-28; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes; a finished *segment*'s deleted on its own by *Delete text* since 2026-11-07. Since 2026-10-09
+- **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10, and with a server restart since 2026-10-28; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes; a finished *segment*'s deleted on its own by *Delete*'s *Text* box since 2026-11-18, *Delete text* from 2026-11-07. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — A channel setting, *Standard* or *Pro*, naming the grade of speech model a *recording*'s transcripts are asked for — not the *live transcript*, which streams on a model of its own; *Standard* unless a *Pro* account chose otherwise; shown to every member, changeable only by *Pro*. `transcriptionModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
 - **Response model** — A channel setting, *Standard* (Haiku), *Pro* (Sonnet) or *Max* (Opus, thinking harder), naming which model *Ask Claude* asks — the channel's, whoever presses; shown to every member, changeable only by *Pro*. `responseModel` — and its *Pro* is a grade of model, not *Pro (the subscription)*
@@ -343,13 +343,14 @@ so a member matches the two without opening either; the segment's menu has
 *Open in noesis*, which opens that document. **Both, like everything of
 noesis's in the app but *Floor Settings*' card where one connects, are drawn
 only for a member whose own library is connected** — the title since
-2026-11-10, the rest since the day before. **Deleting the channel deletes it**, and deleting a recording deletes
-the document its transcript was filed as, a week later as everything deleted
-goes, the card saying it can be recovered until then. **Deleting a segment's
-text on its own deletes its document at once**, since 2026-11-08 — *Delete
-text*, whether a recording's transcript or text kept live — as a copy elsewhere
-that every member can still open there, while the text itself is kept the
-month a recovery by hand needs. See
+2026-11-10, the rest since the day before. **Deleting the channel deletes it**, thirty days later as everything deleted
+goes, the card saying it can be recovered until then. **A segment's document
+is deleted on its own, since 2026-11-18** — the third box of the segment's
+*Delete*, beside *Audio* and *Text*, any of which may be spared — at once,
+being a copy elsewhere that every member could still open there; noesis keeps
+it in its trash the month every manual deletion is kept. From 2026-11-08 until
+then the document went with the text, and with the recording its transcript
+came from. See
 task/a-channel-has-its-own-noesis-library.md and
 `server/src/channelLibraries.ts`.
 
@@ -2671,7 +2672,7 @@ page and the feed at once. It does not reach a copy a subscriber's podcast app
 has already downloaded, and nothing in this system ever will. Publishing is
 the first act here that a later act cannot undo.
 
-Deleting the recording takes it down too, immediately — a week before the
+Deleting the recording takes it down too, immediately — a month before the
 sweep removes the audio, so no subscriber meets a dead link. Deleting your
 account withdraws your agreement, which is the same act performed on the way
 out.
@@ -2822,7 +2823,7 @@ audio is its recording's line, and opened to that recording's name until
 drawn. **Every
 action is in the menu since 2026-11-07** — *Share audio*, *Share text*,
 *Open in noesis* (and *Send to noesis* until 2026-11-10), and a recording's *Play*, *Rename*,
-*Transcribe* and *Delete audio*, then *Delete text* — a list the glyph opens
+*Transcribe* and *Delete* — a list the glyph opens
 under the line, in the view rather than as a sheet over it: rows on one
 surface since 2026-11-09, a hairline between its groups — play, share,
 noesis, edit, delete —, where it had been a column of full buttons taller
@@ -2839,8 +2840,13 @@ has something said in it, never its *pastes*. Text deleted goes from every
 screen at once and is removed a month later, as a transcript deleted on its
 own is, and the document it was filed as in the *channel library* goes from
 there at once. A segment whose audio is deleted keeps no audio, and says so; one left
-keeping nothing is not drawn. They were three
-things until then: a share glyph asking *Audio* or *Text*, wide buttons in
+keeping nothing is not drawn. **One *Delete* since 2026-11-18**, asking in a
+confirmation the app draws with a box, ticked, for each of the audio, the text
+and the document in the *channel library* the segment has — unticking one
+spares it, the document no longer going with the text, and a transcript
+going with its audio as it always has (`ConfirmModal`,
+`DELETE /channels/:id/segments/:segmentId`). They were three
+things until 2026-11-07: a share glyph asking *Audio* or *Text*, wide buttons in
 the open recording, and *Open in noesis* under the line.
 
 **Laid out in rooms.** Each *room* — a sitting, first step in to last step
