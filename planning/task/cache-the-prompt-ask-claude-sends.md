@@ -29,9 +29,32 @@ What stands between the request and a stable prefix, to settle first:
   window's edge slides, so every press past that point writes a new cache
   rather than reading one. Whether to cut in steps — drop an hour at a time
   rather than a line — so the prefix holds for a while, is part of the design.
-- **The TTL**: five minutes covers the re-reads inside one press and presses
-  in quick succession; an hour costs twice the write and covers a sitting.
-  Measure the gap between presses in a room before choosing.
+- **The TTL is five minutes**, measured below: 180 of 278 *Pro* presses came
+  within five minutes of the channel's previous one, and a hit refreshes the
+  cache, so an hour's double write never pays for itself.
+
+## What it would save
+
+Rodrigo asked, 2026-11-18. Every *Pro* and *Max* press since 2026-10-23,
+295 of them, replayed from `claude_usage` at `bin/usage`'s prices and the
+API's cache rates (a read 0.1× input, a write 1.25× for five minutes, 2× for
+an hour). The ledger keeps one input total per press, so each turn's prompt
+is estimated as that total over one plus its lookups.
+
+| | Total | Per press |
+|---|---|---|
+| As sent today | $66.25 | 22.5¢ |
+| Cached within a press only | $61.28 | |
+| Across presses, the *Record* still trimmed a line at a time | $56.86 | |
+| **Across presses, all three fixes above, five minutes** | **$36.22** | **12.3¢** |
+| The same with an hour | $41.04 | |
+
+**Trimming at the cap is most of it**: 162 of the 295 presses were at the
+90K budget, where cutting a line from the front each press means no reuse;
+cutting in steps is worth about $20 of the $30. $36 is an upper bound, since
+it credits every capped press with a hit and the press after each step
+misses, so expect 30–40% off. Output was $1.04 of it; the saving is all
+input.
 
 Done is `ts usage transcripts` showing cache reads on library presses and the
 per-press cost falling, with the reply unchanged. No shim: nothing on the wire
