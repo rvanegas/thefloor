@@ -1,5 +1,5 @@
-import { CLAUDE_ID } from '../constants';
-import { COMMUNITY_OWNER_ACTIONS, canAskClaude, canPasteClip, createChannel, reduce } from '../channel';
+import { CLAUDE_ID, CLAUDE_READS_MS } from '../constants';
+import { COMMUNITY_OWNER_ACTIONS, canAskClaude, canPasteClip, claudeReads, createChannel, reduce } from '../channel';
 import type { ChannelState, ClaudeAsk } from '../types';
 
 const A = 'user-a';
@@ -135,5 +135,21 @@ describe('the library', () => {
 
   it('is the community owner’s alone, and refused by name', () => {
     expect(COMMUNITY_OWNER_ACTIONS.has('SET_LIBRARY')).toBe(true);
+  });
+});
+
+describe('which segments Claude reads', () => {
+  const now = 1_700_000_000_000;
+
+  it('is every one that ended within two hours, and the one still being kept', () => {
+    expect(CLAUDE_READS_MS).toBe(2 * 60 * 60 * 1000);
+    expect(claudeReads({ endedAt: null }, now)).toBe(true);
+    expect(claudeReads({ endedAt: now - CLAUDE_READS_MS }, now)).toBe(true);
+    expect(claudeReads({ endedAt: now - CLAUDE_READS_MS - 1 }, now)).toBe(false);
+  });
+
+  it('is never one hidden from it, and an older one shown to it', () => {
+    expect(claudeReads({ endedAt: null, hiddenFromClaude: true }, now)).toBe(false);
+    expect(claudeReads({ endedAt: now - 3 * CLAUDE_READS_MS, shownToClaude: true }, now)).toBe(true);
   });
 });

@@ -1,7 +1,8 @@
 import type Anthropic from '@anthropic-ai/sdk';
 
-import { CLAUDE_ID } from '../../core/constants';
-import type { FiledView, RoomView, SegmentView } from '../../core/protocol';
+import { claudeReads } from '../../core/channel';
+import { CLAUDE_ID, CLAUDE_READS_MS } from '../../core/constants';
+import type { ClaudeProposal, FiledView, ProposedDocument, RoomView, SegmentView } from '../../core/protocol';
 import type { ChannelState, ReplyLength } from '../../core/types';
 import { lettered } from '../../core/transcript';
 import { newId, type Db } from './db';
@@ -115,18 +116,68 @@ export function libraryServerName(index: number): string {
 }
 
 /**
- * The library's tools a press may use: noesis's reading tools, and nothing else.
- * **An allowlist although noesis's server writes nothing today** — noesis plans more
- * tools, and one it adds should reach a room by a decision here, not by a
- * deploy there.
+ * The library's tools a press may use: noesis's searching tools, and nothing
+ * else. **An allowlist although noesis's server writes nothing today** — noesis
+ * plans more tools, and one it adds should reach a room by a decision here,
+ * not by a deploy there.
+ *
+ * **No reading tool since 2026-11-20**, `read_file` and `read_document`
+ * having been on until then: Claude asks the room before it reads a document
+ * (`ASK_TO_READ`), and the server reads the ones chosen (`readDocument`).
  */
-export const LIBRARY_TOOLS = [
-  'guide',
-  'list_documents',
-  'lookup_term',
-  'read_document',
-  'read_file',
-] as const;
+export const LIBRARY_TOOLS = ['guide', 'list_documents', 'lookup_term'] as const;
+
+/** The tool a library press asks the room with: see `ASK_TO_READ`. */
+export const ASK_TO_READ_NAME = 'ask_to_read';
+
+/** The most documents one press may ask to read. */
+export const MAX_PROPOSED_DOCUMENTS = 5;
+
+/**
+ * **How Claude asks before it reads**, since 2026-11-20 — Rodrigo's call:
+ * Claude decides which documents are most relevant, then asks the people
+ * here to confirm before it reads them. A tool of this server's own, beside
+ * noesis's, so the request stops on it (`stop_reason: 'tool_use'`) where the
+ * connector would have run straight on; the room's answer is its result, in
+ * a second request (`ClaudeResponder.answer`). Offered only to a press from a
+ * build that draws the card (`confirms`): an older one's press searches and
+ * reads nothing.
+ */
+export const ASK_TO_READ = {
+  name: ASK_TO_READ_NAME,
+  description:
+    'Ask the people in this conversation to let you read documents in full before you reply. ' +
+    'They see each document’s title and your reason, and choose; you are then given the ones ' +
+    'they chose, and write your reply. Ask for the documents most relevant to where the ' +
+    `conversation is now, at most ${MAX_PROPOSED_DOCUMENTS}, and never for one the record ` +
+    'already holds in full. Call it at most once, and write nothing else in the turn you call it.',
+  input_schema: {
+    type: 'object' as const,
+    properties: {
+      documents: {
+        type: 'array',
+        minItems: 1,
+        maxItems: MAX_PROPOSED_DOCUMENTS,
+        items: {
+          type: 'object',
+          properties: {
+            name: { type: 'string', description: 'Its file name, as the search that found it gave it.' },
+            library: { type: 'string', description: 'The library the search that found it names.' },
+            title: { type: 'string', description: 'Its title, as the search gave it.' },
+            reason: {
+              type: 'string',
+              description:
+                'Why it bears on the conversation now, in one short sentence the people here will ' +
+                'read, in the language being spoken.',
+            },
+          },
+          required: ['name', 'library', 'reason'],
+        },
+      },
+    },
+    required: ['documents'],
+  },
+};
 
 /**
  * The two request fields that hand the libraries to Claude, which must
@@ -135,7 +186,7 @@ export const LIBRARY_TOOLS = [
  * Anthropic's servers call noesis with each token and run the tool loop inside
  * the one request.
  */
-export function libraryRequest(libraries: readonly ConsultedLibrary[]) {
+export function libraryRequest(libraries: readonly ConsultedLibrary[], asks = false) {
   return {
     mcp_servers: libraries.map((library, index) => ({
       type: 'url' as const,
@@ -143,21 +194,27 @@ export function libraryRequest(libraries: readonly ConsultedLibrary[]) {
       name: libraryServerName(index),
       authorization_token: library.token,
     })),
-    tools: libraries.map((_, index) => ({
-      type: 'mcp_toolset' as const,
-      mcp_server_name: libraryServerName(index),
-      default_config: { enabled: false },
-      configs: Object.fromEntries(LIBRARY_TOOLS.map((tool) => [tool, { enabled: true }])),
-    })),
+    tools: [
+      ...libraries.map((_, index) => ({
+        type: 'mcp_toolset' as const,
+        mcp_server_name: libraryServerName(index),
+        default_config: { enabled: false },
+        configs: Object.fromEntries(LIBRARY_TOOLS.map((tool) => [tool, { enabled: true }])),
+      })),
+      // Where the asker's build draws the card: see `ASK_TO_READ`.
+      ...(asks ? [ASK_TO_READ] : []),
+    ],
   };
 }
 
 /**
- * How much *Record* one request carries: 90,000 tokens, which keeps the whole
+ * The most *Record* one request carries: 90,000 tokens, which keeps the whole
  * prompt under the 100K tokens past which Haiku 5.5 costs five times as much.
- * Spoken conversation runs about 12–13K tokens an hour, so this is about
- * seven hours of talk. The same for both grades, so the prompt is the same
- * whichever model reads it.
+ * The same for both grades, so the prompt is the same whichever model reads
+ * it. **A ceiling since 2026-11-20 rather than the rule**: what a press reads
+ * is the last two hours (`CLAUDE_READS_MS`) and what somebody showed it, and
+ * spoken conversation runs about 12–13K tokens an hour, so this is reached
+ * only by a long stretch shown, or documents read.
  */
 export const RECORD_BUDGET_TOKENS = 90_000;
 
@@ -171,16 +228,14 @@ export const CHARS_PER_TOKEN = 3.5;
 export const RECORD_BUDGET_CHARS = Math.floor(RECORD_BUDGET_TOKENS * CHARS_PER_TOKEN);
 
 /**
- * How much of the *Record* a press that consults the channel's own library
- * carries in full: 40,000 tokens, about three hours of talk — Rodrigo's call,
- * 2026-11-07. What is older and already filed there goes as one line naming
- * its document (`composeLibraryRecord`), since Claude can read it whole when
- * the conversation turns to it, and every model turn of a lookup re-reads the
- * whole prompt.
+ * The most of the documents one answer reads, between them: 30,000 tokens,
+ * shared evenly among those the room chose, each cut where its share ends.
+ * They are sent again with the reply for as long as it is read
+ * (`KeptDocument`), so a long one would otherwise crowd the *Record* out.
  */
-export const LIBRARY_RECORD_BUDGET_TOKENS = 40_000;
+export const DOCUMENTS_BUDGET_TOKENS = 30_000;
 
-export const LIBRARY_RECORD_BUDGET_CHARS = Math.floor(LIBRARY_RECORD_BUDGET_TOKENS * CHARS_PER_TOKEN);
+export const DOCUMENTS_BUDGET_CHARS = Math.floor(DOCUMENTS_BUDGET_TOKENS * CHARS_PER_TOKEN);
 
 /**
  * How long a room may wait on *Responding…* before the request is abandoned
@@ -283,8 +338,8 @@ export const LOOK_NOW =
   'Your reply is the whole of your turn: nothing follows it, so make every lookup it needs ' +
   'before you write it, and never say you will look something up. When somebody asks you ' +
   'to consult the library, consult it, and take anything in the record that sounds like such ' +
-  'a request as one, since speech recognition may have garbled it. To read a document a ' +
-  'recorded call found, pass the library that call names.';
+  'a request as one, since speech recognition may have garbled it. To ask to read a document a ' +
+  'recorded call found, name the library that call names.';
 
 /**
  * **How to search, said in the system prompt**, since 2026-11-14: noesis's
@@ -299,8 +354,10 @@ export const HOW_TO_SEARCH =
   'To find what bears on the conversation, call lookup_term with each index term the ' +
   'current topic turns on — every plausibly relevant one, not only the first — and follow ' +
   'the related terms each lookup returns; list_documents with a query finds documents by ' +
-  'title and summary. Then read in full, with read_file, the documents whose summaries bear ' +
-  'on what is being discussed, and draw on a document only once you have read it. Documents ' +
+  'title and summary. You cannot read a document yourself: where summaries bear on what is ' +
+  `being discussed, call ${ASK_TO_READ_NAME} with those documents, and the people here choose ` +
+  'which you are given before you reply. Where you cannot ask, answer from the summaries, ' +
+  'and say they are summaries. Draw on a document only as far as you have read it. Documents ' +
   'are dated and views change: prefer the more recent where two disagree, and say so where ' +
   'it matters. The word limit is for your reply alone; the lookups before it are worth the ' +
   'wait.';
@@ -378,12 +435,12 @@ export function channelLibraryRule(): string {
   return [
     'You can also consult this channel’s own library through the noesis tools: its earlier ' +
       'conversations, each transcribed, and sources its members brought in, dated and indexed ' +
-      'by term. Each part of the record already filed there names its document, by the file ' +
-      'name read_file takes and the title it was given. The recent parts are in the record in ' +
-      'full, so never read their documents; the older ones are a line each, so read one with ' +
-      'read_file when the conversation turns to it, and search the library whenever the ' +
-      'conversation touches anything that may have been said here before, or its sources. ' +
-      'Read a guide tool before the others.',
+      'by term. Each part of the record already filed there names its document, by its file ' +
+      'name and the title it was given. The recent parts are in the record in full, so never ' +
+      'ask to read their documents; the older ones are a line each, so ask to read one when ' +
+      'the conversation turns to it, and search the library whenever the conversation ' +
+      'touches anything that may have been said here before, or its sources. Read a guide ' +
+      'tool before the others.',
     LOOK_NOW,
     'When your reply draws on one of its documents, name it by its title in plain words, ' +
       'inline. Do not write Related or References sections. Only your final answer is shown, ' +
@@ -574,6 +631,12 @@ export interface ComposedRecord {
   trimmed: boolean;
   /** Whether older parts are a line each naming their document in the channel's library. */
   summarized?: boolean;
+  /**
+   * Every document it holds in full, since 2026-11-20: a filed segment's,
+   * sent whole, and each a reply read (`KeptDocument`). A press never asks
+   * to read one of these, which it already has (`heldIn`).
+   */
+  holds: Array<{ name: string; title?: string | null }>;
 }
 
 /** One room of the *Record*, rendered: its heading and its lines. */
@@ -613,6 +676,28 @@ export interface RecordSources {
   ) => { startedAt: number; lines: TranscriptLine[]; names: Record<string, string> } | null;
   /** The library calls a reply of Claude's was made with, by its paste's id. */
   working?: (pasteId: string) => WorkingStep[] | null;
+  /** The documents a reply of Claude's read, by its paste's id. */
+  documents?: (pasteId: string) => KeptDocument[] | null;
+}
+
+/**
+ * **A document the room let Claude read for a reply**, kept beside it with
+ * its text, since 2026-11-20 — Rodrigo's call: what was read for *Ask
+ * Claude* stays in what later presses send for as long as the reply does,
+ * which is the last two hours, or longer where somebody showed its segment
+ * to Claude. Set in the *Record* above the reply (`renderPaste`), so the
+ * next press has it without asking again.
+ */
+export interface KeptDocument {
+  /** As noesis's `read_file` took it. */
+  name: string;
+  /** Whose library, by noesis id. */
+  library: string;
+  title?: string;
+  /** What `read_file` returned, cut at its share of `DOCUMENTS_BUDGET_CHARS`. */
+  text: string;
+  /** Epoch milliseconds. */
+  readAt: number;
 }
 
 /** The real sources, read from this server's database. */
@@ -664,6 +749,12 @@ export function databaseSources(
         | undefined;
       return row?.working ? (JSON.parse(row.working) as WorkingStep[]) : null;
     },
+    documents: (pasteId) => {
+      const row = db.prepare('SELECT documents FROM pastes WHERE id = ?').get(pasteId) as unknown as
+        | { documents: string | null }
+        | undefined;
+      return row?.documents ? (JSON.parse(row.documents) as KeptDocument[]) : null;
+    },
   };
 }
 
@@ -686,10 +777,9 @@ interface WithPastes {
  * 2026-11-18 — listed among them, a paste read after the whole of the one it
  * was made in. One naming none stands as a segment of its own, in its place.
  *
- * **Less every segment hidden from Claude**, since 2026-11-19, its pastes
- * going with it — Claude's replies among them — as they go with its text
- * when it is deleted. Nothing is put in its place: Claude is not told
- * (decision/2026-11-19-a-segment-may-be-hidden-from-claude.md).
+ * Every segment, read or not: which are is the composer's (`claudeReads`),
+ * a segment's pastes going with it — Claude's replies among them — as they
+ * go with its text when it is deleted.
  */
 function withTheirPastes(segments: readonly SegmentView[]): WithPastes[] {
   const homes = new Map<string, WithPastes>();
@@ -700,14 +790,49 @@ function withTheirPastes(segments: readonly SegmentView[]): WithPastes[] {
     if (home) home.pastes.push(segment);
     else all.push(homes.get(segment.id) ?? { segment, pastes: [] });
   }
-  return all.filter(({ segment }) => !segment.hiddenFromClaude);
+  return all;
 }
 
 function renderPaste(sources: RecordSources, segment: SegmentView): string[] {
   const { authorId, displayName, text } = segment.paste!;
   const who = authorId === CLAUDE_ID ? 'Claude' : `${displayName} (pasted)`;
   const working = authorId === CLAUDE_ID ? (sources.working?.(segment.id) ?? []) : [];
-  return [...renderWorking(working), `[${hhmm(segment.startedAt)}] ${who}: ${text}`];
+  const documents = authorId === CLAUDE_ID ? (sources.documents?.(segment.id) ?? []) : [];
+  return [
+    ...renderWorking(working),
+    ...renderDocuments(documents),
+    `[${hhmm(segment.startedAt)}] ${who}: ${text}`,
+  ];
+}
+
+/** One document as the *Record* and the room's answer both carry it. */
+export function documentBlock(document: Pick<KeptDocument, 'name' | 'library' | 'title' | 'text'>): string {
+  const title = document.title ? ` title=${JSON.stringify(document.title)}` : '';
+  return (
+    `<document name=${JSON.stringify(document.name)} library=${JSON.stringify(document.library)}${title}>\n` +
+    `${document.text}\n</document>`
+  );
+}
+
+/**
+ * The documents a reply read, above it in the *Record*: one line saying
+ * whose choice they were, then each in full, as `documentBlock` writes it.
+ */
+export function renderDocuments(documents: readonly KeptDocument[]): string[] {
+  if (documents.length === 0) return [];
+  return [
+    'The people here had Claude read these documents for the reply below (the server’s record):',
+    ...documents.map(documentBlock),
+  ];
+}
+
+/** The documents a segment's Claude replies read, for what a *Record* holds. */
+function documentsIn(sources: RecordSources, pastes: readonly SegmentView[]): ComposedRecord['holds'] {
+  return pastes.flatMap((paste) =>
+    paste.paste?.authorId === CLAUDE_ID
+      ? (sources.documents?.(paste.id) ?? []).map(({ name, title }) => ({ name, title }))
+      : []
+  );
 }
 
 /**
@@ -757,27 +882,62 @@ function renderSegment(
 }
 
 /**
- * The channel's whole *Record* as text, oldest first, in rooms as the tab
- * lays it out — or null when it holds nothing anybody could read, which is
- * a press answered without asking anybody.
+ * **The *Record* as a press reads it**, oldest first, in rooms as the tab
+ * lays it out — or null when it holds nothing anybody could read, which is a
+ * press answered without asking anybody.
  *
- * **Capped from the oldest end**: whole rooms go first, then lines from the
- * front of the oldest room kept, and `trimmed` says so, for the prompt to
- * say where the record begins.
+ * **The last two hours, since 2026-11-20** — Rodrigo's call, distraction
+ * first: every segment `claudeReads`, which is one that ended within
+ * `CLAUDE_READS_MS` or is still being kept, less one hidden from Claude, and
+ * an older one somebody showed it; each with what was pasted into it, and the
+ * documents Claude's replies there read. Until then it was everything that
+ * fitted a budget, newest first. Claude is told the window and not the marks
+ * (decision/2026-11-19-a-segment-may-be-hidden-from-claude.md).
+ *
+ * **With the channel's own library** (`library`), every older segment filed
+ * there and not hidden is one line naming its document, its hours and who
+ * spoke, for Claude to ask to read when the conversation turns to it — the
+ * index of everything said here, as it was beside the library since
+ * 2026-11-07. A filed segment sent whole names its document too, so Claude
+ * knows it already holds it.
+ *
+ * **Capped from the oldest end** at `budget`: whole rooms go first, then
+ * lines from the front of the oldest room kept, and `trimmed` says so.
  */
 export function composeRecord(
   sources: RecordSources,
   channelId: string,
   now: number,
-  budget = RECORD_BUDGET_CHARS
+  options: { library?: boolean; budget?: number } = {}
 ): ComposedRecord | null {
+  const budget = options.budget ?? RECORD_BUDGET_CHARS;
+  const holds: ComposedRecord['holds'] = [];
+  let summarized = false;
   const rooms: RenderedRoom[] = sources
     .rooms(channelId, now)
     .map((room) => ({
       heading: roomHeading(room),
-      lines: withTheirPastes(room.segments).flatMap(({ segment, pastes }) =>
-        renderSegment(sources, channelId, segment, now, pastes)
-      ),
+      lines: withTheirPastes(room.segments).flatMap(({ segment, pastes }) => {
+        const filed = segment.filed;
+        if (claudeReads(segment, now)) {
+          const lines = renderSegment(sources, channelId, segment, now, pastes);
+          if (lines.length === 0) return [];
+          holds.push(...documentsIn(sources, [segment, ...pastes]));
+          if (!filed) return lines;
+          holds.push({ name: documentName(filed), title: filed.title });
+          return options.library
+            ? [`(Filed in this channel's library as ${documentName(filed)}${titled(filed)}.)`, ...lines]
+            : lines;
+        }
+        if (!options.library || !filed || segment.hiddenFromClaude) return [];
+        summarized = true;
+        const who = speakersOf(sources, channelId, segment, now);
+        return [
+          `[${hhmm(segment.startedAt)}–${hhmm(segment.endedAt ?? now)}] ` +
+            `${who.length ? `${who.join(', ')}. ` : ''}` +
+            `In this channel's library as ${documentName(filed)}${titled(filed)}.`,
+        ];
+      }),
     }))
     .filter((room) => room.lines.length > 0);
   if (rooms.length === 0) return null;
@@ -798,6 +958,8 @@ export function composeRecord(
   return {
     text: rooms.map((room) => [room.heading, ...room.lines].join('\n')).join('\n\n'),
     trimmed,
+    ...(options.library ? { summarized } : {}),
+    holds,
   };
 }
 
@@ -823,102 +985,42 @@ function speakersOf(
   return [...new Set(names)];
 }
 
-/**
- * The *Record* for a press that consults the channel's own library: newest
- * first, **in full up to `full`** — the recent part, about three hours, and
- * the newest room whatever its length — and
- * past that, every segment already filed there as **one line naming its
- * document**, its hours and who spoke, for Claude to read with read_file when
- * it is wanted. A filed segment given in full names its document too, so
- * Claude knows it already holds it. Whatever the library does not hold — the
- * segment still being kept, one closed in the last minute, one closed while
- * nobody was Pro, everything from before 2026-11-07, a paste standing alone —
- * stays in full,
- * within the usual `budget`, past which the oldest goes as `composeRecord`
- * lets it.
- */
-export function composeLibraryRecord(
-  sources: RecordSources,
-  channelId: string,
-  now: number,
-  full = LIBRARY_RECORD_BUDGET_CHARS,
-  budget = RECORD_BUDGET_CHARS
-): ComposedRecord | null {
-  const rooms = sources
-    .rooms(channelId, now)
-    .map((room) => ({
-      heading: roomHeading(room),
-      segments: withTheirPastes(room.segments)
-        .map(({ segment, pastes }) => ({ segment, lines: renderSegment(sources, channelId, segment, now, pastes) }))
-        .filter((each) => each.lines.length > 0),
-    }))
-    .filter((room) => room.segments.length > 0);
-  if (rooms.length === 0) return null;
-
-  const size = (lines: string[]) => lines.reduce((sum, line) => sum + line.length + 1, 0);
-  const kept: RenderedRoom[] = [];
-  let total = 0;
-  let spent = false;
-  let summarized = false;
-  let trimmed = false;
-  newest: for (let r = rooms.length - 1; r >= 0; r--) {
-    const room = rooms[r];
-    const lines: string[][] = [];
-    total += room.heading.length + 2;
-    for (let i = room.segments.length - 1; i >= 0; i--) {
-      const { segment, lines: text } = room.segments[i];
-      const filed = segment.filed;
-      let chosen = filed
-        ? [`(Filed in this channel's library as ${documentName(filed)}${titled(filed)}.)`, ...text]
-        : text;
-      // Once one filed segment is past the full part, every older one is: the
-      // record is whole from one point on rather than in patches. Never the
-      // newest room, which is the conversation being answered.
-      const newestRoom = r === rooms.length - 1;
-      if (filed && !newestRoom && (spent || total + size(chosen) > full)) {
-        spent = summarized = true;
-        const who = speakersOf(sources, channelId, segment, now);
-        chosen = [
-          `[${hhmm(segment.startedAt)}–${hhmm(segment.endedAt ?? now)}] ` +
-            `${who.length ? `${who.join(', ')}. ` : ''}` +
-            `In this channel's library as ${documentName(filed)}${titled(filed)}.`,
-        ];
-      }
-      if (total + size(chosen) > budget) {
-        // The newest part that does not fit is cut from its front, as
-        // `composeRecord` cuts the oldest room it keeps.
-        while (chosen.length > 1 && total + size(chosen) > budget) chosen = chosen.slice(1);
-        if (total + size(chosen) <= budget) {
-          total += size(chosen);
-          lines.unshift(chosen);
-        }
-        trimmed = true;
-        if (lines.length) kept.unshift({ heading: room.heading, lines: lines.flat() });
-        break newest;
-      }
-      total += size(chosen);
-      lines.unshift(chosen);
-    }
-    kept.unshift({ heading: room.heading, lines: lines.flat() });
-  }
-  return {
-    text: kept.map((room) => [room.heading, ...room.lines].join('\n')).join('\n\n'),
-    trimmed,
-    summarized,
-  };
-}
-
 /** The user message: the *Record*, then the length rule again, last. */
 export function userMessage(record: ComposedRecord, length: ReplyLength): string {
-  const opening = record.summarized
-    ? 'The record of this conversation follows. Its recent part is in full; each older part ' +
-      'already filed in this channel’s library is one line naming its document there.' +
-      (record.trimmed ? ' Earlier conversation was left out for length.' : '')
-    : record.trimmed
-      ? 'The record of this conversation follows. It begins partway through: ' +
-        'earlier conversation was left out for length.'
-      : 'The record of this conversation so far follows.';
+  const opening =
+    'The record of this conversation follows: what was said in the last ' +
+    `${CLAUDE_READS_MS / 3_600_000} hours, and any earlier part the people here chose to show you.` +
+    (record.summarized
+      ? ' Each older part filed in this channel’s library is one line naming its document there.'
+      : '') +
+    (record.trimmed ? ' Earlier conversation was left out for length.' : '');
   return `${opening}\n\n<record>\n${record.text}\n</record>\n\n${lengthRule(length)}`;
+}
+
+/**
+ * **Whether a record already holds the document a press asks to read**,
+ * since 2026-11-20 — Rodrigo's rule: Claude does not read what it can be
+ * determined it already has. Determined by name, since a filed segment keeps
+ * its document's file name (`segments.filed_file`) and a read one its own:
+ * as `read_file` takes one — its file name, its stem, its slug or its title
+ * — whatever folder is before it. The same conversation in somebody's own
+ * library under another name is not caught, and is not tried.
+ */
+export function heldIn(record: Pick<ComposedRecord, 'holds'>, name: string): boolean {
+  const asked = namesOf(name);
+  return record.holds.some(
+    (held) =>
+      namesOf(held.name).some((each) => asked.includes(each)) ||
+      (!!held.title && asked.includes(held.title.trim().toLowerCase()))
+  );
+}
+
+/** A document's names as `read_file` takes them: file, stem, slug, lowercased. */
+function namesOf(name: string): string[] {
+  const file = name.trim().split('/').pop()!.toLowerCase();
+  const stem = file.replace(/\.(chat|document|source|argument|analysis|review)\.md$/, '').replace(/\.md$/, '');
+  const slug = stem.replace(/^\d{4}-\d{2}-\d{2}-/, '');
+  return [...new Set([file, stem, slug])];
 }
 
 /**
@@ -942,9 +1044,13 @@ export interface ClaudeClient {
   };
 }
 
-/** How a press ended, as `claude_usage.outcome` records it. */
+/**
+ * How a request ended, as `claude_usage.outcome` records it — `proposed`,
+ * since 2026-11-20, for the first of two that asked the room what to read.
+ */
 export type ClaudeOutcome =
   | 'posted'
+  | 'proposed'
   | 'too_long'
   | 'empty'
   | 'refused'
@@ -968,16 +1074,19 @@ export interface ClaudeChannels {
     text: string,
     voices?: Record<string, string>,
     working?: readonly WorkingStep[],
-    askerLanguage?: string
+    askerLanguage?: string,
+    documents?: readonly KeptDocument[]
   ): Promise<'posted' | 'too_long' | 'empty' | 'gone'>;
+  /** Draws, or takes down, the card that asks what Claude may read. */
+  setClaudeProposal(channelId: string, proposal: ClaudeProposal | null): void;
 }
 
 export type ClaudeResult =
-  | { ok: true }
+  | { ok: true; proposed?: true }
   | { ok: false; status: number; error: string };
 
 /** The sentence each failure answers with, and the status it travels under. */
-const FAILURES: Record<Exclude<ClaudeOutcome, 'posted'>, { status: number; error: string }> = {
+const FAILURES: Record<Exclude<ClaudeOutcome, 'posted' | 'proposed'>, { status: number; error: string }> = {
   too_long: { status: 422, error: 'Claude’s reply was too long to post.' },
   empty: { status: 422, error: 'Claude had nothing to add.' },
   refused: { status: 422, error: 'Claude declined to respond to this.' },
@@ -1057,6 +1166,93 @@ export async function librariesFor(
   return consulted.filter((entry): entry is ConsultedLibrary => entry !== null);
 }
 
+/**
+ * Claude's `ask_to_read`, where a response ends on one: its id, and the
+ * documents it names that are whole enough to put to the room — a name and
+ * a library each, a title and a reason where given — at most
+ * `MAX_PROPOSED_DOCUMENTS`, the same one named twice once.
+ */
+export function askedToRead(
+  content: readonly unknown[]
+): { id: string; documents: ProposedDocument[] } | null {
+  const call = (content as ReadonlyArray<Record<string, unknown>>).find(
+    (block) => block.type === 'tool_use' && block.name === ASK_TO_READ_NAME
+  );
+  if (!call) return null;
+  const listed = (call.input as { documents?: unknown } | undefined)?.documents;
+  const text = (value: unknown, most: number) =>
+    typeof value === 'string' && value.trim() ? value.trim().slice(0, most) : undefined;
+  const documents: ProposedDocument[] = [];
+  for (const each of Array.isArray(listed) ? (listed as Array<Record<string, unknown>>) : []) {
+    const name = text(each?.name, 300);
+    const library = text(each?.library, 200);
+    if (!name || !library || documents.some((one) => one.name === name && one.library === library)) continue;
+    const title = text(each.title, 300);
+    const reason = text(each.reason, 500);
+    documents.push({ name, library, ...(title ? { title } : {}), ...(reason ? { reason } : {}) });
+    if (documents.length === MAX_PROPOSED_DOCUMENTS) break;
+  }
+  return { id: String(call.id), documents };
+}
+
+/**
+ * **Reads one document from noesis, as the server rather than Claude**, since
+ * 2026-11-20: a single MCP `tools/call` of `read_file` on the server and with
+ * the token the press consulted it by. noesis's MCP is stateless, so the
+ * call needs no handshake, and it may answer as JSON or as one server-sent
+ * event. The text, or why not, in a sentence fit for the *Record*.
+ */
+export async function readDocument(
+  doFetch: typeof fetch,
+  server: Pick<ConsultedLibrary, 'url' | 'token'>,
+  name: string,
+  library: string,
+  signal?: AbortSignal
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  let response: Response;
+  try {
+    response = await doFetch(server.url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${server.token}`,
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'read_file', arguments: { name, library } },
+      }),
+      signal,
+    });
+  } catch {
+    return { ok: false, error: 'noesis could not be reached' };
+  }
+  if (!response.ok) return { ok: false, error: `noesis answered ${response.status}` };
+  const body = await response.text();
+  const json = (response.headers.get('content-type') ?? '').includes('text/event-stream')
+    ? body
+        .split('\n')
+        .filter((line) => line.startsWith('data:'))
+        .map((line) => line.slice(5).trim())
+        .pop()
+    : body;
+  let message: {
+    result?: { content?: Array<{ type?: string; text?: string }>; isError?: boolean };
+    error?: { message?: string };
+  };
+  try {
+    message = JSON.parse(json ?? '');
+  } catch {
+    return { ok: false, error: 'noesis answered something unreadable' };
+  }
+  if (message.error) return { ok: false, error: message.error.message ?? 'noesis refused' };
+  const text = resultText(message.result?.content ?? []);
+  if (message.result?.isError) return { ok: false, error: text.trim() || 'noesis refused' };
+  return text.trim() ? { ok: true, text } : { ok: false, error: 'it was empty' };
+}
+
 export interface ClaudeResponderOptions {
   client: ClaudeClient;
   channels: ClaudeChannels;
@@ -1082,30 +1278,80 @@ export interface ClaudeResponderOptions {
    * consults; asked at each press that consults one, null when it has none.
    */
   libraryOwner?: (accountId: string) => string | null;
+  /** How the server reaches noesis's MCP itself, to read what the room chose; tests answer for it. */
+  fetch?: typeof fetch;
   log?: { warn(details: object, message: string): void };
+}
+
+/**
+ * What a press asked, kept while the room chooses what Claude reads — in
+ * memory, as the channel's live state is — so the answer continues the same
+ * conversation: the request's own blocks, its `ask_to_read` call among
+ * them, are sent back with the room's answer as that call's result.
+ */
+interface Pending {
+  channelId: string;
+  proposal: ClaudeProposal;
+  /** What it asked for and already has, or that none of its libraries holds: never put to the room. */
+  held: ProposedDocument[];
+  unknown: ProposedDocument[];
+  /** Who pressed, which the ledger and the reply's voices are. */
+  askerId: string;
+  grade: ResponseModel;
+  ask: ResponseGrade;
+  length: ReplyLength;
+  voices?: Record<string, string>;
+  language?: string;
+  record: ComposedRecord;
+  library: ConsultedLibrary[];
+  /** Everything the first request returned, its `ask_to_read` last. */
+  content: Reply['content'];
+  /** That call's id, which the answer is the result of. */
+  toolUseId: string;
+}
+
+/** A press's options beyond its length. */
+export interface PressOptions {
+  /** The asker's, carried onto the reply for every phone to read it in. */
+  voices?: Record<string, string>;
+  /**
+   * The asker's app language, `en` or `es`, which the reply is spoken in
+   * where the channel has no transcript to say. Since 2026-11-13.
+   */
+  language?: string;
+  /**
+   * Whether the asker's build draws the card that asks what Claude may read,
+   * since 2026-11-20. Without it Claude may search and is offered no way to
+   * read: an older build would never show the question, and nobody could
+   * answer it.
+   */
+  confirms?: boolean;
 }
 
 /**
  * One press of *Ask Claude*, start to finish. The card says *Responding…* on
  * every screen from the ask until `claudeAnswered` — which runs in `finally`,
  * whatever happened, so it can never outlive the request.
+ *
+ * **A press that consults a library may be two requests**, since 2026-11-20:
+ * the first searches and may end by asking to read (`ASK_TO_READ`), which
+ * puts the card up and ends *Responding…*; somebody's answer
+ * (`answer`) reads the documents chosen and asks the second, which replies.
  */
 export class ClaudeResponder {
   constructor(private options: ClaudeResponderOptions) {}
+
+  /** What each channel's card is waiting on, by channel. */
+  private pending = new Map<string, Pending>();
 
   async respond(
     channelId: string,
     userId: string,
     length: ReplyLength = DEFAULT_REPLY_LENGTH,
-    /** The asker's, carried onto the reply for every phone to read it in. */
-    voices?: Record<string, string>,
-    /**
-     * The asker's app language, `en` or `es`, which the reply is spoken in
-     * where the channel has no transcript to say. Since 2026-11-13.
-     */
-    language?: string
+    press: PressOptions = {}
   ): Promise<ClaudeResult> {
     const { channels, now } = this.options;
+    const { voices, language } = press;
     const channel = channels.get(channelId);
     if (!channel) return { ok: false, status: 404, error: 'No such channel.' };
 
@@ -1116,7 +1362,7 @@ export class ClaudeResponder {
       return {
         ok: false,
         status: 409,
-        error: 'There is nothing in the Record yet for Claude to read.',
+        error: 'There is nothing from the last two hours in the Record for Claude to read.',
       };
     }
 
@@ -1128,6 +1374,8 @@ export class ClaudeResponder {
         error: asked.error,
       };
     }
+    // A press replaces whatever the card was asking.
+    this.drop(channelId);
 
     // The grade is read at the press and written to the ledger with it, so
     // a member's Pro lapsing later never changes what an earlier reply was.
@@ -1147,9 +1395,10 @@ export class ClaudeResponder {
       consulted.push({ url: url.toString(), token: own.token, owner: '', libraries: [own.id], channel: true });
     }
     const library = consulted.length ? consulted : undefined;
-    // With the channel's own library, what it already holds goes as a line
-    // each past the recent part; asked again without noesis, in full.
-    const sent = (own && composeLibraryRecord(this.options.sources, channelId, now())) || record;
+    // With the channel's own library, what it holds older than the window
+    // goes as a line each; asked again without noesis, without them.
+    const sent = (own && composeRecord(this.options.sources, channelId, now(), { library: true })) || record;
+    const asks = !!library && press.confirms === true;
     const controller = new AbortController();
     const timeoutMs = library
       ? (this.options.libraryTimeoutMs ?? CLAUDE_LIBRARY_TIMEOUT_MS)
@@ -1157,10 +1406,48 @@ export class ClaudeResponder {
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let outcome: ClaudeOutcome = 'error';
     let response: Anthropic.Message | Anthropic.Beta.Messages.BetaMessage | undefined;
+    let answered: ClaudeResult | null = null;
     try {
-      response = await this.consult(ask, sent, record, length, controller.signal, library, channelId);
+      response = await this.consult(ask, sent, record, length, controller.signal, library, channelId, asks);
+      const call = asks ? askedToRead(response.content) : null;
       if (response.stop_reason === 'refusal') {
         outcome = 'refused';
+      } else if (call && library) {
+        // Whatever it already holds, or cannot be found among the libraries
+        // consulted, is answered without asking anybody.
+        const held = call.documents.filter((each) => heldIn(sent, each.name));
+        const unknown = call.documents.filter(
+          (each) => !held.includes(each) && !library.some((one) => one.libraries.includes(each.library))
+        );
+        const pending: Pending = {
+          channelId,
+          proposal: {
+            id: newId('proposal'),
+            askedBy: userId,
+            documents: call.documents.filter((each) => !held.includes(each) && !unknown.includes(each)),
+          },
+          held,
+          unknown,
+          askerId: userId,
+          grade,
+          ask,
+          length,
+          voices,
+          language,
+          record: sent,
+          library,
+          content: response.content,
+          toolUseId: call.id,
+        };
+        outcome = 'proposed';
+        if (pending.proposal.documents.length === 0) {
+          // Nothing to ask: answered at once, inside this press and its timer.
+          this.recordUsage(channelId, userId, grade, ask, response, outcome, true);
+          answered = await this.continueWith(pending, [], controller.signal);
+        } else {
+          this.pending.set(channelId, pending);
+          channels.setClaudeProposal(channelId, pending.proposal);
+        }
       } else {
         outcome = await channels.postClaudeReply(
           channelId,
@@ -1179,13 +1466,158 @@ export class ClaudeResponder {
       // A press that posted nothing keeps its calls nowhere else, so the
       // log has them: a failure leaves a trace too.
       const steps = library && response ? workingSteps(response.content, library) : [];
-      if (outcome !== 'posted' && steps.length) {
+      if (outcome !== 'posted' && outcome !== 'proposed' && steps.length) {
         this.options.log?.warn({ channel: channelId, outcome, steps }, 'claude press posted nothing after library calls');
       }
       channels.claudeAnswered(channelId);
-      this.recordUsage(channelId, userId, grade, ask, response, outcome, library !== undefined);
+      if (!answered) this.recordUsage(channelId, userId, grade, ask, response, outcome, library !== undefined);
     }
+    if (answered) return answered;
+    if (outcome === 'proposed') return { ok: true, proposed: true };
     return outcome === 'posted' ? { ok: true } : { ok: false, ...FAILURES[outcome] };
+  }
+
+  /**
+   * **Somebody's answer to the card**, since 2026-11-20: `read` names which
+   * of the documents Claude asked for it may read — none is *Answer
+   * without*. Anybody who could press *Ask Claude* may answer
+   * (`canAskClaude`, through `askClaude`), and the card says *Responding…*
+   * from here as a press does. The server reads the chosen documents from
+   * noesis itself, so what Claude reads is exactly what the room chose, and
+   * the reply follows in the same conversation as the first request.
+   */
+  async answer(
+    channelId: string,
+    userId: string,
+    proposalId: string,
+    read: readonly string[]
+  ): Promise<ClaudeResult> {
+    const { channels } = this.options;
+    const pending = this.pending.get(channelId);
+    if (!pending || pending.proposal.id !== proposalId) {
+      return { ok: false, status: 409, error: 'Claude is no longer asking that.' };
+    }
+    const asked = channels.askClaude(channelId, userId);
+    if (!asked.ok) {
+      return {
+        ok: false,
+        status: asked.code === 'conflict' ? 409 : asked.code === 'forbidden' ? 403 : 400,
+        error: asked.error,
+      };
+    }
+    this.drop(channelId);
+    const chosen = pending.proposal.documents.filter((each) => read.includes(each.name));
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => controller.abort(),
+      this.options.libraryTimeoutMs ?? CLAUDE_LIBRARY_TIMEOUT_MS
+    );
+    try {
+      return await this.continueWith(pending, chosen, controller.signal);
+    } finally {
+      clearTimeout(timer);
+      channels.claudeAnswered(channelId);
+    }
+  }
+
+  /** Takes the card down, and forgets what it was waiting on. */
+  private drop(channelId: string): void {
+    if (!this.pending.delete(channelId)) return;
+    this.options.channels.setClaudeProposal(channelId, null);
+  }
+
+  /**
+   * The second request: the documents `chosen` read from noesis, the rest
+   * declined, all said as the result of Claude's `ask_to_read`, and **no
+   * tool this time** (`tool_choice: none`), so it replies rather than asking
+   * again. Posts the reply with every step both requests made, the reads
+   * among them, and keeps the documents read beside it.
+   */
+  private async continueWith(
+    pending: Pending,
+    chosen: readonly ProposedDocument[],
+    signal: AbortSignal
+  ): Promise<ClaudeResult> {
+    const { channels, now } = this.options;
+    const { channelId } = pending;
+    const share = chosen.length ? Math.floor(DOCUMENTS_BUDGET_CHARS / chosen.length) : 0;
+    const read = await Promise.all(
+      chosen.map(async (each) => {
+        const server = pending.library.find((one) => one.libraries.includes(each.library));
+        const got = server
+          ? await readDocument(this.options.fetch ?? fetch, server, each.name, each.library, signal)
+          : { ok: false as const, error: 'not among the libraries consulted' };
+        return { each, got };
+      })
+    );
+    const kept: KeptDocument[] = read.flatMap(({ each, got }) =>
+      got.ok
+        ? [
+            {
+              name: each.name,
+              library: each.library,
+              ...(each.title ? { title: each.title } : {}),
+              text: got.text.length > share ? `${got.text.slice(0, share)}\n[The rest was left out for length.]` : got.text,
+              readAt: now(),
+            },
+          ]
+        : []
+    );
+    const steps: WorkingStep[] = read.map(({ each, got }) => ({
+      tool: 'read_file',
+      library: each.library,
+      input: { name: each.name },
+      kept: got.ok ? keptOf('read_file', got.text) : null,
+      ...(got.ok ? {} : { error: got.error }),
+    }));
+    const declined = pending.proposal.documents.filter((each) => !chosen.includes(each));
+    const failed = read.filter(({ got }) => !got.ok);
+    const result = [
+      ...kept.map(documentBlock),
+      ...(declined.length
+        ? [`The people here chose not to have you read: ${declined.map((each) => each.name).join(', ')}.`]
+        : []),
+      ...failed.map(({ each, got }) => `${each.name} could not be read: ${got.ok ? '' : got.error}.`),
+      ...(pending.held.length
+        ? [`The record above already holds in full: ${pending.held.map((each) => each.name).join(', ')}.`]
+        : []),
+      ...(pending.unknown.length
+        ? [`None of the libraries here holds: ${pending.unknown.map((each) => each.name).join(', ')}.`]
+        : []),
+      'Now write your reply.',
+    ].join('\n\n');
+
+    let outcome: ClaudeOutcome = 'error';
+    let response: Reply | undefined;
+    try {
+      response = await this.request(pending.ask, pending.record, pending.length, signal, pending.library, [
+        { role: 'assistant', content: pending.content },
+        { role: 'user', content: [{ type: 'tool_result', tool_use_id: pending.toolUseId, content: result }] },
+      ], { asks: true, final: true });
+      if (response.stop_reason === 'refusal') {
+        outcome = 'refused';
+      } else {
+        outcome = await channels.postClaudeReply(
+          channelId,
+          pending.askerId,
+          replyText(response.content),
+          pending.voices,
+          [
+            ...workingSteps(pending.content, pending.library),
+            ...steps,
+            ...workingSteps(response.content, pending.library),
+          ],
+          pending.language,
+          kept
+        );
+      }
+    } catch (error) {
+      outcome = signal.aborted ? 'timeout' : 'error';
+      this.options.log?.warn({ err: error, channel: channelId, grade: pending.grade }, 'claude request failed');
+    } finally {
+      this.recordUsage(channelId, pending.askerId, pending.grade, pending.ask, response, outcome, true);
+    }
+    return outcome === 'posted' ? { ok: true } : { ok: false, ...FAILURES[outcome as keyof typeof FAILURES] };
   }
 
   /**
@@ -1193,31 +1625,32 @@ export class ClaudeResponder {
    *
    * **noesis unreachable is not a failed press.** A request that consulted the
    * library and failed — without the timer having fired — is asked once more
-   * without it — and with the whole *Record*, its older parts no longer a line
-   * each — and nothing in the reply says so; the warning names noesis, so
-   * the log does. A timeout is not retried: the time is already spent. A
+   * without it — and with the plain *Record*, its older parts no longer a
+   * line each — and nothing in the reply says so; the warning names noesis,
+   * so the log does. A timeout is not retried: the time is already spent. A
    * lookup that merely errored comes back as an `mcp_tool_result` with
    * `is_error`, which Claude answers around and needs nothing here.
    */
   private async consult(
     ask: ResponseGrade,
     record: ComposedRecord,
-    /** The whole *Record*, for the request asked again without noesis. */
+    /** The plain *Record*, for the request asked again without noesis. */
     whole: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
     library: ConsultedLibrary[] | undefined,
-    channelId: string
+    channelId: string,
+    asks: boolean
   ): Promise<Reply> {
     try {
-      return await this.resumed(ask, record, length, signal, library);
+      return await this.resumed(ask, record, length, signal, library, asks);
     } catch (error) {
       if (!library || signal.aborted) throw error;
       this.options.log?.warn(
         { err: error, channel: channelId, noesis: library.map((each) => each.url) },
         'claude request with the noesis library failed; asking without it'
       );
-      return this.resumed(ask, whole, length, signal, undefined);
+      return this.resumed(ask, whole, length, signal, undefined, false);
     }
   }
 
@@ -1234,7 +1667,8 @@ export class ClaudeResponder {
     record: ComposedRecord,
     length: ReplyLength,
     signal: AbortSignal,
-    library: ConsultedLibrary[] | undefined
+    library: ConsultedLibrary[] | undefined,
+    asks: boolean
   ): Promise<Reply> {
     let content: Reply['content'] = [];
     const usage = {
@@ -1250,7 +1684,8 @@ export class ClaudeResponder {
         length,
         signal,
         library,
-        round > 0 ? content : undefined
+        round > 0 ? [{ role: 'assistant', content }] : [],
+        { asks }
       );
       content = [...content, ...response.content] as Reply['content'];
       usage.input_tokens += response.usage?.input_tokens ?? 0;
@@ -1270,9 +1705,12 @@ export class ClaudeResponder {
     length: ReplyLength,
     signal: AbortSignal,
     // What `librariesFor` decided: the libraries this press may consult, if any.
-    library?: ConsultedLibrary[],
-    // What a paused turn returned so far, sent back to resume it.
-    previous?: Reply['content']
+    library: ConsultedLibrary[] | undefined,
+    // What follows the *Record*: a paused turn's blocks sent back to resume
+    // it, or those and the room's answer to an `ask_to_read`.
+    after: Array<{ role: 'assistant' | 'user'; content: unknown }>,
+    // `asks` offers `ask_to_read`; `final` lets no tool be called at all.
+    how: { asks: boolean; final?: boolean }
   ): Promise<Reply> {
     if (library) ask = consultingGrade(ask);
     const body = {
@@ -1289,9 +1727,7 @@ export class ClaudeResponder {
       messages: [
         { role: 'user' as const, content: userMessage(record, length) },
         // The response's own blocks, as the API asks a paused turn back.
-        ...(previous
-          ? [{ role: 'assistant' as const, content: previous as unknown as Anthropic.ContentBlockParam[] }]
-          : []),
+        ...(after as Anthropic.MessageParam[]),
       ],
       output_config: { effort: ask.effort },
     };
@@ -1306,7 +1742,8 @@ export class ClaudeResponder {
         ...body,
         betas: [...(library ? [MCP_BETA] : []), ...(ask.fallback ? [FALLBACK_BETA] : [])],
         ...(ask.fallback ? { fallbacks: 'default' } : {}),
-        ...(library ? libraryRequest(library) : {}),
+        ...(library ? libraryRequest(library, how.asks) : {}),
+        ...(how.final ? { tool_choice: { type: 'none' } } : {}),
       } as Anthropic.Beta.Messages.MessageCreateParamsNonStreaming,
       { signal }
     );

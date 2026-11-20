@@ -1,9 +1,21 @@
 # Cache the prompt Ask Claude sends
 
-Rodrigo, 2026-11-18, out of reviewing
-`choose-what-claude-reads.md`. **Set aside**: filed so the cost
-question has a cheaper answer on record than sending less of the *Record*, and
-not to be started until asked.
+Rodrigo, 2026-11-18, out of reviewing what became
+`decision/2026-11-20-claude-reads-the-last-two-hours-and-asks-before-reading-a-document.md`.
+**Set aside**: filed so the cost question has a cheaper answer on record than
+sending less of the *Record*, and not to be started until asked.
+
+**Since that decision, most of what is measured below has gone** (Rodrigo
+asked, 2026-11-20, which came first: that). A press reads the last two hours,
+about 25K tokens, and so no longer reaches the 90K cap whose line-a-press trim
+was most of the saving; what the window does to the prefix instead is drop a
+whole segment as it ages out, so the prefix holds between drops. Two things
+are new and favour a cache: **a press that asks the room what to read is two
+requests**, the second repeating the first's system prompt and *Record*
+whole; and **documents read stay above their reply** for as long as it is
+sent, the same text on every press for two hours. The prompt was laid out for
+it — system, *Record* oldest first, the length rule last — so the measurement
+below wants redoing against presses since 2026-11-20 before anything is built.
 
 **Nothing asks for prompt caching.** There is no `cache_control` in
 `server/src`; the ledger records `cache_creation_input_tokens` and

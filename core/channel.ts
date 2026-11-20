@@ -1,4 +1,5 @@
 import {
+  CLAUDE_READS_MS,
   DISCONNECT_GRACE_MS,
   MAX_CHANNEL_DESCRIPTION_LENGTH,
   MAX_CHANNEL_NAME_LENGTH,
@@ -80,6 +81,7 @@ import type {
   RemovalMotion,
   UserId,
 } from './types';
+import type { SegmentView } from './protocol';
 
 export function createChannel(params: {
   id: string;
@@ -2326,6 +2328,23 @@ export function canPasteClip(state: ChannelState, userId: UserId): boolean {
  */
 export function canAskClaude(state: ChannelState, userId: UserId): boolean {
   return canPasteClip(state, userId) && !state.claude;
+}
+
+/**
+ * Whether *Ask Claude* reads a segment — and what was pasted into it — at
+ * `now`, since 2026-11-20: **one that ended within the last two hours**,
+ * the one still being kept always (`CLAUDE_READS_MS`), unless somebody hid
+ * it from Claude; and an older one only once somebody showed it to Claude.
+ * Both ends ask it, so the menu's *Hide from Claude* or *Show to Claude* is
+ * the same answer the server reads by.
+ */
+export function claudeReads(
+  segment: Pick<SegmentView, 'endedAt' | 'hiddenFromClaude' | 'shownToClaude'>,
+  now: number
+): boolean {
+  if (segment.shownToClaude) return true;
+  if (segment.hiddenFromClaude) return false;
+  return segment.endedAt === null || segment.endedAt >= now - CLAUDE_READS_MS;
 }
 
 /**

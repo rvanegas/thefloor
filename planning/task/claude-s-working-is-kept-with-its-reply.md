@@ -71,8 +71,13 @@ message, and replaying blocks would mean inventing turns and carrying bodies:
 The system prompt says, with it: these lines are the server's exact record of
 what you did; pass the library a line names when you read from it; your reply
 is the whole of your turn, so do any looking now; when somebody asks you to
-consult the library, consult it. An older part that `composeLibraryRecord`
-reduces to one line takes its steps with it.
+consult the library, consult it. An older part that `composeRecord` with the
+channel's library reduces to one line takes its steps with it. **Since
+2026-11-20 the reads among the steps are the server's**: Claude searches and
+asks the room before reading (`ask_to_read`), and the documents chosen are
+read by the server and recorded as `read_file` steps, their text kept apart
+beside the reply
+(`decision/2026-11-20-claude-reads-the-last-two-hours-and-asks-before-reading-a-document.md`).
 
 ## What the room sees
 

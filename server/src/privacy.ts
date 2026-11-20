@@ -160,7 +160,7 @@ export interface PolicyOptions {
  * library, on `CLAUDE_PRIVACY_UPDATED`'s terms: shown only where that
  * paragraph is.
  */
-export const LIBRARY_PRIVACY_UPDATED = '9 November 2026';
+export const LIBRARY_PRIVACY_UPDATED = '20 November 2026';
 
 /**
  * When the page last changed for a reader whose server can transcribe live,
@@ -178,7 +178,7 @@ const latestOf = (dates: readonly string[]) =>
  * section is: one date per reader, and each the true one for the page that
  * reader sees.
  */
-export const CLAUDE_PRIVACY_UPDATED = '22 October 2026';
+export const CLAUDE_PRIVACY_UPDATED = '20 November 2026';
 
 /**
  * When the page last changed for a reader whose server can both ask Claude
@@ -356,10 +356,13 @@ look things up in it while writing a reply — the words it searches with, drawn
 from the Record, go to that server — and the reply may quote what it finds.
 Beside each such reply The Floor also keeps a record of the lookups made for
 it: the words searched with and, for each piece of writing found, its title,
-its length and noesis's summary of it, but never the writing itself. That
-record goes to ${claude} with the Record whenever Claude is asked again, and
-is deleted with the reply. Disconnecting switches the library off in every
-channel.</p>
+its length and noesis's summary of it. Claude may then ask to read pieces of
+writing in full, and reads only those that somebody in the conversation lets
+it: The Floor reads them from noesis and sends them to ${claude}, and keeps
+their text beside the reply. That record and that text go to ${claude} with the
+Record whenever Claude is asked again while the reply is part of what it is
+sent, and are deleted with the reply. Disconnecting switches the library off
+in every channel.</p>
 `;
   const speechParagraph = `<p>Claude's reply can also be read aloud into the conversation, in a
 channel where a member subscribes to Pro, by Pro voices rather than the
@@ -376,7 +379,8 @@ conversation can have it read again, and then deletes it.</p>
 ${claude}. It never speaks on its own: when somebody in the channel presses
 one of its <em>Ask Claude</em> buttons, the channel's Record is sent to ${claude} as text — what has
 been said in it, as transcribed, and what has been pasted into it, with the
-name each was kept under, up to roughly the most recent seven hours of it — and
+name each was kept under, from the last two hours of it and any earlier part
+somebody in the channel chose to show Claude — and
 ${claude} returns one reply, of the length that button asks for. Nothing else is sent: not the audio, not who
 else is in the channel, not anything about the person who pressed it beyond
 what the Record already says.</p>

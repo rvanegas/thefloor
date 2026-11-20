@@ -828,6 +828,16 @@ export const MAX_CLIP_LENGTH = 8_000;
 export const CLAUDE_ID = 'claude';
 
 /**
+ * How far back *Ask Claude* reads by default, since 2026-11-20 — Rodrigo's
+ * call: **every segment that ended within the last two hours**, the one
+ * still being kept always, and nothing older unless somebody shows it to
+ * Claude from its menu (`claudeReads`). Before then it was a budget of
+ * tokens, about seven hours of talk. See
+ * planning/decision/2026-11-20-claude-reads-the-last-two-hours-and-asks-before-reading-a-document.md.
+ */
+export const CLAUDE_READS_MS = 2 * 60 * 60 * 1000;
+
+/**
  * The longest film title a party will keep.
  *
  * **A cap on somebody else's string**, which is the whole reason for it: the

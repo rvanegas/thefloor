@@ -240,6 +240,7 @@ export class Rooms {
             : {}),
           ...voicesOf(row),
           ...(row.hidden_from_claude ? { hiddenFromClaude: true as const } : {}),
+          ...(row.shown_to_claude ? { shownToClaude: true as const } : {}),
         }))
         // A finished one left keeping nothing is nothing to show.
         .filter((segment) => segment.endedAt === null || segment.recordingId !== null || segment.text);

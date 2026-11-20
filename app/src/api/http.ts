@@ -693,7 +693,10 @@ export const api = {
    * minute — up to two where the channel consults its library — and rejects
    * with the server's sentence when it is not. Since 2026-10-22. `voices` is
    * the asker's read-aloud voice per language, which every phone reads the
-   * reply in where it has it (`askerVoices`).
+   * reply in where it has it (`askerVoices`). Says, since 2026-11-20, that
+   * this build draws the card that asks what Claude may read (`confirms`); a
+   * press that puts the card up resolves with `proposed`, the reply waiting
+   * on somebody's answer (`answerClaude`).
    */
   askClaude: (
     token: string,
@@ -706,9 +709,22 @@ export const api = {
      */
     language?: string
   ) =>
-    request<{ ok: true }>(`/channels/${channelId}/claude`, {
+    request<{ ok: true; proposed?: true }>(`/channels/${channelId}/claude`, {
       method: 'POST',
-      body: { length, ...(voices ? { voices } : {}), ...(language ? { language } : {}) },
+      body: { length, ...(voices ? { voices } : {}), ...(language ? { language } : {}), confirms: true },
+      token,
+    }),
+
+  /**
+   * The answer to the card *Ask Claude* puts up when it asks to read, since
+   * 2026-11-20: which of the documents it may read, by name — none is
+   * *Answer without*. Resolves once the reply is in the *Record*, as a press
+   * does; a server before then answers 404.
+   */
+  answerClaude: (token: string, channelId: string, proposal: string, read: string[]) =>
+    request<{ ok: true }>(`/channels/${channelId}/claude/read`, {
+      method: 'POST',
+      body: { proposal, read },
       token,
     }),
 
@@ -1092,8 +1108,10 @@ export const api = {
     ),
 
   /**
-   * Hides one segment from *Ask Claude* for everybody, or shows it again.
-   * Since 2026-11-19; a server before then answers 404.
+   * Hides one segment from *Ask Claude* for everybody, or shows it again —
+   * or, since 2026-11-20, shows one older than the last two hours to it,
+   * which the server marks only where it differs from the default. Since
+   * 2026-11-19; a server before then answers 404.
    */
   hideFromClaude: (token: string, channelId: string, segmentId: string, hidden: boolean) =>
     request<{ ok: true }>(

@@ -307,6 +307,7 @@ describe('rooms', () => {
             text: boolean;
             voices?: Array<{ identity: string; speaker: string; name: string }>;
             hiddenFromClaude?: true;
+            shownToClaude?: true;
             paste?: { authorId: string; displayName: string; text: string; segmentId?: string; offsetMs?: number };
           }>;
         }>;
@@ -628,5 +629,43 @@ describe('rooms', () => {
     [room] = await roomsOf(channelId, bob.token);
     expect(room.segments[0].hiddenFromClaude).toBeUndefined();
     expect(app.channels.lastFiledAt(channelId)).not.toBe(hiddenAt);
+  });
+
+  it('show a segment older than two hours to Claude, a mark only against the default', async () => {
+    const { alice, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.setLiveTranscription(channelId, alice.account.id, true);
+    line(channelId, clock + 1_000);
+    clock += 10_000;
+    app.channels.setLiveTranscription(channelId, alice.account.id, false);
+    const mark = (segmentId: string, hidden: boolean) =>
+      app.fastify.inject({
+        method: 'PUT',
+        url: `/channels/${channelId}/segments/${segmentId}/hidden`,
+        headers: auth(alice.token),
+        payload: { hidden },
+      });
+    const [{ segments: [segment] }] = await roomsOf(channelId, alice.token);
+
+    // Within the two hours, showing it is what Claude does anyway.
+    expect((await mark(segment.id, false)).statusCode).toBe(200);
+    let [room] = await roomsOf(channelId, alice.token);
+    expect(room.segments[0]).not.toHaveProperty('shownToClaude');
+    expect(room.segments[0]).not.toHaveProperty('hiddenFromClaude');
+
+    clock += 3 * 3_600_000;
+    // Past them, hiding it is what Claude does anyway; showing it is a mark.
+    expect((await mark(segment.id, true)).statusCode).toBe(200);
+    [room] = await roomsOf(channelId, alice.token);
+    expect(room.segments[0]).not.toHaveProperty('hiddenFromClaude');
+    expect((await mark(segment.id, false)).statusCode).toBe(200);
+    [room] = await roomsOf(channelId, alice.token);
+    expect(room.segments[0].shownToClaude).toBe(true);
+    // And hidden again, which clears it.
+    expect((await mark(segment.id, true)).statusCode).toBe(200);
+    [room] = await roomsOf(channelId, alice.token);
+    expect(room.segments[0]).not.toHaveProperty('shownToClaude');
+    expect(room.segments[0]).not.toHaveProperty('hiddenFromClaude');
   });
 });

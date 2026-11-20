@@ -95,6 +95,7 @@ import type {
   Keep,
 } from '../../core/types';
 import type {
+  ClaudeProposal,
   GuestView,
   InviteView,
   PublicAccount,
@@ -5005,7 +5006,9 @@ export class ChannelRegistry {
   /**
    * Hides one segment from *Ask Claude*, or shows it again, for everybody —
    * *Hide from Claude*, since 2026-11-19: every later press leaves it out,
-   * and what was pasted into it, until somebody shows it.
+   * and what was pasted into it, until somebody shows it. *Show to Claude*
+   * on one older than the last two hours has every later press read it,
+   * since 2026-11-20, by the same route (`SegmentLog.hide`).
    *
    * **On *Name voices*' terms**, being a mark on the segment everybody reads
    * by: not for somebody outside a conversation in progress, nor in a
@@ -8144,6 +8147,25 @@ export class ChannelRegistry {
   }
 
   /**
+   * The documents *Ask Claude* is waiting on somebody here to choose among,
+   * by channel, since 2026-11-20 — for the snapshot, which draws the card.
+   * In memory, as the request it continues is (`ClaudeResponder`).
+   */
+  private claudeProposals = new Map<string, ClaudeProposal>();
+
+  /** Puts the card up, or takes it down, on every screen. */
+  setClaudeProposal(channelId: string, proposal: ClaudeProposal | null): void {
+    if (proposal) this.claudeProposals.set(channelId, proposal);
+    else if (!this.claudeProposals.delete(channelId)) return;
+    this.emit([channelId]);
+  }
+
+  /** What the card asks in this channel, if anything; see `ChannelView.claudeProposal`. */
+  claudeProposal(channelId: string): ClaudeProposal | null {
+    return this.claudeProposals.get(channelId) ?? null;
+  }
+
+  /**
    * Claude has answered, failed or timed out: the card goes back to
    * *Ask Claude*. Idempotent, so the answer and the timeout can both call it.
    */
@@ -8180,7 +8202,9 @@ export class ChannelRegistry {
     voices?: Record<string, string>,
     working?: readonly unknown[],
     /** The asker's app language, `en` or `es`, where the press said it. */
-    askerLanguage?: string
+    askerLanguage?: string,
+    /** The documents the room let it read, kept beside it with their text. */
+    documents?: readonly unknown[]
   ): Promise<'posted' | 'too_long' | 'empty' | 'gone'> {
     if (!this.channels.get(channelId)) return 'gone';
     if (text.trim().length === 0) return 'empty';
@@ -8203,6 +8227,7 @@ export class ChannelRegistry {
     const actor = channel.present.includes(askerId) ? askerId : channel.present[0];
     const keep = () => {
       if (working?.length) this.pastes.keepWorking(clip.id, working);
+      if (documents?.length) this.pastes.keepDocuments(clip.id, documents);
     };
     if (actor === undefined) {
       this.pastes.write(channelId, clip);

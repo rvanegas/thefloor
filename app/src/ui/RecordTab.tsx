@@ -11,6 +11,7 @@ import {
 import {
   canAskClaude,
   canPauseKeeping,
+  claudeReads,
   canPlay,
   canSetDiarize,
   canSetKeep,
@@ -24,6 +25,7 @@ import {
 } from '../../../core/channel';
 import { isHere } from '../../../core/guests';
 import type {
+  ClaudeProposal,
   FiledView,
   LiveLine,
   RecordingView,
@@ -49,6 +51,7 @@ import { useApp } from '../state/AppProvider';
 import { useText, type Strings } from '../i18n';
 import {
   Button,
+  Checkbox,
   ConfirmModal,
   Empty,
   Field,
@@ -732,13 +735,20 @@ export function SegmentLine({
    * voices*' terms, a mark everybody reads by. Nothing is done locally on
    * success: the snapshot that follows sends every *Record* to read the
    * rooms again, and the line under it appears or goes then.
+   *
+   * **Which word is whether Claude reads it now**, since 2026-11-20, when a
+   * press began reading only the last two hours (`claudeReads`): *Hide* on
+   * one it reads, *Show* on one it does not — an older one included, which
+   * the server then marks as shown.
    */
   const hidden = !!segment.hiddenFromClaude;
+  const shown = !!segment.shownToClaude;
+  const reads = claudeReads(segment, Date.now());
   const toggleHidden = () => {
     if (!app.token || hiding) return;
     setHiding(true);
     api
-      .hideFromClaude(app.token, channelId, segment.id, !hidden)
+      .hideFromClaude(app.token, channelId, segment.id, reads)
       .catch((e: unknown) =>
         Alert.alert(said.couldNotHideFromClaude(), e instanceof Error ? e.message : String(e))
       )
@@ -794,7 +804,7 @@ export function SegmentLine({
       ...(hideable
         ? [
             {
-              label: hidden ? said.showToClaude() : said.hideFromClaude(),
+              label: reads ? said.hideFromClaude() : said.showToClaude(),
               group: 'edit' as const,
               disabled: !manageable || hiding,
               onPress: toggleHidden,
@@ -826,12 +836,14 @@ export function SegmentLine({
 
   const title = connected && segment.filed?.title ? <FiledTitle title={segment.filed.title} /> : null;
   // Said wherever the mark is, whether or not this server can ask Claude:
-  // it is a fact about the segment, set by somebody who could.
-  const hiddenLine = hidden ? (
-    <View style={styles.filedLine}>
-      <Text style={type.muted}>{said.hiddenFromClaude()}</Text>
-    </View>
-  ) : null;
+  // it is a fact about the segment, set by somebody who could. Never for the
+  // window's own edge, which is every older segment's and no mark at all.
+  const hiddenLine =
+    hidden || shown ? (
+      <View style={styles.filedLine}>
+        <Text style={type.muted}>{hidden ? said.hiddenFromClaude() : said.shownToClaude()}</Text>
+      </View>
+    ) : null;
   // Shutting the segment abandons it, as it does a recording's rename.
   const names =
     open && naming && voices.length > 0 ? (
@@ -1268,12 +1280,21 @@ export function KeepSwitches({
  * Grey while you are away, like the switches, with no sentence: being away is
  * said by the footer. A failure's sentence is the muted line until the next
  * press — the bar's line for its refusals, as the paste's are.
+ *
+ * **When Claude asks before it reads**, since 2026-11-20, the card under the
+ * bar says *Claude wants to read these before it replies:*, each document a
+ * box with its title and Claude's reason, **ticked, as a confirmation's
+ * boxes start** (STYLE.md § *Checkbox*), then *Read* and *Answer without*.
+ * On every screen, as *Responding…* is, and answered by anybody who could
+ * press (`canAskClaude`); the next press replaces it.
  */
 export function AskClaude({
   channel,
   me,
   nameOf,
   onAsk,
+  proposal = null,
+  onAnswer,
   unheard = [],
   pro = false,
 }: {
@@ -1281,6 +1302,10 @@ export function AskClaude({
   me: string;
   nameOf: (id: string) => string;
   onAsk: (length: ReplyLength) => Promise<void>;
+  /** What Claude is asking to read (`ChannelView.claudeProposal`), or null. */
+  proposal?: ClaudeProposal | null;
+  /** Answers it: the names chosen, none being *Answer without*. */
+  onAnswer?: (proposal: string, read: string[]) => Promise<void>;
   /**
    * Whether the channel is *Pro* (`ChannelView.pro`), which says *· Pro*
    * after the words — kept on 2026-11-19, when the grade stopped being a
@@ -1305,17 +1330,25 @@ export function AskClaude({
   const busy = pressing || asked !== null;
   const refused = !canAskClaude(channel, me);
 
-  const ask = async (length: ReplyLength) => {
+  // Which boxes this screen has unticked, for the card they were unticked on.
+  const [unticked, setUnticked] = React.useState<{ id: string; names: string[] }>({ id: '', names: [] });
+  const off = proposal && unticked.id === proposal.id ? unticked.names : [];
+
+  const run = async (act: () => Promise<void>) => {
     setPressing(true);
     setFailure(null);
     try {
-      await onAsk(length);
+      await act();
     } catch (e) {
       setFailure(e instanceof Error ? e.message : String(e));
     } finally {
       setPressing(false);
     }
   };
+  const ask = (length: ReplyLength) => run(() => onAsk(length));
+  const answer = (read: string[]) =>
+    proposal && onAnswer ? run(() => onAnswer(proposal.id, read)) : Promise.resolve();
+  const chosen = proposal ? proposal.documents.filter((each) => !off.includes(each.name)).map((each) => each.name) : [];
 
   const line = asked
     ? asked.askedBy === me
@@ -1357,6 +1390,42 @@ export function AskClaude({
         ))}
       </View>
       {line ? <Text style={type.muted}>{line}</Text> : null}
+      {proposal && onAnswer ? (
+        <View style={styles.proposal}>
+          <Text style={type.muted}>{t.claudeWantsToRead()}</Text>
+          {proposal.documents.map((each) => (
+            <Checkbox
+              key={each.name}
+              label={[each.title ?? each.name, each.reason].filter(Boolean).join(' \u2014 ')}
+              checked={!off.includes(each.name)}
+              onChange={(next) =>
+                setUnticked({
+                  id: proposal.id,
+                  names: next ? off.filter((name) => name !== each.name) : [...off, each.name],
+                })
+              }
+            />
+          ))}
+          <View style={styles.switchRow}>
+            <Button
+              label={t.readChosen()}
+              style={styles.length}
+              disabled={busy || refused || chosen.length === 0}
+              onPress={() => {
+                void answer(chosen);
+              }}
+            />
+            <Button
+              label={t.answerWithout()}
+              style={styles.length}
+              disabled={busy || refused}
+              onPress={() => {
+                void answer([]);
+              }}
+            />
+          </View>
+        </View>
+      ) : null}
       {unheard.length > 0 && !busy ? (
         <Text style={type.muted}>{t.roomReaderUnheard(unheard.map(nameOf))}</Text>
       ) : null}
@@ -1875,6 +1944,9 @@ const styles = StyleSheet.create({
   // rather than push the last button past the edge. *Ask Claude · Max* is
   // 331, and fits.
   askLabel: { flexShrink: 1 },
+  // The card Claude asks with, under the bar: its sentence, a box a
+  // document, and the two answers, each a step apart.
+  proposal: { gap: spacing(0.5), paddingTop: spacing(0.5) },
   warning: { color: colors.silenced, fontSize: 13 },
   pressed: { opacity: 0.6 },
 });

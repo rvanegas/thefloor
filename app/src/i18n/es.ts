@@ -554,6 +554,7 @@ export const es: Strings = {
     hideFromClaude: () => 'Ocultar a Claude',
     showToClaude: () => 'Mostrar a Claude',
     hiddenFromClaude: () => 'Oculto a Claude',
+    shownToClaude: () => 'Mostrado a Claude',
     stepInToHideFromClaude: () => 'Entra para cambiar lo que lee Claude. Es de todos.',
     couldNotHideFromClaude: () => 'No se ha podido cambiar lo que lee Claude',
     naming: () => 'Nombrando\u2026',
@@ -1216,6 +1217,9 @@ export const es: Strings = {
     responding: () => 'Respondiendo\u2026',
     claudeAsked: (name: string) => `${name} ha preguntado a Claude`,
     claudeAskedByYou: () => 'Has preguntado a Claude',
+    claudeWantsToRead: () => 'Claude quiere leer esto antes de responder:',
+    readChosen: () => 'Leer',
+    answerWithout: () => 'Sin leer',
     roomReaderUnheard: (names: string[]) =>
       `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`} ${
         names.length === 1 ? 'tiene' : 'tienen'

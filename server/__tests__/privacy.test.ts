@@ -350,10 +350,12 @@ describe('The privacy policy', () => {
       expect(page).toContain(
         `last updated ${latest(PRIVACY_UPDATED, CLAUDE_PRIVACY_UPDATED, LIBRARY_PRIVACY_UPDATED)}`
       );
-      expect(page).not.toContain(`last updated ${CLAUDE_PRIVACY_UPDATED}`);
-      // What is kept of the lookups beside the reply, and what never is.
-      expect(page).toContain('its title, its length and noesis\'s summary of it, but never the writing itself');
-      expect(page).toContain('goes to Anthropic with the Record whenever Claude is asked again');
+      // What is kept of the lookups beside the reply, and of what the room let Claude read.
+      expect(page).toContain('reads only those that somebody in the conversation lets');
+      expect(page).toContain('keeps their text beside the reply');
+      expect(page).toContain(
+        'go to Anthropic with the Record whenever Claude is asked again while the reply is part of what it is sent'
+      );
       // The Record paragraph above it still stands as written.
       expect(page).toContain('Nothing else is sent');
     });

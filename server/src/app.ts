@@ -1368,6 +1368,8 @@ export function buildApp(options: BuildOptions = {}): App {
             : undefined,
         // Whose library it is, by the name the room knows them by.
         libraryOwner: (accountId) => accounts.byId(accountId)?.display_name ?? null,
+        // How the server reads what the room chose from noesis, as Claude would have.
+        fetch: options.library?.fetch ?? options.channelLibraries?.fetch,
         // The channel's own, by a token confined to it, unless switched off on its card.
         channelLibrary: channelLibraries
           ? {
@@ -5936,6 +5938,8 @@ export function buildApp(options: BuildOptions = {}): App {
    * only, with the same 404 as the transcript routes beside it; being present
    * is the guard's. See claude.ts. `voices`, since build 397, is the asker's
    * read-aloud voice per language, carried onto the reply (`Clip.voices`).
+   * `confirms`, since 2026-11-20, says the asker's build draws the card that
+   * asks what Claude may read; a press that puts it up answers `proposed`.
    */
   fastify.post('/channels/:id/claude', async (request, reply) => {
     const account = await requireAccount(request, reply);
@@ -5947,23 +5951,52 @@ export function buildApp(options: BuildOptions = {}): App {
     if (!claude) {
       return reply.code(503).send({ error: 'Claude is not available here.' });
     }
-    const { length = DEFAULT_REPLY_LENGTH, voices, language } = (request.body ?? {}) as {
+    const { length = DEFAULT_REPLY_LENGTH, voices, language, confirms } = (request.body ?? {}) as {
       length?: unknown;
       voices?: unknown;
       language?: unknown;
+      confirms?: unknown;
     };
     if (!isReplyLength(length)) {
       return reply.code(400).send({ error: 'No such length.' });
     }
-    const result = await claude.respond(
-      id,
-      account.id,
-      length,
-      readVoices(voices),
+    const result = await claude.respond(id, account.id, length, {
+      voices: readVoices(voices),
       // Since 2026-11-13: the asker's app language, which the reply is spoken
       // in where the channel has no transcript to say. Anything else is none.
-      language === 'en' || language === 'es' ? language : undefined
-    );
+      language: language === 'en' || language === 'es' ? language : undefined,
+      confirms: confirms === true,
+    });
+    if (!result.ok) return reply.code(result.status).send({ error: result.error });
+    return result.proposed ? { ok: true, proposed: true } : { ok: true };
+  });
+
+  /**
+   * The answer to the card *Ask Claude* puts up when it asks to read, since
+   * 2026-11-20: `proposal` is the card's id, and `read` the names of the
+   * documents chosen — none is *Answer without*. Answers once the reply is
+   * posted or has failed, as a press does. Members only, with the same 404;
+   * being present is the guard's (`ClaudeResponder.answer`).
+   */
+  fastify.post('/channels/:id/claude/read', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    if (!channels.isMemberOf(id, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    if (!claude) {
+      return reply.code(503).send({ error: 'Claude is not available here.' });
+    }
+    const { proposal, read } = (request.body ?? {}) as { proposal?: unknown; read?: unknown };
+    if (
+      typeof proposal !== 'string' ||
+      !Array.isArray(read) ||
+      !read.every((name) => typeof name === 'string')
+    ) {
+      return reply.code(400).send({ error: 'Which question, and which documents.' });
+    }
+    const result = await claude.answer(id, account.id, proposal, read as string[]);
     if (!result.ok) return reply.code(result.status).send({ error: result.error });
     return { ok: true };
   });

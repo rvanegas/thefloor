@@ -743,6 +743,12 @@ export const en = {
     hideFromClaude: () => 'Hide from Claude',
     showToClaude: () => 'Show to Claude',
     hiddenFromClaude: () => 'Hidden from Claude',
+    /**
+     * The muted line under a segment older than the last two hours that
+     * somebody showed to Claude, since 2026-11-20: read by every press, which
+     * otherwise reads only the last two hours.
+     */
+    shownToClaude: () => 'Shown to Claude',
     stepInToHideFromClaude: () => "Step in to change what Claude reads. It is everybody's.",
     couldNotHideFromClaude: () => 'Could not change what Claude reads',
     naming: () => 'Naming\u2026',
@@ -1606,6 +1612,14 @@ export const en = {
     /** Under the bar while Claude is being asked, on every screen. */
     claudeAsked: (name: string) => `${name} asked Claude`,
     claudeAskedByYou: () => 'You asked Claude',
+    /**
+     * The card under the bar when Claude asks before reading, since
+     * 2026-11-20: what it wants, each a box, then the two answers. *Answer
+     * without* replies from what its searches said, reading nothing.
+     */
+    claudeWantsToRead: () => 'Claude wants to read these before it replies:',
+    readChosen: () => 'Read',
+    answerWithout: () => 'Answer without',
     /**
      * Under the *Ask Claude* bar while somebody here is on an app from before
      * The room reader, since 2026-11-13: they may hear the reply twice.

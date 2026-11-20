@@ -419,10 +419,13 @@ ORDER BY usd DESC;
 -- `posted` is how many put a reply in the Record, and `cut_off` how many of
 -- those stopped on max_tokens, which should stay near zero: if it does not,
 -- the allowance or the instruction is wrong. Average input calibrates the
--- 3.5 characters a token the Record's budget is counted in.
+-- 3.5 characters a token the Record's budget is counted in. Since
+-- 2026-11-20 a press that asked the room what to read is two rows, the
+-- first `proposed`; `presses` leaves those out, and `asked` counts them.
 SELECT COALESCE(a.identifier, '(erased)') AS who,
        c.grade,
-       COUNT(*) AS presses,
+       SUM(c.outcome != 'proposed') AS presses,
+       SUM(c.outcome = 'proposed') AS asked,
        SUM(c.outcome = 'posted') AS posted,
        SUM(c.stop_reason = 'max_tokens') AS cut_off,
        CAST(AVG(c.input_tokens) AS INTEGER) AS avg_in,
@@ -450,9 +453,11 @@ ORDER BY usd DESC;
 -- made any lookup — high on a channel that has nothing to do with the
 -- library means the prompt's "only when relevant" is not holding — and
 -- `avg_in` beside the table above's says what a lookup costs in context.
--- Errors with `no such column` against a database from before it.
+-- Errors with `no such column` against a database from before it. A press
+-- that asked the room what to read is two rows, as above.
 SELECT c.grade,
-       COUNT(*) AS presses,
+       SUM(c.outcome != 'proposed') AS presses,
+       SUM(c.outcome = 'proposed') AS asked,
        SUM(c.library_calls > 0) AS looked,
        ROUND(AVG(c.library_calls), 1) AS avg_calls,
        MAX(c.library_calls) AS max_calls,

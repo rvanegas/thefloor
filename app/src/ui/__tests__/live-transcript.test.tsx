@@ -40,6 +40,8 @@ jest.mock('../../state/AppProvider', () =>
  */
 
 beforeEach(resetHarness);
+// The clock a test pins, for what Claude reads (`claudeReads`), goes back after it.
+afterEach(() => (Date.now as Partial<jest.Mock>).mockRestore?.());
 
 const { api } = require('../../api/http');
 
@@ -971,6 +973,8 @@ describe('rooms on the Record tab', () => {
       ],
     } as never);
     const hidden = jest.spyOn(api, 'hideFromClaude').mockResolvedValue({ ok: true } as never);
+    // Within the last two hours of all three, which a press reads by default.
+    jest.spyOn(Date, 'now').mockReturnValue(NOW + 120_000);
     showChannel(transcribed(), [], { claude: true });
     const tree = render(screen());
     showTab(tree, 'Record');
@@ -984,6 +988,38 @@ describe('rooms on the Record tab', () => {
     openMenu(tree).choose('Show to Claude');
     await settle();
     expect(hidden).toHaveBeenCalledWith('token', 'sess_1', 'seg_a', false);
+    act(() => tree.unmount());
+  });
+
+  it('offers to show Claude a segment older than the last two hours, and says so once it is', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [line('l1', ME, 'Me', NOW + 1_000, 'long ago'), line('l2', ME, 'Me', NOW + 31_000, 'shown')],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, [], [
+          seg('seg_a', NOW, NOW + 30_000, null, true),
+          { ...seg('seg_b', NOW + 30_000, NOW + 60_000, null, true), shownToClaude: true },
+        ]),
+      ],
+    } as never);
+    const hidden = jest.spyOn(api, 'hideFromClaude').mockResolvedValue({ ok: true } as never);
+    jest.spyOn(Date, 'now').mockReturnValue(NOW + 3 * 3_600_000);
+    showChannel(transcribed(), [], { claude: true });
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    // The window's edge is no mark: only the one shown says anything.
+    expect(textOf(tree).match(/Shown to Claude/g)).toHaveLength(1);
+    expect(textOf(tree)).not.toContain('Hidden from Claude');
+    openMenu(tree, 0).choose('Show to Claude');
+    await settle();
+    expect(hidden).toHaveBeenCalledWith('token', 'sess_1', 'seg_a', false);
+    openMenu(tree, 1).choose('Hide from Claude');
+    await settle();
+    expect(hidden).toHaveBeenCalledWith('token', 'sess_1', 'seg_b', true);
     act(() => tree.unmount());
   });
 

@@ -36,7 +36,7 @@ caused; the list carries the meaning.
 **Words a user meets**
 
 - **Channel** — The place a conversation happens
-- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro* and has connected their own *library* — since 2026-11-09; Pro alone before —, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro and connected nothing new goes in. Told on *Channel Settings*' card, to a member whose own library is connected, with *Open in noesis*; *Ask Claude* consults it in a *Pro channel* unless the card's *Claude consults it* is off, and is then given the *Record*'s last three hours or so in full and what is older and filed there as a line each naming its document. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis* to a member whose own library is connected. Deleted thirty days after the channel is, and one *segment*'s document by that segment's *Delete*, since 2026-11-18. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
+- **Channel library** — A channel's own library at noesis, since 2026-11-07: every transcript made in it filed there by itself, made with the first while somebody in it is *Pro* and has connected their own *library* — since 2026-11-09; Pro alone before —, opened by every *member* and nobody else — never a *guest* — and paid for by its Pro members; while none is Pro and connected nothing new goes in. Told on *Channel Settings*' card, to a member whose own library is connected, with *Open in noesis*; *Ask Claude* consults it in a *Pro channel* unless the card's *Claude consults it* is off, and is then given what is older than the last two hours and filed there as a line each naming its document, which it may *ask to read*. Each filed *segment* shows that document's title on its line, and its menu offers *Open in noesis* to a member whose own library is connected. Deleted thirty days after the channel is, and one *segment*'s document by that segment's *Delete*, since 2026-11-18. Not a *library*, which is one person's own writing. `thefloor/<handle>`, channelLibraries.ts
 - **Channel name** — What a member has called a channel (`channel.name`), and only that; most channels have none and are *unnamed*
 - **Channel title** — What a channel is shown as, everywhere: its *name*, or, for an unnamed channel, who else is in it by display name (`describeChannel`), so it is the viewer's own and changes as people come and go (`channelTitleFor`)
 - **Channel one is present in, the** — The channel you have stepped into, as against a *live* one, which anybody may be in
@@ -49,10 +49,12 @@ caused; the list carries the meaning.
 - **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
-- **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the channel's whole *Record*, less what is *hidden from Claude*, and posts one turn into it, as a *paste* by *Claude*, of at most 50, 150 or 450 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*; the reply is *read aloud* as it lands. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
+- **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the *Record*'s last two hours, less what is *hidden from Claude* and with what is *shown to Claude* — the whole *Record* within about seven hours until 2026-11-20 — and posts one turn into it, as a *paste* by *Claude*, of at most 50, 150 or 450 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*; the reply is *read aloud* as it lands. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
 - **Read aloud** — A reply from *Ask Claude*, its words read out the moment it lands: **Claude writes only the words, and *Standard* or *Pro* voices read them** — iOS's and AssemblyAI's, names said only in the code and on `/privacy`. *Pro* in a *Pro channel*, whoever asks, since 2026-11-19 — where the channel's *Read aloud* was *Pro*, on *Channel Settings*, from 2026-11-13: synthesised once by the server in the asker's *Pro voice*, in the language of the channel's first transcript (the asker's *Language* where there is none), and published as *the room reader*, so everybody *present* hears it through the call — a *guest* too, since 2026-11-19, having been withheld from it as an old build before — and a running recording keeps it, as a stem under `CLAUDE_ID` that is never transcribed; `Clip.speech` marks such a reply. *Standard* otherwise — in a channel no member is Pro in, or with no AssemblyAI key, on a refusal or a language AssemblyAI does not speak — each iPhone reading it on its own, free and never recorded, in the asker's *Standard voice* where it has it (`Clip.voices`), else its own. A build from before the room reader is kept off it, best-effort, and may hear an AssemblyAI reply twice, so the *Ask Claude* bar names whoever here has not updated, in a channel whose replies *Pro* voices read — a warning, not a refusal (`roomReaderUnheard`). The only thing the app speaks, with no switch. While a reply is being heard a bar immediately above every screen's footer says *Reading Claude's reply* with **two controls: *Read again* — the reply, from the top, for everybody — where the room is hearing it (*Restart* where the phone is reading it), and *Stop*, which quiets it on this phone alone**, since 2026-10-29. Which voice is the asker's, on *Floor Settings*' *Read aloud*: their *Pro voice* on *Pro* or *Unlimited*, their *Standard voice* on *Basic* (*Plan*). `useClaudeReadAloud`, `ReadingBar`, `roomReaderSaying`; *Leer en voz alta*, *Leyendo a Claude*, *Repetir*, *Reiniciar*, *Parar*
 - **Read again** — Claude's reply said into the room once more, for everybody present, from its paste in the *Record* or the reading bar, while the server keeps its speech: an hour, since 2026-11-13. Anybody present may press it; the latest press or reply wins. Not synthesised again, so it costs nothing. `readAgain`, `speechKept`; *Repetir*
-- **Hidden from Claude** — A *segment* every later *Ask Claude* press leaves out, with what was pasted into it, for everybody until somebody shows it again: *Hide from Claude* and *Show to Claude* in its menu, on *Name voices*' terms, and the muted line *Hidden from Claude* under it, since 2026-11-19. Claude is not told. Not *Delete*, which takes it from people too, and not out of the *channel library*, whose document Claude may still choose to read. `hiddenFromClaude`; *Oculto a Claude*
+- **Hidden from Claude** — A *segment* within the last two hours that every later *Ask Claude* press leaves out, with what was pasted into it, for everybody until somebody shows it again: *Hide from Claude* and *Show to Claude* in its menu, on *Name voices*' terms, and the muted line *Hidden from Claude* under it, since 2026-11-19. Claude is not told. Not *Delete*, which takes it from people too, and not out of the *channel library*, whose document Claude may still ask to read. `hiddenFromClaude`; *Oculto a Claude*
+- **Shown to Claude** — The other mark, since 2026-11-20: a *segment* older than the last two hours that every later press reads all the same, with what was pasted into it, by *Show to Claude* in its menu, and the muted line *Shown to Claude* under it. A mark only against the default — the window's edge is no mark at all. `shownToClaude`, `claudeReads`; *Mostrado a Claude*
+- **Ask to read** — Claude asking before it reads a *library*'s document, since 2026-11-20: a press that consults one searches, and where it wants documents in full it ends by asking; the card under *Ask Claude* on every screen says *Claude wants to read these before it replies*, each a box with its title and Claude's reason, ticked, with *Read* and *Answer without*, for anybody who could have pressed; the server then reads the chosen ones from noesis and the reply follows, the documents kept beside it for as long as it is sent. Never one the *Record* already holds. Not *Read aloud*. `ClaudeProposal`, `ask_to_read`, `answerClaude`; *Leer*, *Sin leer*
 - **Standard voices / Pro voices** — The two grades of voice that *Read aloud* Claude's replies, since 2026-11-13: *Standard*, each iPhone's own (iOS), free, heard on that phone alone and never recorded; *Pro*, AssemblyAI's, said once into the room for everybody and recorded, billed per reply. Which reads is the channel's grade, whoever asks: *Pro* in a *Pro channel*, since 2026-11-19 — a setting on *Channel Settings* from the evening of 2026-11-13 until then, changeable only by *Pro (the subscription)*, and each asker's own on *Floor Settings* for the few hours before. **A grade, as a *Pro channel*'s is, and not the subscription**. `isProChannel`; *Estándar* / *Pro*
 - **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; drawn for a *Basic* account alone since 2026-11-19, a *Pro* or *Unlimited* one choosing its *Pro voice* there instead. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
 - **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **drawn for *Pro* and *Unlimited* alone** since 2026-11-19 — for everybody, chosen only by Pro, until then. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
@@ -168,7 +170,7 @@ caused; the list carries the meaning.
 **Words that exist only in the codebase**
 
 - **`CLAUDE_ID`** — `'claude'`, the author of every *paste* *Ask Claude* posted: no underscore, so no minted id can equal it, and resolved to *Claude* when the paste's name is frozen. `ChannelState.claude` is the ask in flight, `claude_usage` the ledger
-- **Working (a reply's)** — The library calls an *Ask Claude* reply was made with, each with what is kept of its result — a search's hits as noesis's manifest returns them, a read's length but never the document, an error in full — written by the server from the response's blocks beside the *paste* (`pastes.working`), and set above the reply in the *Record* the next press reads, since 2026-11-07; not Claude's own account of what it did, which is what it replaced. Shown to nobody yet. `WorkingStep`, `workingSteps`, claude.ts
+- **Working (a reply's)** — The library calls an *Ask Claude* reply was made with, each with what is kept of its result — a search's hits as noesis's manifest returns them, a read's length, an error in full; the documents the room let it read are kept apart, whole, since 2026-11-20 — written by the server from the response's blocks beside the *paste* (`pastes.working`), and set above the reply in the *Record* the next press reads, since 2026-11-07; not Claude's own account of what it did, which is what it replaced. Shown to nobody yet. `WorkingStep`, `workingSteps`, claude.ts
 - **Address** — What a URL says: which list the tier is showing, and what is open over it
 - **Starting line** — The contact count an account's *introduction* began from, latched at its first Home snapshot and again on *Show the checklist again*; *get somebody here* ticks when the count has gone above it. Replaced *arrival (invited / alone)* on 2026-09-13
 - **Attention** — Whether somebody is at their app, and at a channel in it: frontmost on a phone, a hand on it in a browser, and never the audio. Two server-held clocks of different scope from one report — per person per channel, which the roster's *nearby* line counts, and per person, which is what *in the app now* means; *stepped out* counts presence instead. One window governs both, so a roster and a contact row cannot describe the same silence differently
@@ -334,12 +336,12 @@ it**, in a *Pro channel* as a library, by a token noesis confines to it —
 needing nobody's connection — unless *Claude consults it* on the card is
 switched off, by anybody who may edit the channel; Claude is told it holds the
 channel's earlier conversations and its sources, the *Record* being the recent
-part. **And the *Record* such a press carries is shorter**, since 2026-11-07:
-the newest room and about three hours (`LIBRARY_RECORD_BUDGET_TOKENS`, 40,000)
-in full, every filed segment there marked with its document's name, and each
-older segment that is filed as one line — its hours, who spoke, the document —
-for Claude to read with `read_file` when the conversation turns to it; what the
-library does not hold stays in full as before (`composeLibraryRecord`).
+part. **And the *Record* such a press carries indexes the rest**, since
+2026-11-07: every filed segment it reads marked with its document's name, and
+each older one that is filed as one line — its hours, who spoke, the document
+— for Claude to *ask to read* when the conversation turns to it
+(`composeRecord` with `library`). What it reads in full was about three hours
+until 2026-11-20, and is the last two hours since, as for every press.
 **Each filed segment is named by its document's title** on its line in
 *Record* — the one noesis's model gave it, which `segments.filed_title` keeps —
 so a member matches the two without opening either; the segment's menu has
@@ -739,11 +741,14 @@ channel, so it is nowhere in `ChannelState`; it travels in the request as
 `length`, a `ReplyLength`, and `REPLY_WORD_LIMITS` in `server/src/claude.ts`
 holds the numbers. A request with none is *Medium*.
 
-**A press** reads the channel's whole *Record* — what was said, as
-transcribed, and what was pasted, Claude's own earlier replies among it; up to
-about seven hours, or three where it consults the *channel library*, which
-holds the rest; less every segment *hidden from Claude* — and
-posts one turn from Claude into it as a *paste* authored by `CLAUDE_ID`,
+**A press** reads the *Record*'s last two hours — what was said, as
+transcribed, and what was pasted, Claude's own earlier replies among it, every
+*segment* that ended within them or is still being kept; less every one
+*hidden from Claude*, and with every older one *shown to Claude*. Until
+2026-11-20 it read the whole *Record* within about seven hours, three where
+it consults the *channel library*; that library still gives it every older
+filed segment as a line. Where it consults a library it may *ask to read*
+first. It then posts one turn from Claude into it as a *paste* authored by `CLAUDE_ID`,
 named *Claude*, which lands in the log under the bar. It is open to anybody
 *present*, the paste rule, and the model it asks is the channel's *Response
 model*. While anybody's press is out the channel says so: every screen's
@@ -780,9 +785,46 @@ mark is.
 **Claude is not told** — nothing stands in the segment's place. **Not
 *Delete***, which takes the segment from people as well; and **not out of the
 *channel library***: a filed segment's document stays there, and Claude may
-read it if a search finds it, the mark being about what a press is sent.
+ask to read it if a search finds it, the mark being about what a press is sent.
 `SegmentView.hiddenFromClaude`, `segments.hidden_from_claude`;
 decision/2026-11-19-a-segment-may-be-hidden-from-claude.md.
+
+**Its opposite number is *Shown to Claude***, since 2026-11-20, when a press
+began reading only the last two hours: the same menu row on a segment older
+than that says *Show to Claude*, and the line under it *Shown to Claude*.
+**Which word the menu says is whether Claude reads the segment now**
+(`claudeReads`), and the server keeps a mark only where that differs from the
+window's own answer — hiding an older segment, or showing a recent one,
+clears both. So *Hidden from Claude* is only ever on a recent segment, or one
+that was recent when it was hidden. `SegmentView.shownToClaude`,
+`segments.shown_to_claude`;
+decision/2026-11-20-claude-reads-the-last-two-hours-and-asks-before-reading-a-document.md.
+
+## Ask to read
+
+**Claude asking the room before it reads a document**, since 2026-11-20 —
+Rodrigo's rule: Claude decides which documents are most relevant, then asks
+for confirmation. A press that consults a *library* searches and nothing more
+(`LIBRARY_TOOLS`); where it wants a document in full it calls `ask_to_read`,
+which puts a card under *Ask Claude* on every screen: *Claude wants to read
+these before it replies:*, each document a box — its title, then Claude's
+reason — **ticked, as a confirmation's boxes start**, then *Read* and *Answer
+without*. Anybody who could have pressed may answer (`canAskClaude`); the next
+press replaces it; a restart drops it.
+
+**The server reads the chosen documents itself**, from noesis's MCP with the
+token the press consulted it by, and gives them to Claude as the answer to its
+call, so what it reads is exactly what was chosen; the reply follows in the
+same conversation. **They stay beside the reply**, whole (`pastes.documents`,
+`KeptDocument`), and are sent above it for as long as the reply is — the last
+two hours, or longer where its segment is *shown to Claude*. **Never one the
+*Record* already holds**, by its file name, stem, slug or title (`heldIn`): a
+filed segment sent whole, or a document a reply there read; those are answered
+without asking. A press from a build before it is offered no way to read.
+
+Not *Read aloud*, which is the reply being spoken. `ClaudeProposal`,
+`ChannelView.claudeProposal`, `POST /channels/:id/claude/read`; *Leer*, *Sin
+leer*.
 
 ## Close
 
@@ -5560,6 +5602,10 @@ are settled:
     Hidden from Claude    Oculto a Claude — *Ocultar a Claude* and *Mostrar a
                           Claude* in the menu; masculine, agreeing with the
                           unnamed *segmento*
+    Shown to Claude       Mostrado a Claude — the same agreement
+    Ask to read           *Claude quiere leer esto antes de responder:*, then
+                          *Leer* and *Sin leer* — *without reading*, shorter
+                          than *Responder sin* and not left hanging
     Watch party           Ver algo juntos — a phrase, there being no noun
     Watching /            Viendo / Sin ver — the roster suffixes. The negative
     not watching          names the absence rather than negating the verb, on

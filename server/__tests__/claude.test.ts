@@ -12,8 +12,11 @@ import {
   channelLibraryRule,
   CLAUDE_LIBRARY_TIMEOUT_MS,
   CLAUDE_TIMEOUT_MS,
-  composeLibraryRecord,
+  askedToRead,
   consultingGrade,
+  documentBlock,
+  heldIn,
+  readDocument,
   composeRecord,
   FALLBACK_BETA,
   LIBRARY_CONTINUATIONS,
@@ -210,16 +213,70 @@ describe('the Record as Claude reads it', () => {
   it('drops whole rooms oldest first to fit, then lines from the front, and says so', () => {
     const rooms = [
       room(T0, [pasted(T0, 'acct_a', 'Ana', 'oldest '.repeat(40))]),
-      room(T0 + 7_200_000, [
-        pasted(T0 + 7_200_000, 'acct_b', 'Ben', 'middle '.repeat(5)),
-        pasted(T0 + 7_200_001, 'acct_b', 'Ben', 'newest'),
+      room(T0 + 3_600_000, [
+        pasted(T0 + 3_600_000, 'acct_b', 'Ben', 'middle '.repeat(5)),
+        pasted(T0 + 3_600_001, 'acct_b', 'Ben', 'newest'),
       ]),
     ];
-    const record = composeRecord(sources(rooms), 'c', T0 + 10_000_000, 120)!;
+    const record = composeRecord(sources(rooms), 'c', T0 + 4_000_000, { budget: 120 })!;
     expect(record.trimmed).toBe(true);
     expect(record.text).not.toContain('oldest');
     expect(record.text).toContain('newest');
-    expect(userMessage(record, 'medium')).toContain('It begins partway through');
+    expect(userMessage(record, 'medium')).toContain('Earlier conversation was left out for length.');
+  });
+});
+
+describe('the last two hours', () => {
+  const HOUR = 3_600_000;
+  const now = T0 + 5 * HOUR;
+  // One segment ending three hours before now, one ending an hour before, one still kept.
+  const old = spoken(T0, T0 + 2 * HOUR);
+  const recent = spoken(T0 + 3 * HOUR, T0 + 4 * HOUR);
+  const open = { ...spoken(T0 + 4 * HOUR, T0 + 4 * HOUR), endedAt: null };
+  const lines = [
+    { displayName: 'Ana', startAt: T0 + 1_000, text: 'Old words.' },
+    { displayName: 'Ben', startAt: T0 + 3 * HOUR + 1_000, text: 'Recent words.' },
+    { displayName: 'Cy', startAt: T0 + 4 * HOUR + 1_000, text: 'Words still being kept.' },
+  ];
+
+  it('reads every segment that ended within them, and the one still being kept, and nothing older', () => {
+    const record = composeRecord(sources([room(T0, [old, recent, open])], lines), 'c', now)!;
+    expect(record.text).not.toContain('Old words.');
+    expect(record.text).toContain('Recent words.');
+    expect(record.text).toContain('Words still being kept.');
+    expect(record.trimmed).toBe(false);
+  });
+
+  it('says so in the opening, and never which segments were marked', () => {
+    const record = composeRecord(sources([room(T0, [old, recent])], lines), 'c', now)!;
+    const message = userMessage(record, 'medium');
+    expect(message).toContain('what was said in the last 2 hours, and any earlier part the people here chose to show you');
+    expect(message).not.toMatch(/hidden/i);
+  });
+
+  it('reads an older segment somebody showed to Claude, what was pasted into it with it', () => {
+    const shown = { ...old, shownToClaude: true as const };
+    const inside = {
+      ...pasted(T0 + 30_000, 'acct_a', 'Ana', 'pasted early'),
+      paste: { authorId: 'acct_a', displayName: 'Ana', text: 'pasted early', segmentId: old.id, offsetMs: 30_000 },
+    };
+    const record = composeRecord(sources([room(T0, [shown, inside, recent])], lines), 'c', now)!;
+    expect(record.text).toContain('Old words.');
+    expect(record.text).toContain('pasted early');
+  });
+
+  it('leaves out a recent one hidden from Claude', () => {
+    const record = composeRecord(
+      sources([room(T0, [old, { ...recent, hiddenFromClaude: true as const }, open])], lines),
+      'c',
+      now
+    )!;
+    expect(record.text).not.toContain('Recent words.');
+    expect(record.text).toContain('Words still being kept.');
+  });
+
+  it('is nothing at all where nothing is recent and nothing was shown', () => {
+    expect(composeRecord(sources([room(T0, [old])], lines), 'c', now)).toBeNull();
   });
 });
 
@@ -229,25 +286,32 @@ describe('the Record beside the channel’s own library', () => {
     ...spoken(from, until),
     filed: { file: `2023/2023-11-14-${from}.chat.md`, title },
   });
-  // Three rooms an hour apart, each one filed segment of one line.
+  // Three rooms two hours apart, each one filed segment of one line.
   const rooms = [0, 1, 2].map((n) => room(T0 + n * 2 * HOUR, [filed(T0 + n * 2 * HOUR, T0 + n * 2 * HOUR + 60_000)]));
   const lines = [0, 1, 2].map((n) => ({ displayName: `Speaker${n}`, startAt: T0 + n * 2 * HOUR + 1_000, text: `said ${'x'.repeat(200)} ${n}` }));
-  const now = T0 + 6 * HOUR;
+  const now = T0 + 5 * HOUR;
+  const library = { library: true };
 
-  it('carries the recent part in full, naming each document, and the older a line each', () => {
-    // Room for the newest room's heading and its segment, not the next.
-    const record = composeLibraryRecord(sources(rooms, lines), 'c', now, 300)!;
+  it('carries the last two hours in full, naming each document, and the older a line each', () => {
+    const record = composeRecord(sources(rooms, lines), 'c', now, library)!;
     expect(record.summarized).toBe(true);
     expect(record.trimmed).toBe(false);
     expect(record.text).toContain(`(Filed in this channel's library as 2023-11-14-${T0 + 4 * HOUR}.chat.md, titled "On Names".)`);
-    expect(record.text).toContain('said');
     expect(record.text).not.toContain('Speaker0: said');
     expect(record.text).toMatch(/\[\d\d:\d\d–\d\d:\d\d\] Speaker0\. In this channel's library as 2023-11-14-\d+\.chat\.md, titled "On Names"\./);
     expect(record.text.match(/said/g)).toHaveLength(1);
     expect(userMessage(record, 'medium')).toContain('one line naming its document');
+    expect(record.holds).toEqual([{ name: `2023-11-14-${T0 + 4 * HOUR}.chat.md`, title: 'On Names' }]);
   });
 
-  it('carries a paste inside a filed segment in its line, and not in full beside it', () => {
+  it('names no document, and no older part, without the library', () => {
+    const record = composeRecord(sources(rooms, lines), 'c', now)!;
+    expect(record.text).not.toContain('library');
+    expect(record.text).not.toContain('Speaker0');
+    expect(record.summarized).toBeUndefined();
+  });
+
+  it('carries a paste inside an older filed segment in its line, and not in full beside it', () => {
     const [oldest, ...rest] = rooms;
     const segment = oldest.segments[0];
     const withPaste = room(oldest.openedAt, [
@@ -257,50 +321,96 @@ describe('the Record beside the channel’s own library', () => {
         paste: { authorId: 'acct_a', displayName: 'Ana', text: 'pasted early', segmentId: segment.id, offsetMs: 30_000 },
       },
     ]);
-    const record = composeLibraryRecord(sources([withPaste, ...rest], lines), 'c', now, 300)!;
+    const record = composeRecord(sources([withPaste, ...rest], lines), 'c', now, library)!;
     expect(record.text).toContain('Speaker0. In this channel');
     expect(record.text).not.toContain('pasted early');
   });
 
-  it('is the whole Record, documents named, while it all fits', () => {
-    const record = composeLibraryRecord(sources(rooms, lines), 'c', now)!;
-    expect(record.summarized).toBe(false);
-    expect(record.text.match(/said/g)).toHaveLength(3);
-    expect(record.text.match(/Filed in this channel's library/g)).toHaveLength(3);
+  it('carries in full an older one somebody showed to Claude, and knows it holds its document', () => {
+    const [oldest, ...rest] = rooms;
+    const shown = room(oldest.openedAt, [{ ...oldest.segments[0], shownToClaude: true as const }]);
+    const record = composeRecord(sources([shown, ...rest], lines), 'c', now, library)!;
+    expect(record.text).toContain('Speaker0: said');
+    expect(heldIn(record, `2023-11-14-${T0}.chat.md`)).toBe(true);
   });
 
-  it('keeps in full whatever the library does not hold, however old', () => {
+  it('leaves out an older segment the library does not hold', () => {
     const older = [room(T0, [spoken(T0, T0 + 60_000)]), ...rooms.slice(1)];
-    const record = composeLibraryRecord(sources(older, lines), 'c', now, 300)!;
-    expect(record.text).toContain('Speaker0: said');
+    const record = composeRecord(sources(older, lines), 'c', now, library)!;
+    expect(record.text).not.toContain('Speaker0');
     expect(record.text).toContain('Speaker1. In this channel');
   });
 
   it('leaves out a filed segment hidden from Claude, not even a line naming its document', () => {
     const [oldest, ...rest] = rooms;
     const hidden = room(oldest.openedAt, [{ ...oldest.segments[0], hiddenFromClaude: true as const }]);
-    for (const record of [
-      composeLibraryRecord(sources([hidden, ...rest], lines), 'c', now, 300)!,
-      composeLibraryRecord(sources([hidden, ...rest], lines), 'c', now)!,
-    ]) {
-      expect(record.text).not.toContain('Speaker0');
-      expect(record.text).not.toContain(`2023-11-14-${T0}.chat.md`);
-      expect(record.text).toContain('Speaker2: said');
-    }
+    const record = composeRecord(sources([hidden, ...rest], lines), 'c', now, library)!;
+    expect(record.text).not.toContain('Speaker0');
+    expect(record.text).not.toContain(`2023-11-14-${T0}.chat.md`);
+    expect(record.text).toContain('Speaker2: said');
   });
 
   it('leaves out a title noesis never gave', () => {
     const untitled = [room(T0, [filed(T0, T0 + 60_000, null)])];
-    const record = composeLibraryRecord(sources(untitled, lines), 'c', now)!;
+    const record = composeRecord(sources(untitled, lines), 'c', T0 + 60_000, library)!;
     expect(record.text).toContain(`as 2023-11-14-${T0}.chat.md.)`);
   });
 
-  it('drops the oldest past the usual budget, and says so', () => {
-    const unfiled = [0, 1, 2].map((n) => room(T0 + n * 2 * HOUR, [spoken(T0 + n * 2 * HOUR, T0 + n * 2 * HOUR + 60_000)]));
-    const record = composeLibraryRecord(sources(unfiled, lines), 'c', now, 100, 300)!;
+  it('drops the oldest past the budget, and says so', () => {
+    const record = composeRecord(sources(rooms, lines), 'c', now, { library: true, budget: 300 })!;
     expect(record.trimmed).toBe(true);
     expect(record.text).toContain('said');
     expect(record.text).not.toContain('Speaker0');
+  });
+});
+
+describe('what Claude already holds', () => {
+  const holds = [
+    { name: '2026-11-07-on-names.chat.md', title: 'On Names' },
+    { name: '2026-01-02-on-attention.document.md' },
+  ];
+
+  it('is a document by its file name, stem, slug or title, whatever folder is before it', () => {
+    for (const name of [
+      '2026-11-07-on-names.chat.md',
+      '2026/2026-11-07-on-names.chat.md',
+      '2026-11-07-on-names',
+      'on-names',
+      'On Names',
+      'on-attention',
+    ]) {
+      expect(heldIn({ holds }, name)).toBe(true);
+    }
+  });
+
+  it('is not another document, nor the same one under another name', () => {
+    for (const name of ['2026-11-08-on-names-again.chat.md', 'names', 'Names, again']) {
+      expect(heldIn({ holds }, name)).toBe(false);
+    }
+  });
+
+  it('includes what a reply read, which stands above it in the Record in full', () => {
+    const record = composeRecord(
+      {
+        ...sources([room(T0, [pasted(T0, CLAUDE_ID, 'Claude', 'As On Attention says.')])]),
+        documents: (id) =>
+          id === `seg_${T0}`
+            ? [{ name: '2026-01-02-on-attention.document.md', library: 'alice/philosophy', title: 'On Attention', text: 'Attention is a kind of will.', readAt: T0 }]
+            : null,
+      },
+      'c',
+      T0
+    )!;
+    expect(record.text).toContain(
+      [
+        'The people here had Claude read these documents for the reply below (the server’s record):',
+        '<document name="2026-01-02-on-attention.document.md" library="alice/philosophy" title="On Attention">',
+        'Attention is a kind of will.',
+        '</document>',
+      ].join('\n')
+    );
+    expect(record.text.indexOf('</document>')).toBeLessThan(record.text.indexOf('Claude: As On Attention says.'));
+    expect(heldIn(record, 'On Attention')).toBe(true);
   });
 });
 
@@ -432,7 +542,7 @@ describe('the instructions', () => {
       const words = REPLY_WORD_LIMITS[length].words;
       expect(systemPrompt(length)).toContain(`at most ${words} words`);
       expect(systemPrompt(length)).toContain('hard limit');
-      const message = userMessage({ text: 'x', trimmed: false }, length);
+      const message = userMessage({ text: 'x', trimmed: false, holds: [] }, length);
       expect(message.trim().endsWith(lengthRule(length))).toBe(true);
       expect(lengthRule(length)).toContain('waiting');
     }
@@ -455,7 +565,8 @@ describe('the instructions', () => {
     ]);
     expect(prompt.split(HOW_TO_SEARCH)).toHaveLength(2);
     expect(HOW_TO_SEARCH).toContain('lookup_term');
-    expect(HOW_TO_SEARCH).toContain('read_file');
+    expect(HOW_TO_SEARCH).toContain('ask_to_read');
+    expect(HOW_TO_SEARCH).toContain('You cannot read a document yourself');
     expect(systemPrompt('medium')).not.toContain(HOW_TO_SEARCH);
   });
 
@@ -589,6 +700,7 @@ beforeEach(() => {
   clock = T0;
   dir = mkdtempSync(join(tmpdir(), 'thefloor-claude-'));
   noesisCalls.length = 0;
+  noesisDocuments = {};
   noesisRefuses = false;
   authVouches = false;
   noesisLibraries = ['alice/philosophy'];
@@ -616,6 +728,8 @@ let noesisLibraries = ['alice/philosophy'];
 let noesisScope = 'noesis:read noesis:import';
 /** How noesis's import answers. */
 let noesisImport: () => Response = () => new Response(null, { status: 500 });
+/** What noesis's MCP `read_file` returns, by name; anything else is not found. */
+let noesisDocuments: Record<string, string> = {};
 /** Whether auth grants on The Floor's word for an address (`vouch`); it refuses unless a test says otherwise. */
 let authVouches = false;
 /** Who noesis's `/me` says signed in: the account connecting, unless a test says otherwise. */
@@ -647,6 +761,17 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
     return Response.json({ ...noesisWho, libraries: noesisLibraries });
   }
   if (url.pathname.endsWith('/import')) return noesisImport();
+  if (url.pathname === '/mcp' && init?.method === 'POST') {
+    // noesis's MCP, stateless, answering one `read_file` as a server-sent event.
+    const call = JSON.parse(String(init.body)) as { params: { arguments: { name: string } } };
+    const text = noesisDocuments[call.params.arguments.name];
+    const result = text
+      ? { content: [{ type: 'text', text }] }
+      : { content: [{ type: 'text', text: `no such document: ${call.params.arguments.name}` }], isError: true };
+    return new Response(`event: message\ndata: ${JSON.stringify({ jsonrpc: '2.0', id: 1, result })}\n\n`, {
+      headers: { 'content-type': 'text/event-stream' },
+    });
+  }
   if (url.pathname === '/applications/token') return Response.json({ access_token: 'channel-token', expires_in: 3600 });
   return new Response(null, { status: 200 });
 }) as typeof fetch;
@@ -917,7 +1042,7 @@ describe('Ask Claude', () => {
     const { alice, channelId } = await room2({ paste: false });
     const res = await press(channelId, alice.token);
     expect(res.statusCode).toBe(409);
-    expect(res.json().error).toBe('There is nothing in the Record yet for Claude to read.');
+    expect(res.json().error).toBe('There is nothing from the last two hours in the Record for Claude to read.');
     expect(calls).toHaveLength(0);
     expect(usageRows()).toHaveLength(0);
   });
@@ -1139,16 +1264,13 @@ describe('a press with the library', () => {
       ],
       tools: [{ type: 'mcp_toolset', mcp_server_name: 'noesis', default_config: { enabled: false } }],
     });
+    // A press from a build that draws no card is offered no way to read.
+    expect(calls[0].body.tools).toHaveLength(1);
     const configs = (calls[0].body as { tools: Array<{ configs: Record<string, unknown> }> }).tools[0]
       .configs;
     expect(Object.keys(configs).sort()).toEqual([...LIBRARY_TOOLS].sort());
-    expect(Object.keys(configs)).toEqual([
-      'guide',
-      'list_documents',
-      'lookup_term',
-      'read_document',
-      'read_file',
-    ]);
+    // Searching only, since 2026-11-20: reading is the room's to allow.
+    expect(Object.keys(configs)).toEqual(['guide', 'list_documents', 'lookup_term']);
     for (const tool of LIBRARY_TOOLS) expect(configs[tool]).toEqual({ enabled: true });
   });
 
@@ -1441,6 +1563,278 @@ describe('a press with the library', () => {
     expect(calls[0].body).toMatchObject({ betas: [FALLBACK_BETA] });
     expect(calls[0].body).not.toHaveProperty('mcp_servers');
     expect(calls[0].body).not.toHaveProperty('tools');
+  });
+});
+
+describe('asking the room before reading', () => {
+  const ATTENTION = '2026/2026-01-02-on-attention.document.md';
+  const asking = (documents: unknown[], text = '') =>
+    reply('', {
+      model: 'claude-sonnet-5-5',
+      stop_reason: 'tool_use',
+      content: [
+        { type: 'thinking', thinking: '', signature: 's' },
+        { type: 'mcp_tool_use', id: 'u1', name: 'lookup_term', server_name: 'noesis', input: { term: 'attention' } },
+        {
+          type: 'mcp_tool_result',
+          tool_use_id: 'u1',
+          is_error: false,
+          content: [{ type: 'text', text: `attention\n  Documents:\n    ${ATTENTION} — On Attention — 900w` }],
+        },
+        ...(text ? [{ type: 'text', text }] : []),
+        { type: 'tool_use', id: 'toolu_1', name: 'ask_to_read', input: { documents } },
+      ],
+    });
+  const wanted = [
+    { name: ATTENTION, library: 'alice/philosophy', title: 'On Attention', reason: 'It is about attention.' },
+    { name: 'on-will', library: 'alice/philosophy', reason: 'Will comes up.' },
+  ];
+
+  const setUp = async (answers: Array<(call: Call) => unknown>) => {
+    let n = 0;
+    const fake = fakeClient((call) => answers[Math.min(n++, answers.length - 1)](call));
+    boot(fake.client, undefined, NOESIS);
+    const people = await room2();
+    await connect(people.alice.account.id);
+    makePro(people.alice.account.id);
+    app.channels.dispatch(people.channelId, people.alice.account.id, {
+      type: 'SET_LIBRARY',
+      library: true,
+      libraries: ['alice/philosophy'],
+    } as never);
+    return { ...fake, ...people };
+  };
+
+  const pressAsking = (channelId: string, token: string) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/claude`,
+      headers: auth(token),
+      payload: { length: 'medium', confirms: true },
+    });
+
+  const answer = (channelId: string, token: string, proposal: string, read: string[]) =>
+    app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/claude/read`,
+      headers: auth(token),
+      payload: { proposal, read },
+    });
+
+  const reads = () => noesisCalls.filter((call) => call.path === '/mcp');
+
+  it('is offered only to a build that draws the card', async () => {
+    const { calls, bob, channelId } = await setUp([() => reply('Hello.', { model: 'claude-sonnet-5-5' })]);
+    expect((await pressAsking(channelId, bob.token)).statusCode).toBe(200);
+    const tools = (calls[0].body as { tools: Array<{ name?: string; type?: string }> }).tools;
+    expect(tools.map((tool) => tool.name ?? tool.type)).toEqual(['mcp_toolset', 'ask_to_read']);
+    expect(calls[0].body).not.toHaveProperty('tool_choice');
+  });
+
+  it('puts the card up for everybody, posts nothing, and ends Responding', async () => {
+    const { bob, channelId } = await setUp([() => asking(wanted, 'Let me check those.')]);
+    const res = await pressAsking(channelId, bob.token);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true, proposed: true });
+    expect(app.channels.claudeProposal(channelId)).toEqual({
+      id: expect.stringMatching(/^proposal_/),
+      askedBy: bob.account.id,
+      documents: wanted,
+    });
+    expect(app.channels.get(channelId)!.claude).toBeNull();
+    expect(claudePastes(channelId)).toEqual([]);
+    expect(reads()).toEqual([]);
+    expect(usageRows()).toEqual([expect.objectContaining({ outcome: 'proposed', library_calls: 1 })]);
+  });
+
+  it('reads what the room chose, as the server, and replies in the same conversation', async () => {
+    noesisDocuments = { [ATTENTION]: '# On Attention\n\nAttention is a kind of will.' };
+    const { calls, alice, bob, channelId } = await setUp([
+      () => asking(wanted),
+      () => reply('As On Attention says, it is a kind of will.', { model: 'claude-sonnet-5-5' }),
+      () => reply('Again.', { model: 'claude-sonnet-5-5' }),
+    ]);
+    await pressAsking(channelId, bob.token);
+    const { id } = app.channels.claudeProposal(channelId)!;
+
+    // Alice answers Bob's press: anybody who could have pressed may.
+    expect((await answer(channelId, alice.token, id, [ATTENTION])).statusCode).toBe(200);
+    expect(app.channels.claudeProposal(channelId)).toBeNull();
+    expect(app.channels.get(channelId)!.claude).toBeNull();
+
+    // One read, at noesis's MCP, with the press's token, of the one chosen.
+    expect(reads()).toHaveLength(1);
+    expect(reads()[0].query).toEqual({ libraries: 'alice/philosophy' });
+    expect(JSON.parse(reads()[0].body!)).toMatchObject({
+      method: 'tools/call',
+      params: { name: 'read_file', arguments: { name: ATTENTION, library: 'alice/philosophy' } },
+    });
+
+    const second = calls[1].body as {
+      tool_choice: unknown;
+      messages: Array<{ role: string; content: unknown }>;
+    };
+    expect(second.tool_choice).toEqual({ type: 'none' });
+    expect(second.messages[0]).toEqual((calls[0].body as { messages: unknown[] }).messages[0]);
+    expect(second.messages[1]).toEqual({ role: 'assistant', content: asking(wanted).content });
+    const [result] = second.messages[2].content as Array<{ type: string; tool_use_id: string; content: string }>;
+    expect(result).toMatchObject({ type: 'tool_result', tool_use_id: 'toolu_1' });
+    expect(result.content).toContain(
+      documentBlock({ name: ATTENTION, library: 'alice/philosophy', title: 'On Attention', text: '# On Attention\n\nAttention is a kind of will.' })
+    );
+    expect(result.content).toContain('The people here chose not to have you read: on-will.');
+
+    // Posted as Bob's press, with every step and the document kept beside it.
+    const [kept] = claudePastes(channelId) as unknown as Array<{ text: string; working: string; documents: string }>;
+    expect(kept.text).toBe('As On Attention says, it is a kind of will.');
+    expect(JSON.parse(kept.working).map((step: { tool: string }) => step.tool)).toEqual(['lookup_term', 'read_file']);
+    expect(JSON.parse(kept.documents)).toEqual([
+      { name: ATTENTION, library: 'alice/philosophy', title: 'On Attention', text: '# On Attention\n\nAttention is a kind of will.', readAt: clock },
+    ]);
+    expect(usageRows().map((row) => row.outcome)).toEqual(['proposed', 'posted']);
+    expect(usageRows().map((row) => row.account_id)).toEqual([bob.account.id, bob.account.id]);
+
+    // The next press has it in full, above the reply, without asking again.
+    await pressAsking(channelId, bob.token);
+    expect(JSON.stringify(calls[2].body.messages)).toContain('Attention is a kind of will.');
+  });
+
+  it('answers without, reading nothing, when the room says so', async () => {
+    const { calls, alice, bob, channelId } = await setUp([
+      () => asking(wanted),
+      () => reply('From what the summaries say.', { model: 'claude-sonnet-5-5' }),
+    ]);
+    await pressAsking(channelId, bob.token);
+    const { id } = app.channels.claudeProposal(channelId)!;
+    expect((await answer(channelId, alice.token, id, [])).statusCode).toBe(200);
+    expect(reads()).toEqual([]);
+    const [result] = (calls[1].body as { messages: Array<{ content: Array<{ content: string }> }> }).messages[2].content;
+    expect(result.content).toContain(`The people here chose not to have you read: ${ATTENTION}, on-will.`);
+    expect(claudePastes(channelId)).toEqual([expect.objectContaining({ text: 'From what the summaries say.', documents: null })]);
+  });
+
+  it('says what could not be read, and replies anyway', async () => {
+    const { calls, alice, bob, channelId } = await setUp([
+      () => asking(wanted),
+      () => reply('I could not read it.', { model: 'claude-sonnet-5-5' }),
+    ]);
+    await pressAsking(channelId, bob.token);
+    const { id } = app.channels.claudeProposal(channelId)!;
+    expect((await answer(channelId, alice.token, id, ['on-will'])).statusCode).toBe(200);
+    const [result] = (calls[1].body as { messages: Array<{ content: Array<{ content: string }> }> }).messages[2].content;
+    expect(result.content).toContain('on-will could not be read: no such document: on-will.');
+    const [kept] = claudePastes(channelId) as unknown as Array<{ working: string; documents: string | null }>;
+    expect(kept.documents).toBeNull();
+    expect(JSON.parse(kept.working)[1]).toEqual({
+      tool: 'read_file',
+      library: 'alice/philosophy',
+      input: { name: 'on-will' },
+      kept: null,
+      error: 'no such document: on-will',
+    });
+  });
+
+  it('asks nobody about a document the record already holds, and answers at once', async () => {
+    const { calls, bob, channelId } = await setUp([
+      () =>
+        asking([
+          { name: 'on-names', library: 'alice/philosophy', reason: 'Names.' },
+          { name: 'x', library: 'bob/elsewhere', reason: 'Not here.' },
+        ]),
+      () => reply('It is in what was said.', { model: 'claude-sonnet-5-5' }),
+    ]);
+    app.db
+      .prepare(
+        `INSERT INTO segments (id, channel_id, started_at, ended_at, text, filed_at, filed_file, filed_title)
+         VALUES ('seg_f', ?, ?, ?, 1, ?, '2026/2026-11-07-on-names.chat.md', 'On Names')`
+      )
+      .run(channelId, clock - 1_500, clock - 1_200, clock);
+    app.db
+      .prepare(
+        `INSERT INTO live_lines (id, channel_id, identity, display_name, start_at, end_at, text)
+         VALUES ('l_f', ?, 'bob', 'Bob', ?, ?, 'What is a name?')`
+      )
+      .run(channelId, clock - 1_400, clock - 1_300);
+    const res = await pressAsking(channelId, bob.token);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ ok: true });
+    expect(app.channels.claudeProposal(channelId)).toBeNull();
+    expect(reads()).toEqual([]);
+    const [result] = (calls[1].body as { messages: Array<{ content: Array<{ content: string }> }> }).messages[2].content;
+    expect(result.content).toContain('The record above already holds in full: on-names.');
+    expect(result.content).toContain('None of the libraries here holds: x.');
+    expect(claudePastes(channelId)).toEqual([expect.objectContaining({ text: 'It is in what was said.' })]);
+    expect(usageRows().map((row) => row.outcome)).toEqual(['proposed', 'posted']);
+  });
+
+  it('is replaced by the next press, and refuses an answer to the card it replaced', async () => {
+    const { alice, bob, channelId } = await setUp([() => asking(wanted)]);
+    await pressAsking(channelId, bob.token);
+    const first = app.channels.claudeProposal(channelId)!.id;
+    await pressAsking(channelId, alice.token);
+    const second = app.channels.claudeProposal(channelId)!;
+    expect(second.id).not.toBe(first);
+    expect(second.askedBy).toBe(alice.account.id);
+    const stale = await answer(channelId, bob.token, first, [ATTENTION]);
+    expect(stale.statusCode).toBe(409);
+    expect(stale.json().error).toBe('Claude is no longer asking that.');
+    expect(app.channels.claudeProposal(channelId)!.id).toBe(second.id);
+  });
+
+  it('refuses an answer from somebody who could not press, and keeps the card', async () => {
+    const { alice, bob, channelId } = await setUp([() => asking(wanted)]);
+    await pressAsking(channelId, bob.token);
+    const { id } = app.channels.claudeProposal(channelId)!;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'STEP_OUT' });
+    expect((await answer(channelId, alice.token, id, [])).statusCode).toBe(403);
+    expect((await answer(channelId, bob.token, 'proposal_x', [])).statusCode).toBe(409);
+    const bad = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/claude/read`,
+      headers: auth(bob.token),
+      payload: { proposal: id, read: 'all' },
+    });
+    expect(bad.statusCode).toBe(400);
+    expect(app.channels.claudeProposal(channelId)!.id).toBe(id);
+  });
+});
+
+describe('what Claude asks to read', () => {
+  it('is whole names with libraries, at most five, each once', () => {
+    const documents = [
+      { name: 'a', library: 'l', reason: 'r', title: 'A' },
+      { name: 'a', library: 'l', reason: 'again' },
+      { name: '', library: 'l' },
+      { name: 'b' },
+      ...['c', 'd', 'e', 'f', 'g'].map((name) => ({ name, library: 'l' })),
+    ];
+    const asked = askedToRead([{ type: 'tool_use', id: 't', name: 'ask_to_read', input: { documents } }])!;
+    expect(asked.id).toBe('t');
+    expect(asked.documents.map((each) => each.name)).toEqual(['a', 'c', 'd', 'e', 'f']);
+    expect(asked.documents[0]).toEqual({ name: 'a', library: 'l', title: 'A', reason: 'r' });
+    expect(askedToRead([{ type: 'text', text: 'no' }])).toBeNull();
+  });
+});
+
+describe('reading a document from noesis', () => {
+  const server = { url: 'https://noesis.example/mcp?libraries=a%2Fb', token: 'tok' };
+  const answering = (body: string, init: ResponseInit = {}) =>
+    (async () => new Response(body, init)) as unknown as typeof fetch;
+
+  it('reads a JSON answer as well as an event', async () => {
+    const result = { jsonrpc: '2.0', id: 1, result: { content: [{ type: 'text', text: 'Body.' }] } };
+    expect(await readDocument(answering(JSON.stringify(result), { headers: { 'content-type': 'application/json' } }), server, 'n', 'a/b')).toEqual({ ok: true, text: 'Body.' });
+  });
+
+  it('says why not, in a sentence, for every way it can fail', async () => {
+    expect(await readDocument(answering('', { status: 401 }), server, 'n', 'a/b')).toEqual({ ok: false, error: 'noesis answered 401' });
+    expect(await readDocument(answering('garbage'), server, 'n', 'a/b')).toEqual({ ok: false, error: 'noesis answered something unreadable' });
+    expect(
+      await readDocument(answering(JSON.stringify({ error: { message: 'bad call' } })), server, 'n', 'a/b')
+    ).toEqual({ ok: false, error: 'bad call' });
+    expect(
+      await readDocument((async () => { throw new Error('down'); }) as unknown as typeof fetch, server, 'n', 'a/b')
+    ).toEqual({ ok: false, error: 'noesis could not be reached' });
   });
 });
 

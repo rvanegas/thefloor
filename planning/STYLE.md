@@ -546,7 +546,14 @@ clear, stay clear if nobody touches it, and read as unticked rather than as
 the prompt 2026-11-18. In a confirmation a box is not a permission but an item
 about to go, and unticking it spares it — *Delete* on a segment, with audio,
 text and the noesis document each its own box
-(`2026-11-18-one-delete-for-a-segment-with-what-goes-checked.md`).
+(`2026-11-18-one-delete-for-a-segment-with-what-goes-checked.md`). **The
+second is Claude's question before it reads**, since 2026-11-20: the card
+under *Ask Claude*, *Claude wants to read these before it replies:*, a box a
+document — its title, an em dash, Claude's reason — ticked, then *Read* with
+what is still ticked and *Answer without* with nothing, both tightened as the
+length buttons above them are (`AskClaude`). *Read* greys with nothing
+ticked, which is the button refusing and not the box
+(`2026-11-20-claude-reads-the-last-two-hours-and-asks-before-reading-a-document.md`).
 
 **It has no `disabled`, and the attempt to give it one is the clearest reading
 of that rule there is.** The public page's switch on *Channel Settings* was a

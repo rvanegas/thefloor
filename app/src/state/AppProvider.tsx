@@ -616,6 +616,12 @@ interface AppValue extends AppState {
    */
   askClaude: (channelId: string, length: ReplyLength) => Promise<void>;
   /**
+   * Answers the card that asks what Claude may read, since 2026-11-20: the
+   * names of the documents chosen, none being *Answer without*. Rejects
+   * with the server's sentence, as a press does.
+   */
+  answerClaude: (channelId: string, proposal: string, read: string[]) => Promise<void>;
+  /**
    * *Read again*, since 2026-11-13: a kept reply of Claude's, said into the
    * room once more for everybody. Rejects with the server's sentence.
    */
@@ -2994,6 +3000,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           askerVoices(),
           speechLocale(language).split('-')[0]
         );
+      },
+
+      answerClaude: async (channelId, proposal, read) => {
+        if (!state.token) throw new ApiError(words.notSignedIn(), 401);
+        await api.answerClaude(state.token, channelId, proposal, read);
       },
 
       readAgain: async (channelId, pasteId) => {

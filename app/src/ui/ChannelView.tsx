@@ -3104,6 +3104,9 @@ export function ChannelView({
                     me={me}
                     nameOf={nameOf}
                     onAsk={(length) => app.askClaude(channel.id, length)}
+                    // What Claude asks to read before it replies, since 2026-11-20.
+                    proposal={view.claudeProposal ?? null}
+                    onAnswer={(proposal, read) => app.answerClaude(channel.id, proposal, read)}
                     // Only where a reply is the server's, which the server
                     // says by sending none in a channel that is not *Pro*:
                     // a phone-read reply cannot be heard twice.

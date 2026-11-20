@@ -165,6 +165,81 @@ describe('Ask Claude on the Record bar', () => {
 });
 
 /**
+ * The card Claude asks with before it reads, since 2026-11-20: on every
+ * screen, its boxes ticked, *Read* with what is still ticked and *Answer
+ * without* with nothing, for anybody who could have pressed.
+ */
+describe('when Claude asks to read', () => {
+  const proposal = {
+    id: 'proposal_1',
+    askedBy: THEM,
+    documents: [
+      { name: 'on-attention.document.md', library: 'dana/essays', title: 'On Attention', reason: 'It is about attention.' },
+      { name: 'on-will.document.md', library: 'dana/essays', reason: 'Will comes up.' },
+    ],
+  };
+  const boxes = () =>
+    tree!.root.findAll(
+      (n) => typeof n.type !== 'string' && n.props.accessibilityRole === 'checkbox' && 'onPress' in n.props
+    );
+
+  it('lists what it wants, each with its reason, ticked, on a screen that did not press', () => {
+    showChannel(here(), [], { claude: true, claudeProposal: proposal });
+    record();
+    expect(textOf(tree!)).toContain('Claude wants to read these before it replies:');
+    expect(boxes().map((box) => box.props.accessibilityLabel)).toEqual([
+      'On Attention \u2014 It is about attention.',
+      'on-will.document.md \u2014 Will comes up.',
+    ]);
+    expect(boxes().every((box) => box.props.accessibilityState.checked)).toBe(true);
+  });
+
+  it('reads what is still ticked, and answers without on nothing', async () => {
+    showChannel(here(), [], { claude: true, claudeProposal: proposal });
+    record();
+    act(() => boxes()[1].props.onPress());
+    await act(async () => {
+      findButton(tree!, 'Read')!.props.onPress();
+    });
+    expect(mockApp.answerClaude).toHaveBeenLastCalledWith('sess_1', 'proposal_1', ['on-attention.document.md']);
+    await act(async () => {
+      findButton(tree!, 'Answer without')!.props.onPress();
+    });
+    expect(mockApp.answerClaude).toHaveBeenLastCalledWith('sess_1', 'proposal_1', []);
+  });
+
+  it('greys Read with nothing ticked, and both for somebody who has stepped out', () => {
+    showChannel(here(), [], { claude: true, claudeProposal: proposal });
+    record();
+    act(() => boxes()[0].props.onPress());
+    act(() => boxes()[1].props.onPress());
+    expect(disabled(findButton(tree!, 'Read')!)).toBe(true);
+    expect(disabled(findButton(tree!, 'Answer without')!)).toBeFalsy();
+    act(() => tree!.unmount());
+    showChannel(reduce(here(), { type: 'STEP_OUT', userId: ME }, NOW), [], { claude: true, claudeProposal: proposal });
+    record();
+    expect(disabled(findButton(tree!, 'Answer without')!)).toBe(true);
+  });
+
+  it('shows the sentence when the answer fails', async () => {
+    mockApp.answerClaude.mockRejectedValueOnce(new Error('Claude is no longer asking that.'));
+    showChannel(here(), [], { claude: true, claudeProposal: proposal });
+    record();
+    await act(async () => {
+      findButton(tree!, 'Answer without')!.props.onPress();
+    });
+    expect(textOf(tree!)).toContain('Claude is no longer asking that.');
+  });
+
+  it('is not drawn while Claude asks nothing', () => {
+    showChannel(here(), [], { claude: true });
+    record();
+    expect(textOf(tree!)).not.toContain('Claude wants to read');
+    expect(findButton(tree!, 'Answer without')).toBeUndefined();
+  });
+});
+
+/**
  * *Transcription model*, *Response model* and *Read aloud* were cards on
  * *Channel Settings* until 2026-11-19, when a channel became *Pro* while any
  * member is: nothing on the screen chooses a grade now, for anybody.

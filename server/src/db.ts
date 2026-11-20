@@ -2157,6 +2157,11 @@ CREATE TABLE IF NOT EXISTS pastes (
   -- written by the server from the response's own blocks (claude.ts
   -- workingSteps). Null on every other paste, and on a reply that made none.
   working       TEXT,
+  -- A reply of Claude's only, since 2026-11-20: the documents the room let it
+  -- read before it, each with its text, as JSON (claude.ts KeptDocument), so
+  -- every later press reading this reply reads them too. Null on every other
+  -- paste, and on a reply that read none.
+  documents     TEXT,
   -- The segment it is part of, since 2026-11-18: the one being transcribed
   -- when it was made (pasteHomeSql). Null where none was, and the paste is a
   -- segment of its own.
@@ -3254,6 +3259,11 @@ function migrate(db: Db): void {
   if (!hasColumn(db, 'pastes', 'working')) {
     db.exec('ALTER TABLE pastes ADD COLUMN working TEXT');
   }
+  // Null on every paste that exists, which is true: no reply read a document
+  // the room chose before 2026-11-20. See pastes in SCHEMA.
+  if (!hasColumn(db, 'pastes', 'documents')) {
+    db.exec('ALTER TABLE pastes ADD COLUMN documents TEXT');
+  }
   // Every paste that exists placed by the rule a new one is written by, once:
   // in the text segment whose span holds it, or none. One whose segment's text
   // has since been deleted finds none, and stands as a segment of its own.
@@ -3330,6 +3340,15 @@ function migrate(db: Db): void {
   if (!hasColumn(db, 'segments', 'hidden_from_claude')) {
     db.exec('ALTER TABLE segments ADD COLUMN hidden_from_claude INTEGER NOT NULL DEFAULT 0');
     db.exec('ALTER TABLE segments ADD COLUMN hidden_changed_at INTEGER');
+  }
+  /*
+    The other half, since 2026-11-20: *Ask Claude* reads the last two hours
+    by default, and a segment older than that only once somebody shows it to
+    Claude. Never set beside `hidden_from_claude`; `hidden_changed_at` stamps
+    either. Every existing segment is shown nothing, and read by the window.
+  */
+  if (!hasColumn(db, 'segments', 'shown_to_claude')) {
+    db.exec('ALTER TABLE segments ADD COLUMN shown_to_claude INTEGER NOT NULL DEFAULT 0');
   }
   // The feed reads published recordings of one channel, in `started_at`
   // order, on every poll by every subscriber and every aggregator. Partial

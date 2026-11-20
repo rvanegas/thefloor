@@ -1369,6 +1369,12 @@ export function registerWebsocket(deps: {
         // Absent rather than false where there is no key, as an old server
         // sends nothing: one reading for both.
         ...(deps.claudeAvailable?.() ? { claude: true as const } : {}),
+        // What *Ask Claude* is asking to read, since 2026-11-20: the card
+        // that waits on somebody here. Absent while it asks nothing.
+        ...(() => {
+          const proposal = channels.claudeProposal(channelId);
+          return proposal ? { claudeProposal: proposal } : {};
+        })(),
         // Whether the channel is *Pro*, for *· Pro* after *Ask Claude*. A
         // fact about its members' accounts, which no reducer knows.
         ...(channels.isProChannel(channelId) ? { pro: true as const } : {}),

@@ -130,6 +130,15 @@ export class Pastes {
     this.db.prepare('UPDATE pastes SET working = ? WHERE id = ?').run(JSON.stringify(working), id);
   }
 
+  /**
+   * Keeps beside a reply of Claude's the documents the room let it read
+   * before it, with their text, as JSON — server-side only, since
+   * 2026-11-20: every later press that reads the reply reads them with it.
+   */
+  keepDocuments(id: string, documents: unknown): void {
+    this.db.prepare('UPDATE pastes SET documents = ? WHERE id = ?').run(JSON.stringify(documents), id);
+  }
+
   /** What `keepWorking` kept for a paste, or null. */
   working(id: string): unknown {
     const row = this.db.prepare('SELECT working FROM pastes WHERE id = ?').get(id) as

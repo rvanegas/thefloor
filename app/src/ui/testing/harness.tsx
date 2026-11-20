@@ -8,6 +8,7 @@ import { createChannel, reduce } from '../../../../core/channel';
 import { DEFAULT_ACCOUNT_SETTINGS } from '../../../../core/settings';
 import type { ChannelState } from '../../../../core/types';
 import type {
+  ClaudeProposal,
   GuestView,
   HomeView as HomeViewData,
   ProfileView as ProfileViewData,
@@ -358,6 +359,7 @@ export const mockApp = {
   sayWhen: jest.fn(async () => {}),
   // Resolves, as a reply posted would; the tests about a failure make it reject.
   askClaude: jest.fn(async () => {}),
+  answerClaude: jest.fn(async () => {}),
   // A channel with no guest links, which is every channel until somebody makes
   // one. The settings screen reads this when it opens, so a mock without it is
   // a screen that throws rather than a screen with an empty section.
@@ -991,6 +993,8 @@ export function showChannel(
     roomReaderUnheard?: string[];
     /** Whether the channel is *Pro*, a member being so. */
     pro?: true;
+    /** What Claude is asking to read before it replies. */
+    claudeProposal?: ClaudeProposal;
   } = {}
 ) {
   const names: Record<string, string> = {

@@ -1195,8 +1195,49 @@ export interface SegmentView {
    * /channels/:id/segments/:segmentId/hidden`, for everybody until somebody
    * shows it again — and its pastes with it. Ignored by older builds, which
    * draw it as any other.
+   *
+   * **Since 2026-11-20 a mark against the default**, which is the last two
+   * hours (`claudeReads`): set only on a segment Claude would otherwise read.
    */
   hiddenFromClaude?: true;
+  /**
+   * Present, and true, where *Ask Claude* reads it although it is older than
+   * the last two hours, since 2026-11-20 — *Show to Claude* in its menu, the
+   * same route as *Hide from Claude*, for everybody until somebody hides it
+   * again — and its pastes with it. Never beside `hiddenFromClaude`. Ignored
+   * by older builds, which draw it as any other.
+   */
+  shownToClaude?: true;
+}
+
+/**
+ * **What *Ask Claude* asks to read**, since 2026-11-20 — Rodrigo's call:
+ * Claude chooses the documents it thinks most relevant from what its
+ * searches found, and **asks before reading them**. The card under *Ask
+ * Claude* lists them, each ticked, with *Read* and *Answer without*, and
+ * anybody who could press *Ask Claude* may answer it (`canAskClaude`); the
+ * reply follows. It stays until it is answered or the next press replaces
+ * it. Held in the server's memory, so a restart drops it, as it drops a
+ * call.
+ */
+export interface ClaudeProposal {
+  /** Answered by, so an answer to one already replaced is refused. */
+  id: string;
+  /** Who pressed *Ask Claude*. */
+  askedBy: string;
+  documents: ProposedDocument[];
+}
+
+/** One document *Ask Claude* asks to read: see `ClaudeProposal`. */
+export interface ProposedDocument {
+  /** As noesis's `read_file` takes it, and what an answer names. */
+  name: string;
+  /** Its title, where Claude gave one. */
+  title?: string;
+  /** Whose library, by noesis id. */
+  library: string;
+  /** Why Claude wants it, in a sentence of its own. */
+  reason?: string;
 }
 
 /** A segment's document in the channel's library: see `SegmentView.filed`. */
@@ -1349,6 +1390,12 @@ export interface ChannelView {
    * room is hearing, since only the server knows when it has been said.
    */
   roomReaderSaying?: string;
+  /**
+   * The documents *Ask Claude* wants to read before it replies, waiting on
+   * somebody here to choose which, since 2026-11-20 — or absent while it
+   * wants none, and from a server that predates it. See `ClaudeProposal`.
+   */
+  claudeProposal?: ClaudeProposal;
   /**
    * Who is in the room on an app that does not hear the room reader from it —
    * one that has not said `hearsClaude`, so a build from before 2026-11-13.

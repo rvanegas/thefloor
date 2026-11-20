@@ -1,4 +1,4 @@
-import { isTranscribingLive } from '../../core/channel';
+import { claudeReads, isTranscribingLive } from '../../core/channel';
 import type { VoiceName } from '../../core/transcript';
 import type { ChannelState } from '../../core/types';
 import { newId, type Db } from './db';
@@ -29,6 +29,8 @@ export interface SegmentRow {
   voices_named_at: number | null;
   /** 1 where *Ask Claude* leaves it out, since 2026-11-19; see `hide`. */
   hidden_from_claude: number;
+  /** 1 where *Ask Claude* reads it although it is older than two hours, since 2026-11-20; see `hide`. */
+  shown_to_claude: number;
   /** When that last changed, either way; null never. */
   hidden_changed_at: number | null;
 }
@@ -151,17 +153,27 @@ export class Segments {
   }
 
   /**
-   * Hides a segment from *Ask Claude*, or shows it again, for everybody
-   * until somebody changes it — *Hide from Claude*, since 2026-11-19; the
-   * caller has found the segment and the hider entitled. Stamps
-   * `hidden_changed_at`, which the snapshot carries. Its document in the
-   * channel's library stays: hiding is about what a press is sent, and
-   * Claude reads the library only when it chooses to.
+   * Hides a segment from *Ask Claude*, or shows it to Claude, for everybody
+   * until somebody changes it — *Hide from Claude*, since 2026-11-19, and
+   * *Show to Claude* on one older than the last two hours, since 2026-11-20;
+   * the caller has found the segment and the person entitled. **A mark only
+   * against the default** (`claudeReads`): hiding one Claude would not read
+   * anyway, or showing one it would, clears both. Stamps `hidden_changed_at`,
+   * which the snapshot carries. Its document in the channel's library stays:
+   * this is about what a press is sent, and Claude reads the library only
+   * when it asks to.
    */
   hide(segmentId: string, hidden: boolean, now: number): void {
+    const row = this.db.prepare('SELECT ended_at FROM segments WHERE id = ?').get(segmentId) as
+      | { ended_at: number | null }
+      | undefined;
+    if (!row) return;
+    const byDefault = claudeReads({ endedAt: row.ended_at }, now);
     this.db
-      .prepare('UPDATE segments SET hidden_from_claude = ?, hidden_changed_at = ? WHERE id = ?')
-      .run(hidden ? 1 : 0, now, segmentId);
+      .prepare(
+        'UPDATE segments SET hidden_from_claude = ?, shown_to_claude = ?, hidden_changed_at = ? WHERE id = ?'
+      )
+      .run(hidden && byDefault ? 1 : 0, !hidden && !byDefault ? 1 : 0, now, segmentId);
   }
 
   private close(channelId: string, now: number): void {
