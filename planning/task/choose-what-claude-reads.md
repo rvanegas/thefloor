@@ -54,17 +54,18 @@ script; `SegmentView` carries the third state as a new optional field, so an
 older build draws an included segment as not hidden, which it isn't
 (`CLIENTS.md` before writing it).
 
-**2. Determined means by name.** A filed segment's document has a name the
-server knows (`segment.filed`, `documentName`); a segment sent in the
-*Record* already says *Filed in this channel's library as …*. The rule
-becomes the server's rather than the prompt's: a document proposed under 3
-whose name is a segment being sent is dropped from the proposal, and so
-never read. Sameness by content — the same conversation imported into
-somebody's own library under another name — is not determinable cheaply and
-is not attempted.
+**2. Determined means by filename, which is already kept.** Filing a
+segment stores the document's filename on it, `segments.filed_file` (with
+`filed_title`), updated when a segment is refiled
+(`server/src/channelLibraries.ts`); Rodrigo asked for exactly that,
+2026-11-20, and it is there. The rule becomes the server's rather than the
+prompt's: a document proposed under 3 whose filename is a sent segment's
+`filed_file` is dropped from the proposal, and so never read. Sameness by
+content — the same conversation imported into somebody's own library under
+another name — is not attempted.
 
-**3. Reading becomes two steps, which the connector cannot do inside one
-request.** Anthropic's servers run the whole tool loop in one call
+**3. Reading becomes two requests, which Rodrigo accepted 2026-11-20; the
+connector cannot pause inside one.** Anthropic's servers run the whole tool loop in one call
 (`libraryRequest`); nothing pauses it for a person. So:
 
 - **The press searches only.** `read_file` and `read_document` are off in
@@ -109,3 +110,18 @@ is cheapest against.
 - **Whether the window is wall-clock or the channel's own**: two hours
   before the press, or the last two hours of talk, which in a channel that
   meets weekly is the end of last week's call. Wall-clock is what was said.
+
+## Before prompt caching
+
+Rodrigo asked, 2026-11-20, which comes first; **this task**, with its
+prompt laid out for caching, then `cache-the-prompt-ask-claude-sends.md`.
+Most of what that task measured as caching's saving is trimming at the 90K
+cap, 162 of 295 presses; a two-hour window is about 25K tokens and is never
+there, so this task takes that saving itself. What it does to the prefix
+instead: the window drops a whole segment as it ages out rather than a line
+a press, so the prefix holds between drops; and the second request of a
+confirmed press repeats the first's system prompt and *Record*, which caching
+makes nearly free. So write this one's prompt with the stable parts first —
+system prompt, then the *Record* oldest first, kept documents with their
+replies, the proposal and what changes per press last — and caching is a
+breakpoint after it.
