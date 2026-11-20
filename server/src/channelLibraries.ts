@@ -1,5 +1,8 @@
 import { describeChannel } from '../../core/naming';
 import { lettered, type TranscriptLine } from '../../core/transcript';
+import type { WorkingStepView } from '../../core/protocol';
+import { workingCounts } from '../../core/working';
+import { shownWorking } from './pastes';
 import type { AuthClient } from './auth';
 import type { Db } from './db';
 import { finished, noesisFilename, type NoesisSent } from './noesis';
@@ -206,14 +209,23 @@ export class ChannelLibraries {
     // Its own, by id since 2026-11-18: by span, a paste at the instant one
     // segment ended and the next began went into both documents.
     const pastes = this.db
-      .prepare('SELECT display_name, pasted_at, text FROM pastes WHERE segment_id = ? AND deleted_at IS NULL')
+      .prepare(
+        `SELECT display_name, pasted_at, text, working, documents FROM pastes
+         WHERE segment_id = ? AND deleted_at IS NULL`
+      )
       .all(row.id) as unknown as Array<{
       display_name: string;
       pasted_at: number;
       text: string;
+      working: string | null;
+      documents: string | null;
     }>;
     for (const paste of pastes) {
-      entries.push({ who: paste.display_name, at: paste.pasted_at, text: paste.text, pasted: true });
+      // A reply of Claude's carries its working as the room sees it, so the
+      // channel's library reads what the room read.
+      const working = paste.working ? workingText(shownWorking(paste.working, paste.documents)) : '';
+      const text = working ? `${paste.text}\n\n${working}` : paste.text;
+      entries.push({ who: paste.display_name, at: paste.pasted_at, text, pasted: true });
     }
     return segmentText(name, row.started_at, row.ended_at, entries);
   }
@@ -361,6 +373,33 @@ export function segmentText(name: string, startedAt: number, endedAt: number, en
   }
   const head = `The Floor — ${name}\n${day(startedAt)} · ${hhmm(startedAt)}–${hhmm(endedAt)} UTC`;
   return [head, ...blocks].join('\n\n');
+}
+
+/**
+ * A reply's working as a filed transcript writes it: the line the room sees
+ * under the reply, then each step in the room's words, a search's hits by
+ * title. English, as the rest of the filed text is.
+ */
+export function workingText(steps: readonly WorkingStepView[]): string {
+  if (steps.length === 0) return '';
+  const { searches, reads, failed } = workingCounts(steps);
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+  const summary = [
+    ...(searches ? [`Searched ${plural(searches, 'term', 'terms')}`] : []),
+    ...(reads ? [`Read ${plural(reads, 'document', 'documents')}`] : []),
+    ...(failed ? [`${failed} failed`] : []),
+  ].join(' · ');
+  const lines = steps.flatMap((step) => {
+    if (step.kind === 'search') {
+      const head = step.term ? `Searched "${step.term}"` : 'Listed the documents';
+      return [
+        `- ${head}: ${step.hits.length ? step.hits.map((hit) => hit.title ?? hit.name).join('; ') : 'nothing found'}`,
+      ];
+    }
+    if (step.kind === 'read') return [`- Read ${step.title ?? step.name}`];
+    return [`- Couldn't open "${step.subject}": ${step.error}`];
+  });
+  return [`Claude's working: ${summary}`, ...lines].join('\n');
 }
 
 /** What a segment's file is called: noesis reads the channel and day from it too. */

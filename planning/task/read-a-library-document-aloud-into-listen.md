@@ -8,9 +8,9 @@ document the library already held. **Asked: when *Ask Claude* finds a document
 in the library, a control on it in the *Record* — read this aloud and put it in
 *Listen*.**
 
-- **It hangs off the steps a press records**, so it waits on step 2 of
-  `claude-s-working-is-kept-with-its-reply.md`, the line under a reply that
-  opens to *Read Mem Architecture Summary*. Claude itself cannot do it: it
+- **It hangs off the steps a press records**: the line under a reply that
+  opens to *Read Mem Architecture Summary*, built 2026-11-20 (`WorkingSteps`,
+  `decision/2026-11-20-claude-s-working-is-kept-with-its-reply-and-the-room-is-shown-it.md`). Claude itself cannot do it: it
   does not voice anything, and The Floor has no other view of a library's
   documents, so this is the one place a document appears in the app.
 - **Synthesised by the server**, as *Pro* replies are, with the request

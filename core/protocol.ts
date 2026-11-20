@@ -1273,6 +1273,68 @@ export interface PasteView {
   segmentId?: string;
   /** How far into that segment it was made, in milliseconds. */
   offsetMs?: number;
+  /**
+   * On a reply of Claude's, what it did in the libraries before it, since
+   * 2026-11-20 — the server's record of its calls (`workingSteps`), drawn as
+   * a quiet line under the reply that opens to the steps. **Everything, for
+   * every library consulted**, a personal library's search hits included:
+   * switching *Library* on in a channel is permission to show the room all
+   * of what Claude did with it. Absent on a reply that made no call, and on
+   * every other paste. Ignored by older builds, which draw the reply alone.
+   * See planning/decision/2026-11-20-claude-s-working-is-kept-with-its-reply-and-the-room-is-shown-it.md.
+   */
+  working?: WorkingStepView[];
+}
+
+/**
+ * One step of a reply's working, as the room is shown it: a search, a
+ * document read, or a call that failed. `call` is the call as sent —
+ * `lookup_term(term="…") in alice/tech` — drawn only under `debug`.
+ */
+export type WorkingStepView =
+  | {
+      kind: 'search';
+      /** What was looked up; null for `list_documents` with no query, which lists them all. */
+      term: string | null;
+      library: string | null;
+      hits: FoundDocument[];
+      /** A lookup's *Related* terms, the term's rather than any hit's. */
+      related: string[];
+      call: string;
+    }
+  | {
+      kind: 'read';
+      /** As `read_file` took it. */
+      name: string;
+      /** Its title, where a search or the read itself gave one. */
+      title: string | null;
+      library: string | null;
+      words: number | null;
+      /**
+       * Where noesis's web client opens it, which `GET /channels/:id/rooms`
+       * adds as it adds a filed segment's.
+       */
+      url?: string;
+      call: string;
+    }
+  | {
+      kind: 'failed';
+      /** What it was trying to do with: the term or the document's name. */
+      subject: string;
+      /** The error's text in full, short as it is and being the diagnosis. */
+      error: string;
+      call: string;
+    };
+
+/** One document a search found, as noesis's manifest gives it. */
+export interface FoundDocument {
+  /** Its path in the library, as noesis names it. */
+  name: string;
+  title: string | null;
+  words: number | null;
+  summary: string | null;
+  /** Where the search covered several libraries, the one it is in. */
+  library: string | null;
 }
 
 /**

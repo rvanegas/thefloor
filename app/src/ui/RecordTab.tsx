@@ -31,7 +31,9 @@ import type {
   RecordingView,
   RoomView,
   SegmentView,
+  WorkingStepView,
 } from '../../../core/protocol';
+import { workingCounts } from '../../../core/working';
 import { CLAUDE_ID, MAX_VOICE_NAME_LENGTH } from '../../../core/constants';
 import {
   givenName,
@@ -498,6 +500,7 @@ function Segment({
                 channelId={channelId}
                 deletable={!!item.segment.paste}
                 manageable={manageable}
+                connected={connected}
               />
             ) : (
               <View key={entry.block.lines[0].id} style={styles.entry}>
@@ -1058,11 +1061,34 @@ export function formatSegmentText(
     (entry) =>
       entry.kind === 'paste'
         ? `${t.pastedBy(entry.segment.paste?.displayName ?? '')} · ${t.liveTime(entry.segment.startedAt)}\n` +
-          (entry.segment.paste?.text ?? '')
+          (entry.segment.paste?.text ?? '') +
+          workingText(entry.segment.paste?.working ?? [], t)
         : `${entry.block.displayName ?? t.someone()} · ${t.liveTime(entry.block.startMs)}\n` +
           entry.block.lines.map((line) => line.text).join('\n')
   );
   return [head, ...entries].join('\n\n');
+}
+
+/**
+ * A reply's working as shared text, after the reply: the line the room sees
+ * under it, then each step in the room's words, a search's hits by title —
+ * what the channel's library files with it (`workingText` in
+ * server/src/channelLibraries.ts), in the reader's language.
+ */
+function workingText(steps: readonly WorkingStepView[], t: Strings['channel']): string {
+  const { searches, reads, failed } = workingCounts(steps);
+  const summary = t.workingSummary(searches, reads, failed);
+  if (!summary) return '';
+  const lines = steps.map((step) =>
+    step.kind === 'search'
+      ? `- ${step.term ? t.workingSearched(step.term) : t.workingListed()}: ${
+          step.hits.length ? step.hits.map((hit) => hit.title ?? hit.name).join('; ') : t.workingNothingFound()
+        }`
+      : step.kind === 'read'
+        ? `- ${t.workingRead(step.title ?? step.name)}`
+        : `- ${t.workingFailed(step.subject)}: ${step.error}`
+  );
+  return `\n\n${t.workingLabel(summary)}\n${lines.join('\n')}`;
 }
 
 /** The local day as `yyyy-mm-dd`, as a download's name stamps it. */
@@ -1691,6 +1717,7 @@ export function PasteEntry({
   channelId,
   deletable = false,
   manageable = true,
+  connected = false,
 }: {
   segment: SegmentView;
   /** Absent where there is no channel to ask, which draws no *Read again* and no *Delete*. */
@@ -1706,6 +1733,8 @@ export function PasteEntry({
    * *Delete* is greyed with the sentence saying why, as a segment's is.
    */
   manageable?: boolean;
+  /** Whether your noesis library is connected, which a *Read* step opening there wants. */
+  connected?: boolean;
 }) {
   const t = useText().channel;
   const linkWords = useText().links;
@@ -1802,6 +1831,7 @@ export function PasteEntry({
       <Text style={type.body} selectable>
         {paste.text}
       </Text>
+      {paste.working?.length ? <WorkingSteps steps={paste.working} connected={connected} /> : null}
       {offersDelete ? (
         <ConfirmModal
           visible={asking}
@@ -1814,6 +1844,119 @@ export function PasteEntry({
           onConfirm={remove}
         />
       ) : null}
+    </View>
+  );
+}
+
+/**
+ * **What Claude did in the libraries before a reply**, since 2026-11-20: a
+ * quiet line under it — *Searched 1 term · Read 1 document* — that opens to
+ * the steps in plain words, as claude.ai shows its own tool calls. The
+ * server's record of the calls, never Claude's account of them: asked what it
+ * had done, a press with no record once described calls it never made. See
+ * planning/decision/2026-11-20-claude-s-working-is-kept-with-its-reply-and-the-room-is-shown-it.md.
+ *
+ * **Everything, for every library**, a personal one's search hits included:
+ * switching *Library* on in a channel is permission to show the room all of
+ * what Claude did with it, Rodrigo's call, 2026-11-07. A read opens in noesis
+ * as a filed segment's *Open in noesis* does, for somebody whose own library
+ * is connected; the raw call is drawn only under `debug`.
+ *
+ * **Shut on every mount**, as a disclosure is (STYLE.md § *Cards and rows*):
+ * the reply is what is read, and its working is read after it, if at all.
+ */
+export function WorkingSteps({
+  steps,
+  connected = false,
+}: {
+  steps: readonly WorkingStepView[];
+  connected?: boolean;
+}) {
+  const t = useText().channel;
+  const linkWords = useText().links;
+  const app = useApp();
+  const [open, setOpen] = React.useState(false);
+  const { searches, reads, failed } = workingCounts(steps);
+  const summary = t.workingSummary(searches, reads, failed);
+  if (!summary) return null;
+  return (
+    <View style={styles.working}>
+      <Pressable
+        onPress={() => setOpen((was) => !was)}
+        accessibilityRole="button"
+        accessibilityLabel={t.workingLabel(summary)}
+        accessibilityState={{ expanded: open }}
+        hitSlop={8}
+      >
+        <Text style={type.muted}>
+          {summary} {open ? '\u25be' : '\u25b8'}
+        </Text>
+      </Pressable>
+      {open
+        ? steps.map((step, index) => {
+            const raw = app.debug ? (
+              <Text style={type.muted} selectable>
+                {step.call}
+              </Text>
+            ) : null;
+            if (step.kind === 'search') {
+              return (
+                <View key={index} style={styles.workingStep}>
+                  <Text style={type.muted}>
+                    {step.term ? t.workingSearched(step.term) : t.workingListed()}
+                  </Text>
+                  {raw}
+                  {step.hits.length === 0 ? (
+                    <Text style={[type.muted, styles.workingHit]}>{t.workingNothingFound()}</Text>
+                  ) : (
+                    step.hits.map((hit) => (
+                      <View key={`${hit.library ?? ''}/${hit.name}`} style={styles.workingHit}>
+                        <Text style={type.muted}>{hit.title ?? hit.name}</Text>
+                        {hit.summary ? (
+                          <Text style={[type.muted, styles.workingSummary]}>{hit.summary}</Text>
+                        ) : null}
+                      </View>
+                    ))
+                  )}
+                  {step.related.length ? (
+                    <Text style={[type.muted, styles.workingHit]}>
+                      {t.workingRelated(step.related.join(', '))}
+                    </Text>
+                  ) : null}
+                </View>
+              );
+            }
+            if (step.kind === 'read') {
+              const url = connected && step.url && isSafeUrl(step.url) ? step.url : null;
+              const words = t.workingRead(step.title ?? step.name);
+              return (
+                <View key={index} style={styles.workingStep}>
+                  {url ? (
+                    <Pressable
+                      onPress={() => void openNoesis(url, linkWords, app.noesisLink)}
+                      accessibilityRole="link"
+                      hitSlop={8}
+                    >
+                      <Text style={[type.muted, styles.workingLink]}>{words}</Text>
+                    </Pressable>
+                  ) : (
+                    <Text style={type.muted}>{words}</Text>
+                  )}
+                  {raw}
+                </View>
+              );
+            }
+            return (
+              <View key={index} style={styles.workingStep}>
+                <Text style={type.muted}>{t.workingFailed(step.subject)}</Text>
+                <Text style={[type.muted, styles.workingHit]} selectable>
+                  {step.error}
+                </Text>
+                {raw}
+              </View>
+            );
+          })
+        : null}
     </View>
   );
 }
@@ -1866,6 +2009,15 @@ const styles = StyleSheet.create({
     borderColor: colors.textMuted,
   },
   entry: { gap: spacing(0.25) },
+  // Claude's working, under its reply: muted throughout, each step's detail
+  // indented a step under it, the read that opens in noesis underlined —
+  // the app's one underline, there being no colour spare to say *link*
+  // (STYLE.md § *Three typographic rules with meaning*).
+  working: { gap: spacing(0.5), paddingTop: spacing(0.5) },
+  workingStep: { gap: spacing(0.25) },
+  workingHit: { paddingLeft: spacing(2) },
+  workingSummary: { paddingLeft: spacing(1) },
+  workingLink: { textDecorationLine: 'underline' },
   voiceNames: { gap: spacing(1) },
   voiceName: { gap: spacing(0.5) },
   // The glyph before the name, so a paste reads as an entry and as not

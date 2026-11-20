@@ -356,7 +356,11 @@ look things up in it while writing a reply — the words it searches with, drawn
 from the Record, go to that server — and the reply may quote what it finds.
 Beside each such reply The Floor also keeps a record of the lookups made for
 it: the words searched with and, for each piece of writing found, its title,
-its length and noesis's summary of it. Claude may then ask to read pieces of
+its length and noesis's summary of it. Everybody in the channel is shown that
+record under the reply, all of it, from whoever's library it came: switching a
+library on in a channel shows the channel everything Claude did with it. Where
+the channel's conversation is filed in its own library, the record is filed
+with the reply, by title. Claude may then ask to read pieces of
 writing in full, and reads only those that somebody in the conversation lets
 it: The Floor reads them from noesis and sends them to ${claude}, and keeps
 their text beside the reply. That record and that text go to ${claude} with the

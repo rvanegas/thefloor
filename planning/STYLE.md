@@ -232,7 +232,7 @@ These are the sizes that are not in the table, each because of where it sits:
   The only other 11 is the version line at the foot of Help, which is
   there to be read out when asked for and never otherwise.
 
-### Two typographic rules with meaning
+### Three typographic rules with meaning
 
 - **Italic means nothing, and a derived title is drawn as a name.** A channel
   nobody has named is listed and headed by a description of its roster, in the
@@ -251,6 +251,14 @@ These are the sizes that are not in the table, each because of where it sits:
 - **Anything that counts gets `fontVariant: ['tabular-nums']`.** Clocks,
   durations, character counts, a button's sublabel. Without it the row
   reflows as the digits change.
+
+- **An underline means a link inside muted text, and is drawn once.** A
+  document Claude read, in the steps under its reply (`WorkingSteps`,
+  RecordTab.tsx, since 2026-11-20), opens in noesis, and nothing else in
+  those lines does. Every other way out of the app is a menu row or a
+  button; colour cannot say it, violet being the floor's, so the line is the
+  only mark left. A second inline link is the moment to ask whether it is
+  still the exception.
 
 `formatSeconds` renders `47s` and `formatDuration` renders `mm:ss`. The split
 is not cosmetic: the two floor clocks are bounded under a minute by

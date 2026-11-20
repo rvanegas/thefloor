@@ -2,6 +2,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 
 import { claudeReads } from '../../core/channel';
 import { CLAUDE_ID, CLAUDE_READS_MS } from '../../core/constants';
+import { callLine } from '../../core/working';
 import type { ClaudeProposal, FiledView, ProposedDocument, RoomView, SegmentView } from '../../core/protocol';
 import type { ChannelState, ReplyLength } from '../../core/types';
 import { lettered } from '../../core/transcript';
@@ -476,7 +477,7 @@ export function replyText(
  * returned enter the *Record*, so the next press knows what this one found.
  * Until then each press began with nothing of the last one's lookups but its
  * prose, and guessed at a path it had been given a minute before. See
- * planning/task/claude-s-working-is-kept-with-its-reply.md.
+ * planning/decision/2026-11-20-claude-s-working-is-kept-with-its-reply-and-the-room-is-shown-it.md.
  *
  * **Written from the response's own blocks, never by Claude**: asked what it
  * had done, a press with no record described calls it never made.
@@ -553,14 +554,6 @@ export function workingSteps(
   }
   return [...steps.values()];
 }
-
-/** A call as the *Record* writes it: the tool and its arguments, as sent. */
-const callLine = (step: WorkingStep) => {
-  const args = Object.entries(step.input)
-    .filter(([key]) => key !== 'library')
-    .map(([key, value]) => `${key}=${JSON.stringify(value)}`);
-  return `${step.tool}(${args.join(', ')})${step.library ? ` in ${step.library}` : ''}`;
-};
 
 /**
  * A reply's library calls as the *Record* carries them, above the reply:

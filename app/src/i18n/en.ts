@@ -1154,7 +1154,7 @@ export const en = {
     library: () => 'Library',
     libraryConsult: () => 'Consult',
     libraryNote: () =>
-      'When on, Claude may draw on each library owner’s own writing while it answers, and names any piece it quotes and whose it is. It applies while the channel is Pro, to whoever asks Claude.',
+      'When on, Claude may draw on each library owner’s own writing while it answers, and names any piece it quotes and whose it is. Everybody here sees what it searched for and found. It applies while the channel is Pro, to whoever asks Claude.',
     /** The toggles, one per library of yours: each is consent for that one. */
     libraryChoose: () =>
       'Turn on the libraries Claude may consult here. Each one you turn on is your consent to its writing reaching this channel’s Record.',
@@ -1544,6 +1544,25 @@ export const en = {
      * `PasteEntry`.
      */
     pasteActions: (who: string, at: string) => `Actions for ${who}'s paste, ${at}`,
+    /**
+     * The quiet line under a reply of Claude's that made library calls, since
+     * 2026-11-20, which opens to its steps (`WorkingSteps`): the server's
+     * record of what it did, never Claude's own account. See
+     * planning/decision/2026-11-20-claude-s-working-is-kept-with-its-reply-and-the-room-is-shown-it.md.
+     */
+    workingSummary: (searches: number, reads: number, failed: number) =>
+      [
+        ...(searches ? [`Searched ${searches} ${searches === 1 ? 'term' : 'terms'}`] : []),
+        ...(reads ? [`Read ${reads} ${reads === 1 ? 'document' : 'documents'}`] : []),
+        ...(failed ? [`${failed} failed`] : []),
+      ].join(' \u00b7 '),
+    workingLabel: (summary: string) => `Claude's working: ${summary}`,
+    workingSearched: (term: string) => `Searched \u201c${term}\u201d`,
+    workingListed: () => 'Listed the documents',
+    workingNothingFound: () => 'Nothing found',
+    workingRelated: (terms: string) => `Related: ${terms}`,
+    workingRead: (title: string) => `Read ${title}`,
+    workingFailed: (subject: string) => `Couldn't open \u201c${subject}\u201d`,
     /** In a segment's menu: its audio, or its text, as a file. */
     shareAudio: () => 'Share audio',
     shareText: () => 'Share text',

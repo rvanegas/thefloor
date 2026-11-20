@@ -668,6 +668,67 @@ describe('deleting what a channel library holds, thirty days on', () => {
       url: `https://noesis.example/web/?library=thefloor%2F${handle}&file=2026%2Fx.chat.md`,
     });
   });
+
+  it('reaches the Record, a read opening where noesis keeps it and no document’s text', async () => {
+    const { channelId, handle } = await filed();
+    app.db
+      .prepare("UPDATE pastes SET working = ?, documents = ? WHERE id = 'seg_1_p'")
+      .run(keptWorking(`thefloor/${handle}`), JSON.stringify([{ name: 'x', library: 'l', text: 'SECRET BODY', readAt: 0 }]));
+    const { token } = await signIn('erta@example.com', 'Erta Example');
+    app.db
+      .prepare('INSERT INTO rooms (id, channel_id, opened_at, closed_at) VALUES (?, ?, ?, ?)')
+      .run('room_1', channelId, START, START + 3_600_000);
+    const response = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/rooms`,
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(response.body).not.toContain('SECRET BODY');
+    const paste = (response.json() as { rooms: RoomView[] }).rooms[0].segments.find((s) => s.id === 'seg_1_p')!.paste!;
+    expect(paste.working?.map((step) => step.kind)).toEqual(['search', 'read', 'failed']);
+    expect(paste.working?.[1]).toMatchObject({
+      name: '2026/2026-11-01-bach.chat.md',
+      title: 'Bach Reads Kant',
+      url: `https://noesis.example/web/?library=thefloor%2F${handle}&file=2026%2F2026-11-01-bach.chat.md`,
+    });
+  });
+});
+
+/** A reply's kept working: a lookup, a read, and a read that failed. */
+const WORKING_LOOKUP = [
+  'bach',
+  '  Documents:',
+  '    2026/2026-11-01-bach.chat.md — Bach Reads Kant — 900w',
+  '      What Bach made of the first Critique.',
+].join('\n');
+const keptWorking = (library: string) =>
+  JSON.stringify([
+    { tool: 'lookup_term', library, input: { term: 'bach' }, kept: WORKING_LOOKUP },
+    { tool: 'read_file', library, input: { name: '2026-11-01-bach.chat.md' }, kept: 'read in full: 900 words' },
+    { tool: 'read_file', library, input: { name: 'gone.chat.md' }, kept: null, error: 'No such file: gone.chat.md' },
+  ]);
+
+describe("Claude's working, with its reply", () => {
+  it('is filed with it, as the room sees it', async () => {
+    const { channelId, ertaId } = await bookClub();
+    makeFiling(ertaId);
+    textSegment(channelId);
+    app.db.prepare("UPDATE pastes SET working = ? WHERE id = 'seg_1_p'").run(keptWorking('thefloor/x'));
+    clock = START + 2 * 3_600_000;
+    await app.channelLibraries!.sweep();
+    const body = sent.find((s) => s.path.endsWith('/import'))!.body;
+    expect(body).toContain(
+      [
+        'Bach reads Kant.',
+        '',
+        "Claude's working: Searched 1 term · Read 1 document · 1 failed",
+        '- Searched "bach": Bach Reads Kant',
+        '- Read Bach Reads Kant',
+        '- Couldn\'t open "gone.chat.md": No such file: gone.chat.md',
+      ].join('\n')
+    );
+  });
+
 });
 
 describe("Channel Settings' card", () => {

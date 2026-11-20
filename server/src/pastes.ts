@@ -1,5 +1,6 @@
 import type { ChannelState, Clip } from '../../core/types';
 import type { PasteView } from '../../core/protocol';
+import { shownSteps, type KeptStep, type KeptTitle } from '../../core/working';
 import { pasteHomeSql, type Db } from './db';
 
 export interface PasteRow {
@@ -10,6 +11,8 @@ export interface PasteRow {
   pasted_at: number;
   text: string;
   working?: string | null;
+  /** The documents the room let a reply of Claude's read, as JSON, their text included. */
+  documents?: string | null;
   /** The segment it is part of, or null where it is one of its own. */
   segment_id?: string | null;
 }
@@ -123,8 +126,8 @@ export class Pastes {
 
   /**
    * Keeps beside a reply of Claude's the library calls it made before it, as
-   * JSON — server-side only: the *Record* reads it for the next press, and
-   * nothing carries it on the wire yet.
+   * JSON: the *Record* reads it for the next press, and since 2026-11-20 the
+   * wire carries what the room is shown of it (`pasteView`).
    */
   keepWorking(id: string, working: unknown): void {
     this.db.prepare('UPDATE pastes SET working = ? WHERE id = ?').run(JSON.stringify(working), id);
@@ -154,10 +157,25 @@ export class Pastes {
  * is one the paste may name.
  */
 export function pasteView(row: PasteRow, home?: { id: string; startedAt: number }): PasteView {
+  const working = row.working ? shownWorking(row.working, row.documents ?? null) : [];
   return {
     authorId: row.author_id,
     displayName: row.display_name,
     text: row.text,
     ...(home ? { segmentId: home.id, offsetMs: row.pasted_at - home.startedAt } : {}),
+    ...(working.length ? { working } : {}),
   };
+}
+
+/**
+ * What the room is shown of a reply's kept working (`shownSteps`), the
+ * titles of the documents it read taken from what the room let it read.
+ * Never a document's text: only each one's name and title leave here.
+ */
+export function shownWorking(working: string, documents: string | null): ReturnType<typeof shownSteps> {
+  const steps = JSON.parse(working) as KeptStep[];
+  const read = documents
+    ? (JSON.parse(documents) as KeptTitle[]).map(({ name, title }) => ({ name, title }))
+    : [];
+  return shownSteps(steps, read);
 }

@@ -6096,18 +6096,34 @@ export function buildApp(options: BuildOptions = {}): App {
     }
     const rooms = channels.rooms.forChannel(id, Date.now());
     const handle = options.channelLibraries ? channels.handleOf(id) : null;
-    if (!handle) return { rooms };
-    // Where noesis's web client opens each filed segment's document, as the
-    // *Channel library* card opens the library.
-    const library = `${noesisWeb(options.channelLibraries!.origin)}?library=${encodeURIComponent(`thefloor/${handle}`)}`;
+    // Where noesis's web client opens a document: a channel's library on the
+    // channel libraries' origin, anybody's own on the personal one's.
+    const opens = (library: string, file: string): string | undefined => {
+      const origin = library.startsWith('thefloor/')
+        ? options.channelLibraries?.origin
+        : options.library?.url;
+      return origin
+        ? `${noesisWeb(origin)}?library=${encodeURIComponent(library)}&file=${encodeURIComponent(file)}`
+        : undefined;
+    };
     return {
       rooms: rooms.map((room) => ({
         ...room,
-        segments: room.segments.map((segment) =>
-          segment.filed
-            ? { ...segment, filed: { ...segment.filed, url: `${library}&file=${encodeURIComponent(segment.filed.file)}` } }
-            : segment
-        ),
+        segments: room.segments.map((segment) => {
+          // Each filed segment's document, as the *Channel library* card
+          // opens the library; and each document a reply of Claude's read,
+          // as the room is shown its working.
+          const url = handle && segment.filed ? opens(`thefloor/${handle}`, segment.filed.file) : undefined;
+          const working = segment.paste?.working?.map((step) => {
+            const opened = step.kind === 'read' && step.library ? opens(step.library, step.name) : undefined;
+            return opened ? { ...step, url: opened } : step;
+          });
+          return {
+            ...segment,
+            ...(url ? { filed: { ...segment.filed!, url } } : {}),
+            ...(working ? { paste: { ...segment.paste!, working } } : {}),
+          };
+        }),
       })),
     };
   });

@@ -849,6 +849,68 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
+  it("draws Claude's working under its reply, shut, opening to each step in plain words", async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({ lines: [], more: false } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 120_000, [], [
+          {
+            id: 'p_1',
+            startedAt: NOW + 10_000,
+            endedAt: NOW + 10_000,
+            recordingId: null,
+            text: false,
+            paste: {
+              authorId: 'claude',
+              displayName: 'Claude',
+              text: 'Bach read the first Critique twice.',
+              working: [
+                {
+                  kind: 'search',
+                  term: 'bach',
+                  library: 'alice/tech',
+                  hits: [
+                    { name: '2026/b.chat.md', title: 'Bach Reads Kant', words: 900, summary: 'What Bach made of it.', library: 'alice/tech' },
+                  ],
+                  related: ['kant'],
+                  call: 'lookup_term(term="bach") in alice/tech',
+                },
+                { kind: 'read', name: '2026/b.chat.md', title: 'Bach Reads Kant', library: 'alice/tech', words: 900, call: 'read_file(name="b") in alice/tech' },
+                { kind: 'failed', subject: 'gone.chat.md', error: 'No such file', call: 'read_file(name="gone.chat.md")' },
+              ],
+            },
+          },
+        ]),
+      ],
+    } as never);
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    expect(textOf(tree)).toContain('Searched 1 term · Read 1 document · 1 failed');
+    expect(textOf(tree)).not.toContain('What Bach made of it.');
+    const line = findButton(tree, 'Searched 1 term · Read 1 document · 1 failed')!;
+    expect(line.props.accessibilityLabel).toBe("Claude's working: Searched 1 term · Read 1 document · 1 failed");
+    expect(line.props.accessibilityState).toEqual({ expanded: false });
+    act(() => line.props.onPress());
+    const shown = textOf(tree);
+    for (const words of [
+      'Searched “bach”',
+      'Bach Reads Kant',
+      'What Bach made of it.',
+      'Related: kant',
+      'Read Bach Reads Kant',
+      'Couldn\'t open “gone.chat.md”',
+      'No such file',
+    ]) {
+      expect(shown).toContain(words);
+    }
+    // The raw call is for debug alone.
+    expect(shown).not.toContain('lookup_term(');
+    act(() => tree.unmount());
+  });
+
   it('asks of audio, transcript and document apart, the transcript going with the audio', async () => {
     showChannel(transcribed(), [
       { ...segment('rec_1', 'Planning', NOW + 10_000), transcript: { state: 'ready', provider: 'Memory', requestedBy: { id: ME, displayName: 'Me' } } },

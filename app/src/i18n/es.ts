@@ -863,7 +863,7 @@ export const es: Strings = {
     libraryConsult: () => 'Consultar',
     // *Dueño*, as for a community's owner: see `ownerSuffix`.
     libraryNote: () =>
-      'Si está activada, Claude puede apoyarse en los escritos del dueño de cada biblioteca al responder, y nombra cualquier texto que cite y de quién es. Se aplica mientras el canal es Pro, a quien pregunte a Claude.',
+      'Si está activada, Claude puede apoyarse en los escritos del dueño de cada biblioteca al responder, y nombra cualquier texto que cite y de quién es. Todos aquí ven qué buscó y qué encontró. Se aplica mientras el canal es Pro, a quien pregunte a Claude.',
     libraryChoose: () =>
       'Activa las bibliotecas que Claude puede consultar aquí. Cada una que actives es tu consentimiento para que sus escritos lleguen al Grabado de este canal.',
     libraryNoneYet: () => 'Todavía no tienes ninguna biblioteca en noesis. Crea una allí y aparecerá aquí.',
@@ -1192,6 +1192,19 @@ export const es: Strings = {
     couldNotShareKept: () => 'No se pudo compartir',
     segmentActions: (span: string) => `Acciones de ${span}`,
     pasteActions: (who: string, at: string) => `Acciones de lo pegado por ${who}, ${at}`,
+    workingSummary: (searches: number, reads: number, failed: number) =>
+      [
+        ...(searches ? [`Busc\u00f3 ${searches} ${searches === 1 ? 't\u00e9rmino' : 't\u00e9rminos'}`] : []),
+        ...(reads ? [`Ley\u00f3 ${reads} ${reads === 1 ? 'documento' : 'documentos'}`] : []),
+        ...(failed ? [`${failed} ${failed === 1 ? 'fall\u00f3' : 'fallaron'}`] : []),
+      ].join(' \u00b7 '),
+    workingLabel: (summary: string) => `Lo que hizo Claude: ${summary}`,
+    workingSearched: (term: string) => `Busc\u00f3 \u201c${term}\u201d`,
+    workingListed: () => 'List\u00f3 los documentos',
+    workingNothingFound: () => 'No encontr\u00f3 nada',
+    workingRelated: (terms: string) => `Relacionados: ${terms}`,
+    workingRead: (title: string) => `Ley\u00f3 ${title}`,
+    workingFailed: (subject: string) => `No pudo abrir \u201c${subject}\u201d`,
     shareAudio: () => 'Compartir audio',
     shareText: () => 'Compartir texto',
     deleteSegment: () => 'Borrar',
