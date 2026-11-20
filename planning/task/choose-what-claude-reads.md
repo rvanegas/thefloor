@@ -18,43 +18,94 @@ point different ways, distraction decides.
 step before; and **`2026-11-19-a-segment-may-be-hidden-from-claude.md`**, the
 *Record* half — a segment hidden for everybody until shown, its pastes with
 it, Claude told nothing. That decision says how the unit, whose mark, and
-what Claude is told were answered. What is left:
+what Claude is told were answered. What is left, as Rodrigo decided it
+2026-11-20 — four rules, then what each changes and what is still open.
 
-## None of the Record by default
+## The four rules
 
-Added 2026-11-18, on the call with Rochelle (chat
-`2026-11-18-claude-audio-feature-development-and-costs`): Rodrigo wondered
-whether **none of the Record should be sent by default**, only when asked
-for. A press costs about 50 cents, mostly because it carries the whole
-conversation so far and that keeps growing; and now that past conversations
-are in the channel's library, Claude can choose to read them there, and only
-does when asked, where the *Record* is read whole on every press. Settle it
-with them. Hiding by segment is the default's opposite number: it stays the
-way to leave something out if the default stays, and becomes the way to put
-something in if it goes.
+Rodrigo, 2026-11-20, settling the two questions this task held open — the
+default (raised on the 2026-11-18 call with Rochelle, chat
+`2026-11-18-claude-audio-feature-development-and-costs`) and guiding the
+library:
 
-## The library's documents too
+1. **By default a press sends the segments of the last two hours**; more or
+   less can be chosen by hand.
+2. **Claude does not read a library document it can be determined it already
+   has as a segment.**
+3. **Claude decides which documents are most relevant, then asks the room to
+   confirm before reading them.**
+4. **A document read for *Ask Claude* stays in what later presses send for
+   two hours**, or for as long as the segment its reply belongs to is sent.
 
-Rodrigo, 2026-11-18, on the same call, filed then as its own task and merged
-here 2026-11-19. When *Ask Claude* consults a library, nobody in the channel
-can see what it is finding or how it is looking, as claude.ai shows its MCP
-calls. Seeing it is `claude-s-working-is-kept-with-its-reply.md`, step 2,
-**which this waits on**: the steps are kept and read by the next press, but
-not on the wire or drawn. **Asked beyond it: to guide it** — "look at this
-one, don't look at that one".
+## What each one changes
 
-- **The natural place is the steps under a reply**: each hit a lookup returned
-  is already a line there, so marking one *read this* or *leave this* for the
-  next press is a control on a line that exists.
-- **Whose mark and how long it holds**: as a segment's, everybody's until
-  changed, on *Name voices*' terms.
-- **What Claude is told**: unlike a hidden segment, it has to be told
-  something, since a mark that says *read this* is an instruction. The marks
-  as lines in the *Record*, by the server, in the same form `renderWorking`
-  gives the steps, so it cannot mistake a member's instruction for its own
-  working.
+**1. The window is time, not tokens.** `composeRecord` and
+`composeLibraryRecord` today fill a budget newest first: about seven hours
+plain, three in full beside the library. The default becomes every segment
+that **ended** within two hours of the press — the one still being kept
+always — with `RECORD_BUDGET_TOKENS` kept as the ceiling, since two hours of
+four people can still be long. *By hand* is the hidden mark grown into three
+states: *as the default*, *hidden*, and **included**, the last being the new
+half — **Show to Claude** on a segment older than the window. Still a
+segment's mark, everybody's until changed, on *Name voices*' terms; still
+told nothing, the mark deciding only what is sent.
+`segments.hidden_from_claude` becomes a three-valued column, migrated by a
+script; `SegmentView` carries the third state as a new optional field, so an
+older build draws an included segment as not hidden, which it isn't
+(`CLIENTS.md` before writing it).
 
-**Why one task**: if none of the *Record* is sent by default, the
-conversation so far reaches Claude through the library like any other
-document, and leaving out a segment and leaving out a document become the
-same mark.
+**2. Determined means by name.** A filed segment's document has a name the
+server knows (`segment.filed`, `documentName`); a segment sent in the
+*Record* already says *Filed in this channel's library as …*. The rule
+becomes the server's rather than the prompt's: a document proposed under 3
+whose name is a segment being sent is dropped from the proposal, and so
+never read. Sameness by content — the same conversation imported into
+somebody's own library under another name — is not determinable cheaply and
+is not attempted.
+
+**3. Reading becomes two steps, which the connector cannot do inside one
+request.** Anthropic's servers run the whole tool loop in one call
+(`libraryRequest`); nothing pauses it for a person. So:
+
+- **The press searches only.** `read_file` and `read_document` are off in
+  `LIBRARY_TOOLS` for it; Claude searches, and either replies, or ends with
+  the documents it wants, each with the reason — in a form the server parses,
+  never as prose in the room.
+- **The room confirms**: a card where the reply would be — *Claude wants to
+  read: …*, each document ticked, **Read** and **Answer without** — which
+  anybody present may press, on *Name voices*' terms.
+- **Confirmed, a second request answers** with the chosen documents. The
+  recommendation is that **the server fetches them itself**, from noesis with
+  the owner's token it already holds, and puts them in the prompt: then what
+  is read is exactly what was confirmed rather than what Claude was asked to
+  stick to, rule 2 is a filter before the fetch, and rule 4 has the text to
+  keep. The other way, the connector with `read_file` on and an instruction,
+  can be checked against `workingSteps` afterwards but not held to.
+- **This supersedes the *read this / leave this* marks** this task used to
+  carry on the steps under a reply. It no longer waits on
+  `claude-s-working-is-kept-with-its-reply.md` step 2 — the card is its own
+  thing — though the steps drawn under a reply are where a confirmed read
+  then shows.
+
+**4. A read now keeps the document.** `keptOf` keeps none of it today, since
+it can be read again. Kept for two hours means its text stored with the
+reply's paste — a `paste_documents` row, say, with when it was read — and
+rendered above the reply while it is within two hours of being read, **or**
+while the reply's segment is sent at all (rule 1's included segment brings
+its documents with it, as a paste goes with its segment). Past both, the
+reply keeps today's line, *read in full: N words*. The privacy page says
+what is kept of the lookups, and changes in the same commit. A document
+resent on every press for two hours is what `cache-the-prompt-ask-claude-sends.md`
+is cheapest against.
+
+## Still open
+
+- **The card when nobody answers it.** Recommended: it stays until somebody
+  does or the next press replaces it; a channel nobody is in answers nothing.
+- **An older build in the room** cannot draw the card. Recommended: the card
+  is a new wire message older builds ignore, and a newer build present is
+  enough; a room of only older builds gets *Answer without*, since reading
+  without confirmation is what rule 3 rules out.
+- **Whether the window is wall-clock or the channel's own**: two hours
+  before the press, or the last two hours of talk, which in a channel that
+  meets weekly is the end of last week's call. Wall-clock is what was said.
