@@ -56,7 +56,7 @@ caused; the list carries the meaning.
 - **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; drawn for a *Basic* account alone since 2026-11-19, a *Pro* or *Unlimited* one choosing its *Pro voice* there instead. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
 - **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **drawn for *Pro* and *Unlimited* alone** since 2026-11-19 — for everybody, chosen only by Pro, until then. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
 - **Room reader** — The participant AssemblyAI's reading of a reply is published as, `room-reader:<channel>`, since 2026-11-13: in the room without being a person, as the film's `media:` is, so nothing that counts people sees it; a build that says `hearsClaude` hears it, an older one is kept off it. Not the native `Reader` that speaks on a phone, nor the person reading a screen. `roomReaderIdentity`
-- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* at the moment it was made — part of the *segment* being transcribed then, since 2026-11-18, and otherwise a segment of its own, an instant; it breaks no segment — for anybody to copy, from a menu at the end of its line like a segment's since 2026-11-19; deleted with the text of the segment it is part of, Claude's replies included, or on its own where it is a segment of its own, since 2026-11-18; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
+- **Paste** — A piece of text somebody here put into the channel, kept in the *Record* at the moment it was made — part of the *segment* being transcribed then, since 2026-11-18, and otherwise a segment of its own, an instant; it breaks no segment — for anybody to copy, from a menu at the end of its line like a segment's since 2026-11-19; never a *guest*'s, who neither pastes nor sees one, since 2026-11-19; deleted with the text of the segment it is part of, Claude's replies included, or on its own where it is a segment of its own, since 2026-11-18; only from inside a room. Replaced the channel's *clipboard*, one slot that each paste overwrote, on 2026-10-15
 - **Close** — The way off any screen you opened, and the word every one of them uses bar the channel screen, whose way off is *Home*
 - **Community** — A channel with an *owner*, which anybody holding its *community link* may join, up to twenty; made only by *Make channel into a community*, by a channel's one member while alone in it, and for good. Never a *podcast* too, and the one place the no-admin rule bends
 - **Community link** — A community's `/j/<code>`, and since 2026-10-11 the one click that joins it: a universal link that opens the app where it is installed and the web app where it is not, making whoever follows it a member once signed in. Shared alone as the *community invitation*; reset by its owner to revoke it, and by any rename, being read from the name
@@ -77,7 +77,7 @@ caused; the list carries the meaning.
 - **Plan** — What *Floor Settings* says of your own account, since 2026-11-19: *Basic*, *Pro* — a subscription — or *Unlimited* — the `transcripts_unlimited` mark. A section and card of its own where the *Pro* card was, with the pitch and *Subscribe* under *Basic* where Pro is sold. Read from `ProView`. *Plan*: *Básico* / *Pro* / *Ilimitado*
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who can be told — push granted, or email notifications on for an email address — at the moment they become so, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
-- **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone
+- **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone; no *paste*, made or seen, since 2026-11-19
 - **Guest invitation** — An offer of a *seat*, addressed to a contact by name and delivered as a push; unlike an *invitation* it makes nobody a member and spends none of the six, but it does hold one of the forty and is drawn under *Invitations* on the *People* tab. Expires when the room empties, or when a member takes it back
 - **Guest link** — A link a member shares that lets somebody open a channel in a browser, with or without an account. Always the browser: the *seat* it produces is openable in the app afterwards, and only for an account
 - **The three asks** — What a member may put to a guest, each one tap and none implying the next: *ask them to join* (an account, nothing else), *add contact* (a relationship, no membership), *add to channel* (the membership, which ends the seat)
@@ -1208,8 +1208,8 @@ be dismissed, per install, and dismissing it changes nothing about the channel.
 
 Somebody holding a *seat* in a channel they are not a member of, admitted
 through a *guest link*. They can listen; they can speak only if a member turns
-their microphone on; they cannot record and cannot reach anything else of
-yours.
+their microphone on; they cannot record, have no *paste* — neither making one
+nor seeing one, since 2026-11-19 — and cannot reach anything else of yours.
 
 **Not "somebody with no account here"**, which is what this said until
 2026-09-16 and what the code said with it. A seat may carry an account — that
@@ -2401,14 +2401,16 @@ in its menu. Either way it goes from every screen at once and is
 removed a month later, as text is. Until then a paste was never deleted.
 **And only from inside a room**: the *Record* is laid out in rooms, and an
 empty channel has
-none to keep it in, so `canPasteClip` asks `isHere` where it asked *present or
-empty*.
+none to keep it in, so `canPasteClip` asked `isHere` where it asked *present or
+empty* — and since 2026-11-19 asks *present* alone, **a guest having no paste**,
+neither making one nor seeing one. The one a guest's page drew was the newest,
+so as often as not Claude's reply to a conversation the page shows none of.
 
 **It replaced the channel's clipboard**, one slot each paste overwrote, which
 anybody here could clear, drawn on a *Clipboard* tab of its own. What is left
 of it is `ChannelState.clip`, the latest paste, which builds before 364 still
-draw as that tab and the guest page draws as *Last pasted*, a guest having no
-*Record*. In the code a paste is still a `Clip` and `PASTE_CLIP`.
+draw as that tab, and which a guest's page drew as *Last pasted* until
+2026-11-19. In the code a paste is still a `Clip` and `PASTE_CLIP`.
 
 ## Ping
 

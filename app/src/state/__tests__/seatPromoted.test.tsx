@@ -118,7 +118,6 @@ function pushSeat(channelId: string, mic: GuestView['you']['mic']): void {
     asks: [],
     invites: [],
     recording: false,
-    clip: null,
     serverNow: T0,
   });
 }

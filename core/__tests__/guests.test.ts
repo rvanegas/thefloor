@@ -7,6 +7,7 @@ import {
   canPasteClip,
   canStartRecording,
   createChannel,
+  GUEST_ACTIONS,
   reduce,
 } from '../channel';
 import { MAX_DISPLAY_NAME_LENGTH } from '../constants';
@@ -153,7 +154,11 @@ describe('a guest is not a participant', () => {
     });
     expect(muted.selfMuted[DANA]).toBe(true);
 
-    expect(canPasteClip(state, DANA)).toBe(true);
+    // Not a paste, since 2026-11-19: a guest neither makes one nor sees one,
+    // so it is off the list and the reducer refuses it if it arrives anyway.
+    expect(canPasteClip(state, DANA)).toBe(false);
+    expect(GUEST_ACTIONS.has('PASTE_CLIP')).toBe(false);
+    expect(GUEST_ACTIONS.has('CLEAR_CLIP')).toBe(false);
     const pasted = act(state, {
       type: 'PASTE_CLIP',
       userId: DANA,
@@ -165,7 +170,7 @@ describe('a guest is not a participant', () => {
         text: 'https://example.com',
       },
     });
-    expect(pasted.clip?.authorId).toBe(DANA);
+    expect(pasted).toBe(state);
 
     const gone = act(state, { type: 'STEP_OUT', userId: DANA });
     expect(gone.guests).toEqual({});

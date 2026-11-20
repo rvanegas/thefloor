@@ -718,9 +718,6 @@ export const en = {
     accept: () => 'Accept',
     thatDidNotWork: () => 'That did not work.',
     noThanks: () => 'No thanks',
-    clipboard: () => 'Last pasted',
-    nothingOnTheClipboard: () => 'Nothing pasted yet.',
-    pasteMine: () => 'Paste mine',
     yourNameHere: () => 'Your name here',
     whatYouAreCalledHere: () =>
       'What people here call you. It is this conversation only, and nothing about your account.',

@@ -50,7 +50,6 @@ const SEAT: GuestView = {
   asks: [],
   invites: [],
   recording: false,
-  clip: null,
   serverNow: 1_700_000_000_000,
 };
 
@@ -209,28 +208,12 @@ describe('the seat screen', () => {
     act(() => tree.unmount());
   });
 
-  it('shows the latest paste, and offers no way to take it back', () => {
-    // Since 2026-10-15 a paste is kept in the *Record*, which a guest has no
-    // view of, so the page shows the newest one — and no *Clear*, a paste
-    // being kept for good.
-    const empty = render(<SeatView view={seatOf()} onClose={() => {}} />);
-    expect(textOf(empty)).toContain('Nothing pasted yet');
-    act(() => empty.unmount());
-
-    const withClip = seatOf((v) => ({
-      ...v,
-      clip: {
-        id: 'clip_1',
-        authorId: 'guest_1',
-        pastedAt: v.serverNow,
-        kind: 'text' as const,
-        text: 'https://example.com',
-      },
-    }));
-    const tree = render(<SeatView view={withClip} onClose={() => {}} />);
-    expect(textOf(tree)).toContain('Last pasted');
-    expect(textOf(tree)).toContain('https://example.com');
-    expect(findButton(tree, 'Clear')).toBeUndefined();
+  it('shows no paste, and offers no way to make one', () => {
+    // Since 2026-11-19 a guest has no paste: the newest one this page drew was
+    // as often Claude's reply to a conversation it shows none of.
+    const tree = render(<SeatView view={seatOf()} onClose={() => {}} />);
+    expect(textOf(tree)).not.toContain('Last pasted');
+    expect(textOf(tree)).not.toContain('Paste mine');
     act(() => tree.unmount());
   });
 });

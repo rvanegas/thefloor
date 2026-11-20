@@ -535,9 +535,6 @@ export const es: Strings = {
     accept: () => 'Aceptar',
     thatDidNotWork: () => 'Eso no ha funcionado.',
     noThanks: () => 'No, gracias',
-    clipboard: () => 'Lo \u00faltimo pegado',
-    nothingOnTheClipboard: () => 'Nada pegado todav\u00eda.',
-    pasteMine: () => 'Pegar el m\u00edo',
     yourNameHere: () => 'Tu nombre aqu\u00ed',
     whatYouAreCalledHere: () =>
       'C\u00f3mo te llaman aqu\u00ed. Es solo para esta conversaci\u00f3n, y no dice nada de tu cuenta.',

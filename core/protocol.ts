@@ -5,7 +5,6 @@ import type { Tried } from './tried';
 import type { VoiceName } from './transcript';
 import type {
   ChannelState,
-  Clip,
   NearbyWhen,
   UserId,
 } from './types';
@@ -1716,8 +1715,6 @@ export interface GuestView {
    * while it happens. Optional for a server that predates it.
    */
   transcribing?: boolean;
-  /** The channel's clipboard, which a guest may read and replace. */
-  clip: Clip | null;
   serverNow: number;
 }
 
@@ -1743,10 +1740,7 @@ export type GuestAction =
   /** Says no to one member's ask that they make an account here. */
   | { type: 'REFUSE_JOIN'; askerId: string }
   /** Changes what the room calls them. Always available. */
-  | { type: 'SET_GUEST_NAME'; name: string }
-  | { type: 'PASTE_CLIP'; text: string }
-  /** Empties `clip` and nothing in the *Record*; a shim to 364, SHIMS.md. */
-  | { type: 'CLEAR_CLIP' };
+  | { type: 'SET_GUEST_NAME'; name: string };
 
 /**
  * The guest page's half of its socket.

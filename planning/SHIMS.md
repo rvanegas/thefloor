@@ -169,9 +169,9 @@ their own screen, and the paste stays in everybody's *Record*.
 
 What goes, once `oldestBuild` has passed 363:
 
-- `CLEAR_CLIP` from `ChannelAction` in `core/types.ts`, from both client
-  action unions in `core/protocol.ts`, from `GUEST_ACTIONS`, and its case in
-  the reducer
+- `CLEAR_CLIP` from `ChannelAction` in `core/types.ts`, from `ClientAction`
+  in `core/protocol.ts`, and its case in the reducer — the guest's half went
+  on 2026-11-19, when a guest stopped having any paste
 - `canClearClip` in `core/channel.ts`, and its assertions in
   `core/__tests__/clipboard.test.ts`, `room.test.ts` and `community.test.ts`
 - `'CLEAR_CLIP'` from the registry's list of client actions in
@@ -179,10 +179,10 @@ What goes, once `oldestBuild` has passed 363:
 
 **What must not be deleted alongside it:**
 
-- **`ChannelState.clip` stays.** A guest's page draws it as *Last pasted*, a
-  guest having no *Record*, and `Pastes.follow` reads its change to a new id
-  as the paste itself — it is how every route in, old builds' included,
-  reaches the log.
+- **`ChannelState.clip` stays.** `Pastes.follow` reads its change to a new
+  id as the paste itself — it is how every route in, old builds' included,
+  reaches the log. A guest's page drew it as *Last pasted* until 2026-11-19,
+  when guests stopped having a paste; that is no longer a reason.
 - **`PASTE_CLIP` stays**, under its old name: it is how this build pastes too.
 
 **Not a shim, and so not here:** an old build offers *Paste* in an empty

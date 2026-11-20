@@ -9040,7 +9040,10 @@ export class ChannelRegistry {
         .map(([askerId]) => ({ askerId, from: this.displayName(askerId) })),
       recording: channel.recording.status === 'recording',
       transcribing: isTranscribingLive(channel),
-      clip: channel.clip,
+      // No `clip`, since 2026-11-19: a guest has no paste. It was the newest,
+      // and so as often Claude's reply to a conversation the page shows none
+      // of. Builds that read it draw an empty card, which is the price of
+      // carrying no shim for it.
       serverNow: this.now(),
     };
   }
@@ -9142,8 +9145,6 @@ export class ChannelRegistry {
     }
     // Before the reducer check, because this one never reaches the reducer:
     // it is durable on the seat and changes nothing about the conversation.
-    // `PASTE_CLIP` below is special-cased for the opposite reason — it needs
-    // the server to mint the clip before the reducer sees it.
     if (action.type === 'SET_PUBLISH_CONSENT') {
       if (typeof action.consented !== 'boolean') {
         return { ok: false, error: 'Not an action.', code: 'invalid' };
@@ -9160,22 +9161,6 @@ export class ChannelRegistry {
     }
     if (!GUEST_ACTIONS.has(action.type as ChannelAction['type'])) {
       return { ok: false, error: 'Not an action.', code: 'invalid' };
-    }
-    if (action.type === 'PASTE_CLIP') {
-      if (typeof action.text !== 'string') {
-        return { ok: false, error: 'Not an action.', code: 'invalid' };
-      }
-      const pasted = this.apply(channelId, guestId, {
-        type: 'PASTE_CLIP',
-        clip: {
-          id: newId('clip'),
-          authorId: guestId,
-          pastedAt: this.now(),
-          kind: 'text',
-          text: action.text,
-        },
-      } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
-      return pasted.ok ? { ok: true } : pasted;
     }
     const applied = this.apply(channelId, guestId, action as Omit<
       ChannelAction,

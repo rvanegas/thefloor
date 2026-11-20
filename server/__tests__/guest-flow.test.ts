@@ -347,7 +347,7 @@ describe('admission', () => {
       // Whether what they say is being transcribed as they say it, which a
       // guest is owed on the same terms as a recording.
       'transcribing',
-      'clip',
+      // And no `clip`, since 2026-11-19: a guest has no paste.
       'serverNow',
     ]);
 
@@ -1093,6 +1093,22 @@ describe('a guest’s name', () => {
       'Robert'
     );
     expect(app.channels.get(channelId)!.participants).toHaveLength(2);
+    guest.close();
+    member.close();
+  });
+});
+
+describe('a guest’s paste', () => {
+  it('is not one: refused, and the channel holds nothing from them', async () => {
+    // Since 2026-11-19, with the seat view's `clip` gone: a guest neither
+    // pastes nor sees a paste, and it is the allowlist that says so.
+    const { guest, member, channelId } = await admitted();
+    guest.send({
+      type: 'action',
+      action: { type: 'PASTE_CLIP', text: 'https://example.com' },
+    } as unknown as GuestClientMessage);
+    await guest.next('error');
+    expect(app.channels.get(channelId)!.clip).toBeNull();
     guest.close();
     member.close();
   });

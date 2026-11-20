@@ -705,9 +705,6 @@ function render(next: GuestView): void {
   if (document.activeElement !== rename) rename.value = next.you.name;
 
   renderAsks(next);
-
-  const clip = $('clip');
-  clip.textContent = next.clip ? next.clip.text : 'Nothing on the clipboard.';
 }
 
 /**
@@ -1103,19 +1100,6 @@ $('leave-button').addEventListener('click', () => {
   $('refused-reason').textContent = 'You have left the channel.';
   show('refused');
   void room?.disconnect();
-});
-
-$('copy-button').addEventListener('click', () => {
-  if (view?.clip) void navigator.clipboard.writeText(view.clip.text);
-});
-
-$('paste-button').addEventListener('click', async () => {
-  try {
-    const text = await navigator.clipboard.readText();
-    if (text) act({ type: 'PASTE_CLIP', text });
-  } catch {
-    say('Your browser would not let this page read the clipboard.');
-  }
 });
 
 $('embedded').hidden = !embeddedBrowser();

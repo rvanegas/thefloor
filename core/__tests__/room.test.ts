@@ -102,10 +102,10 @@ describe('the room rule', () => {
     expect(canControlPlayback(withGuest, DANA)).toBe(false);
     expect(canInviteGuest(withGuest, DANA)).toBe(false);
     expect(canEditChannel(withGuest, DANA)).toBe(false);
-    // The two it does grant, which is what the guard is written in `isHere`
-    // terms for.
-    expect(canPasteClip(withGuest, DANA)).toBe(true);
-    expect(canClearClip(withGuest, DANA)).toBe(true);
+    // Nor a paste, since 2026-11-19, which `isHere` had granted them: a guest
+    // has no paste, neither making one nor seeing one.
+    expect(canPasteClip(withGuest, DANA)).toBe(false);
+    expect(canClearClip(withGuest, DANA)).toBe(false);
   });
 
   /**

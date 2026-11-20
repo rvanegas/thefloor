@@ -453,8 +453,7 @@ See GLOSSARY.md § *Language*.
 
 **The one control in the app that Apple draws, since 2026-09-29.** Every
 button that takes somebody's clipboard — *Watch something together*, *Watch
-this instead*, *Paste my clipboard*, a guest's *Paste mine* — is a
-`PasteButton`, which on iOS 16 and later is the system's `UIPasteControl`. A
+this instead*, *Paste my clipboard* — is a `PasteButton`, which on iOS 16 and later is the system's `UIPasteControl`. A
 tap on that is the permission, so there is no *Allow Paste?* sheet; a
 `Button` that reads the clipboard itself gets the sheet every time.
 

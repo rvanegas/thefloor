@@ -817,10 +817,11 @@ export function atLeastTwoPresent(state: ChannelState): boolean {
  * buys is that the rule says what it means: a conversation is people who
  * belong here talking, and a guest is somebody a member is answering for.
  *
- * `isHere` rather than `isPresent` so that a guest satisfies it. The two
- * guards a guest is allowed through, the clipboard's, asked this until
- * 2026-10-15 and ask `isHere` alone now, a paste being kept in a room and an
- * empty channel having none. Everything a guest must *not* reach says `isParticipant` beside it rather
+ * `isHere` rather than `isPresent` so that a guest satisfies it. The
+ * clipboard's two guards asked this until 2026-10-15, then `isHere` alone, a
+ * paste being kept in a room and an empty channel having none, and since
+ * 2026-11-19 members present alone, a guest having no paste at all.
+ * Everything a guest must *not* reach says `isParticipant` beside it rather
  * than leaning on this one to do both jobs; see `canManageGuest`.
  *
  * What this does **not** govern is anything that is already about presence for
@@ -2297,18 +2298,24 @@ export function isWithheld(state: ChannelState, speaker: UserId): boolean {
  * there is no room for it to be kept in: it would have to stand as a room of
  * its own, which Rodrigo chose against.
  *
+ * **Present, and so never a guest, since 2026-11-19.** A guest neither pastes
+ * nor sees a paste: they read no *Record*, so the one paste their page drew
+ * was the newest, and that was as often Claude's reply as anybody's — Claude
+ * answering a conversation the page showed none of. See
+ * `decision/2026-11-19-guests-have-no-paste.md`.
+ *
  * No floor restriction, unlike playback: a claim governs what is heard, and a
  * paste makes no sound.
  */
 export function canPasteClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && isHere(state, userId);
+  return state.status === 'active' && state.present.includes(userId);
 }
 
 /**
  * Whether `userId` may press *Ask Claude*, on the *Record* bar, since
  * 2026-10-22.
  *
- * **The paste rule, because a reply is a paste**: anybody present, member or
+ * **The paste rule, because a reply is a paste**: anybody present, never a
  * guest, in a community or not, with no `debug` gate — plus the one thing a
  * paste does not need, that Claude is not already being asked. That second
  * half is what greys the button on every screen while one request is out,
@@ -2329,10 +2336,10 @@ export function canAskClaude(state: ChannelState, userId: UserId): boolean {
  * stays there. This empties only the slot those builds read, which holds the
  * latest paste for them, and touches nothing in the log. The same test as
  * pasting, as it always was: anybody who can replace the slot can already
- * destroy what is in it.
+ * destroy what is in it — and so, since 2026-11-19, never a guest.
  */
 export function canClearClip(state: ChannelState, userId: UserId): boolean {
-  return state.status === 'active' && isHere(state, userId);
+  return canPasteClip(state, userId);
 }
 
 /**
@@ -2575,9 +2582,8 @@ export function canAskGuestJoin(
 export const GUEST_ACTIONS: ReadonlySet<ChannelAction['type']> = new Set([
   'STEP_OUT',
   'SET_SELF_MUTE',
-  'PASTE_CLIP',
-  // For the *Clipboard* tab of builds up to 363; SHIMS.md, gate 364.
-  'CLEAR_CLIP',
+  // Neither `PASTE_CLIP` nor `CLEAR_CLIP`: a guest has no paste, since
+  // 2026-11-19 (`canPasteClip`).
   'REQUEST_SPEECH',
   'REFUSE_CONTACT',
   'REFUSE_JOIN',
