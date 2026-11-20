@@ -288,19 +288,30 @@ usage_transcripts() {
 -- *Max* cost against *Standard* is a column rather than an estimate. Re-check those figures against
 -- Anthropic's pricing page before quoting them anywhere.
 --
+-- **Cached input since 2026-11-20**, when *Ask Claude* began asking for it:
+-- `input_tokens` is then only what was not cached, a write is 1.25 times the
+-- input price, and a read a tenth on Haiku 5.5 and a twentieth on Sonnet and
+-- Opus 5.5. Haiku's higher price is for a prompt past 100K counted whole,
+-- cached or not.
+--
 -- Needs live_sessions, a 2026-10-09 table, and claude_usage, a 2026-10-22
 -- one. Against a database older than either, this query errors with
 -- `no such table` and the rest of the report still prints.
 WITH claude AS (
   SELECT at, grade,
          CASE
-           WHEN model LIKE 'claude-haiku%' AND input_tokens > 100000
-             THEN (input_tokens * 0.50 + output_tokens * 2.50) / 1e6
            WHEN model LIKE 'claude-haiku%'
-             THEN (input_tokens * 0.10 + output_tokens * 0.50) / 1e6
+                AND input_tokens + cache_write_tokens + cache_read_tokens > 100000
+             THEN (input_tokens * 0.50 + cache_write_tokens * 0.625
+                   + cache_read_tokens * 0.05 + output_tokens * 2.50) / 1e6
+           WHEN model LIKE 'claude-haiku%'
+             THEN (input_tokens * 0.10 + cache_write_tokens * 0.125
+                   + cache_read_tokens * 0.01 + output_tokens * 0.50) / 1e6
            WHEN model LIKE 'claude-opus%'
-             THEN (input_tokens * 4.00 + output_tokens * 20.00) / 1e6
-           ELSE (input_tokens * 2.00 + output_tokens * 10.00) / 1e6
+             THEN (input_tokens * 4.00 + cache_write_tokens * 5.00
+                   + cache_read_tokens * 0.20 + output_tokens * 20.00) / 1e6
+           ELSE (input_tokens * 2.00 + cache_write_tokens * 2.50
+                 + cache_read_tokens * 0.10 + output_tokens * 10.00) / 1e6
          END AS usd
   FROM claude_usage
 ),
@@ -419,7 +430,8 @@ ORDER BY usd DESC;
 -- `posted` is how many put a reply in the Record, and `cut_off` how many of
 -- those stopped on max_tokens, which should stay near zero: if it does not,
 -- the allowance or the instruction is wrong. Average input calibrates the
--- 3.5 characters a token the Record's budget is counted in. Since
+-- 3.5 characters a token the Record's budget is counted in, together with
+-- `avg_read` and `avg_write`, the cached part, since 2026-11-20. Since
 -- 2026-11-20 a press that asked the room what to read is two rows, the
 -- first `proposed`; `presses` leaves those out, and `asked` counts them.
 SELECT COALESCE(a.identifier, '(erased)') AS who,
@@ -430,14 +442,21 @@ SELECT COALESCE(a.identifier, '(erased)') AS who,
        SUM(c.stop_reason = 'max_tokens') AS cut_off,
        CAST(AVG(c.input_tokens) AS INTEGER) AS avg_in,
        CAST(AVG(c.output_tokens) AS INTEGER) AS avg_out,
+       CAST(AVG(c.cache_read_tokens) AS INTEGER) AS avg_read,
+       CAST(AVG(c.cache_write_tokens) AS INTEGER) AS avg_write,
        ROUND(SUM(CASE
-         WHEN c.model LIKE 'claude-haiku%' AND c.input_tokens > 100000
-           THEN (c.input_tokens * 0.50 + c.output_tokens * 2.50) / 1e6
          WHEN c.model LIKE 'claude-haiku%'
-           THEN (c.input_tokens * 0.10 + c.output_tokens * 0.50) / 1e6
+              AND c.input_tokens + c.cache_write_tokens + c.cache_read_tokens > 100000
+           THEN (c.input_tokens * 0.50 + c.cache_write_tokens * 0.625
+                 + c.cache_read_tokens * 0.05 + c.output_tokens * 2.50) / 1e6
+         WHEN c.model LIKE 'claude-haiku%'
+           THEN (c.input_tokens * 0.10 + c.cache_write_tokens * 0.125
+                 + c.cache_read_tokens * 0.01 + c.output_tokens * 0.50) / 1e6
          WHEN c.model LIKE 'claude-opus%'
-           THEN (c.input_tokens * 4.00 + c.output_tokens * 20.00) / 1e6
-         ELSE (c.input_tokens * 2.00 + c.output_tokens * 10.00) / 1e6
+           THEN (c.input_tokens * 4.00 + c.cache_write_tokens * 5.00
+                 + c.cache_read_tokens * 0.20 + c.output_tokens * 20.00) / 1e6
+         ELSE (c.input_tokens * 2.00 + c.cache_write_tokens * 2.50
+               + c.cache_read_tokens * 0.10 + c.output_tokens * 10.00) / 1e6
        END), 2) AS usd,
        date(MAX(c.at) / 1000, 'unixepoch') AS last_pressed
 FROM claude_usage c LEFT JOIN accounts a ON a.id = c.account_id
@@ -453,6 +472,8 @@ ORDER BY usd DESC;
 -- made any lookup — high on a channel that has nothing to do with the
 -- library means the prompt's "only when relevant" is not holding — and
 -- `avg_in` beside the table above's says what a lookup costs in context.
+-- `avg_read` is what of it came from the cache, since 2026-11-20: a
+-- lookup's re-read of the *Record* is the read it was meant to make cheap.
 -- Errors with `no such column` against a database from before it. A press
 -- that asked the room what to read is two rows, as above.
 SELECT c.grade,
@@ -462,6 +483,7 @@ SELECT c.grade,
        ROUND(AVG(c.library_calls), 1) AS avg_calls,
        MAX(c.library_calls) AS max_calls,
        CAST(AVG(c.input_tokens) AS INTEGER) AS avg_in,
+       CAST(AVG(c.cache_read_tokens) AS INTEGER) AS avg_read,
        SUM(c.outcome = 'posted') AS posted,
        SUM(c.outcome = 'timeout') AS timed_out
 FROM claude_usage c

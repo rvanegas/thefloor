@@ -29,11 +29,13 @@ import {
   HOW_TO_SEARCH,
   LOOK_NOW,
   lengthRule,
-  limitRule,
+  LIMIT_RULE,
   REPLY_WORD_LIMITS,
   RESPONSE_MODELS,
   systemPrompt,
-  userMessage,
+  userContent,
+  recordChunks,
+  RECORD_CHUNK_CHARS,
   type ClaudeClient,
   type LibraryOptions,
   type RecordSources,
@@ -52,6 +54,9 @@ import { AuthClient } from '../src/auth';
  */
 
 const T0 = 1_700_000_000_000;
+
+/** What a list of text blocks says, read as the model reads it: joined. */
+const textOf = (blocks: unknown) => (blocks as Array<{ text: string }>).map((block) => block.text).join('');
 
 // ── The Record as text ───────────────────────────────────────────────────────
 
@@ -222,7 +227,55 @@ describe('the Record as Claude reads it', () => {
     expect(record.trimmed).toBe(true);
     expect(record.text).not.toContain('oldest');
     expect(record.text).toContain('newest');
-    expect(userMessage(record, 'medium')).toContain('Earlier conversation was left out for length.');
+    expect(textOf(userContent(record, 'medium'))).toContain('Earlier conversation was left out for length.');
+  });
+});
+
+describe('caching the prompt', () => {
+  const line = (n: number) => `[12:${String(n % 60).padStart(2, '0')}] Ana: ${'word '.repeat(n % 7 + 3)}${n}`;
+  const text = (count: number) => Array.from({ length: count }, (_, n) => line(n)).join('\n');
+  const record = (body: string, trimmed = false) => ({ text: body, trimmed, holds: [], hiddenDocuments: [] });
+
+  it('cuts the Record at line ends into blocks that are, joined, the Record exactly', () => {
+    const body = text(2_000);
+    const chunks = recordChunks(body);
+    expect(chunks.length).toBeGreaterThan(3);
+    expect(chunks.join('')).toBe(body);
+    for (const chunk of chunks.slice(0, -1)) {
+      expect(chunk.endsWith('\n')).toBe(true);
+      expect(chunk.length).toBeGreaterThanOrEqual(RECORD_CHUNK_CHARS);
+    }
+    expect(recordChunks('one line')).toEqual(['one line']);
+    expect(recordChunks('')).toEqual([]);
+  });
+
+  it('keeps every block but the last byte for byte as the conversation is added to', () => {
+    const before = recordChunks(text(2_000));
+    const after = recordChunks(text(2_300));
+    expect(after.slice(0, before.length - 1)).toEqual(before.slice(0, -1));
+  });
+
+  it('marks the last whole block and the last, and nothing else, and none on the final request', () => {
+    const blocks = userContent(record(text(2_000)), 'medium');
+    const marked = blocks.flatMap((block, index) => (block.cache_control ? [index] : []));
+    // The opening, the chunks, the closing: the two before the closing.
+    expect(marked).toEqual([blocks.length - 3, blocks.length - 2]);
+    expect(userContent(record(text(2_000)), 'medium', false).some((block) => block.cache_control)).toBe(false);
+    // A Record of one block marks that one.
+    const short = userContent(record('one line'), 'medium');
+    expect(short.map((block) => Boolean(block.cache_control))).toEqual([false, true, false]);
+  });
+
+  it('holds everything before the Record’s end still, whatever the length or the trim', () => {
+    const body = text(2_000);
+    const prefix = (blocks: ReturnType<typeof userContent>) => textOf(blocks.slice(0, -1));
+    const each = [
+      userContent(record(body), 'brief'),
+      userContent(record(body), 'extended'),
+      userContent(record(body, true), 'medium'),
+    ].map(prefix);
+    expect(new Set(each).size).toBe(1);
+    expect(systemPrompt()).not.toMatch(/\d+ words/);
   });
 });
 
@@ -249,7 +302,7 @@ describe('the last two hours', () => {
 
   it('says so in the opening, and never which segments were marked', () => {
     const record = composeRecord(sources([room(T0, [old, recent])], lines), 'c', now)!;
-    const message = userMessage(record, 'medium');
+    const message = textOf(userContent(record, 'medium'));
     expect(message).toContain('what was said in the last 2 hours, and any earlier part the people here chose to show you');
     expect(message).not.toMatch(/hidden/i);
   });
@@ -300,7 +353,7 @@ describe('the Record beside the channel’s own library', () => {
     expect(record.text).not.toContain('Speaker0: said');
     expect(record.text).toMatch(/\[\d\d:\d\d–\d\d:\d\d\] Speaker0\. In this channel's library as 2023-11-14-\d+\.chat\.md, titled "On Names"\./);
     expect(record.text.match(/said/g)).toHaveLength(1);
-    expect(userMessage(record, 'medium')).toContain('one line naming its document');
+    expect(textOf(userContent(record, 'medium'))).toContain('one line naming its document');
     expect(record.holds).toEqual([{ name: `2023-11-14-${T0 + 4 * HOUR}.chat.md`, title: 'On Names' }]);
   });
 
@@ -522,9 +575,9 @@ describe('Claude’s working, kept with its reply', () => {
       ],
       [{ owner: null, libraries: ['thefloor/ai'], channel: true }],
     ]) {
-      expect(systemPrompt('medium', libraries)).toContain(LOOK_NOW);
+      expect(systemPrompt(libraries)).toContain(LOOK_NOW);
     }
-    expect(systemPrompt('medium')).not.toContain(LOOK_NOW);
+    expect(systemPrompt()).not.toContain(LOOK_NOW);
     expect(LOOK_NOW).toContain('you remember nothing else of an earlier turn');
   });
 });
@@ -537,12 +590,14 @@ describe('the instructions', () => {
   });
 
   it.each(['brief', 'medium', 'extended'] as const)(
-    'states the %s limit as a hard one, with its reason, twice',
+    'states the %s limit as a hard one, with its reason, twice, and its number last',
     (length) => {
       const words = REPLY_WORD_LIMITS[length].words;
-      expect(systemPrompt(length)).toContain(`at most ${words} words`);
-      expect(systemPrompt(length)).toContain('hard limit');
-      const message = userMessage({ text: 'x', trimmed: false, holds: [], hiddenDocuments: [] }, length);
+      expect(lengthRule(length)).toContain(`at most ${words} words`);
+      expect(lengthRule(length)).toContain('hard limit');
+      expect(systemPrompt()).toContain('hard limit');
+      expect(systemPrompt()).toContain('stated at the end of the message');
+      const message = textOf(userContent({ text: 'x', trimmed: false, holds: [], hiddenDocuments: [] }, length));
       expect(message.trim().endsWith(lengthRule(length))).toBe(true);
       expect(lengthRule(length)).toContain('waiting');
     }
@@ -550,16 +605,16 @@ describe('the instructions', () => {
 
   it('says people are waiting only at the end of the record, never in the system prompt', () => {
     for (const length of ['brief', 'medium', 'extended'] as const) {
-      expect(systemPrompt(length)).toContain(limitRule(length));
-      expect(limitRule(length)).not.toContain('waiting');
+      expect(systemPrompt()).toContain(LIMIT_RULE);
+      expect(LIMIT_RULE).not.toContain('waiting');
       expect(
-        systemPrompt(length, [{ owner: 'Rodrigo', libraries: ['rodrigo/notes'] }])
+        systemPrompt([{ owner: 'Rodrigo', libraries: ['rodrigo/notes'] }])
       ).not.toContain('waiting on');
     }
   });
 
   it('tells a library press how to search, once, however many libraries it names', () => {
-    const prompt = systemPrompt('medium', [
+    const prompt = systemPrompt([
       { owner: 'Rodrigo', libraries: ['rodrigo/notes'] },
       { owner: null, libraries: ['thefloor/ai'], channel: true },
     ]);
@@ -567,27 +622,27 @@ describe('the instructions', () => {
     expect(HOW_TO_SEARCH).toContain('lookup_term');
     expect(HOW_TO_SEARCH).toContain('ask_to_read');
     expect(HOW_TO_SEARCH).toContain('You cannot read a document yourself');
-    expect(systemPrompt('medium')).not.toContain(HOW_TO_SEARCH);
+    expect(systemPrompt()).not.toContain(HOW_TO_SEARCH);
   });
 
   it('asks for plain text in the language being spoken, and claims nothing untrue', () => {
     for (const length of ['brief', 'medium', 'extended'] as const) {
-      expect(systemPrompt(length)).toContain('plain text');
-      expect(systemPrompt(length)).toContain('language being spoken');
+      expect(systemPrompt()).toContain('plain text');
+      expect(systemPrompt()).toContain('language being spoken');
       // Nothing trims a reply, so nothing may say one will be cut.
-      expect(systemPrompt(length)).not.toMatch(/\bcut\b|truncat/i);
+      expect(systemPrompt()).not.toMatch(/\bcut\b|truncat/i);
     }
   });
 
   it('says nothing of a library unless the press consults one', () => {
     for (const length of ['brief', 'medium', 'extended'] as const) {
-      expect(systemPrompt(length)).not.toMatch(/library|noesis|Related/);
-      expect(systemPrompt(length, undefined)).toBe(systemPrompt(length));
+      expect(systemPrompt()).not.toMatch(/library|noesis|Related/);
+      expect(systemPrompt(undefined)).toBe(systemPrompt());
     }
   });
 
   it('names the library’s owner, keeps citation inline against noesis’s guide, and keeps the limit', () => {
-    const prompt = systemPrompt('medium', [{ owner: 'Rodrigo', libraries: ['rodrigo/notes'] }]);
+    const prompt = systemPrompt([{ owner: 'Rodrigo', libraries: ['rodrigo/notes'] }]);
     expect(prompt).toContain('Rodrigo’s own writing');
     expect(prompt).toContain('you cannot know what Rodrigo has written about without looking');
     expect(prompt).toContain('before every reply');
@@ -597,17 +652,17 @@ describe('the instructions', () => {
     expect(prompt).toContain('do not write them here');
     expect(prompt).toContain('by its title in plain words');
     expect(prompt).toContain('plain text');
-    expect(prompt).toContain(limitRule('medium'));
+    expect(prompt).toContain(LIMIT_RULE);
     expect(prompt).not.toMatch(/\bcut\b|truncat/i);
     // Before anybody it names has signed in, it still makes sense.
-    expect(systemPrompt('medium', [{ owner: null, libraries: ['x/y'] }])).toContain(
+    expect(systemPrompt([{ owner: null, libraries: ['x/y'] }])).toContain(
       'the library owner’s own writing'
     );
-    expect(systemPrompt('medium', [])).toBe(systemPrompt('medium'));
+    expect(systemPrompt([])).toBe(systemPrompt());
   });
 
   it('says whose each library is when several people’s are on, and asks for whose a quote is', () => {
-    const prompt = systemPrompt('medium', [
+    const prompt = systemPrompt([
       { owner: 'Dana', libraries: ['dana/essays'] },
       { owner: 'Rodrigo', libraries: ['rodrigo/notes', 'rodrigo/philosophy'] },
     ]);
@@ -617,7 +672,7 @@ describe('the instructions', () => {
     expect(prompt).toContain('Every result names the library it came from');
     expect(prompt).toContain('by its title and whose it is');
     expect(prompt).toContain('do not write them here');
-    expect(prompt).toContain(limitRule('medium'));
+    expect(prompt).toContain(LIMIT_RULE);
   });
 
   it('asks Standard and Pro at low effort, with Pro’s fallback', () => {
@@ -928,11 +983,11 @@ describe('Ask Claude', () => {
       model: 'claude-haiku-5-5',
       max_tokens: 3072,
       output_config: { effort: 'low' },
-      // No length, as builds up to 387 send: Medium.
-      system: systemPrompt('medium'),
     });
-    const content = (calls[0].body.messages as Array<{ content: string }>)[0].content;
+    expect(textOf(calls[0].body.system)).toBe(systemPrompt());
+    const content = textOf((calls[0].body.messages as Array<{ content: unknown }>)[0].content);
     expect(content).toContain('Bob (pasted): What should we call the project?');
+    // No length, as builds up to 387 send: Medium.
     expect(content.trim().endsWith(lengthRule('medium'))).toBe(true);
     // The ledger.
     const rows = usageRows();
@@ -959,8 +1014,8 @@ describe('Ask Claude', () => {
       boot(client);
       const { alice, channelId } = await room2();
       expect((await press(channelId, alice.token, length)).statusCode).toBe(200);
-      expect(calls[0].body.system).toBe(systemPrompt(length));
-      const content = (calls[0].body.messages as Array<{ content: string }>)[0].content;
+      expect(textOf(calls[0].body.system)).toBe(systemPrompt());
+      const content = textOf((calls[0].body.messages as Array<{ content: unknown }>)[0].content);
       expect(content.trim().endsWith(lengthRule(length))).toBe(true);
     }
   );
@@ -1287,8 +1342,8 @@ describe('a press with the library', () => {
   it('tells Claude whose library it is, whoever presses', async () => {
     const { calls, bob, channelId } = await setUp('pro');
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
-    expect(calls[0].body.system).toBe(
-      systemPrompt('medium', [{ owner: 'Alice', libraries: ['alice/philosophy'] }])
+    expect(textOf(calls[0].body.system)).toBe(
+      systemPrompt([{ owner: 'Alice', libraries: ['alice/philosophy'] }])
     );
   });
 
@@ -1321,8 +1376,8 @@ describe('a press with the library', () => {
       ],
     });
     const libraries = (id: string) => (id === alice.account.id ? ['alice/philosophy'] : ['bob/essays']);
-    expect(calls[0].body.system).toBe(
-      systemPrompt('medium', [
+    expect(textOf(calls[0].body.system)).toBe(
+      systemPrompt([
         { owner: first.name, libraries: libraries(first.id) },
         { owner: second.name, libraries: libraries(second.id) },
       ])
@@ -1407,7 +1462,7 @@ describe('a press with the library', () => {
     expect(calls[1].body).not.toHaveProperty('mcp_servers');
     expect(calls[1].body).not.toHaveProperty('tools');
     expect(calls[1].body).toMatchObject({ betas: [FALLBACK_BETA] });
-    expect(calls[1].body.system).toBe(systemPrompt('medium'));
+    expect(textOf(calls[1].body.system)).toBe(systemPrompt());
     expect(claudePastes(channelId)).toEqual([
       expect.objectContaining({ text: 'Without the library.' }),
     ]);
@@ -1546,7 +1601,7 @@ describe('a press with the library', () => {
   it('tells Claude nothing of it with the switch off', async () => {
     const { calls, bob, channelId } = await setUp('pro', false);
     expect((await press(channelId, bob.token)).statusCode).toBe(200);
-    expect(calls[0].body.system).toBe(systemPrompt('medium'));
+    expect(textOf(calls[0].body.system)).toBe(systemPrompt());
   });
 
   it('leaves Standard the plain call even with it on', async () => {
@@ -1672,10 +1727,17 @@ describe('asking the room before reading', () => {
 
     const second = calls[1].body as {
       tool_choice: unknown;
+      system: unknown;
       messages: Array<{ role: string; content: unknown }>;
     };
     expect(second.tool_choice).toEqual({ type: 'none' });
-    expect(second.messages[0]).toEqual((calls[0].body as { messages: unknown[] }).messages[0]);
+    // The same Record, said the same way; marked for the cache only on the
+    // first, since the second's `tool_choice` keeps it from being read.
+    const first = (calls[0].body as { messages: Array<{ content: unknown }> }).messages[0];
+    expect(textOf(second.messages[0].content)).toBe(textOf(first.content));
+    expect(JSON.stringify(first)).toContain('cache_control');
+    expect(JSON.stringify(second.messages)).not.toContain('cache_control');
+    expect(JSON.stringify(second.system)).toContain('cache_control');
     expect(second.messages[1]).toEqual({ role: 'assistant', content: asking(wanted).content });
     const [result] = second.messages[2].content as Array<{ type: string; tool_use_id: string; content: string }>;
     expect(result).toMatchObject({ type: 'tool_result', tool_use_id: 'toolu_1' });
@@ -2544,10 +2606,10 @@ describe("a press with the channel's own library", () => {
         },
       ],
     });
-    expect(calls[0].body.system).toBe(
-      systemPrompt('medium', [{ owner: null, libraries: [`thefloor/${handle}`], channel: true }])
+    expect(textOf(calls[0].body.system)).toBe(
+      systemPrompt([{ owner: null, libraries: [`thefloor/${handle}`], channel: true }])
     );
-    expect(calls[0].body.system).toContain(channelLibraryRule());
+    expect(textOf(calls[0].body.system)).toContain(channelLibraryRule());
   });
 
   it('consults it on Pro only, and not once switched off on its card', async () => {

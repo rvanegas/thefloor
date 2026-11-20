@@ -252,7 +252,12 @@ export const CLAUDE_LIBRARY_TIMEOUT_MS = 120_000;
  * neither claims that a longer reply will be cut, because it will not be.
  * **People waiting on it is said only last, in the user message**
  * (`lengthRule`), since 2026-11-14: in the system prompt too it read as a
- * reason not to look anything up (`limitRule`).
+ * reason not to look anything up (`LIMIT_RULE`).
+ *
+ * **The number is said only in the user message, since 2026-11-20**, so the
+ * system prompt is the same whichever button was pressed and a channel's
+ * presses share a cached prefix (`userContent`). The system prompt still says
+ * there is a hard limit and why, and where to find it.
  *
  * **Three caps since 2026-10-22, one per button** — 30, 90 and 270 until
  * 2026-10-27, when Rodrigo made them 50, 150 and 450. The sentences are a shape to aim at, which a word count alone does
@@ -293,15 +298,15 @@ export function readVoices(value: unknown): Record<string, string> | undefined {
   return Object.fromEntries(entries) as Record<string, string>;
 }
 
-/** The limit as the system prompt states it, with no word of anybody waiting. */
-export function limitRule(length: ReplyLength): string {
-  const { words, shape } = REPLY_WORD_LIMITS[length];
-  return (
-    `Your reply must be at most ${words} words — ${shape}. ` +
-    'This is a hard limit, not a target: it is one turn in a live conversation, ' +
-    'and people will read it at a glance.'
-  );
-}
+/**
+ * The limit as the system prompt states it, with no word of anybody waiting
+ * and no number: that is the user message's last sentence (`lengthRule`), so
+ * this is one sentence for every length.
+ */
+export const LIMIT_RULE =
+  'Your reply must be within the word limit stated at the end of the message. ' +
+  'This is a hard limit, not a target: it is one turn in a live conversation, ' +
+  'and people will read it at a glance.';
 
 /** The limit as the user message ends on it. */
 export function lengthRule(length: ReplyLength): string {
@@ -576,7 +581,6 @@ export function renderWorking(steps: readonly WorkingStep[]): string[] {
  * empty for a press that consults none.
  */
 export function systemPrompt(
-  length: ReplyLength,
   consulted?: readonly { owner: string | null; libraries: readonly string[]; channel?: boolean }[]
 ): string {
   const libraries = consulted?.filter((each) => !each.channel);
@@ -603,7 +607,7 @@ export function systemPrompt(
     ...(channelLibrary ? [channelLibraryRule()] : []),
     // Once however many libraries the rules above name.
     ...(libraries?.length || channelLibrary ? [HOW_TO_SEARCH] : []),
-    limitRule(length),
+    LIMIT_RULE,
   ].join('\n\n');
 }
 
@@ -980,16 +984,73 @@ function speakersOf(
   return [...new Set(names)];
 }
 
-/** The user message: the *Record*, then the length rule again, last. */
-export function userMessage(record: ComposedRecord, length: ReplyLength): string {
+/**
+ * How long one block of the *Record* runs before the next begins: about 2,000
+ * tokens. Small enough that what a press re-writes to the cache — the block
+ * still filling — is cheap, and large enough that what a few minutes add
+ * stays well inside the 20 blocks a breakpoint looks back over.
+ */
+export const RECORD_CHUNK_CHARS = 7_000;
+
+/**
+ * **The *Record* cut into blocks at line ends**, each the first line end at
+ * least `size` characters into it, counted from the *Record*'s start. A cut
+ * depends only on the text before it, so as the conversation is appended to,
+ * every block but the last stays byte for byte what it was, which is what a
+ * cache entry is matched by. Joined, they are the text exactly.
+ */
+export function recordChunks(text: string, size = RECORD_CHUNK_CHARS): string[] {
+  const chunks: string[] = [];
+  let start = 0;
+  while (text.length - start > size) {
+    const cut = text.indexOf('\n', start + size);
+    if (cut === -1) break;
+    chunks.push(text.slice(start, cut + 1));
+    start = cut + 1;
+  }
+  if (start < text.length) chunks.push(text.slice(start));
+  return chunks;
+}
+
+/**
+ * **The user message, as blocks**: an opening that holds still, the *Record*
+ * in `recordChunks`, then what changes press to press — whether it was cut
+ * for length, and the length rule again, last.
+ *
+ * **Cached since 2026-11-20** (`cache`): a breakpoint on the last whole
+ * block, which the next press finds unchanged, and one on the last, which
+ * a resumed pause or the next press within the same block reads. Together
+ * with the system prompt's that is three of the API's four. Two presses five
+ * minutes apart then pay a tenth or less for all of the *Record* but what
+ * was added since, until the two-hour window drops a segment from the front.
+ */
+export function userContent(
+  record: ComposedRecord,
+  length: ReplyLength,
+  cache = true
+): Anthropic.TextBlockParam[] {
   const opening =
     'The record of this conversation follows: what was said in the last ' +
     `${CLAUDE_READS_MS / 3_600_000} hours, and any earlier part the people here chose to show you.` +
     (record.summarized
       ? ' Each older part filed in this channel’s library is one line naming its document there.'
-      : '') +
-    (record.trimmed ? ' Earlier conversation was left out for length.' : '');
-  return `${opening}\n\n<record>\n${record.text}\n</record>\n\n${lengthRule(length)}`;
+      : '');
+  const chunks = recordChunks(record.text);
+  return [
+    { type: 'text', text: `${opening}\n\n<record>\n` },
+    ...chunks.map((text, index): Anthropic.TextBlockParam =>
+      cache && index >= chunks.length - 2
+        ? { type: 'text', text, cache_control: { type: 'ephemeral' } }
+        : { type: 'text', text }
+    ),
+    {
+      type: 'text',
+      text:
+        '\n</record>\n\n' +
+        (record.trimmed ? 'Earlier conversation was left out for length.\n\n' : '') +
+        lengthRule(length),
+    },
+  ];
 }
 
 /**
@@ -1737,16 +1798,25 @@ export class ClaudeResponder {
     const body = {
       model: ask.model,
       max_tokens: ask.maxTokens,
-      system: systemPrompt(
-        length,
-        library?.map((each) => ({
-          owner: each.channel ? null : (this.options.libraryOwner?.(each.owner) ?? null),
-          libraries: each.libraries,
-          channel: each.channel,
-        }))
-      ),
+      // Cached on its own too: the one breakpoint a `tool_choice` change,
+      // which drops the messages' cache, leaves standing.
+      system: [
+        {
+          type: 'text' as const,
+          text: systemPrompt(
+            library?.map((each) => ({
+              owner: each.channel ? null : (this.options.libraryOwner?.(each.owner) ?? null),
+              libraries: each.libraries,
+              channel: each.channel,
+            }))
+          ),
+          cache_control: { type: 'ephemeral' as const },
+        },
+      ],
       messages: [
-        { role: 'user' as const, content: userMessage(record, length) },
+        // The final request's `tool_choice` differs from every other's, so
+        // nothing would ever read what it wrote past the system prompt.
+        { role: 'user' as const, content: userContent(record, length, !how.final) },
         // The response's own blocks, as the API asks a paused turn back.
         ...(after as Anthropic.MessageParam[]),
       ],
