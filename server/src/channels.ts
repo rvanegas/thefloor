@@ -7771,14 +7771,23 @@ export class ChannelRegistry {
       identity: userId,
       displayName: account.displayName,
     });
+    this.noteHearing(channelId, userId, hearsClaude);
+    return { ok: true, token };
+  }
+
+  /**
+   * Whether somebody's client hears the room reader from the room, as their
+   * room credential said — for `withholdVoice` and `roomReaderUnheard`, which
+   * read a guest exactly as they read a member.
+   */
+  private noteHearing(channelId: string, id: string, hearsClaude: boolean): void {
     const hearing = this.hearsClaude.get(channelId) ?? new Map<string, boolean>();
-    const changed = hearing.get(userId) !== hearsClaude;
-    hearing.set(userId, hearsClaude);
+    const changed = hearing.get(id) !== hearsClaude;
+    hearing.set(id, hearsClaude);
     this.hearsClaude.set(channelId, hearing);
     // The *Ask Claude* warning reads it, so a phone that arrives on an older
     // build — or updates — is said at once.
     if (changed) this.emit([channelId]);
-    return { ok: true, token };
   }
 
   // --- Guests ---------------------------------------------------------------
@@ -8955,10 +8964,16 @@ export class ChannelRegistry {
    * otherwise: the grant is in the token rather than in the interface, so a
    * page that ignores every rule in this application still cannot make a
    * sound. `SET_GUEST_SPEECH` lifts it live, without a reconnection.
+   *
+   * **A guest hears the room reader as a member does**, said as `mediaToken`
+   * says it: until 2026-11-19 nothing here did, and `withholdVoice` silenced
+   * Claude's voice for every guest as a build that reads replies itself.
    */
   async guestMediaToken(
     channelId: string,
-    guestId: string
+    guestId: string,
+    /** As `mediaToken`'s: true from the page, which is a browser. */
+    hearsClaude = false
   ): Promise<{ ok: true; token: string } | Refused> {
     if (!this.media) {
       return { ok: false, error: 'Audio is not configured.', code: 'invalid' };
@@ -8974,6 +8989,7 @@ export class ChannelRegistry {
       displayName: guest.name,
       canPublish: guest.maySpeak,
     });
+    this.noteHearing(channelId, guestId, hearsClaude);
     return { ok: true, token };
   }
 
@@ -9095,13 +9111,14 @@ export class ChannelRegistry {
    */
   async seatMediaToken(
     channelId: string,
-    accountId: string
+    accountId: string,
+    hearsClaude = false
   ): Promise<{ ok: true; token: string } | Refused> {
     const guestId = this.seatIn(channelId, accountId);
     if (guestId === undefined) {
       return { ok: false, error: 'You have no seat here.', code: 'forbidden' };
     }
-    return this.guestMediaToken(channelId, guestId);
+    return this.guestMediaToken(channelId, guestId, hearsClaude);
   }
 
   /**

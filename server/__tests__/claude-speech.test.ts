@@ -142,6 +142,16 @@ const press = (channelId: string, token: string, payload: Record<string, unknown
 
 const room = (channelId: string) => app.channels.get(channelId)!.mediaRoom!;
 
+/** A guest let in by `memberId` through a link of theirs; returns the guest id. */
+async function admitGuest(channelId: string, memberId: string): Promise<string> {
+  const link = app.channels.guests.mintLink(channelId, memberId, clock);
+  const knocked = app.channels.knock(link.token, 'Dana');
+  if (!knocked.ok) throw new Error(knocked.error);
+  const answered = app.channels.answerKnock(channelId, memberId, knocked.knockId, true, link.token);
+  if (!answered.ok || !answered.admitted) throw new Error('not admitted');
+  return answered.admitted.session.id;
+}
+
 describe("Claude's reply, spoken", () => {
   it('is synthesised once and marked on the clip, in the default voice of the asker’s language', async () => {
     boot();
@@ -202,6 +212,29 @@ describe("Claude's reply, spoken", () => {
     expect(toClaude).toEqual([
       expect.objectContaining({ listener: bob.account.id, silenced: true }),
     ]);
+  });
+
+  it('lets a guest hear it, the page being a browser', async () => {
+    boot();
+    const { alice, bob, channelId } = await room2();
+    const guestId = await admitGuest(channelId, alice.account.id);
+    await app.channels.mediaToken(channelId, alice.account.id, true);
+    await app.channels.mediaToken(channelId, bob.account.id, true);
+    await app.channels.guestMediaToken(channelId, guestId, true);
+    expect(app.channels.roomReaderUnheard(channelId)).toEqual([]);
+    await press(channelId, alice.token);
+    await settle();
+
+    expect(media.subscriptions.filter((s) => s.speaker === roomReaderIdentity(channelId))).toEqual([]);
+  });
+
+  it('keeps a seat on a build that has not said it hears the voice off it, as a member', async () => {
+    boot();
+    const { alice, channelId } = await room2();
+    const guestId = await admitGuest(channelId, alice.account.id);
+    await app.channels.mediaToken(channelId, alice.account.id, true);
+    await app.channels.guestMediaToken(channelId, guestId);
+    expect(app.channels.roomReaderUnheard(channelId)).toContain(guestId);
   });
 
   it('names who is present on an app that does not hear it, for the warning', async () => {

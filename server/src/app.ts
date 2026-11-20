@@ -5141,7 +5141,7 @@ export function buildApp(options: BuildOptions = {}): App {
       act on — *you have no seat here* names the standing they were asking
       about. A channel that does not exist refuses the same way either way.
     */
-    const seat = await channels.seatMediaToken(id, account.id);
+    const seat = await channels.seatMediaToken(id, account.id, hears);
     if (!seat.ok) {
       return reply.code(statusFor(seat.code)).send({ error: seat.error });
     }

@@ -1623,7 +1623,8 @@ export function registerWebsocket(deps: {
     connection.channelId = channelId;
     connection.guestId = guestId;
     connection.knockId = null;
-    const token = await channels.guestMediaToken(channelId, guestId);
+    // The page is a browser, which hears the room reader from the room.
+    const token = await channels.guestMediaToken(channelId, guestId, true);
     sendGuest(connection, {
       type: 'admitted',
       guestId,
