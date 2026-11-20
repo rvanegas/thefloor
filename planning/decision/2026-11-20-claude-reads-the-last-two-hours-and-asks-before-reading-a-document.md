@@ -90,8 +90,9 @@ filter before any fetch, and rule 4 has the text in hand. They go to Claude
 as the result of its `ask_to_read` — the first request's blocks sent back, the
 same conversation — with what was declined and what could not be read, and
 **`tool_choice: none`**, so the second request replies rather than asking
-again. Between them the documents get `DOCUMENTS_BUDGET_TOKENS`, 30,000,
-shared evenly, each cut at its share.
+again. **Each document goes whole**: a 30,000-token budget shared among them
+was built and lifted the same day, Rodrigo's call; the *Record*'s own ceiling
+is what a long one meets, on a later press.
 
 **A press from a build before it** says nothing of `confirms`, so it is
 offered no `ask_to_read`: it searches and answers from the summaries, reading
@@ -115,13 +116,22 @@ The same conversation in somebody's own library under another name is not
 caught, and is not tried.
 
 **Rule 4 is the reply carrying them** (`pastes.documents`, `KeptDocument`):
-each document read, whole to its share, kept beside the reply and set above it
-in the *Record* (`renderDocuments`), so it is sent for as long as the reply
-is — the last two hours, or longer where its segment is shown. **A hidden
-segment takes them with it**, as it takes the reply: hiding is the room
-saying not this, and two hours of a document it had hidden would be the
-distraction rule 1 is for. A reply that failed keeps nothing, there being no
-paste to keep it on.
+each document read, whole, kept beside the reply and set above it in the
+*Record* (`renderDocuments`), so it is sent for as long as the reply is — the
+last two hours, or longer where its segment is shown. A reply that failed
+keeps nothing, there being no paste to keep it on.
+
+**A hidden segment's documents are offered back, unticked** — Rodrigo's
+correction the same day to their simply going with the reply. They are not
+sent: hiding is the room saying not this. But the next time a press asks to
+read, the card lists them beside what Claude asked for, each saying *Read
+before, then hidden from Claude* in place of a reason and **unticked by
+default** (`ProposedDocument.hidden`, `ComposedRecord.hiddenDocuments`).
+Only a segment within the two hours, the window rule 4 keeps them for; one
+Claude asked for itself is its ask, ticked. Chosen, one is read from what was
+kept rather than from noesis, and left unticked it is not mentioned to Claude,
+which never asked for it. A press that asks nothing shows no card, and sends
+none of them.
 
 **`/privacy` says so**: the library paragraph and the Claude section's
 window, both dated 20 November 2026.

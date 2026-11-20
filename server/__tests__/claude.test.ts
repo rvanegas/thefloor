@@ -542,7 +542,7 @@ describe('the instructions', () => {
       const words = REPLY_WORD_LIMITS[length].words;
       expect(systemPrompt(length)).toContain(`at most ${words} words`);
       expect(systemPrompt(length)).toContain('hard limit');
-      const message = userMessage({ text: 'x', trimmed: false, holds: [] }, length);
+      const message = userMessage({ text: 'x', trimmed: false, holds: [], hiddenDocuments: [] }, length);
       expect(message.trim().endsWith(lengthRule(length))).toBe(true);
       expect(lengthRule(length)).toContain('waiting');
     }
@@ -1765,6 +1765,91 @@ describe('asking the room before reading', () => {
     expect(result.content).toContain('None of the libraries here holds: x.');
     expect(claudePastes(channelId)).toEqual([expect.objectContaining({ text: 'It is in what was said.' })]);
     expect(usageRows().map((row) => row.outcome)).toEqual(['proposed', 'posted']);
+  });
+
+  it('offers back, unticked, what a reply in a hidden segment read, from what was kept', async () => {
+    const { calls, alice, bob, channelId } = await setUp([
+      () => asking([wanted[0]]),
+      () => reply('With both.', { model: 'claude-sonnet-5-5' }),
+    ]);
+    noesisDocuments = { [ATTENTION]: 'Attention is a kind of will.' };
+    // Inside the room, which opened when they entered.
+    clock += 120_000;
+    // A segment of the last two hours, hidden, with a reply in it that read On Will.
+    app.db
+      .prepare(
+        `INSERT INTO segments (id, channel_id, started_at, ended_at, text, hidden_from_claude)
+         VALUES ('seg_h', ?, ?, ?, 1, 1)`
+      )
+      .run(channelId, clock - 60_000, clock - 30_000);
+    app.db
+      .prepare(
+        `INSERT INTO pastes (id, channel_id, author_id, display_name, pasted_at, text, segment_id, documents)
+         VALUES ('clip_h', ?, ?, 'Claude', ?, 'Will, then.', 'seg_h', ?)`
+      )
+      .run(
+        channelId,
+        CLAUDE_ID,
+        clock - 45_000,
+        JSON.stringify([{ name: 'on-will', library: 'bob/elsewhere', title: 'On Will', text: 'Will is attention.', readAt: clock - 45_000 }])
+      );
+    await pressAsking(channelId, bob.token);
+    // Not sent: hidden is hidden.
+    expect(JSON.stringify(calls[0].body.messages)).not.toContain('Will is attention.');
+    const proposal = app.channels.claudeProposal(channelId)!;
+    expect(proposal.documents).toEqual([
+      wanted[0],
+      { name: 'on-will', library: 'bob/elsewhere', title: 'On Will', hidden: true },
+    ]);
+
+    expect((await answer(channelId, alice.token, proposal.id, [ATTENTION, 'on-will'])).statusCode).toBe(200);
+    // Only what was not kept is read at noesis; the other is what was kept of it.
+    expect(reads()).toHaveLength(1);
+    const [result] = (calls[1].body as { messages: Array<{ content: Array<{ content: string }> }> }).messages[2].content;
+    expect(result.content).toContain('Attention is a kind of will.');
+    expect(result.content).toContain('Will is attention.');
+    expect(result.content).not.toContain('chose not to have you read');
+    const [, kept] = claudePastes(channelId) as unknown as Array<{ documents: string | null }>;
+    expect(JSON.parse(kept.documents!).map((each: { name: string }) => each.name).sort()).toEqual([ATTENTION, 'on-will'].sort());
+  });
+
+  it('says nothing to Claude of a hidden one left unticked', async () => {
+    const { calls, alice, bob, channelId } = await setUp([
+      () => asking([wanted[0]]),
+      () => reply('Without it.', { model: 'claude-sonnet-5-5' }),
+    ]);
+    clock += 120_000;
+    app.db
+      .prepare(`INSERT INTO segments (id, channel_id, started_at, ended_at, text, hidden_from_claude) VALUES ('seg_h', ?, ?, ?, 1, 1)`)
+      .run(channelId, clock - 60_000, clock - 30_000);
+    app.db
+      .prepare(
+        `INSERT INTO pastes (id, channel_id, author_id, display_name, pasted_at, text, segment_id, documents)
+         VALUES ('clip_h', ?, ?, 'Claude', ?, 'Will.', 'seg_h', ?)`
+      )
+      .run(channelId, CLAUDE_ID, clock - 45_000, JSON.stringify([{ name: 'on-will', library: 'l', text: 'Will is attention.', readAt: 0 }]));
+    await pressAsking(channelId, bob.token);
+    const { id, documents } = app.channels.claudeProposal(channelId)!;
+    expect(documents.map((each) => each.name)).toEqual([ATTENTION, 'on-will']);
+    expect((await answer(channelId, alice.token, id, [])).statusCode).toBe(200);
+    const [result] = (calls[1].body as { messages: Array<{ content: Array<{ content: string }> }> }).messages[2].content;
+    expect(result.content).toContain(`chose not to have you read: ${ATTENTION}.`);
+    expect(result.content).not.toContain('on-will');
+  });
+
+  it('reads a document whole, however long', async () => {
+    const long = 'word '.repeat(200_000);
+    noesisDocuments = { [ATTENTION]: long };
+    const { calls, alice, bob, channelId } = await setUp([
+      () => asking([wanted[0]]),
+      () => reply('Long.', { model: 'claude-sonnet-5-5' }),
+    ]);
+    await pressAsking(channelId, bob.token);
+    const { id } = app.channels.claudeProposal(channelId)!;
+    await answer(channelId, alice.token, id, [ATTENTION]);
+    const [result] = (calls[1].body as { messages: Array<{ content: Array<{ content: string }> }> }).messages[2].content;
+    expect(result.content).toContain(long);
+    expect(result.content).not.toContain('left out for length');
   });
 
   it('is replaced by the next press, and refuses an answer to the card it replaced', async () => {

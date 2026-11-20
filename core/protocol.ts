@@ -1238,6 +1238,14 @@ export interface ProposedDocument {
   library: string;
   /** Why Claude wants it, in a sentence of its own. */
   reason?: string;
+  /**
+   * Present, and true, on one Claude did not ask for, since 2026-11-20: a
+   * document read before for a reply in a segment of the last two hours
+   * somebody hid from Claude, offered back beside what it asked for and
+   * **unticked by default**, Rodrigo's call. Read from what was kept, not
+   * from noesis.
+   */
+  hidden?: true;
 }
 
 /** A segment's document in the channel's library: see `SegmentView.filed`. */

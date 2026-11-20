@@ -221,6 +221,26 @@ describe('when Claude asks to read', () => {
     expect(disabled(findButton(tree!, 'Answer without')!)).toBe(true);
   });
 
+  it('offers back unticked, saying why, what was read for a reply since hidden', async () => {
+    const offered = {
+      ...proposal,
+      documents: [...proposal.documents, { name: 'on-memory', library: 'dana/essays', title: 'On Memory', hidden: true as const }],
+    };
+    showChannel(here(), [], { claude: true, claudeProposal: offered });
+    record();
+    expect(boxes()[2].props.accessibilityLabel).toBe('On Memory \u2014 Read before, then hidden from Claude');
+    expect(boxes().map((box) => box.props.accessibilityState.checked)).toEqual([true, true, false]);
+    act(() => boxes()[2].props.onPress());
+    await act(async () => {
+      findButton(tree!, 'Read')!.props.onPress();
+    });
+    expect(mockApp.answerClaude).toHaveBeenLastCalledWith('sess_1', 'proposal_1', [
+      'on-attention.document.md',
+      'on-will.document.md',
+      'on-memory',
+    ]);
+  });
+
   it('shows the sentence when the answer fails', async () => {
     mockApp.answerClaude.mockRejectedValueOnce(new Error('Claude is no longer asking that.'));
     showChannel(here(), [], { claude: true, claudeProposal: proposal });

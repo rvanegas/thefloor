@@ -54,7 +54,7 @@ caused; the list carries the meaning.
 - **Read again** — Claude's reply said into the room once more, for everybody present, from its paste in the *Record* or the reading bar, while the server keeps its speech: an hour, since 2026-11-13. Anybody present may press it; the latest press or reply wins. Not synthesised again, so it costs nothing. `readAgain`, `speechKept`; *Repetir*
 - **Hidden from Claude** — A *segment* within the last two hours that every later *Ask Claude* press leaves out, with what was pasted into it, for everybody until somebody shows it again: *Hide from Claude* and *Show to Claude* in its menu, on *Name voices*' terms, and the muted line *Hidden from Claude* under it, since 2026-11-19. Claude is not told. Not *Delete*, which takes it from people too, and not out of the *channel library*, whose document Claude may still ask to read. `hiddenFromClaude`; *Oculto a Claude*
 - **Shown to Claude** — The other mark, since 2026-11-20: a *segment* older than the last two hours that every later press reads all the same, with what was pasted into it, by *Show to Claude* in its menu, and the muted line *Shown to Claude* under it. A mark only against the default — the window's edge is no mark at all. `shownToClaude`, `claudeReads`; *Mostrado a Claude*
-- **Ask to read** — Claude asking before it reads a *library*'s document, since 2026-11-20: a press that consults one searches, and where it wants documents in full it ends by asking; the card under *Ask Claude* on every screen says *Claude wants to read these before it replies*, each a box with its title and Claude's reason, ticked, with *Read* and *Answer without*, for anybody who could have pressed; the server then reads the chosen ones from noesis and the reply follows, the documents kept beside it for as long as it is sent. Never one the *Record* already holds. Not *Read aloud*. `ClaudeProposal`, `ask_to_read`, `answerClaude`; *Leer*, *Sin leer*
+- **Ask to read** — Claude asking before it reads a *library*'s document, since 2026-11-20: a press that consults one searches, and where it wants documents in full it ends by asking; the card under *Ask Claude* on every screen says *Claude wants to read these before it replies*, each a box with its title and Claude's reason, ticked — and, unticked, what was read for a reply since *hidden from Claude* — with *Read* and *Answer without*, for anybody who could have pressed; the server then reads the chosen ones from noesis and the reply follows, the documents kept beside it for as long as it is sent. Never one the *Record* already holds. Not *Read aloud*. `ClaudeProposal`, `ask_to_read`, `answerClaude`; *Leer*, *Sin leer*
 - **Standard voices / Pro voices** — The two grades of voice that *Read aloud* Claude's replies, since 2026-11-13: *Standard*, each iPhone's own (iOS), free, heard on that phone alone and never recorded; *Pro*, AssemblyAI's, said once into the room for everybody and recorded, billed per reply. Which reads is the channel's grade, whoever asks: *Pro* in a *Pro channel*, since 2026-11-19 — a setting on *Channel Settings* from the evening of 2026-11-13 until then, changeable only by *Pro (the subscription)*, and each asker's own on *Floor Settings* for the few hours before. **A grade, as a *Pro channel*'s is, and not the subscription**. `isProChannel`; *Estándar* / *Pro*
 - **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; drawn for a *Basic* account alone since 2026-11-19, a *Pro* or *Unlimited* one choosing its *Pro voice* there instead. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
 - **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **drawn for *Pro* and *Unlimited* alone** since 2026-11-19 — for everybody, chosen only by Pro, until then. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
@@ -809,13 +809,16 @@ for confirmation. A press that consults a *library* searches and nothing more
 which puts a card under *Ask Claude* on every screen: *Claude wants to read
 these before it replies:*, each document a box — its title, then Claude's
 reason — **ticked, as a confirmation's boxes start**, then *Read* and *Answer
-without*. Anybody who could have pressed may answer (`canAskClaude`); the next
+without*. **Beside them, unticked, what was read for a reply in a segment of
+the last two hours since *hidden from Claude***, saying *Read before, then
+hidden from Claude* in place of a reason: offered back rather than sent, and
+read from what was kept if ticked. Anybody who could have pressed may answer (`canAskClaude`); the next
 press replaces it; a restart drops it.
 
 **The server reads the chosen documents itself**, from noesis's MCP with the
 token the press consulted it by, and gives them to Claude as the answer to its
 call, so what it reads is exactly what was chosen; the reply follows in the
-same conversation. **They stay beside the reply**, whole (`pastes.documents`,
+same conversation, each whole. **They stay beside the reply** (`pastes.documents`,
 `KeptDocument`), and are sent above it for as long as the reply is — the last
 two hours, or longer where its segment is *shown to Claude*. **Never one the
 *Record* already holds**, by its file name, stem, slug or title (`heldIn`): a
@@ -5605,7 +5608,8 @@ are settled:
     Shown to Claude       Mostrado a Claude — the same agreement
     Ask to read           *Claude quiere leer esto antes de responder:*, then
                           *Leer* and *Sin leer* — *without reading*, shorter
-                          than *Responder sin* and not left hanging
+                          than *Responder sin* and not left hanging; *Leído antes, luego oculto a Claude*
+                          on one offered back from a hidden reply
     Watch party           Ver algo juntos — a phrase, there being no noun
     Watching /            Viendo / Sin ver — the roster suffixes. The negative
     not watching          names the absence rather than negating the verb, on

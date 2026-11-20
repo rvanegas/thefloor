@@ -551,7 +551,9 @@ second is Claude's question before it reads**, since 2026-11-20: the card
 under *Ask Claude*, *Claude wants to read these before it replies:*, a box a
 document — its title, an em dash, Claude's reason — ticked, then *Read* with
 what is still ticked and *Answer without* with nothing, both tightened as the
-length buttons above them are (`AskClaude`). *Read* greys with nothing
+length buttons above them are (`AskClaude`). What was read for a reply since hidden from Claude is offered on the same
+card **unticked**, the one box here that starts clear: Claude did not ask
+for it, so it is a question nobody has answered yet. *Read* greys with nothing
 ticked, which is the button refusing and not the box
 (`2026-11-20-claude-reads-the-last-two-hours-and-asks-before-reading-a-document.md`).
 

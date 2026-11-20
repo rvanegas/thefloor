@@ -228,16 +228,6 @@ export const CHARS_PER_TOKEN = 3.5;
 export const RECORD_BUDGET_CHARS = Math.floor(RECORD_BUDGET_TOKENS * CHARS_PER_TOKEN);
 
 /**
- * The most of the documents one answer reads, between them: 30,000 tokens,
- * shared evenly among those the room chose, each cut where its share ends.
- * They are sent again with the reply for as long as it is read
- * (`KeptDocument`), so a long one would otherwise crowd the *Record* out.
- */
-export const DOCUMENTS_BUDGET_TOKENS = 30_000;
-
-export const DOCUMENTS_BUDGET_CHARS = Math.floor(DOCUMENTS_BUDGET_TOKENS * CHARS_PER_TOKEN);
-
-/**
  * How long a room may wait on *Responding…* before the request is abandoned
  * and the card goes back to *Ask Claude*. One request per press and no retry
  * of the press — the SDK's own retries of a failed connection fall inside
@@ -637,6 +627,14 @@ export interface ComposedRecord {
    * to read one of these, which it already has (`heldIn`).
    */
   holds: Array<{ name: string; title?: string | null }>;
+  /**
+   * The documents read for replies in segments of the last two hours that
+   * somebody hid from Claude, since 2026-11-20: left out with the replies,
+   * and offered on the card, unticked, when a press asks to read
+   * (`ProposedDocument.hidden`). Their text is kept, so choosing one reads
+   * nothing at noesis.
+   */
+  hiddenDocuments: KeptDocument[];
 }
 
 /** One room of the *Record*, rendered: its heading and its lines. */
@@ -694,7 +692,7 @@ export interface KeptDocument {
   /** Whose library, by noesis id. */
   library: string;
   title?: string;
-  /** What `read_file` returned, cut at its share of `DOCUMENTS_BUDGET_CHARS`. */
+  /** What `read_file` returned, whole: no budget of its own, Rodrigo's call. */
   text: string;
   /** Epoch milliseconds. */
   readAt: number;
@@ -826,12 +824,10 @@ export function renderDocuments(documents: readonly KeptDocument[]): string[] {
   ];
 }
 
-/** The documents a segment's Claude replies read, for what a *Record* holds. */
-function documentsIn(sources: RecordSources, pastes: readonly SegmentView[]): ComposedRecord['holds'] {
+/** The documents a segment's Claude replies read. */
+function documentsIn(sources: RecordSources, pastes: readonly SegmentView[]): KeptDocument[] {
   return pastes.flatMap((paste) =>
-    paste.paste?.authorId === CLAUDE_ID
-      ? (sources.documents?.(paste.id) ?? []).map(({ name, title }) => ({ name, title }))
-      : []
+    paste.paste?.authorId === CLAUDE_ID ? (sources.documents?.(paste.id) ?? []) : []
   );
 }
 
@@ -912,6 +908,7 @@ export function composeRecord(
 ): ComposedRecord | null {
   const budget = options.budget ?? RECORD_BUDGET_CHARS;
   const holds: ComposedRecord['holds'] = [];
+  const hiddenDocuments: KeptDocument[] = [];
   let summarized = false;
   const rooms: RenderedRoom[] = sources
     .rooms(channelId, now)
@@ -922,12 +919,16 @@ export function composeRecord(
         if (claudeReads(segment, now)) {
           const lines = renderSegment(sources, channelId, segment, now, pastes);
           if (lines.length === 0) return [];
-          holds.push(...documentsIn(sources, [segment, ...pastes]));
+          holds.push(...documentsIn(sources, [segment, ...pastes]).map(({ name, title }) => ({ name, title })));
           if (!filed) return lines;
           holds.push({ name: documentName(filed), title: filed.title });
           return options.library
             ? [`(Filed in this channel's library as ${documentName(filed)}${titled(filed)}.)`, ...lines]
             : lines;
+        }
+        // Hidden inside the window: its replies' documents are offered back.
+        if (segment.hiddenFromClaude && claudeReads({ endedAt: segment.endedAt }, now)) {
+          hiddenDocuments.push(...documentsIn(sources, [segment, ...pastes]));
         }
         if (!options.library || !filed || segment.hiddenFromClaude) return [];
         summarized = true;
@@ -960,6 +961,7 @@ export function composeRecord(
     trimmed,
     ...(options.library ? { summarized } : {}),
     holds,
+    hiddenDocuments,
   };
 }
 
@@ -1292,6 +1294,8 @@ export interface ClaudeResponderOptions {
 interface Pending {
   channelId: string;
   proposal: ClaudeProposal;
+  /** What replies in hidden segments read, whose text a document offered `hidden` is. */
+  hiddenDocuments: KeptDocument[];
   /** What it asked for and already has, or that none of its libraries holds: never put to the room. */
   held: ProposedDocument[];
   unknown: ProposedDocument[];
@@ -1426,6 +1430,7 @@ export class ClaudeResponder {
             askedBy: userId,
             documents: call.documents.filter((each) => !held.includes(each) && !unknown.includes(each)),
           },
+          hiddenDocuments: sent.hiddenDocuments,
           held,
           unknown,
           askerId: userId,
@@ -1440,6 +1445,22 @@ export class ClaudeResponder {
           toolUseId: call.id,
         };
         outcome = 'proposed';
+        // Beside what it asked for, unticked: what replies in a hidden
+        // segment read, unless it asked for one of them itself.
+        const offered = new Set(pending.proposal.documents.map((each) => each.name));
+        const fromHidden = pending.proposal.documents.length
+          ? sent.hiddenDocuments.filter((each) => !offered.has(each.name) && !heldIn(sent, each.name))
+          : [];
+        pending.proposal.documents.push(
+          ...fromHidden
+            .filter((each, i) => fromHidden.findIndex((one) => one.name === each.name) === i)
+            .map((each) => ({
+              name: each.name,
+              library: each.library,
+              ...(each.title ? { title: each.title } : {}),
+              hidden: true as const,
+            }))
+        );
         if (pending.proposal.documents.length === 0) {
           // Nothing to ask: answered at once, inside this press and its timer.
           this.recordUsage(channelId, userId, grade, ask, response, outcome, true);
@@ -1540,9 +1561,12 @@ export class ClaudeResponder {
   ): Promise<ClaudeResult> {
     const { channels, now } = this.options;
     const { channelId } = pending;
-    const share = chosen.length ? Math.floor(DOCUMENTS_BUDGET_CHARS / chosen.length) : 0;
+    // One offered from a hidden segment is read from what was kept of it.
+    const kept: KeptDocument[] = chosen.flatMap((each) =>
+      each.hidden ? pending.hiddenDocuments.filter((one) => one.name === each.name).slice(0, 1) : []
+    );
     const read = await Promise.all(
-      chosen.map(async (each) => {
+      chosen.filter((each) => !each.hidden).map(async (each) => {
         const server = pending.library.find((one) => one.libraries.includes(each.library));
         const got = server
           ? await readDocument(this.options.fetch ?? fetch, server, each.name, each.library, signal)
@@ -1550,18 +1574,20 @@ export class ClaudeResponder {
         return { each, got };
       })
     );
-    const kept: KeptDocument[] = read.flatMap(({ each, got }) =>
-      got.ok
-        ? [
-            {
-              name: each.name,
-              library: each.library,
-              ...(each.title ? { title: each.title } : {}),
-              text: got.text.length > share ? `${got.text.slice(0, share)}\n[The rest was left out for length.]` : got.text,
-              readAt: now(),
-            },
-          ]
-        : []
+    kept.push(
+      ...read.flatMap(({ each, got }) =>
+        got.ok
+          ? [
+              {
+                name: each.name,
+                library: each.library,
+                ...(each.title ? { title: each.title } : {}),
+                text: got.text,
+                readAt: now(),
+              },
+            ]
+          : []
+      )
     );
     const steps: WorkingStep[] = read.map(({ each, got }) => ({
       tool: 'read_file',
@@ -1570,7 +1596,9 @@ export class ClaudeResponder {
       kept: got.ok ? keptOf('read_file', got.text) : null,
       ...(got.ok ? {} : { error: got.error }),
     }));
-    const declined = pending.proposal.documents.filter((each) => !chosen.includes(each));
+    // Only what Claude asked for: one offered from a hidden segment and left
+    // unticked was never its question.
+    const declined = pending.proposal.documents.filter((each) => !each.hidden && !chosen.includes(each));
     const failed = read.filter(({ got }) => !got.ok);
     const result = [
       ...kept.map(documentBlock),

@@ -1285,6 +1285,8 @@ export function KeepSwitches({
  * bar says *Claude wants to read these before it replies:*, each document a
  * box with its title and Claude's reason, **ticked, as a confirmation's
  * boxes start** (STYLE.md § *Checkbox*), then *Read* and *Answer without*.
+ * Beside them, unticked, what was read for a reply somebody has since hidden
+ * — offered, not asked for, Rodrigo's call.
  * On every screen, as *Responding…* is, and answered by anybody who could
  * press (`canAskClaude`); the next press replaces it.
  */
@@ -1330,9 +1332,15 @@ export function AskClaude({
   const busy = pressing || asked !== null;
   const refused = !canAskClaude(channel, me);
 
-  // Which boxes this screen has unticked, for the card they were unticked on.
+  // Which boxes are unticked on this screen, for the card they belong to:
+  // at first only what Claude did not ask for, read for a reply that was
+  // hidden since (`ProposedDocument.hidden`).
   const [unticked, setUnticked] = React.useState<{ id: string; names: string[] }>({ id: '', names: [] });
-  const off = proposal && unticked.id === proposal.id ? unticked.names : [];
+  const off = !proposal
+    ? []
+    : unticked.id === proposal.id
+      ? unticked.names
+      : proposal.documents.filter((each) => each.hidden).map((each) => each.name);
 
   const run = async (act: () => Promise<void>) => {
     setPressing(true);
@@ -1396,7 +1404,9 @@ export function AskClaude({
           {proposal.documents.map((each) => (
             <Checkbox
               key={each.name}
-              label={[each.title ?? each.name, each.reason].filter(Boolean).join(' \u2014 ')}
+              label={[each.title ?? each.name, each.hidden ? t.readThenHidden() : each.reason]
+                .filter(Boolean)
+                .join(' \u2014 ')}
               checked={!off.includes(each.name)}
               onChange={(next) =>
                 setUnticked({

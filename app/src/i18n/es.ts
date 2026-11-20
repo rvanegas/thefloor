@@ -1220,6 +1220,7 @@ export const es: Strings = {
     claudeWantsToRead: () => 'Claude quiere leer esto antes de responder:',
     readChosen: () => 'Leer',
     answerWithout: () => 'Sin leer',
+    readThenHidden: () => 'Le\u00eddo antes, luego oculto a Claude',
     roomReaderUnheard: (names: string[]) =>
       `${names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}`} ${
         names.length === 1 ? 'tiene' : 'tienen'

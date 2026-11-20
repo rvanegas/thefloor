@@ -1621,6 +1621,12 @@ export const en = {
     readChosen: () => 'Read',
     answerWithout: () => 'Answer without',
     /**
+     * In place of Claude's reason, on a document it did not ask for: one read
+     * for a reply somebody has since hidden, offered back unticked. *Segment*
+     * being no word a user meets, the sentence goes round it.
+     */
+    readThenHidden: () => 'Read before, then hidden from Claude',
+    /**
      * Under the *Ask Claude* bar while somebody here is on an app from before
      * The room reader, since 2026-11-13: they may hear the reply twice.
      */
