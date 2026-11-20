@@ -161,6 +161,42 @@ describe('the Record as Claude reads it', () => {
     expect(record.text).toContain('Cy: Hi.');
   });
 
+  it('leaves out a segment hidden from Claude, what was pasted into it, and says nothing in its place', () => {
+    const hidden = { ...spoken(T0, T0 + 60_000), hiddenFromClaude: true as const };
+    const inside = {
+      ...pasted(T0 + 30_000, CLAUDE_ID, 'Claude', 'a reply in it'),
+      paste: { authorId: CLAUDE_ID, displayName: 'Claude', text: 'a reply in it', segmentId: hidden.id, offsetMs: 30_000 },
+    };
+    const record = composeRecord(
+      sources(
+        [room(T0, [hidden, inside, spoken(T0 + 60_000, T0 + 120_000)])],
+        [
+          { displayName: 'Ben', startAt: T0 + 1_000, text: 'Hidden words.' },
+          { displayName: 'Ben', startAt: T0 + 61_000, text: 'Read words.' },
+        ]
+      ),
+      'c',
+      T0 + 120_000
+    )!;
+    expect(record.text).toContain('Read words.');
+    expect(record.text).not.toContain('Hidden words.');
+    expect(record.text).not.toContain('a reply in it');
+    expect(record.text).not.toMatch(/hidden|left out/i);
+    expect(record.trimmed).toBe(false);
+  });
+
+  it('is nothing at all where every segment is hidden', () => {
+    const record = composeRecord(
+      sources(
+        [room(T0, [{ ...spoken(T0, T0 + 60_000), hiddenFromClaude: true as const }])],
+        [{ displayName: 'Ben', startAt: T0 + 1_000, text: 'Hidden words.' }]
+      ),
+      'c',
+      T0 + 120_000
+    );
+    expect(record).toBeNull();
+  });
+
   it('labels Claude’s own earlier replies as Claude, so a second press continues', () => {
     const record = composeRecord(
       sources([room(T0, [pasted(T0, CLAUDE_ID, 'Claude', 'An earlier thought.')])]),
@@ -238,6 +274,19 @@ describe('the Record beside the channel’s own library', () => {
     const record = composeLibraryRecord(sources(older, lines), 'c', now, 300)!;
     expect(record.text).toContain('Speaker0: said');
     expect(record.text).toContain('Speaker1. In this channel');
+  });
+
+  it('leaves out a filed segment hidden from Claude, not even a line naming its document', () => {
+    const [oldest, ...rest] = rooms;
+    const hidden = room(oldest.openedAt, [{ ...oldest.segments[0], hiddenFromClaude: true as const }]);
+    for (const record of [
+      composeLibraryRecord(sources([hidden, ...rest], lines), 'c', now, 300)!,
+      composeLibraryRecord(sources([hidden, ...rest], lines), 'c', now)!,
+    ]) {
+      expect(record.text).not.toContain('Speaker0');
+      expect(record.text).not.toContain(`2023-11-14-${T0}.chat.md`);
+      expect(record.text).toContain('Speaker2: said');
+    }
   });
 
   it('leaves out a title noesis never gave', () => {

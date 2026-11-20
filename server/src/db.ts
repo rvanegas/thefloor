@@ -3319,6 +3319,18 @@ function migrate(db: Db): void {
   if (!hasColumn(db, 'segments', 'voices_named_at')) {
     db.exec('ALTER TABLE segments ADD COLUMN voices_named_at INTEGER');
   }
+  /*
+    Whether *Ask Claude* reads the segment, since 2026-11-19 — *Hide from
+    Claude* in its menu, for everybody until somebody shows it again
+    (decision/2026-11-19-a-segment-may-be-hidden-from-claude.md). The time
+    it last changed either way, which `lastFiledAt` carries as it does a
+    voice's name; the flag alone could not say when it was cleared. Every
+    existing segment is read, as it always was.
+  */
+  if (!hasColumn(db, 'segments', 'hidden_from_claude')) {
+    db.exec('ALTER TABLE segments ADD COLUMN hidden_from_claude INTEGER NOT NULL DEFAULT 0');
+    db.exec('ALTER TABLE segments ADD COLUMN hidden_changed_at INTEGER');
+  }
   // The feed reads published recordings of one channel, in `started_at`
   // order, on every poll by every subscriber and every aggregator. Partial
   // so it covers the few rows that are published rather than every recording

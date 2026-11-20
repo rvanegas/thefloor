@@ -951,6 +951,56 @@ describe('rooms on the Record tab', () => {
     act(() => tree.unmount());
   });
 
+  it('hides a segment from Claude, for everybody, and says so under its line', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({
+      lines: [
+        line('l1', ME, 'Me', NOW + 1_000, 'a tangent'),
+        line('l2', ME, 'Me', NOW + 31_000, 'the point'),
+        line('l3', ME, 'Me', NOW + 61_000, 'long ago'),
+      ],
+      more: false,
+    } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [
+        room('room_1', NOW, NOW + 60_000, [], [
+          { ...seg('seg_a', NOW, NOW + 30_000, null, true), hiddenFromClaude: true },
+          seg('seg_b', NOW + 30_000, NOW + 60_000, null, true),
+          // Derived for a room from before segments were: no row to mark.
+          seg('derived_c', NOW + 60_000, NOW + 90_000, null, true),
+        ]),
+      ],
+    } as never);
+    const hidden = jest.spyOn(api, 'hideFromClaude').mockResolvedValue({ ok: true } as never);
+    showChannel(transcribed(), [], { claude: true });
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+
+    expect(textOf(tree).match(/Hidden from Claude/g)).toHaveLength(1);
+    expect(openMenu(tree, 2).options).not.toContain('Hide from Claude');
+    openMenu(tree, 1).choose('Hide from Claude');
+    await settle();
+    expect(hidden).toHaveBeenCalledWith('token', 'sess_1', 'seg_b', true);
+    openMenu(tree).choose('Show to Claude');
+    await settle();
+    expect(hidden).toHaveBeenCalledWith('token', 'sess_1', 'seg_a', false);
+    act(() => tree.unmount());
+  });
+
+  it('offers nothing about Claude where this server cannot ask it, and still says what is hidden', async () => {
+    jest.spyOn(api, 'liveTranscript').mockResolvedValue({ lines: [line('l1', ME, 'Me', NOW + 1_000, 'a tangent')], more: false } as never);
+    jest.spyOn(api, 'rooms').mockResolvedValue({
+      rooms: [room('room_1', NOW, NOW + 60_000, [], [{ ...seg('seg_a', NOW, NOW + 30_000, null, true), hiddenFromClaude: true }])],
+    } as never);
+    showChannel(transcribed());
+    const tree = render(screen());
+    showTab(tree, 'Record');
+    await settle();
+    expect(openMenu(tree).options).not.toContain('Show to Claude');
+    expect(textOf(tree)).toContain('Hidden from Claude');
+    act(() => tree.unmount());
+  });
+
   it('shares the text of a segment whose audio is still being filed', async () => {
     // Its recording is named but not listed until egress finishes; the text
     // is kept already and is no less shareable for that.

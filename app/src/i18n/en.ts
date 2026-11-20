@@ -735,6 +735,16 @@ export const en = {
     everyoneSeesTheVoiceNames: () =>
       'Everyone in this channel sees these names. Left empty, a voice keeps its letter.',
     couldNotNameVoices: () => 'Could not name the voices',
+    /**
+     * A segment *Ask Claude* leaves out, since 2026-11-19: its menu's two
+     * words, either way, and the muted line under it while it is hidden.
+     * For everybody, so its own *Step in* sentence.
+     */
+    hideFromClaude: () => 'Hide from Claude',
+    showToClaude: () => 'Show to Claude',
+    hiddenFromClaude: () => 'Hidden from Claude',
+    stepInToHideFromClaude: () => "Step in to change what Claude reads. It is everybody's.",
+    couldNotHideFromClaude: () => 'Could not change what Claude reads',
     naming: () => 'Naming\u2026',
     deleteCost: () =>
       'The recording is kept. Transcribing it again costs the same as the first time.',

@@ -153,6 +153,7 @@ export function RecordTab({
   recordings,
   keptKey = '',
   manageable = true,
+  claude = false,
   renderRecording,
 }: {
   channelId: string;
@@ -178,6 +179,11 @@ export function RecordTab({
    * with no recording.
    */
   manageable?: boolean;
+  /**
+   * Whether *Ask Claude* is drawn, which a segment's *Hide from Claude*
+   * waits on, since 2026-11-19: nothing reads the mark where nobody can ask.
+   */
+  claude?: boolean;
   /** One recording as a segment's line of the log. */
   renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
 }) {
@@ -432,6 +438,7 @@ export function RecordTab({
               item={item}
               connected={connected}
               manageable={manageable}
+              claude={claude}
               renderRecording={renderRecording}
             />
           ))}
@@ -451,6 +458,7 @@ function Segment({
   item,
   connected,
   manageable,
+  claude,
   renderRecording,
 }: {
   channelId: string;
@@ -458,6 +466,7 @@ function Segment({
   item: SegmentItem;
   connected: boolean;
   manageable: boolean;
+  claude: boolean;
   renderRecording: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
 }) {
   const t = useText().channel;
@@ -472,6 +481,7 @@ function Segment({
         item={item}
         connected={connected}
         manageable={manageable}
+        claude={claude}
         renderRecording={renderRecording}
         open={open}
         onToggle={() => setOpen((was) => !was)}
@@ -551,6 +561,7 @@ export function SegmentLine({
   item,
   connected = false,
   manageable = true,
+  claude = false,
   renderRecording,
   open = false,
   onToggle = () => {},
@@ -562,6 +573,8 @@ export function SegmentLine({
   connected?: boolean;
   /** Whether you may delete its text; see `RecordTab`. */
   manageable?: boolean;
+  /** Whether *Ask Claude* is drawn, and so *Hide from Claude* is; see `RecordTab`. */
+  claude?: boolean;
   renderRecording?: (recording: RecordingView, head: SegmentHead) => React.ReactNode;
   open?: boolean;
   onToggle?: () => void;
@@ -577,6 +590,7 @@ export function SegmentLine({
   const [notify, notice] = useConfirm();
   /** Whether the voices' names are being edited, under the line. */
   const [naming, setNaming] = React.useState(false);
+  const [hiding, setHiding] = React.useState(false);
   const { segment, recording } = item;
   const voices = segment.paste ? [] : voicesIn(item);
   const audio = !!recording && !recording.mixing;
@@ -710,6 +724,30 @@ export function SegmentLine({
     />
   );
 
+  /**
+   * *Hide from Claude*, and *Show to Claude* once it is, since 2026-11-19:
+   * every later press leaves the segment out, and what was pasted into it,
+   * for everybody until somebody shows it again
+   * (decision/2026-11-19-a-segment-may-be-hidden-from-claude.md). On *Name
+   * voices*' terms, a mark everybody reads by. Nothing is done locally on
+   * success: the snapshot that follows sends every *Record* to read the
+   * rooms again, and the line under it appears or goes then.
+   */
+  const hidden = !!segment.hiddenFromClaude;
+  const toggleHidden = () => {
+    if (!app.token || hiding) return;
+    setHiding(true);
+    api
+      .hideFromClaude(app.token, channelId, segment.id, !hidden)
+      .catch((e: unknown) =>
+        Alert.alert(said.couldNotHideFromClaude(), e instanceof Error ? e.message : String(e))
+      )
+      .finally(() => setHiding(false));
+  };
+  // Only a segment the server wrote, `seg_` (`newId`): one derived for a
+  // room from before 2026-10-10, or a stand-in's, has no row to mark.
+  const hideable = claude && segment.id.startsWith('seg_');
+
   const menu: SegmentHead['menu'] = {
     label: t.segmentActions(span),
     items: [
@@ -753,6 +791,16 @@ export function SegmentLine({
             },
           ]
         : []),
+      ...(hideable
+        ? [
+            {
+              label: hidden ? said.showToClaude() : said.hideFromClaude(),
+              group: 'edit' as const,
+              disabled: !manageable || hiding,
+              onPress: toggleHidden,
+            },
+          ]
+        : []),
     ],
     remove,
     busy: deleting ? recordingWords.deleting() : busy ? t.preparingKept() : null,
@@ -766,6 +814,7 @@ export function SegmentLine({
       ? []
       : [
           ...(voices.length > 0 ? [said.stepInToNameVoices()] : []),
+          ...(hideable ? [said.stepInToHideFromClaude()] : []),
           ...(remove.length > 0 ? [said.stepInToDelete()] : []),
         ],
     busy: menu.busy,
@@ -776,6 +825,13 @@ export function SegmentLine({
   if (segment.paste) return null;
 
   const title = connected && segment.filed?.title ? <FiledTitle title={segment.filed.title} /> : null;
+  // Said wherever the mark is, whether or not this server can ask Claude:
+  // it is a fact about the segment, set by somebody who could.
+  const hiddenLine = hidden ? (
+    <View style={styles.filedLine}>
+      <Text style={type.muted}>{said.hiddenFromClaude()}</Text>
+    </View>
+  ) : null;
   // Shutting the segment abandons it, as it does a recording's rename.
   const names =
     open && naming && voices.length > 0 ? (
@@ -792,6 +848,7 @@ export function SegmentLine({
       <>
         {renderRecording(recording, { label, menu, open, onToggle })}
         {title}
+        {hiddenLine}
         {names}
         {confirmation}
         {notice}
@@ -821,6 +878,7 @@ export function SegmentLine({
       </View>
       {own.panel}
       {title}
+      {hiddenLine}
       {names}
       {confirmation}
       {notice}

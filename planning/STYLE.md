@@ -1396,7 +1396,10 @@ header's end, where the share glyph was, opening a list under the line and
 closing it again — in the view, never a sheet over it — with a recording's
 *Play*, then *Share audio*, *Share text*, *Send to noesis*, *Open in
 noesis*, then *Name voices* (since 2026-11-13, only where a stem holds
-several), *Rename* and *Transcribe*, then *Delete audio* and *Delete
+several), *Hide from Claude* or *Show to Claude* (since 2026-11-19, only
+where *Ask Claude* is drawn, with the muted line *Hidden from Claude* under
+the header while it is — under the filed title, where there is one), *Rename*
+and *Transcribe*, then *Delete audio* and *Delete
 text*, greyed where refused with the sentences saying why under them
 (`useActionMenu`). **Rows on one `surfaceRaised` surface at `radius.md`**,
 since 2026-11-09 (`MenuRow`): each 40 points, its word at the left in a

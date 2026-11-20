@@ -685,6 +685,11 @@ interface WithPastes {
  * A room's segments with each paste moved inside the segment it names, since
  * 2026-11-18 — listed among them, a paste read after the whole of the one it
  * was made in. One naming none stands as a segment of its own, in its place.
+ *
+ * **Less every segment hidden from Claude**, since 2026-11-19, its pastes
+ * going with it — Claude's replies among them — as they go with its text
+ * when it is deleted. Nothing is put in its place: Claude is not told
+ * (decision/2026-11-19-a-segment-may-be-hidden-from-claude.md).
  */
 function withTheirPastes(segments: readonly SegmentView[]): WithPastes[] {
   const homes = new Map<string, WithPastes>();
@@ -695,7 +700,7 @@ function withTheirPastes(segments: readonly SegmentView[]): WithPastes[] {
     if (home) home.pastes.push(segment);
     else all.push(homes.get(segment.id) ?? { segment, pastes: [] });
   }
-  return all;
+  return all.filter(({ segment }) => !segment.hiddenFromClaude);
 }
 
 function renderPaste(sources: RecordSources, segment: SegmentView): string[] {

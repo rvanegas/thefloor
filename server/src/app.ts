@@ -5771,6 +5771,27 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * Hides one segment from *Ask Claude*, or shows it again — *Hide from
+   * Claude*, since 2026-11-19. See `hideFromClaude` for the terms.
+   */
+  fastify.put('/channels/:id/segments/:segmentId/hidden', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id, segmentId } = request.params as { id: string; segmentId: string };
+    const hidden = (request.body as { hidden?: unknown } | undefined)?.hidden;
+    if (typeof hidden !== 'boolean') {
+      return reply.code(400).send({ error: 'Hidden or not.' });
+    }
+    const result = channels.hideFromClaude(id, segmentId, account.id, hidden);
+    if (!result.ok) {
+      return reply
+        .code(result.code === 'conflict' ? 409 : result.code === 'forbidden' ? 403 : 404)
+        .send({ error: result.error });
+    }
+    return { ok: true };
+  });
+
+  /**
    * Every line in this channel's transcripts matching a query.
    *
    * Membership of the channel, read the same way every other channel route

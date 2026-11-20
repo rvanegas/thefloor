@@ -306,6 +306,7 @@ describe('rooms', () => {
             recordingId: string | null;
             text: boolean;
             voices?: Array<{ identity: string; speaker: string; name: string }>;
+            hiddenFromClaude?: true;
             paste?: { authorId: string; displayName: string; text: string; segmentId?: string; offsetMs?: number };
           }>;
         }>;
@@ -587,5 +588,45 @@ describe('rooms', () => {
     expect((await name(segment.id, alice.token, [{ ...fareed[0], name: '' }])).statusCode).toBe(200);
     [room] = await roomsOf(channelId, bob.token);
     expect(room.segments[0].voices).toBeUndefined();
+  });
+
+  it('hide a segment from Claude, for everybody until somebody shows it, on the same terms', async () => {
+    const { alice, bob, channelId } = await channel();
+    clock += 1_000;
+    app.channels.dispatch(channelId, alice.account.id, { type: 'ENTER' });
+    app.channels.setLiveTranscription(channelId, alice.account.id, true);
+    line(channelId, clock + 1_000);
+    clock += 10_000;
+    const hide = (segmentId: string, token: string, hidden: unknown) =>
+      app.fastify.inject({
+        method: 'PUT',
+        url: `/channels/${channelId}/segments/${segmentId}/hidden`,
+        headers: auth(token),
+        payload: { hidden },
+      });
+    const [{ segments: [segment] }] = await roomsOf(channelId, alice.token);
+    expect(segment.hiddenFromClaude).toBeUndefined();
+
+    expect((await hide(segment.id, alice.token, 'yes')).statusCode).toBe(400);
+    const stranger = await signIn('eve@example.com', 'Eve');
+    expect((await hide(segment.id, stranger.token, true)).statusCode).toBe(404);
+    expect((await hide('seg_nonesuch', alice.token, true)).statusCode).toBe(404);
+    // Bob is outside a conversation in progress.
+    expect((await hide(segment.id, bob.token, true)).statusCode).toBe(409);
+
+    const before = app.channels.lastFiledAt(channelId);
+    expect((await hide(segment.id, alice.token, true)).statusCode).toBe(200);
+    let [room] = await roomsOf(channelId, bob.token);
+    expect(room.segments[0].hiddenFromClaude).toBe(true);
+    // What sends every Record to read the rooms again.
+    const hiddenAt = app.channels.lastFiledAt(channelId);
+    expect(hiddenAt).not.toBe(before);
+
+    // Shown again, which moves the stamp too.
+    clock += 1_000;
+    expect((await hide(segment.id, alice.token, false)).statusCode).toBe(200);
+    [room] = await roomsOf(channelId, bob.token);
+    expect(room.segments[0].hiddenFromClaude).toBeUndefined();
+    expect(app.channels.lastFiledAt(channelId)).not.toBe(hiddenAt);
   });
 });

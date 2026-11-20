@@ -1090,4 +1090,14 @@ export const api = {
       `/channels/${channelId}/segments/${encodeURIComponent(segmentId)}/voices`,
       { method: 'PUT', body: { voices }, token }
     ),
+
+  /**
+   * Hides one segment from *Ask Claude* for everybody, or shows it again.
+   * Since 2026-11-19; a server before then answers 404.
+   */
+  hideFromClaude: (token: string, channelId: string, segmentId: string, hidden: boolean) =>
+    request<{ ok: true }>(
+      `/channels/${channelId}/segments/${encodeURIComponent(segmentId)}/hidden`,
+      { method: 'PUT', body: { hidden }, token }
+    ),
 };

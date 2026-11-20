@@ -4004,6 +4004,7 @@ export function ChannelView({
           // segment was last filed in the channel's library, for its title.
           keptKey={`${channel.recording.runId}:${isTranscribingLive(channel)}:${channel.clip?.id ?? ''}:${view?.filedAt ?? ''}`}
           manageable={presentOrEmptyForMe && !ownersAlone}
+          claude={!!view?.claude}
           renderRecording={(r, head) => (
             <RecordingRow
               key={r.id}

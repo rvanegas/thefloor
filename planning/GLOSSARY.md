@@ -49,9 +49,10 @@ caused; the list carries the meaning.
 - **Beat (between chimes)** — 300ms of silence held between two chimes that fall in the same tick, so they are heard as two events rather than as one chord — longer than a whole chime, since a shorter rest is filled by the decay of the note before it; the queue is in `chime.ts` and spans every chime the app plays
 - **Recording chime** — The fourth chime and the only one that is not about presence: three notes rising when a recording *somebody started* begins, heard by everybody present including the starter; an automatic run is silent
 - **Chip in** — The donation link, on Home's *Support* tab
-- **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the channel's whole *Record* and posts one turn into it, as a *paste* by *Claude*, of at most 50, 150 or 450 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*; the reply is *read aloud* as it lands. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
+- **Ask Claude** — Claude's control, on a line of its own under the *Record* bar since 2026-10-22 — the words *Ask Claude*, then three buttons, *Brief*, *Medium* and *Extended*, as each switch is its word then its switch: Claude reads the channel's whole *Record*, less what is *hidden from Claude*, and posts one turn into it, as a *paste* by *Claude*, of at most 50, 150 or 450 words by the button pressed; while anybody's press is out every screen's words read *Responding…* and all three buttons grey, with who asked under the bar. Open to anybody *present*; the reply is *read aloud* as it lands. A card on *People* for its first day, which read as a person, then *Claude* and one *Respond* button, the same day. `AskClaude`, `canAskClaude`, `ReplyLength`
 - **Read aloud** — A reply from *Ask Claude*, its words read out the moment it lands: **Claude writes only the words, and *Standard* or *Pro* voices read them** — iOS's and AssemblyAI's, names said only in the code and on `/privacy`. *Pro* in a *Pro channel*, whoever asks, since 2026-11-19 — where the channel's *Read aloud* was *Pro*, on *Channel Settings*, from 2026-11-13: synthesised once by the server in the asker's *Pro voice*, in the language of the channel's first transcript (the asker's *Language* where there is none), and published as *the room reader*, so everybody *present* hears it through the call — a *guest* too, since 2026-11-19, having been withheld from it as an old build before — and a running recording keeps it, as a stem under `CLAUDE_ID` that is never transcribed; `Clip.speech` marks such a reply. *Standard* otherwise — in a channel no member is Pro in, or with no AssemblyAI key, on a refusal or a language AssemblyAI does not speak — each iPhone reading it on its own, free and never recorded, in the asker's *Standard voice* where it has it (`Clip.voices`), else its own. A build from before the room reader is kept off it, best-effort, and may hear an AssemblyAI reply twice, so the *Ask Claude* bar names whoever here has not updated, in a channel whose replies *Pro* voices read — a warning, not a refusal (`roomReaderUnheard`). The only thing the app speaks, with no switch. While a reply is being heard a bar immediately above every screen's footer says *Reading Claude's reply* with **two controls: *Read again* — the reply, from the top, for everybody — where the room is hearing it (*Restart* where the phone is reading it), and *Stop*, which quiets it on this phone alone**, since 2026-10-29. Which voice is the asker's, on *Floor Settings*' *Read aloud*: their *Pro voice* on *Pro* or *Unlimited*, their *Standard voice* on *Basic* (*Plan*). `useClaudeReadAloud`, `ReadingBar`, `roomReaderSaying`; *Leer en voz alta*, *Leyendo a Claude*, *Repetir*, *Reiniciar*, *Parar*
 - **Read again** — Claude's reply said into the room once more, for everybody present, from its paste in the *Record* or the reading bar, while the server keeps its speech: an hour, since 2026-11-13. Anybody present may press it; the latest press or reply wins. Not synthesised again, so it costs nothing. `readAgain`, `speechKept`; *Repetir*
+- **Hidden from Claude** — A *segment* every later *Ask Claude* press leaves out, with what was pasted into it, for everybody until somebody shows it again: *Hide from Claude* and *Show to Claude* in its menu, on *Name voices*' terms, and the muted line *Hidden from Claude* under it, since 2026-11-19. Claude is not told. Not *Delete*, which takes it from people too, and not out of the *channel library*, whose document Claude may still choose to read. `hiddenFromClaude`; *Oculto a Claude*
 - **Standard voices / Pro voices** — The two grades of voice that *Read aloud* Claude's replies, since 2026-11-13: *Standard*, each iPhone's own (iOS), free, heard on that phone alone and never recorded; *Pro*, AssemblyAI's, said once into the room for everybody and recorded, billed per reply. Which reads is the channel's grade, whoever asks: *Pro* in a *Pro channel*, since 2026-11-19 — a setting on *Channel Settings* from the evening of 2026-11-13 until then, changeable only by *Pro (the subscription)*, and each asker's own on *Floor Settings* for the few hours before. **A grade, as a *Pro channel*'s is, and not the subscription**. `isProChannel`; *Estándar* / *Pro*
 - **Standard voice** — A setting of this iPhone's on *Floor Settings*, under *Read aloud*: which voice installed on it reads, **per language**, where *Standard voices* read — the replies it reads itself, and the replies you ask for on every iPhone that has the same voice (`Clip.voices`). Enhanced and Premium voices only, the best installed until one is chosen, with the path in iOS Settings to download a better one; drawn for a *Basic* account alone since 2026-11-19, a *Pro* or *Unlimited* one choosing its *Pro voice* there instead. In the keychain, the voices being installed on the phone. From 2026-10-28, gone for a few hours of 2026-11-13 and back that evening. `chooseVoice`, `useReadAloudVoices`; *Voz Estándar*
 - **Pro voice** — An account setting on *Floor Settings*, under *Read aloud*, since 2026-11-13: which of the *Pro* voices reads the replies you ask for, **one per language**, heard by everybody in the room — one of a curated few (`SPEECH_VOICES`), a voice filling the slot of the language it was recorded in, or that language's default where none is chosen; a card shut on every visit that says each language's voice and opens with *See more* onto every voice, tapped to hear its sample, **drawn for *Pro* and *Unlimited* alone** since 2026-11-19 — for everybody, chosen only by Pro, until then. The channel's on *Channel Settings* that morning. `speechVoices`; *Voz Pro*
@@ -741,7 +742,7 @@ holds the numbers. A request with none is *Medium*.
 **A press** reads the channel's whole *Record* — what was said, as
 transcribed, and what was pasted, Claude's own earlier replies among it; up to
 about seven hours, or three where it consults the *channel library*, which
-holds the rest — and
+holds the rest; less every segment *hidden from Claude* — and
 posts one turn from Claude into it as a *paste* authored by `CLAUDE_ID`,
 named *Claude*, which lands in the log under the bar. It is open to anybody
 *present*, the paste rule, and the model it asks is the channel's *Response
@@ -761,6 +762,27 @@ lengths, adjectives of the reply, so the verb moved to the words before them.
 *Preguntar a Claude* in Spanish, and the lengths feminine, *Breve*, *Media*,
 *Extensa*, agreeing with *respuesta*. Drawn only where the server holds
 `ANTHROPIC_API_KEY` (`ChannelView.claude`).
+
+## Hidden from Claude
+
+**A *segment* that *Ask Claude* leaves out**, since 2026-11-19: *Hide from
+Claude* in its menu, and *Show to Claude* once it is, and while it is a muted
+line under the segment's, *Hidden from Claude*. Every later press reads the
+*Record* without it and without what was pasted into it — Claude's own
+replies among those — so an unrelated stretch cannot distract the reply.
+
+**Everybody's, until somebody changes it**, on *Name voices*' terms: a
+*member*, present or the room empty, not in a channel only its owner runs.
+Visible to everybody, so nobody's words are left out without the room seeing
+it. Offered only where *Ask Claude* is drawn; the line is drawn wherever the
+mark is.
+
+**Claude is not told** — nothing stands in the segment's place. **Not
+*Delete***, which takes the segment from people as well; and **not out of the
+*channel library***: a filed segment's document stays there, and Claude may
+read it if a search finds it, the mark being about what a press is sent.
+`SegmentView.hiddenFromClaude`, `segments.hidden_from_claude`;
+decision/2026-11-19-a-segment-may-be-hidden-from-claude.md.
 
 ## Close
 
@@ -5535,6 +5557,9 @@ are settled:
     Several voices on my microphone
                           Varias voces en mi micrófono
     Name voices           Nombrar voces — *¿Quién es?* in each field
+    Hidden from Claude    Oculto a Claude — *Ocultar a Claude* and *Mostrar a
+                          Claude* in the menu; masculine, agreeing with the
+                          unnamed *segmento*
     Watch party           Ver algo juntos — a phrase, there being no noun
     Watching /            Viendo / Sin ver — the roster suffixes. The negative
     not watching          names the absence rather than negating the verb, on

@@ -551,6 +551,11 @@ export const es: Strings = {
     everyoneSeesTheVoiceNames: () =>
       'Todos los de este canal ven estos nombres. Si queda vac\u00edo, la voz conserva su letra.',
     couldNotNameVoices: () => 'No se han podido nombrar las voces',
+    hideFromClaude: () => 'Ocultar a Claude',
+    showToClaude: () => 'Mostrar a Claude',
+    hiddenFromClaude: () => 'Oculto a Claude',
+    stepInToHideFromClaude: () => 'Entra para cambiar lo que lee Claude. Es de todos.',
+    couldNotHideFromClaude: () => 'No se ha podido cambiar lo que lee Claude',
     naming: () => 'Nombrando\u2026',
     deleteCost: () =>
       'La grabaci\u00f3n se conserva. Volver a transcribirla cuesta lo mismo que la primera vez.',

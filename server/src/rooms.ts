@@ -239,6 +239,7 @@ export class Rooms {
             ? { filed: { file: row.filed_file, title: row.filed_title } }
             : {}),
           ...voicesOf(row),
+          ...(row.hidden_from_claude ? { hiddenFromClaude: true as const } : {}),
         }))
         // A finished one left keeping nothing is nothing to show.
         .filter((segment) => segment.endedAt === null || segment.recordingId !== null || segment.text);

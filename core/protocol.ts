@@ -1189,6 +1189,14 @@ export interface SegmentView {
    * none is named; ignored by older builds, which draw the letter.
    */
   voices?: VoiceName[];
+  /**
+   * Present, and true, where *Ask Claude* leaves it out, since 2026-11-19 —
+   * *Hide from Claude* in its menu, `PUT
+   * /channels/:id/segments/:segmentId/hidden`, for everybody until somebody
+   * shows it again — and its pastes with it. Ignored by older builds, which
+   * draw it as any other.
+   */
+  hiddenFromClaude?: true;
 }
 
 /** A segment's document in the channel's library: see `SegmentView.filed`. */

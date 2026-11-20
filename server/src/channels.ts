@@ -1432,7 +1432,8 @@ export class ChannelRegistry {
     // again, and every installed build reads it, so the text goes from every
     // screen at once as the privacy page says. The name now undersells it.
     // And when a voice was last named, since 2026-11-13, and a document or a
-    // paste deleted, since 2026-11-18, for the same reason.
+    // paste deleted, since 2026-11-18, and a segment hidden from Claude or
+    // shown again, since 2026-11-19, for the same reason.
     const row = this.db
       .prepare(
         `SELECT MAX(at) AS at FROM (
@@ -1444,10 +1445,12 @@ export class ChannelRegistry {
            UNION ALL
            SELECT MAX(voices_named_at) FROM segments WHERE channel_id = ?
            UNION ALL
+           SELECT MAX(hidden_changed_at) FROM segments WHERE channel_id = ?
+           UNION ALL
            SELECT MAX(deleted_at) FROM pastes WHERE channel_id = ?
          )`
       )
-      .get(channelId, channelId, channelId, channelId, channelId) as { at: number | null } | undefined;
+      .get(channelId, channelId, channelId, channelId, channelId, channelId) as { at: number | null } | undefined;
     return row?.at ?? null;
   }
 
@@ -4995,6 +4998,45 @@ export class ChannelRegistry {
       voices.map((voice) => ({ ...voice, name: voice.name.trim().slice(0, MAX_VOICE_NAME_LENGTH) })),
       this.now()
     );
+    this.emit([channelId]);
+    return { ok: true };
+  }
+
+  /**
+   * Hides one segment from *Ask Claude*, or shows it again, for everybody —
+   * *Hide from Claude*, since 2026-11-19: every later press leaves it out,
+   * and what was pasted into it, until somebody shows it.
+   *
+   * **On *Name voices*' terms**, being a mark on the segment everybody reads
+   * by: not for somebody outside a conversation in progress, nor in a
+   * channel only its owner runs. Claude is not told; the room is, by the
+   * line under the segment.
+   *
+   * planning/decision/2026-11-19-a-segment-may-be-hidden-from-claude.md.
+   */
+  hideFromClaude(
+    channelId: string,
+    segmentId: string,
+    userId: string,
+    hidden: boolean
+  ): { ok: true } | Refused {
+    const segment = this.isMemberOf(channelId, userId)
+      ? (this.db
+          .prepare('SELECT recording_id, text FROM segments WHERE id = ? AND channel_id = ?')
+          .get(segmentId, channelId) as { recording_id: string | null; text: number } | undefined)
+      : undefined;
+    if (!segment || (!segment.text && !segment.recording_id)) {
+      return { ok: false, error: 'No such segment.', code: 'not_found' };
+    }
+    if (!this.holdsTheControlsIn(channelId, userId)) return OWNERS_ALONE;
+    if (!this.presentOrEmptyIn(channelId, userId)) {
+      return {
+        ok: false,
+        error: 'Somebody is in this channel. Step in to change what Claude reads.',
+        code: 'conflict',
+      };
+    }
+    this.segmentLog.hide(segmentId, hidden, this.now());
     this.emit([channelId]);
     return { ok: true };
   }

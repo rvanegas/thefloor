@@ -27,6 +27,10 @@ export interface SegmentRow {
   document_deleted_at: number | null;
   /** When one of its voices was last named, or a name cleared; null never. */
   voices_named_at: number | null;
+  /** 1 where *Ask Claude* leaves it out, since 2026-11-19; see `hide`. */
+  hidden_from_claude: number;
+  /** When that last changed, either way; null never. */
+  hidden_changed_at: number | null;
 }
 
 /**
@@ -144,6 +148,20 @@ export class Segments {
           WHERE id = ?`
       )
       .run(now, segmentId);
+  }
+
+  /**
+   * Hides a segment from *Ask Claude*, or shows it again, for everybody
+   * until somebody changes it — *Hide from Claude*, since 2026-11-19; the
+   * caller has found the segment and the hider entitled. Stamps
+   * `hidden_changed_at`, which the snapshot carries. Its document in the
+   * channel's library stays: hiding is about what a press is sent, and
+   * Claude reads the library only when it chooses to.
+   */
+  hide(segmentId: string, hidden: boolean, now: number): void {
+    this.db
+      .prepare('UPDATE segments SET hidden_from_claude = ?, hidden_changed_at = ? WHERE id = ?')
+      .run(hidden ? 1 : 0, now, segmentId);
   }
 
   private close(channelId: string, now: number): void {
