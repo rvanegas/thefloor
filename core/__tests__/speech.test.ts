@@ -5,6 +5,7 @@ import {
   knownSpeechVoices,
   speechLanguageOf,
   speechVoiceFor,
+  textLanguage,
   withSpeechVoice,
 } from '../speech';
 
@@ -38,6 +39,29 @@ describe('speechLanguageOf', () => {
     expect(speechLanguageOf('ca')).toBeNull();
     expect(speechLanguageOf(null)).toBeNull();
     expect(speechLanguageOf('')).toBeNull();
+  });
+});
+
+describe('textLanguage', () => {
+  it('names the language a text is written in', () => {
+    expect(textLanguage('La atención es una forma de la voluntad. Elige lo que está delante y también lo que no.')).toBe('es');
+    expect(textLanguage('Attention is a kind of will, and it chooses what is in front of us and what is not.')).toBe('en');
+    expect(textLanguage('A atenção não é uma coisa simples. Ele disse isso com você, e ela também.')).toBe('pt');
+    expect(textLanguage('Die Aufmerksamkeit ist eine Art des Willens, und sie wählt, was nicht vor uns liegt.')).toBe('de');
+    expect(textLanguage("L'attention est une forme de la volonté, et elle choisit ce qui est dans le monde pour nous.")).toBe('fr');
+    expect(textLanguage("L'attenzione è una forma della volontà, che sceglie il mondo per noi, ma non sempre.")).toBe('it');
+  });
+
+  it('holds a Spanish text with an English quotation Spanish', () => {
+    expect(
+      textLanguage('Como dijo ella, "the medium is the message", y es por eso que la forma del texto es también su sentido.')
+    ).toBe('es');
+  });
+
+  it('is null for too few words, or none clearly leading', () => {
+    expect(textLanguage('Hola.')).toBeNull();
+    expect(textLanguage('')).toBeNull();
+    expect(textLanguage('the and of to is el los las del y')).toBeNull();
   });
 });
 

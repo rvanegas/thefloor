@@ -1329,7 +1329,6 @@ export function buildApp(options: BuildOptions = {}): App {
     channels.speech = {
       provider: options.speech,
       store: new SpeechStore(options.speechDir ?? './speech', now),
-      firstLanguage: (channelId) => transcripts.firstLanguage(channelId),
       accountLanguage: (accountId) => accounts.settings(accountId).language,
       voicesFor: (accountId) => accounts.settings(accountId).speechVoices,
       billed: ({ channelId, accountId, pasteId, characters }) => {
@@ -5434,8 +5433,8 @@ export function buildApp(options: BuildOptions = {}): App {
 
   /**
    * **Reads a library document aloud into *Listen***, since 2026-11-20: read
-   * from noesis whole, spoken in the presser's *Pro voice* for the channel's
-   * language (`speechLanguage`), kept a month, and loaded as the channel's
+   * from noesis whole, spoken in the presser's *Pro voice* for the document's
+   * own language (`speechLanguage`), kept a month, and loaded as the channel's
    * track as an upload is. A reading kept from before costs nothing.
    *
    * **Held open until the track is loaded**, which for a long document is a
@@ -5473,7 +5472,8 @@ export function buildApp(options: BuildOptions = {}): App {
       return reply.code(413).send({ error: 'That document is too long to read aloud.' });
     }
     const language =
-      channels.speechLanguage(id, account.id, typeof body.language === 'string' ? body.language : undefined) ?? 'en';
+      channels.speechLanguage(read.text, account.id, typeof body.language === 'string' ? body.language : undefined) ??
+      'en';
     const voice = speechVoiceFor(accounts.settings(account.id).speechVoices, language);
     const title =
       (typeof body.title === 'string' && body.title.trim().slice(0, 300)) || name.replace(/\.[^.]+$/, '');

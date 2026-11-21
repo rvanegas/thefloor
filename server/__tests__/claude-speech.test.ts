@@ -20,7 +20,7 @@ import { MemoryRecordingStore } from '../src/storage';
 /**
  * Claude's reply spoken into the room by the server, since 2026-11-13: once
  * per paste, as `room-reader:<channel>`, in the asker's voice and the language
- * of its first transcript — and kept an hour so anybody present can have it
+ * it is written in — and kept an hour so anybody present can have it
  * read again. See
  * planning/decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md.
  */
@@ -71,7 +71,7 @@ function client(text = 'Call it Lantern, Bob.'): ClaudeClient {
   } as unknown as ClaudeClient;
 }
 
-function boot(options: { speech?: boolean } = {}): App {
+function boot(options: { speech?: boolean; reply?: string } = {}): App {
   app = buildApp({
     dbPath: join(dir, 'thefloor.db'),
     mailer: new MemoryMailer(),
@@ -81,7 +81,7 @@ function boot(options: { speech?: boolean } = {}): App {
     now: () => clock,
     roomCloseGraceMs: 0,
     mixWaitMs: 0,
-    claude: client(),
+    claude: client(options.reply),
     ...(options.speech === false ? {} : { speech, speechDir: join(dir, 'speech') }),
   });
   return app;
@@ -259,21 +259,9 @@ describe("Claude's reply, spoken", () => {
     expect(app.channels.roomReaderUnheard(channelId)).toEqual([]);
   });
 
-  it('is spoken in the language of the channel’s first transcript', async () => {
-    boot();
+  it('is spoken in the reply’s own language over the asker’s', async () => {
+    boot({ reply: 'Es una idea muy buena, pero el nombre de la sala es lo más importante y también lo que se queda.' });
     const { alice, channelId } = await room2();
-    app.db
-      .prepare(
-        `INSERT INTO recordings (id, channel_id, initiator_id, invitee_id, started_at, duration_ms, s3_key)
-         VALUES ('r1', ?, ?, ?, ?, 1000, 'k'), ('r2', ?, ?, ?, ?, 1000, 'k')`
-      )
-      .run(channelId, alice.account.id, alice.account.id, T0, channelId, alice.account.id, alice.account.id, T0 + 10);
-    app.db
-      .prepare(
-        `INSERT INTO transcript_jobs (id, recording_id, identity, state, language)
-         VALUES ('j2', 'r2', 'x', 'ready', 'en'), ('j1', 'r1', 'x', 'ready', 'es')`
-      )
-      .run();
     await press(channelId, alice.token, { language: 'en' });
     await settle();
     expect(speech.requests[0].language).toBe('es');

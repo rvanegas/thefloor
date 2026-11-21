@@ -485,31 +485,6 @@ export class Transcripts {
   }
 
   /**
-   * The language of the channel's first transcript — what AssemblyAI's
-   * detection decided for the earliest recording, of a person rather than a
-   * film — or null where nothing has been transcribed yet. **What Claude's
-   * reply is spoken in**, at Rodrigo's word, 2026-11-13: the conversation's
-   * own language as it was first heard, rather than a guess from the reply's
-   * text. *First* rather than *latest* was his word too, and the cost is a
-   * conversation that changes language being spoken in the one it began in.
-   * A deleted recording is not counted, being something the channel no
-   * longer holds.
-   */
-  firstLanguage(channelId: string): string | null {
-    const row = this.db
-      .prepare(
-        `SELECT j.language AS language
-           FROM transcript_jobs j JOIN recordings r ON r.id = j.recording_id
-          WHERE r.channel_id = ? AND r.deleted_at IS NULL
-            AND j.state = 'ready' AND j.language IS NOT NULL AND j.identity != ?
-          ORDER BY r.started_at, j.rowid
-          LIMIT 1`
-      )
-      .get(channelId, MEDIA_IDENTITY) as { language: string } | undefined;
-    return row?.language ?? null;
-  }
-
-  /**
    * Every line in one channel's transcripts matching what somebody typed.
    *
    * **This is the feature the denormalised `channel_id` on a line exists for**

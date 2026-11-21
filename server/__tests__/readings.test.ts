@@ -36,6 +36,9 @@ afterEach(() => {
 });
 
 const DOCUMENT = '# On Attention\n\nAttention is a kind of will. It chooses.\n\nThe end.';
+const SPANISH_NAME = '2026-01-03-la-atencion.document.md';
+const SPANISH =
+  '# La atención\n\nLa atención es una forma de la voluntad. Elige lo que está delante y lo que no, como el ojo y también como la mano.';
 
 function readings(db: Db, speech: FakeSpeech, heard: Array<{ channelId: string; text: string }> = []) {
   return new Readings({
@@ -233,7 +236,9 @@ describe('the routes', () => {
           ? `${input_name} — On Attention\n2026-01-01-older.chat.md — Older (not yet indexed)`
           : call.params.arguments.name === input_name
             ? DOCUMENT
-            : null;
+            : call.params.arguments.name === SPANISH_NAME
+              ? SPANISH
+              : null;
       const result = text
         ? { content: [{ type: 'text', text }] }
         : { content: [{ type: 'text', text: 'no such document' }], isError: true };
@@ -345,6 +350,19 @@ describe('the routes', () => {
       headers: auth(alice.token),
     });
     expect(listed.statusCode).toBe(403);
+  });
+
+  it('reads a Spanish document in Spanish, whatever the presser’s language', async () => {
+    speech.requests.length = 0;
+    const { bob, channelId } = await setUp();
+    const loaded = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/reading`,
+      headers: auth(bob.token),
+      payload: { name: SPANISH_NAME, library: 'alice/philosophy', language: 'en' },
+    });
+    expect(loaded.statusCode).toBe(200);
+    expect(speech.requests[0]).toMatchObject({ voice: 'aai-antonioluis', language: 'es' });
   });
 
   it('reads one aloud into Listen as the channel’s track, in the presser’s voice', async () => {

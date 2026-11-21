@@ -136,6 +136,7 @@ import { SPEECH_MAX_CHARACTERS, type SpeechProvider, type SpeechStore } from './
 import {
   speechLanguageOf,
   speechVoiceFor,
+  textLanguage,
   type SpeechLanguage,
   type SpeechVoices,
 } from '../../core/speech';
@@ -315,8 +316,6 @@ const SPEECH_LINGER_MS = 30_000;
 export interface ClaudeSpeech {
   provider: SpeechProvider;
   store: SpeechStore;
-  /** The language of the channel's first transcript, as detection spelled it. */
-  firstLanguage(channelId: string): string | null;
   /** The account's own language setting, `en`, `es` or `system`. */
   accountLanguage(accountId: string): string | null;
   /**
@@ -8268,14 +8267,16 @@ export class ChannelRegistry {
   // planning/decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md.
 
   /**
-   * The language a reply is spoken in: **the channel's first transcript's**,
-   * at Rodrigo's word, then the asker's app language, then English. Null
-   * where that is a language AssemblyAI does not speak, and the phones read
-   * the reply themselves.
+   * The language a text is spoken in: **the text's own** (`textLanguage`),
+   * since 2026-11-21, then the asker's app language, then English. A
+   * channel has no language: the first transcript's, which this was until
+   * then, read a Spanish document in English. Null where the asker's
+   * language is one AssemblyAI does not speak, and the phones read a reply
+   * themselves.
    */
-  speechLanguage(channelId: string, askerId: string, askerLanguage?: string): SpeechLanguage | null {
-    const heard = this.speech?.firstLanguage(channelId);
-    if (heard) return speechLanguageOf(heard);
+  speechLanguage(text: string, askerId: string, askerLanguage?: string): SpeechLanguage | null {
+    const written = textLanguage(text);
+    if (written) return written;
     const own = askerLanguage ?? this.speech?.accountLanguage(askerId);
     return speechLanguageOf(own === 'system' ? null : own) ?? 'en';
   }
@@ -8298,7 +8299,7 @@ export class ChannelRegistry {
     if (!speech || !channel) return false;
     if (!this.isProChannel(channelId)) return false;
     if ([...text].length > SPEECH_MAX_CHARACTERS) return false;
-    const language = this.speechLanguage(channelId, askerId, askerLanguage);
+    const language = this.speechLanguage(text, askerId, askerLanguage);
     if (!language) return false;
     const voice = speechVoiceFor(speech.voicesFor(askerId), language);
 

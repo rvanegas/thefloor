@@ -136,3 +136,37 @@ export function speechLanguageOf(tag: string | null | undefined): SpeechLanguage
   const code = (tag ?? '').replace(/_/g, '-').split('-')[0].toLowerCase();
   return code in SPEECH_LANGUAGE_NAMES ? (code as SpeechLanguage) : null;
 }
+
+/**
+ * Common words found in one of the six languages and seldom in the others.
+ * Words two of them share (`de`, `que`, `para`, `mais`, `un`, `no`) are left
+ * out, since they would count for both.
+ */
+const MARKERS: Record<SpeechLanguage, ReadonlySet<string>> = {
+  en: new Set('the and of to is that it with for was this are you have not but which from they be'.split(' ')),
+  es: new Set('el los las del y por una es lo como pero más está este esta muy también cuando sin ser'.split(' ')),
+  pt: new Set('não uma em ao com você também pelo pela isso ele ela são foi muito seu sua'.split(' ')),
+  it: new Set('il gli della che di non è per sono nel alla anche questo molto più ma degli delle'.split(' ')),
+  fr: new Set('le les des et est une pas du dans qui pour au sur avec ce sont nous vous cette'.split(' ')),
+  de: new Set('der die und das ist nicht ein eine zu den mit sich auf für von dem auch wird'.split(' ')),
+};
+
+/**
+ * **The language a text is written in**, from how many of each language's
+ * marker words it uses, since 2026-11-21 — or null when it uses too few
+ * for any language, or no language clearly leads (at least twice the
+ * runner-up). A document read aloud is spoken in its own language rather
+ * than the channel's.
+ */
+export function textLanguage(text: string): SpeechLanguage | null {
+  const counts = new Map<SpeechLanguage, number>();
+  for (const word of text.toLowerCase().match(/\p{L}+/gu) ?? []) {
+    for (const language of Object.keys(MARKERS) as SpeechLanguage[]) {
+      if (MARKERS[language].has(word)) counts.set(language, (counts.get(language) ?? 0) + 1);
+    }
+  }
+  const ranked = [...counts].sort((a, b) => b[1] - a[1]);
+  const [first, second] = ranked;
+  if (!first || first[1] < 5) return null;
+  return !second || first[1] >= 2 * second[1] ? first[0] : null;
+}
