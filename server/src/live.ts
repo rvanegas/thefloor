@@ -204,6 +204,9 @@ export class LiveTranscriber {
     if (identity === TRANSCRIBER_IDENTITY) return;
     // Claude's own reply read aloud, which the paste already says in full.
     if (identity === roomReaderIdentity(channelId)) return;
+    // A *reading*, whose sentences are written from the document itself as
+    // they are heard (`heard`), exactly and for nothing, since 2026-11-20.
+    if (identity === playbackIdentity(channelId) && state.playback.track?.document) return;
 
     const speakerId = identity === playbackIdentity(channelId) ? MEDIA_IDENTITY : identity;
     const gated =
@@ -247,6 +250,26 @@ export class LiveTranscriber {
 
     if (voiced) speaker.lastVoiceAt = now;
     this.send(speaker.stream, frame, now - frameMs);
+  }
+
+  /**
+   * A sentence of a *reading* the room has just heard, written as a *Played
+   * audio* line at the moments it was said (readings.ts `follow`) — only
+   * while the channel is being transcribed, as the speech-to-text it stands
+   * in for would be.
+   */
+  heard(channelId: string, line: { text: string; startAt: number; endAt: number }): void {
+    const state = this.options.stateOf(channelId);
+    if (!state || !isTranscribingLive(state)) return;
+    this.insert(channelId, {
+      id: randomUUID(),
+      identity: MEDIA_IDENTITY,
+      displayName: MEDIA_LABEL,
+      startAt: line.startAt,
+      endAt: line.endAt,
+      text: line.text,
+      confidence: 1,
+    });
   }
 
   private send(stream: Stream, frame: Int16Array, wallStart: number): void {
@@ -329,6 +352,10 @@ export class LiveTranscriber {
       confidence: turn.confidence,
       ...(stream.diarize && turn.speaker ? { speaker: turn.speaker } : {}),
     };
+    this.insert(channelId, line);
+  }
+
+  private insert(channelId: string, line: LiveLine): void {
     this.options.db
       .prepare(
         `INSERT INTO live_lines

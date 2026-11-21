@@ -1,6 +1,7 @@
 import { mkdirSync, readdirSync, rmSync, statSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { SPEECH_LANGUAGE_NAMES, type SpeechLanguage } from '../../core/speech';
+import type { TimedWord } from '../../core/reading';
 import { SAMPLE_RATE, type Decoder } from './playback';
 
 /**
@@ -44,6 +45,39 @@ export interface SpeechProvider {
     onAudio: (pcm: Buffer) => void,
     signal?: AbortSignal
   ): Promise<{ billedCharacters: number }>;
+  /**
+   * Speaks `text` whole and says when each word of it is said, for a
+   * *reading* (readings.ts), since 2026-11-20: AssemblyAI's
+   * `/v1/speech/events`, whose `WordBoundaries` give each whitespace token
+   * of the text as sent, in milliseconds from the first sample.
+   */
+  synthesizeWithWords(
+    request: SpeechRequest,
+    signal?: AbortSignal
+  ): Promise<{ pcm: Buffer; words: TimedWord[]; billedCharacters: number }>;
+}
+
+/**
+ * Text cut into pieces under the provider's limit, at a line where one fits,
+ * else after a sentence, else at a space — never inside a word, and never
+ * inside a token like `3.50`, so that each piece's tokens are the text's.
+ * Shared by `ts speak` and *readings*.
+ */
+export function speechPieces(text: string, most = SPEECH_MAX_CHARACTERS): string[] {
+  const result: string[] = [];
+  let rest = text;
+  while ([...rest].length > most) {
+    // Code units overstate code points, so a cut by units is always under.
+    const window = rest.slice(0, most);
+    const cut = [/\n(?![\s\S]*\n)/, /[.!?…](?=\s)(?![\s\S]*[.!?…]\s)/, / (?![\s\S]* )/]
+      .map((pattern) => window.search(pattern))
+      .find((at) => at > 0);
+    const end = cut === undefined ? most : cut + 1;
+    result.push(rest.slice(0, end).trim());
+    rest = rest.slice(end).trim();
+  }
+  if (rest) result.push(rest);
+  return result.filter(Boolean);
 }
 
 export class SpeechError extends Error {
@@ -110,12 +144,93 @@ export class AssemblyAiSpeech implements SpeechProvider {
     }
   }
 
-  private async once(
+  async synthesizeWithWords(
     request: SpeechRequest,
-    onAudio: (pcm: Buffer) => void,
     signal?: AbortSignal
-  ): Promise<{ billedCharacters: number }> {
-    const response = await this.fetch(`${this.baseUrl}/v1/speech`, {
+  ): Promise<{ pcm: Buffer; words: TimedWord[]; billedCharacters: number }> {
+    try {
+      return await this.wordsOnce(request, signal);
+    } catch (error) {
+      // As `synthesize`: once, on the refusals that cost nothing.
+      if (
+        error instanceof SpeechError &&
+        (error.status === 429 || error.status === 503) &&
+        !signal?.aborted
+      ) {
+        await this.sleep(Math.min(error.retryAfterMs ?? 1_000, MAX_RETRY_WAIT_MS));
+        return this.wordsOnce(request, signal);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * `/v1/speech/events`: server-sent events, the audio in `Audio` events as
+   * base64 and the words in `WordBoundaries`, each flush's offset by
+   * `audio_start_ms`. Schema as their docs and a probe had it on 2026-11-20.
+   */
+  private async wordsOnce(
+    request: SpeechRequest,
+    signal?: AbortSignal
+  ): Promise<{ pcm: Buffer; words: TimedWord[]; billedCharacters: number }> {
+    const response = await this.post('/v1/speech/events', request, signal);
+    const audio: Buffer[] = [];
+    const words: TimedWord[] = [];
+    let billed = 0;
+    let failure: string | null = null;
+    const handle = (data: string) => {
+      let event: {
+        type?: string;
+        audio?: string;
+        audio_start_ms?: number;
+        words?: Array<{ word: string; start: number; end: number }>;
+        billed_characters?: number;
+        message?: string;
+      };
+      try {
+        event = JSON.parse(data);
+      } catch {
+        return;
+      }
+      if (event.type === 'Audio' && event.audio) audio.push(Buffer.from(event.audio, 'base64'));
+      if (event.type === 'WordBoundaries') {
+        const offset = event.audio_start_ms ?? 0;
+        for (const word of event.words ?? []) {
+          words.push({ word: word.word, startMs: word.start + offset, endMs: word.end + offset });
+        }
+      }
+      if (event.type === 'Termination') billed = Number(event.billed_characters ?? 0);
+      if (event.type === 'Error') failure = event.message ?? 'AssemblyAI speech failed';
+    };
+
+    if (response.body) {
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffered = '';
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffered += decoder.decode(value, { stream: true });
+        let end: number;
+        while ((end = buffered.indexOf('\n\n')) !== -1) {
+          const block = buffered.slice(0, end);
+          buffered = buffered.slice(end + 2);
+          const data = block
+            .split('\n')
+            .filter((line) => line.startsWith('data:'))
+            .map((line) => line.slice(5).trimStart())
+            .join('\n');
+          if (data) handle(data);
+        }
+      }
+    }
+    if (failure) throw new SpeechError(failure, null);
+    return { pcm: Buffer.concat(audio), words, billedCharacters: Number.isFinite(billed) ? billed : 0 };
+  }
+
+  /** One request, refused as a `SpeechError` unless it was answered. */
+  private async post(path: string, request: SpeechRequest, signal?: AbortSignal): Promise<Response> {
+    const response = await this.fetch(`${this.baseUrl}${path}`, {
       method: 'POST',
       // The key bare, as every AssemblyAI API takes it.
       headers: { authorization: this.options.apiKey, 'content-type': 'application/json' },
@@ -145,6 +260,15 @@ export class AssemblyAiSpeech implements SpeechProvider {
         Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : null
       );
     }
+    return response;
+  }
+
+  private async once(
+    request: SpeechRequest,
+    onAudio: (pcm: Buffer) => void,
+    signal?: AbortSignal
+  ): Promise<{ billedCharacters: number }> {
+    const response = await this.post('/v1/speech', request, signal);
     // Sent with the first audio: what the request bills once its body is
     // delivered, which a cut below makes free.
     const billed = Number(response.headers.get('x-tts-billed-characters') ?? 0);
@@ -195,6 +319,33 @@ export class FakeSpeech implements SpeechProvider {
     if (this.hold) await new Promise<void>((resolve) => this.waiting.push(resolve));
     onAudio(Buffer.alloc(request.text.length * 2, 1));
     return { billedCharacters: [...request.text].length };
+  }
+
+  /**
+   * A sample per character, as `synthesize`, and each token a word a
+   * millisecond per character long, back to back.
+   */
+  async synthesizeWithWords(
+    request: SpeechRequest
+  ): Promise<{ pcm: Buffer; words: TimedWord[]; billedCharacters: number }> {
+    this.requests.push(request);
+    if (this.fail) {
+      const error = this.fail;
+      this.fail = null;
+      throw error;
+    }
+    if (this.hold) await new Promise<void>((resolve) => this.waiting.push(resolve));
+    const words: TimedWord[] = [];
+    let at = 0;
+    for (const word of request.text.split(/\s+/).filter(Boolean)) {
+      words.push({ word, startMs: at, endMs: at + word.length });
+      at += word.length + 1;
+    }
+    return {
+      pcm: Buffer.alloc(Math.max(at, 1) * (SAMPLE_RATE / 1000) * 2, 0),
+      words,
+      billedCharacters: [...request.text].length,
+    };
   }
 
   /** Lets every held request finish. */

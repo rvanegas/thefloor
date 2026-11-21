@@ -1,4 +1,4 @@
-import { access, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, copyFile, readFile, rm, writeFile } from 'node:fs/promises';
 import { randomBytes } from 'node:crypto';
 import { basename, extname, join } from 'node:path';
 import Fastify, {
@@ -20,7 +20,7 @@ import {
   IM_SERVICE_NAMES,
   normaliseImHandle,
 } from '../../core/im';
-import { canEditChannel, capacityOf, keepForPlay, keepOf, keepingOf } from '../../core/channel';
+import { canEditChannel, canLoadTrack, capacityOf, isParticipant, keepForPlay, keepOf, keepingOf } from '../../core/channel';
 import { describeChannel, nameRecording } from '../../core/naming';
 import { isNavAction, NAV_ACTIONS } from '../../core/navigation';
 import { isTriedId, TRIED_IDS } from '../../core/tried';
@@ -57,6 +57,7 @@ import {
   joinRecordings,
   PUBLISHED_CONTENT_TYPE,
   RECORDING_CONTENT_TYPE,
+  encodeSpeech,
 } from './export';
 import { renderFeed, type FeedEpisode } from './feed';
 import { Publication, publishedKeyFor } from './publication';
@@ -80,9 +81,13 @@ import {
   databaseSources,
   DEFAULT_REPLY_LENGTH,
   isReplyLength,
+  librariesFor,
+  listDocuments,
+  readDocument,
   readVoices,
   type ClaudeClient,
 } from './claude';
+import { ReadingError, Readings } from './readings';
 import { RoomDigests } from './digest';
 import { NoesisConnections, noesisFilename, type NoesisOptions } from './noesis';
 import { ChannelLibraries, type ChannelLibrariesOptions } from './channelLibraries';
@@ -99,6 +104,7 @@ import {
   SPEECH_SAMPLE_TEXT,
   SPEECH_VOICES,
   knownSpeechVoices,
+  speechVoiceFor,
 } from '../../core/speech';
 import { readable, separated } from '../../core/transcript';
 import {
@@ -152,6 +158,13 @@ import type { StreamingTranscriptionProvider } from './streaming';
  * overrides it, as it overrides `origin` below.
  */
 const DEFAULT_ORIGIN = 'https://thefloor.rvanegas.co';
+
+/**
+ * The longest document read aloud, in characters: some four hours of speech
+ * and three dollars at AssemblyAI's rate, past which a press is more likely a
+ * mistake than a wish.
+ */
+const MAX_READING_CHARACTERS = 200_000;
 
 export interface BuildOptions {
   dbPath?: string;
@@ -339,6 +352,10 @@ export interface BuildOptions {
   speech?: SpeechProvider;
   /** Where a reply's audio is kept for its hour. Emptied at startup. */
   speechDir?: string;
+  /** Where *readings* keep their audio (readings.ts); `READINGS_DIR`, `./readings` by default. */
+  readingsDir?: string;
+  /** For tests: PCM to the file a reading is kept as. `encodeSpeech` otherwise. */
+  encodeSpeech?: (pcm: Buffer) => Promise<Buffer>;
   /**
    * Asks Claude for a turn in a conversation — *Ask Claude*, on the *Record* bar.
    * Optional for `transcription`'s reasons, and the switch in the same way:
@@ -1325,6 +1342,48 @@ export function buildApp(options: BuildOptions = {}): App {
     };
   }
 
+  // The libraries a press of *Ask Claude* consults, and a *reading* is chosen
+  // from: each owner's, with their token, while they are Pro.
+  const libraryOptions =
+    noesis && options.library
+      ? {
+          url: options.library.url,
+          // An owner whose Pro lapsed is passed over, their switch left as it was,
+          // so renewing brings their library back without anybody turning it on.
+          tokenFor: async (accountId: string) => (isPro(accountId) ? noesis.accessToken(accountId) : null),
+        }
+      : undefined;
+  const libraryFetch = options.library?.fetch ?? options.channelLibraries?.fetch ?? fetch;
+
+  // A library document read aloud into *Listen*, since 2026-11-20, where
+  // there is a speech provider to read it. See readings.ts.
+  const readings = options.speech
+    ? new Readings({
+        db,
+        provider: options.speech,
+        dir: options.readingsDir ?? './readings',
+        encode: options.encodeSpeech ?? ((pcm) => encodeSpeech(pcm, SAMPLE_RATE)),
+        now,
+        billed: ({ channelId, accountId, readingId, characters }) => {
+          db.prepare(
+            `INSERT INTO speech_usage (id, at, channel_id, account_id, paste_id, characters)
+             VALUES (?, ?, ?, ?, ?, ?)`
+          ).run(newId('speech'), now(), channelId, accountId, readingId, characters);
+        },
+        heard: (channelId, line) => live?.heard(channelId, line),
+        log: { warn: (details, message) => fastify.log.warn(details, message) },
+      })
+    : null;
+  if (readings) {
+    channels.attachReadings(readings);
+    const sweepReadings = () =>
+      void readings.sweep().catch((error) => fastify.log.error({ err: error }, 'readings sweep failed'));
+    sweepReadings();
+    const timer = setInterval(sweepReadings, 60 * 60 * 1000);
+    timer.unref?.();
+    fastify.addHook('onClose', async () => clearInterval(timer));
+  }
+
   // Each channel's own noesis library, filed into by itself (channelLibraries.ts).
   const channelLibraries = options.channelLibraries
     ? new ChannelLibraries(
@@ -1352,20 +1411,18 @@ export function buildApp(options: BuildOptions = {}): App {
     ? new ClaudeResponder({
         client: options.claude,
         channels,
-        sources: databaseSources(db, channels.rooms, transcripts),
+        sources: {
+          ...databaseSources(db, channels.rooms, transcripts),
+          reading: (channelId, at) => {
+            const state = channels.get(channelId);
+            return state && readings ? readings.forClaude(state, at) : null;
+          },
+        },
         db,
         now,
         timeoutMs: options.claudeTimeoutMs,
         libraryTimeoutMs: options.claudeLibraryTimeoutMs,
-        library:
-          noesis && options.library
-            ? {
-                url: options.library.url,
-                // An owner whose Pro lapsed is passed over, their switch left as it was,
-                // so renewing brings their library back without anybody turning it on.
-                tokenFor: async (accountId) => (isPro(accountId) ? noesis.accessToken(accountId) : null),
-              }
-            : undefined,
+        library: libraryOptions,
         // Whose library it is, by the name the room knows them by.
         libraryOwner: (accountId) => accounts.byId(accountId)?.display_name ?? null,
         // How the server reads what the room chose from noesis, as Claude would have.
@@ -5335,6 +5392,146 @@ export function buildApp(options: BuildOptions = {}): App {
         .code(500)
         .send({ error: 'That recording could not be prepared for playback.' });
     }
+  });
+
+  /**
+   * **The documents a *reading* may be made from**, since 2026-11-20: those
+   * of every library switched on in this channel, by each owner's own
+   * token, as *Ask Claude* consults them (`librariesFor`) — a member's
+   * press, on a *Pro* channel, as the *Pro voices* it is read in are.
+   */
+  fastify.get('/channels/:id/documents', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const { q } = request.query as { q?: string };
+    const channel = channels.get(id);
+    if (!channel || !isParticipant(channel, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    if (!readings) return reply.code(503).send({ error: 'Reading aloud is not available.' });
+    if (!channels.isProChannel(id)) {
+      return reply.code(403).send({ error: 'Reading a document aloud is part of Pro.' });
+    }
+    const consulted = await librariesFor(libraryOptions, channel, 'pro');
+    const listed = await Promise.all(
+      consulted.flatMap((entry) =>
+        entry.libraries.map(async (library) => {
+          const result = await listDocuments(libraryFetch, entry, library, (q ?? '').slice(0, 200));
+          if (!result.ok) {
+            request.log.warn({ channel: id, library, error: result.error }, 'library listing failed');
+            return [];
+          }
+          return result.documents.map((document) => ({ ...document, library }));
+        })
+      )
+    );
+    return {
+      libraries: consulted.flatMap((entry) => entry.libraries),
+      documents: listed.flat().slice(0, 100),
+    };
+  });
+
+  /**
+   * **Reads a library document aloud into *Listen***, since 2026-11-20: read
+   * from noesis whole, spoken in the presser's *Pro voice* for the channel's
+   * language (`speechLanguage`), kept a month, and loaded as the channel's
+   * track as an upload is. A reading kept from before costs nothing.
+   *
+   * **Held open until the track is loaded**, which for a long document is a
+   * minute or more; the synthesis goes on if the phone lets go, and the track
+   * arrives in every snapshot when it is done.
+   */
+  fastify.post('/channels/:id/reading', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const body = (request.body ?? {}) as { name?: unknown; library?: unknown; title?: unknown; language?: unknown };
+    const name = typeof body.name === 'string' ? body.name.trim() : '';
+    const library = typeof body.library === 'string' ? body.library.trim() : '';
+    if (!name || !library) return reply.code(400).send({ error: 'Which document?' });
+    const channel = channels.get(id);
+    if (!channel || !isParticipant(channel, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    if (!readings) return reply.code(503).send({ error: 'Reading aloud is not available.' });
+    if (!channels.isProChannel(id)) {
+      return reply.code(403).send({ error: 'Reading a document aloud is part of Pro.' });
+    }
+    // Asked before anything is spent; `loadTrack` asks again at the end.
+    if (!canLoadTrack(channel, account.id)) {
+      return reply.code(409).send({ error: 'You can’t change what is playing right now.' });
+    }
+    const entry = (await librariesFor(libraryOptions, channel, 'pro')).find((each) =>
+      each.libraries.includes(library)
+    );
+    if (!entry) return reply.code(404).send({ error: 'That library is not on in this channel.' });
+
+    const read = await readDocument(libraryFetch, entry, name, library);
+    if (!read.ok) return reply.code(502).send({ error: `The document could not be read: ${read.error}.` });
+    if ([...read.text].length > MAX_READING_CHARACTERS) {
+      return reply.code(413).send({ error: 'That document is too long to read aloud.' });
+    }
+    const language =
+      channels.speechLanguage(id, account.id, typeof body.language === 'string' ? body.language : undefined) ?? 'en';
+    const voice = speechVoiceFor(accounts.settings(account.id).speechVoices, language);
+    const title =
+      (typeof body.title === 'string' && body.title.trim().slice(0, 300)) || name.replace(/\.[^.]+$/, '');
+
+    let dir: string | null = null;
+    try {
+      const { reading, file } = await readings.prepare({
+        name,
+        library,
+        title,
+        markdown: read.text,
+        voice,
+        language,
+        channelId: id,
+        accountId: account.id,
+      });
+      // A copy in a track directory of its own, since replacing the track
+      // removes its directory, and the kept reading has to outlive that.
+      dir = await channels.newTrackDir();
+      const track = join(dir, 'track.ogg');
+      await copyFile(file, track);
+      const result = await channels.loadTrack(id, account.id, {
+        file: track,
+        dir,
+        title,
+        durationMs: await probeDurationMs(track),
+        document: { name, library, title, reading: reading.id },
+      });
+      if (!result.ok) {
+        await rm(dir, { recursive: true, force: true });
+        return reply.code(statusFor(result.code)).send({ error: result.error });
+      }
+      return { track: result.channel.playback.track };
+    } catch (error) {
+      if (dir) await rm(dir, { recursive: true, force: true });
+      if (error instanceof ReadingError) return reply.code(422).send({ error: error.message });
+      request.log.error({ err: error, channel: id }, 'reading failed');
+      return reply.code(502).send({ error: 'The document could not be read aloud.' });
+    }
+  });
+
+  /**
+   * The sentences of the reading the channel is playing, each at its place
+   * in the audio, for a screen to show the one being said. A member's read,
+   * as taking a copy of the track is.
+   */
+  fastify.get('/channels/:id/reading', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const channel = channels.get(id);
+    if (!channel || !isParticipant(channel, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    const document = channel.playback.track?.document;
+    const reading = document && readings ? readings.get(document.reading) : null;
+    if (!document || !reading) return reply.code(404).send({ error: 'Nothing is being read.' });
+    return { reading: reading.id, sentences: reading.sentences };
   });
 
   /**

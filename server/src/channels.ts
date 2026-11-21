@@ -89,6 +89,7 @@ import { initialRecordingState } from '../../core/recording';
 import { initialWatchState, parseYouTubeUrl } from '../../core/watch';
 import type {
   PlaybackTrack,
+  TrackDocument,
   ChannelAction,
   ChannelState,
   Guest,
@@ -921,6 +922,12 @@ export class ChannelRegistry {
     deleteLibrary(handle: string): Promise<boolean>;
     deleteDocument(handle: string, file: string): Promise<boolean>;
   } | null = null;
+  /**
+   * What follows a *reading* as it plays (readings.ts), writing each sentence
+   * heard as a *Played audio* line; attached where there is a speech
+   * provider. Looked at on every tick.
+   */
+  private readings: { follow(state: ChannelState, now: number): void } | null = null;
   private digests: {
     opened(channelId: string, roomId: string, openedAt: number): void;
     follow(state: ChannelState, now: number): void;
@@ -1411,6 +1418,11 @@ export class ChannelRegistry {
     for (const state of this.channels.values()) live.sync(state);
   }
 
+  /** Gives the registry what follows a reading as it plays. */
+  attachReadings(readings: NonNullable<ChannelRegistry['readings']>): void {
+    this.readings = readings;
+  }
+
   /** Gives the registry what deletes channel libraries, for the sweep. */
   attachLibraryCleaner(cleaner: NonNullable<ChannelRegistry['libraryCleaner']>): void {
     this.libraryCleaner = cleaner;
@@ -1689,6 +1701,7 @@ export class ChannelRegistry {
      * out of channels and this is iterating over them.
      */
     const gainedWait = new Set<string>();
+    for (const channel of this.channels.values()) this.readings?.follow(channel, now);
     for (const [id, channel] of this.channels) {
       if (channel.status !== 'active') continue;
       const attended = this.endRooms(this.expireInattentive(channel, now), now);
@@ -3433,6 +3446,8 @@ export class ChannelRegistry {
       durationMs: number;
       /** Set when the track is one of this channel's own recordings. */
       recordingId?: string;
+      /** Set when the track is a *reading* of a library document (readings.ts). */
+      document?: TrackDocument;
     }
   ): Promise<{ ok: true; channel: ChannelState } | Refused> {
     const channel = this.channels.get(channelId);
@@ -3482,6 +3497,7 @@ export class ChannelRegistry {
       title: upload.title,
       durationMs: upload.durationMs,
       ...(upload.recordingId ? { recordingId: upload.recordingId } : {}),
+      ...(upload.document ? { document: upload.document } : {}),
     };
     return this.apply(channelId, userId, { type: 'SET_TRACK', track } as Omit<
       ChannelAction,

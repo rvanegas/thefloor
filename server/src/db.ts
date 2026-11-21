@@ -2263,6 +2263,32 @@ CREATE TABLE IF NOT EXISTS speech_usage (
 );
 CREATE INDEX IF NOT EXISTS speech_usage_at ON speech_usage(at);
 
+-- A *reading*: a library document spoken aloud into *Listen*, since
+-- 2026-11-20 (server/src/readings.ts). **Kept a month**, at Rodrigo's word, so
+-- playing it again costs nothing: the audio in the store under audio_key,
+-- and here the text spoken and each sentence's place in the audio, which is
+-- what the *Played audio* lines and Claude's sense of where the room has got
+-- to are made from. hash is the text, voice and language together, which
+-- is what makes two readings the same. A synthesis's characters go to
+-- speech_usage with this row's id as its paste_id.
+CREATE TABLE IF NOT EXISTS readings (
+  id           TEXT PRIMARY KEY,
+  hash         TEXT NOT NULL,
+  name         TEXT NOT NULL,
+  library      TEXT NOT NULL,
+  title        TEXT NOT NULL,
+  voice        TEXT NOT NULL,
+  language     TEXT NOT NULL,
+  text         TEXT NOT NULL,
+  sentences    TEXT NOT NULL,
+  duration_ms  INTEGER NOT NULL,
+  audio_key    TEXT,
+  created_at   INTEGER NOT NULL,
+  created_by   TEXT,
+  deleted_at   INTEGER
+);
+CREATE INDEX IF NOT EXISTS readings_hash ON readings(hash);
+
 -- How loudly one channel may interrupt one person.
 --
 -- **Only the people who have changed it have a row.** Absence means

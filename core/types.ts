@@ -386,6 +386,26 @@ export interface PlaybackTrack {
    * loaded track.
    */
   recordingId?: string;
+  /**
+   * The library document this track is a *reading* of, since 2026-11-20:
+   * the document spoken by AssemblyAI in the presser's Pro voice
+   * (server/src/readings.ts). `reading` names the kept synthesis, whose
+   * sentences say where in the document each moment of the track is
+   * (core/reading.ts). Optional and additive, so a build that does not know
+   * it draws the title as it draws any track's.
+   */
+  document?: TrackDocument;
+}
+
+/** The library document a track reads aloud. See `PlaybackTrack.document`. */
+export interface TrackDocument {
+  /** As noesis's `read_file` takes it. */
+  name: string;
+  /** Whose library, by noesis id. */
+  library: string;
+  title: string;
+  /** The kept synthesis, by id. */
+  reading: string;
 }
 
 /**

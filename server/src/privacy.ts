@@ -193,6 +193,13 @@ export const DIGEST_PRIVACY_UPDATED = '5 November 2026';
  */
 export const SPEECH_PRIVACY_UPDATED = '13 November 2026';
 
+/**
+ * When the page last changed for a reader whose server can read a library's
+ * document aloud — a library and speech both — which is where that paragraph
+ * is: *readings*, since 2026-11-20 (readings.ts).
+ */
+export const READING_PRIVACY_UPDATED = '20 November 2026';
+
 export function privacyPage(options: PolicyOptions = {}): string {
   const { contactEmail, transcription, cohorts, pro } = options;
   const live = !!(options.liveTranscription && transcription);
@@ -368,6 +375,20 @@ Record whenever Claude is asked again while the reply is part of what it is
 sent, and are deleted with the reply. Disconnecting switches the library off
 in every channel.</p>
 `;
+  // Where a library and speech both are: a document read aloud (readings.ts).
+  const reading = library && !!speech;
+  const readingParagraph = `<p>In such a channel a document from a library switched on
+in it can also be read aloud, in <em>Listen</em>, by the Pro voice of whoever
+chose it. The Floor reads the document from noesis and sends its text to
+${speech}, in the United States, which returns it as speech; The Floor plays
+that to everybody in the channel's conversation as it plays anything else, and
+a recording that is running keeps it. The Floor keeps the speech and the
+document's text for a month, so that the same document can be read again in
+any channel without being spoken again, and then deletes them. While it plays,
+the document's text goes to ${claude} with the Record whenever Claude is asked,
+and where the conversation is being transcribed, each sentence of it is
+written into the Record as it is heard.</p>
+`;
   const speechParagraph = `<p>Claude's reply can also be read aloud into the conversation, in a
 channel where a member subscribes to Pro, by Pro voices rather than the
 iPhone's own. Its text is then sent to ${speech}, in the United States, which returns it as speech, and The
@@ -392,7 +413,7 @@ what the Record already says.</p>
 under the name <em>Claude</em>, for everybody in the channel to read, and is
 deleted with the channel, on the same schedule as everything else in it. Every screen in the channel says <em>Responding…</em>
 in place of <em>Ask Claude</em> while the reply is being written.</p>
-${speech ? speechParagraph : ''}${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}
+${speech ? speechParagraph : ''}${digest ? digestParagraph : ''}${library ? libraryParagraph : ''}${reading ? readingParagraph : ''}
 `
     : '';
 
@@ -415,6 +436,7 @@ ${speech ? speechParagraph : ''}${digest ? digestParagraph : ''}${library ? libr
       ...(library ? [LIBRARY_PRIVACY_UPDATED] : []),
       ...(digest ? [DIGEST_PRIVACY_UPDATED] : []),
       ...(speech ? [SPEECH_PRIVACY_UPDATED] : []),
+      ...(reading ? [READING_PRIVACY_UPDATED] : []),
     ])}`,
     body: `
 <p>The Floor is for talking with people you already know. This

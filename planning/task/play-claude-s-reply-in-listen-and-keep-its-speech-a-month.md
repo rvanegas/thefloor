@@ -22,8 +22,10 @@ Open:
   time; keeping costs almost nothing, which is Rodrigo's argument for a month.
 - **What is played**: the stem a running recording kept is a separate copy
   that belongs to the recording; this is the reply's own audio.
-- One of the three things *Listen* would play — see
-  `read-a-library-document-aloud-into-listen.md`.
+- One of the three things *Listen* would play. The library document was
+  built 2026-11-20, kept a month on the box's disk because the server cannot
+  delete from S3 — the same question this one has —
+  `decision/2026-11-20-a-library-document-is-read-aloud-in-listen.md`.
 
 Read GLOSSARY *Read aloud* and *Read again*, `server/src/speech.ts`, and
 `decision/2026-10-28-claudes-reply-is-read-aloud-on-arrival.md` first.

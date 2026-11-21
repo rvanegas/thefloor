@@ -400,6 +400,13 @@ export const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
   volumeReadout: { justifyContent: 'center', minWidth: 44, alignItems: 'center' },
+  /**
+   * The sentence a *reading* is saying, under the progress bar: `type.body`
+   * at a fixed three lines' height, so that a sentence of one line and one
+   * of three leave the transport below it where it was — STYLE.md's rule
+   * that position never changes on a fixed control.
+   */
+  readingLine: { ...type.body, lineHeight: 20, height: 60 },
   stack: { gap: spacing(1) },
   buttonRow: { flexDirection: 'row', gap: spacing(1) },
   // A row holding a `PasteButton`, whose system control carries a caption

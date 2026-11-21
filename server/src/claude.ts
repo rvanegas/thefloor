@@ -632,6 +632,12 @@ export interface ComposedRecord {
    * nothing at noesis.
    */
   hiddenDocuments: KeptDocument[];
+  /**
+   * The document the channel is having read aloud, sent whole ahead of the
+   * *Record* so that it sits inside the cached prefix, with the note saying
+   * where the room is in it sent after, where what changes goes.
+   */
+  reading?: ReadingForClaude;
 }
 
 /** One room of the *Record*, rendered: its heading and its lines. */
@@ -673,6 +679,21 @@ export interface RecordSources {
   working?: (pasteId: string) => WorkingStep[] | null;
   /** The documents a reply of Claude's read, by its paste's id. */
   documents?: (pasteId: string) => KeptDocument[] | null;
+  /**
+   * The library document the channel is having read aloud in *Listen*, and
+   * where the room is in it, since 2026-11-20 (readings.ts `forClaude`).
+   */
+  reading?: (channelId: string, now: number) => ReadingForClaude | null;
+}
+
+/** A *reading* as a press is given it: the document whole, and where the room is. */
+export interface ReadingForClaude {
+  name: string;
+  library: string;
+  title: string;
+  text: string;
+  /** Where the room has got to, and whether it is playing: changes press to press. */
+  note: string;
 }
 
 /**
@@ -938,7 +959,10 @@ export function composeRecord(
       }),
     }))
     .filter((room) => room.lines.length > 0);
-  if (rooms.length === 0) return null;
+  // A document being read aloud is something to talk about on its own.
+  const reading = sources.reading?.(channelId, now) ?? null;
+  if (rooms.length === 0 && !reading) return null;
+  if (reading) holds.push({ name: reading.name, title: reading.title });
 
   const size = (room: RenderedRoom) =>
     room.heading.length + 1 + room.lines.reduce((sum, line) => sum + line.length + 1, 0);
@@ -959,6 +983,7 @@ export function composeRecord(
     ...(options.library ? { summarized } : {}),
     holds,
     hiddenDocuments,
+    ...(reading ? { reading } : {}),
   };
 }
 
@@ -1036,8 +1061,14 @@ export function userContent(
       ? ' Each older part filed in this channel’s library is one line naming its document there.'
       : '');
   const chunks = recordChunks(record.text);
+  // Before the *Record*, so that the cache holds it from the first press on.
+  const reading = record.reading
+    ? 'The people here are having this document from a library read aloud to them, ' +
+      'and you have it whole:\n\n' +
+      `${documentBlock(record.reading)}\n\n`
+    : '';
   return [
-    { type: 'text', text: `${opening}\n\n<record>\n` },
+    { type: 'text', text: `${opening}\n\n${reading}<record>\n` },
     ...chunks.map((text, index): Anthropic.TextBlockParam =>
       cache && index >= chunks.length - 2
         ? { type: 'text', text, cache_control: { type: 'ephemeral' } }
@@ -1048,6 +1079,10 @@ export function userContent(
       text:
         '\n</record>\n\n' +
         (record.trimmed ? 'Earlier conversation was left out for length.\n\n' : '') +
+        (record.reading
+          ? `${record.reading.note} Unless somebody asks otherwise, respond to the passage ` +
+            'they have just heard and to what they said about it.\n\n'
+          : '') +
         lengthRule(length),
     },
   ];
@@ -1265,6 +1300,51 @@ export async function readDocument(
   library: string,
   signal?: AbortSignal
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
+  return callLibraryTool(doFetch, server, 'read_file', { name, library }, signal);
+}
+
+/**
+ * **The documents of one library, as noesis's `list_documents` names them**,
+ * for the picker a *reading* starts from (readings.ts), since 2026-11-20: a
+ * line each, `<name> — <title>`, newest first, or best first with a query.
+ */
+export async function listDocuments(
+  doFetch: typeof fetch,
+  server: Pick<ConsultedLibrary, 'url' | 'token'>,
+  library: string,
+  query: string,
+  signal?: AbortSignal
+): Promise<{ ok: true; documents: Array<{ name: string; title: string }> } | { ok: false; error: string }> {
+  const listed = await callLibraryTool(doFetch, server, 'list_documents', { library, query }, signal);
+  if (!listed.ok) {
+    // An empty library, or a query that matched nothing, is no failure.
+    return /no documents/i.test(listed.error) ? { ok: true, documents: [] } : listed;
+  }
+  let text = listed.text;
+  // Answered as structured output by some versions: `{"result": "…"}`.
+  try {
+    const parsed = JSON.parse(text) as { result?: unknown };
+    if (typeof parsed.result === 'string') text = parsed.result;
+  } catch {
+    // Plain text, as the tool's own result is.
+  }
+  const documents = text
+    .split('\n')
+    .map((line) => line.trim())
+    .map((line) => /^(\S+\.md)\s+—\s+(.*?)(?:\s+\(not yet indexed\))?$/.exec(line))
+    .filter((match): match is RegExpExecArray => match !== null)
+    .map((match) => ({ name: match[1], title: match[2].trim() || match[1] }));
+  return { ok: true, documents };
+}
+
+/** One MCP `tools/call` to noesis, its text or why not. */
+async function callLibraryTool(
+  doFetch: typeof fetch,
+  server: Pick<ConsultedLibrary, 'url' | 'token'>,
+  tool: string,
+  args: Record<string, string>,
+  signal?: AbortSignal
+): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   let response: Response;
   try {
     response = await doFetch(server.url, {
@@ -1278,7 +1358,7 @@ export async function readDocument(
         jsonrpc: '2.0',
         id: 1,
         method: 'tools/call',
-        params: { name: 'read_file', arguments: { name, library } },
+        params: { name: tool, arguments: args },
       }),
       signal,
     });

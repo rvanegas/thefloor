@@ -111,6 +111,7 @@ app/modules/*/android/build/
 # --delete too, or a deploy would empty it.
 /server/tracks/
 /server/speech/
+/server/readings/
 
 # local env — the wildcard matters: a .env.bak or .env.save is just as
 # secret-bearing as .env itself, and the bare pattern would not have caught it.

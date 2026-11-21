@@ -571,3 +571,51 @@ export async function joinRecordings(
     await rm(dir, { recursive: true, force: true });
   }
 }
+
+/**
+ * Raw 16-bit mono PCM as Ogg Opus, for a *reading* (readings.ts): an hour of
+ * speech is some 345 MB as PCM and a few tens of MB as Opus, which is the
+ * difference between a store that can keep a month of them and one that
+ * cannot. At one core and low priority, as every encode here is (`run`).
+ */
+export async function encodeSpeech(
+  pcm: Buffer,
+  sampleRate: number,
+  ffmpegPath = process.env.FFMPEG_PATH ?? 'ffmpeg'
+): Promise<Buffer> {
+  const dir = await mkdtemp(join(tmpdir(), 'thefloor-reading-'));
+  try {
+    const input = join(dir, 'speech.pcm');
+    const output = join(dir, 'speech.ogg');
+    await writeFile(input, pcm);
+    await run(
+      ffmpegPath,
+      [
+        '-v',
+        'error',
+        '-threads',
+        '1',
+        '-f',
+        's16le',
+        '-ar',
+        String(sampleRate),
+        '-ac',
+        '1',
+        '-i',
+        input,
+        '-c:a',
+        'libopus',
+        '-b:a',
+        '48k',
+        '-application',
+        'voip',
+        '-y',
+        output,
+      ],
+      dir
+    );
+    return await readFile(output);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}

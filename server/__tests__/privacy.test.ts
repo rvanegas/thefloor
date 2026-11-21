@@ -19,6 +19,7 @@ import {
   LIVE_PRIVACY_UPDATED,
   PRIVACY_UPDATED,
   SPEECH_PRIVACY_UPDATED,
+  READING_PRIVACY_UPDATED,
 } from '../src/privacy';
 import { MemoryMediaServer } from '../src/media';
 import { MemoryStreaming } from '../src/streaming';
@@ -331,6 +332,32 @@ describe('The privacy policy', () => {
       expect(page).not.toMatch(/Fake (keeps|retains|deletes)/);
       expect(page).toContain(
         `last updated ${latest(PRIVACY_UPDATED, CLAUDE_PRIVACY_UPDATED, SPEECH_PRIVACY_UPDATED)}`
+      );
+    });
+
+    it('says what a reading keeps, only where a library and speech both are', async () => {
+      app = buildApp({ dbPath: ':memory:', claude: noClient, library });
+      expect((await fetchPolicy()).body).not.toContain('read aloud, in <em>Listen</em>');
+      await app.fastify.close();
+
+      app = buildApp({
+        dbPath: ':memory:',
+        claude: noClient,
+        library,
+        speech: new FakeSpeech(),
+        speechDir: mkdtempSync(join(tmpdir(), 'privacy-speech-')),
+      });
+      const page = (await fetchPolicy()).body.replace(/\s+/g, ' ');
+      expect(page).toContain('read aloud, in <em>Listen</em>');
+      expect(page).toContain("keeps the speech and the document's text for a month");
+      expect(page).toContain(
+        `last updated ${latest(
+          PRIVACY_UPDATED,
+          CLAUDE_PRIVACY_UPDATED,
+          SPEECH_PRIVACY_UPDATED,
+          LIBRARY_PRIVACY_UPDATED,
+          READING_PRIVACY_UPDATED
+        )}`
       );
     });
 

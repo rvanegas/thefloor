@@ -436,6 +436,7 @@ const app = buildApp({
   streaming,
   speech,
   speechDir: process.env.SPEECH_DIR ?? './speech',
+  readingsDir: process.env.READINGS_DIR ?? './readings',
   claude,
   library,
   names,

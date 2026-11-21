@@ -15,7 +15,7 @@ import { parse, join } from 'path';
 
 import { SPEECH_VOICES, speechLanguageOf } from '../../core/speech';
 import { SAMPLE_RATE } from '../src/playback';
-import { AssemblyAiSpeech, SPEECH_MAX_CHARACTERS } from '../src/speech';
+import { AssemblyAiSpeech, speechPieces } from '../src/speech';
 
 const args = process.argv.slice(2);
 const option = (name: string): string | undefined => {
@@ -71,27 +71,6 @@ function words(text: string): string {
     .join('\n');
 }
 
-/**
- * Pieces under the provider's limit, broken at a line where one fits, else at
- * a sentence, else at a space — never inside a word.
- */
-function pieces(text: string): string[] {
-  const result: string[] = [];
-  let rest = text;
-  while ([...rest].length > SPEECH_MAX_CHARACTERS) {
-    // Code units overstate code points, so a cut by units is always under.
-    const window = rest.slice(0, SPEECH_MAX_CHARACTERS);
-    const cut = [/\n(?![\s\S]*\n)/, /[.!?…](?![\s\S]*[.!?…])/, / (?![\s\S]* )/]
-      .map((pattern) => window.search(pattern))
-      .find((at) => at > 0);
-    const end = cut === undefined ? SPEECH_MAX_CHARACTERS : cut + 1;
-    result.push(rest.slice(0, end).trim());
-    rest = rest.slice(end).trim();
-  }
-  if (rest) result.push(rest);
-  return result;
-}
-
 /** A canonical 44-byte header over 16-bit mono PCM. */
 function wav(pcm: Buffer): Buffer {
   const header = Buffer.alloc(44);
@@ -137,7 +116,7 @@ async function main() {
     console.error(`${file} has nothing to say`);
     process.exit(1);
   }
-  const parts = pieces(text);
+  const parts = speechPieces(text);
   console.error(
     `Speaking ${[...text].length} characters of ${file} as ${voice!.name}, in ${language}` +
       (parts.length > 1 ? `, in ${parts.length} requests` : '') +

@@ -11,5 +11,6 @@ makes it playable. *Better Controls for Playback* and *Improve Transcripts UI*
 are bare titles that may have meant this; fold them in or delete them.
 
 Rodrigo, 2026-11-18: one of three things *Listen* would play, with Claude's
-reply and a library document read aloud —
-`read-a-library-document-aloud-into-listen.md`.
+reply and a library document read aloud — the last built 2026-11-20 as a
+track loaded through `loadTrack`, the way in this would take too
+(`decision/2026-11-20-a-library-document-is-read-aloud-in-listen.md`).

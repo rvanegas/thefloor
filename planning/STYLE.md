@@ -1382,6 +1382,21 @@ and `spacing(0.75)` below. `Empty` is `type.muted` with `spacing(2)` of
 vertical padding, and takes a sentence rather than a word — "Nothing matches."
 rather than "Empty".
 
+**The *Listen* card chooses a document in place**, since 2026-11-20
+(`DocumentPicker`): *Read a document aloud*, a `default` `Button` with *From a
+library on in this channel* as its sublabel under *Play something together*
+or under the track's controls — drawn on a *Pro channel* alone, the rule of
+the *Pro voice* card, since nobody else could press it — opens the card
+itself into a `Field` and the documents stacked full width, one `Button` each
+with its library as the sublabel where more than one library is on, as
+*a choice of more than three goes down the page*. Not a sheet: there is none
+on the channel screen, and what is chosen is what this card plays. Its way
+out is `quiet` *Cancel*, which is disclosure — it folds the card back — and
+so inside that variant's one use. While a track is a *reading*, the sentence
+being said is drawn under the progress labels in `type.body` at a fixed
+three lines' height (`readingLine`), so a short sentence and a long one leave
+the transport beneath where it was.
+
 **A tab with one thing on it gets no label**, since 2026-09-13. A section
 label divides; where there is nothing to divide from, it is the screen saying
 its own name twice under a tab that already said it. *Listen* lost SHARED

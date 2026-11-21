@@ -14,6 +14,7 @@ import {
   isSilenced,
 } from '../../../core/floor';
 import { playbackPositionMs } from '../../../core/playback';
+import { sentenceAt, type ReadingSentence } from '../../../core/reading';
 import {
   initialWatchState,
   isUprightFilm,
@@ -68,7 +69,8 @@ import { isHere, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
-import { api } from '../api/http';
+import { api, type LibraryDocument } from '../api/http';
+import { DocumentPicker } from './DocumentPicker';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
 import { useApp } from '../state/AppProvider';
@@ -343,6 +345,36 @@ export function ChannelView({
    * the mix takes a moment to fetch.
    */
   const [preparingRecording, setPreparingRecording] = useState(false);
+  /**
+   * A *reading*, since 2026-11-20: whether the document picker is open in
+   * the *Listen* card, and whether a document chosen from it is being
+   * spoken, which for a long one is a minute or more.
+   */
+  const [pickingDocument, setPickingDocument] = useState(false);
+  const [preparingReading, setPreparingReading] = useState(false);
+  /**
+   * The sentences of what is being read aloud, fetched once per reading, so
+   * the card can show the one being said (core/reading.ts `sentenceAt`).
+   */
+  const readingId = channel?.playback.track?.document?.reading ?? null;
+  const [readingSentences, setReadingSentences] = useState<{
+    reading: string;
+    sentences: ReadingSentence[];
+  } | null>(null);
+  useEffect(() => {
+    if (!readingId || !app.token || readingSentences?.reading === readingId) return;
+    let current = true;
+    api
+      .channelReading(app.token, channelId)
+      .then((answer) => {
+        if (current && answer.reading === readingId) setReadingSentences(answer);
+      })
+      // Only the line under the progress bar goes without; the track plays.
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [readingId, app.token, channelId, readingSentences?.reading]);
   /**
    * A copy of the track being fetched, which is a wait and not an upload.
    *
@@ -2206,6 +2238,25 @@ export function ChannelView({
     }
   };
 
+  /**
+   * A document chosen from the picker, read aloud into this card: spoken by
+   * the server, loaded as the track, and started, as a recording's *Play*
+   * is.
+   */
+  const readDocument = async (document: LibraryDocument) => {
+    if (!app.token || preparingReading) return;
+    setPickingDocument(false);
+    setPreparingReading(true);
+    try {
+      await api.readDocumentAloud(app.token, channelId, document);
+      act({ type: 'PLAY' });
+    } catch (e) {
+      Alert.alert(t.couldNotReadAloud(), e instanceof Error ? e.message : String(e));
+    } finally {
+      setPreparingReading(false);
+    }
+  };
+
   const loadTrack = async () => {
     setUploadError(null);
     setUpload({ percent: null, cancel: null });
@@ -3808,6 +3859,7 @@ export function ChannelView({
           ) : null}
           {uploadError ? <Text style={styles.warning}>{uploadError}</Text> : null}
           {preparingRecording ? <Text style={type.muted}>{recordingWords.loading()}</Text> : null}
+          {preparingReading ? <Text style={type.muted}>{t.preparingTheReading()}</Text> : null}
 
           {track ? (
             <>
@@ -3835,6 +3887,23 @@ export function ChannelView({
                   {formatDuration(track.durationMs)}
                 </Text>
               </View>
+              {/*
+                The sentence being said, where the track is a *reading*:
+                what the room is hearing, to follow along by, and the
+                sentence it stopped on when paused. Three lines at most, so
+                the controls below stay where they are whatever is said.
+              */}
+              {track.document ? (
+                // Drawn, empty, before the sentences arrive, so their arrival
+                // moves nothing either.
+                <Text style={styles.readingLine} numberOfLines={3}>
+                  {readingSentences?.reading === track.document.reading
+                    ? (readingSentences.sentences[
+                        Math.max(0, sentenceAt(readingSentences.sentences, position))
+                      ]?.text ?? '')
+                    : ''}
+                </Text>
+              ) : null}
 
               <View style={styles.buttonRow}>
                 <Button
@@ -3934,6 +4003,30 @@ export function ChannelView({
               onPress={loadTrack}
             />
           )}
+
+          {/*
+            A *reading*, since 2026-11-20: a document from a library on in
+            this channel, spoken in the presser's Pro voice. **Drawn only on
+            a Pro channel**, since nobody else could press it, and below the
+            track's controls or the upload, a second way to put something on.
+          */}
+          {view?.pro && app.token ? (
+            pickingDocument ? (
+              <DocumentPicker
+                token={app.token}
+                channelId={channelId}
+                onPick={readDocument}
+                onCancel={() => setPickingDocument(false)}
+              />
+            ) : (
+              <Button
+                label={t.readADocument()}
+                sublabel={t.fromALibrary()}
+                disabled={!mayLoadTrack || uploading || preparingReading}
+                onPress={() => setPickingDocument(true)}
+              />
+            )
+          ) : null}
 
           {upload ? (
             // Outside both branches above, because an upload can be a first

@@ -417,6 +417,36 @@ describe('what is kept', () => {
     expect(lines[0]).toMatchObject({ identity: 'media', displayName: 'Played audio' });
   });
 
+  it('writes a reading from its document, and sends its audio to nobody', async () => {
+    boot();
+    const { alice, channelId, room: roomName } = await room();
+    await turnOn(alice.token, channelId);
+    const trackDir = await app.channels.newTrackDir();
+    const loaded = await app.channels.loadTrack(channelId, alice.account.id, {
+      file: `${trackDir}/track.ogg`,
+      dir: trackDir,
+      title: 'On Attention',
+      durationMs: 60_000,
+      document: { name: 'x.document.md', library: 'alice/philosophy', title: 'On Attention', reading: 'rdg_1' },
+    });
+    expect(loaded.ok).toBe(true);
+    talk(roomName, `media:${channelId}`, 100);
+    expect(streaming.sessions).toHaveLength(0);
+
+    // What readings.ts writes as playback passes a sentence.
+    (app.channels as unknown as { live: { heard: (c: string, l: object) => void } }).live.heard(channelId, {
+      text: 'Attention is a kind of will.',
+      startAt: clock - 900,
+      endAt: clock,
+    });
+    const { lines } = (await history(alice.token, channelId)).json() as {
+      lines: Array<{ identity: string; displayName: string; text: string }>;
+    };
+    expect(lines).toEqual([
+      expect.objectContaining({ identity: 'media', displayName: 'Played audio', text: 'Attention is a kind of will.' }),
+    ]);
+  });
+
   it('pages backwards, oldest first within a page', async () => {
     boot();
     const { alice, channelId, room: roomName } = await room();

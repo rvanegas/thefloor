@@ -1763,6 +1763,14 @@ export const en = {
     remove: () => 'Remove',
     playSomethingTogether: () => 'Play something together',
     anAudioFile: () => 'An audio file from this phone',
+    /** A *reading*, since 2026-11-20: a library document spoken aloud into Listen. */
+    readADocument: () => 'Read a document aloud',
+    fromALibrary: () => 'From a library on in this channel',
+    searchTheLibrary: () => 'Search',
+    noLibraryIsOn: () => 'Turn a library on in Channel Settings to choose a document from it.',
+    noDocumentsFound: () => 'No documents found.',
+    preparingTheReading: () => 'Preparing the reading\u2026 A long document takes a minute.',
+    couldNotReadAloud: () => 'Could not read it aloud',
     cancelUpload: () => 'Cancel upload',
     filmIsPlaying: () => 'The film is playing. Pause it to put something on here.',
     theyDecideWhatPlays: (holder: string) =>

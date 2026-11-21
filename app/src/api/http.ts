@@ -20,6 +20,7 @@ import type { AccountSettings } from '../../../core/settings';
 import type { NavAction } from '../../../core/navigation';
 import type { Tried, TriedId } from '../../../core/tried';
 import type { VoiceName } from '../../../core/transcript';
+import type { ReadingSentence } from '../../../core/reading';
 import { appBuild, BUILD_HEADER, CLIENT_HEADER, CLIENT_KIND } from './build';
 import { API_URL } from './config';
 import { notificationPermission, NOTIFY_HEADER } from './notify';
@@ -120,6 +121,14 @@ async function request<T>(
     );
   }
   return payload as T;
+}
+
+/** A library's document, as the picker a *reading* starts from lists it. */
+export interface LibraryDocument {
+  name: string;
+  title: string;
+  /** Whose library, by noesis id. */
+  library: string;
 }
 
 /** One guest link as channel settings lists it. */
@@ -970,6 +979,41 @@ export const api = {
       `/recordings/${recordingId}/play`,
       { method: 'POST', token }
     ),
+
+  /**
+   * The documents a *reading* may be made from, since 2026-11-20: those of
+   * the libraries switched on in this channel, matched to `query` where one
+   * is given. Refused (403) where the channel is not *Pro*.
+   */
+  channelDocuments: (token: string, channelId: string, query: string) =>
+    request<{ libraries: string[]; documents: LibraryDocument[] }>(
+      `/channels/${channelId}/documents?q=${encodeURIComponent(query)}`,
+      { token }
+    ),
+
+  /**
+   * Reads a library document aloud into *Listen*, as the channel's track.
+   * **Slow for a long document**, a minute or more the first time — it is
+   * spoken whole before it plays — and quick for one kept from before.
+   */
+  readDocumentAloud: (
+    token: string,
+    channelId: string,
+    document: LibraryDocument,
+    language?: string
+  ) =>
+    request<{ track: { id: string; title: string; durationMs: number } }>(
+      `/channels/${channelId}/reading`,
+      {
+        method: 'POST',
+        token,
+        body: { name: document.name, library: document.library, title: document.title, language },
+      }
+    ),
+
+  /** The sentences of what the channel is having read aloud, each at its place in the audio. */
+  channelReading: (token: string, channelId: string) =>
+    request<{ reading: string; sentences: ReadingSentence[] }>(`/channels/${channelId}/reading`, { token }),
 
   /**
    * Renames a recording, for everybody in its channel rather than only for
