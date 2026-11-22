@@ -980,8 +980,8 @@ function ProCard() {
    * **Basic, Pro or Unlimited**, since 2026-11-19, at Rodrigo's word —
    * beside *· Pro* after *Ask Claude*, the one other word of a grade the app
    * says: every channel you are a member of
-   * is *Pro* while you are either of the last two. *Unlimited* is the
-   * `transcripts_unlimited` mark, Pro with no subscription (`until` null);
+   * is *Pro* while you are either of the last two. *Unlimited* is auth's
+   * unlimited mark, Pro with no subscription (`until` null);
    * a subscription says *Pro* even on a marked account, since it is what
    * *Manage subscription* manages.
    */

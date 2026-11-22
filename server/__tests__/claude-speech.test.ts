@@ -122,7 +122,7 @@ async function room2() {
   app.channels.dispatch(channelId, bob.account.id, { type: 'ENTER' });
   // Alice is marked unlimited, which makes the channel *Pro*: its replies
   // are read by *Pro* voices whoever asks.
-  app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.account.id);
+  app.db.prepare('INSERT INTO unlimited (username) SELECT username FROM accounts WHERE id = ?').run(alice.account.id);
   clock += 1_000;
   app.channels.dispatch(channelId, bob.account.id, {
     type: 'PASTE_CLIP',
@@ -255,7 +255,7 @@ describe("Claude's reply, spoken", () => {
   it('names nobody in a channel no member is Pro in, whose replies the phones read', async () => {
     boot();
     const { alice, channelId } = await room2();
-    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 0 WHERE id = ?').run(alice.account.id);
+    app.db.prepare('DELETE FROM unlimited WHERE username = (SELECT username FROM accounts WHERE id = ?)').run(alice.account.id);
     expect(app.channels.roomReaderUnheard(channelId)).toEqual([]);
   });
 
@@ -318,7 +318,7 @@ describe("Claude's reply, spoken", () => {
   it('is read by the phones, at no cost, in a Standard channel', async () => {
     boot();
     const { alice, channelId } = await room2();
-    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 0 WHERE id = ?').run(alice.account.id);
+    app.db.prepare('DELETE FROM unlimited WHERE username = (SELECT username FROM accounts WHERE id = ?)').run(alice.account.id);
     await press(channelId, alice.token);
     await settle();
     expect(speech.requests).toEqual([]);

@@ -52,6 +52,7 @@ import { LiveActivities } from './live-activities';
 import { NotificationPreferences } from './preferences';
 import { Donations } from './donations';
 import { ProSubscriptions, type ProOptions } from './pro';
+import { Unlimited, UNLIMITED_REFRESH_MS } from './unlimited';
 import { artworkKeyFor, MAX_ARTWORK_BYTES, readArtwork } from './artwork';
 import {
   joinRecordings,
@@ -404,8 +405,8 @@ export interface BuildOptions {
    */
   streaming?: StreamingTranscriptionProvider;
   /**
-   * How many transcription minutes an account without the
-   * `transcripts_unlimited` mark may spend each calendar week, recordings and
+   * How many transcription minutes an account that is not unlimited
+   * (unlimited.ts) or Pro may spend each calendar week, recordings and
    * the live transcript together — a recording's length times the number of
    * stems, and a live session's open time, which are the units the provider
    * bills in. The week begins Monday 00:00 UTC.
@@ -413,9 +414,8 @@ export interface BuildOptions {
    * Since 2026-10-10, replacing one free transcript per account, which capped
    * the count and not the bill — one use of a twenty-minute pair cost about
    * ten cents, one of a three-hour four-way about two dollars. Defaults to
-   * `FREE_TRANSCRIPT_MINUTES_DEFAULT`. The mark is set by hand: `ts db
-   * --write "update accounts set transcripts_unlimited = 1 where identifier =
-   * '…'"`.
+   * `FREE_TRANSCRIPT_MINUTES_DEFAULT`. The unlimited mark is auth's, set by
+   * its operator (dianoia-auth's `scripts/accounts.py unlimited`).
    */
   freeTranscriptMinutes?: number;
   /**
@@ -439,6 +439,8 @@ export interface App {
   devices: Devices;
   donations: Donations;
   pro: ProSubscriptions;
+  /** Who auth says is unlimited, as last heard (unlimited.ts); a test marks somebody here. */
+  unlimited: Unlimited;
   transcripts: Transcripts;
   help: Help;
   /** What `ts diagnostics` reads. Here so a test can see what was kept. */
@@ -543,15 +545,18 @@ export function buildApp(options: BuildOptions = {}): App {
     options.kofi?.verificationToken
   );
   const pro = new ProSubscriptions(db, options.pro);
+  const unlimited = new Unlimited(db);
   /**
-   * Whether an account is *Pro* now: a subscription, bought, or **the
-   * `transcripts_unlimited` mark, set by hand, since 2026-11-10** — the
-   * accounts it marks (the operator's, testers', App Review's) are Pro
-   * everywhere Pro decides, rather than only where transcription is metered.
+   * Whether an account is *Pro* now: a subscription, bought, or **unlimited**
+   * — auth's mark since 2026-11-22 (unlimited.ts), The Floor's own hand-set
+   * column from 2026-11-10 until then — which makes the accounts it marks
+   * (the operator's, testers', App Review's, people given it) Pro everywhere
+   * Pro decides, rather than only where transcription is metered.
    * `ProView.until` still says what was bought. Asked per call, so a lapse is
    * felt at once.
    */
-  const isPro = (accountId: string) => accounts.transcribesUnlimited(accountId) || pro.isPro(accountId, now());
+  const isPro = (accountId: string) =>
+    unlimited.has(accounts.byId(accountId)?.username) || pro.isPro(accountId, now());
   const help = new Help(db);
   // Never the review accounts, whatever `.env` says — see switching.ts. A
   // refusal is logged once, at startup, which is when somebody is looking.
@@ -1382,6 +1387,19 @@ export function buildApp(options: BuildOptions = {}): App {
       void readings.sweep().catch((error) => fastify.log.error({ err: error }, 'readings sweep failed'));
     sweepReadings();
     const timer = setInterval(sweepReadings, 60 * 60 * 1000);
+    timer.unref?.();
+    fastify.addHook('onClose', async () => clearInterval(timer));
+  }
+
+  // Who is unlimited: auth's answer, kept and asked again each minute (unlimited.ts).
+  if (options.auth) {
+    const auth = options.auth;
+    const refreshUnlimited = () =>
+      void unlimited.refresh(() => auth.unlimited()).then((ok) => {
+        if (!ok) fastify.log.warn('auth did not say who is unlimited; keeping its last answer');
+      });
+    refreshUnlimited();
+    const timer = setInterval(refreshUnlimited, UNLIMITED_REFRESH_MS);
     timer.unref?.();
     fastify.addHook('onClose', async () => clearInterval(timer));
   }
@@ -7690,6 +7708,7 @@ export function buildApp(options: BuildOptions = {}): App {
     devices,
     donations,
     pro,
+    unlimited,
     transcripts,
     help,
     diagnostics,

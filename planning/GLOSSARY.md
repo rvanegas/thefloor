@@ -76,9 +76,9 @@ caused; the list carries the meaning.
 - **Email notifications** — A *Floor Settings* switch, `emailNotifications`: every notification also sent as email to the address you sign in with, arrivals included and paused with them. Off by default, and switched on by the app the moment the system dialog is declined. Since 2026-10-17
 - **Push notifications** — A *Floor Settings* switch for whether this account is sent pushes at all, on any device; stored as its negation, `pushNotificationsOff`. A wish rather than a fact: iOS holds the permission, so when it is on and iOS refuses, the card says what to do in Settings. Since 2026-10-17
 - **Floor Settings** — The settings screen behind Home's gear; the account's, not a channel's
-- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-19, makes every channel you are a member of a *Pro channel* — having chosen a channel's *Transcription model* and *Response model* from 2026-11-08, and its *Read aloud* from 2026-11-13, until then — and chooses your own *Pro voice*, and since 2026-11-10 switches your own *library* on in a channel, noesis being read-only for everybody else; an account marked `transcripts_unlimited` by hand is Pro too, since 2026-11-10, and says *Unlimited* as its *Plan*; not the *Pro* grade of a channel
+- **Pro (the subscription)** — A monthly App Store subscription, bought from *Floor Settings* on an iPhone, that lifts the weekly free-transcription limit and, since 2026-11-19, makes every channel you are a member of a *Pro channel* — having chosen a channel's *Transcription model* and *Response model* from 2026-11-08, and its *Read aloud* from 2026-11-13, until then — and chooses your own *Pro voice*, and since 2026-11-10 switches your own *library* on in a channel, noesis being read-only for everybody else; an account marked unlimited is Pro too, since 2026-11-10, and says *Unlimited* as its *Plan* — a mark kept at auth since 2026-11-22, the same one noesis reads (`unlimited.ts`), The Floor's own `transcripts_unlimited` before; not the *Pro* grade of a channel
 - **Pro channel** — A channel any *member* of which is *Pro (the subscription)* or marked unlimited, since 2026-11-19: everything graded in it is *Pro*, for everybody in it, whoever asks — transcripts on Universal-3.5 Pro, *Ask Claude* on Sonnet, replies *read aloud* by *Pro voices* — and *Standard* otherwise. Nobody chooses it; said only as *· Pro* after *Ask Claude*, for everybody, so a member who has not bought Pro sees what somebody's buys them. Members, never a *guest*, and asked at each use rather than stored. `isProChannel`, `ChannelView.pro`
-- **Plan** — What *Floor Settings* says of your own account, since 2026-11-19: *Basic*, *Pro* — a subscription — or *Unlimited* — the `transcripts_unlimited` mark. A section and card of its own where the *Pro* card was, with the pitch and *Subscribe* under *Basic* where Pro is sold. Read from `ProView`. *Plan*: *Básico* / *Pro* / *Ilimitado*
+- **Plan** — What *Floor Settings* says of your own account, since 2026-11-19: *Basic*, *Pro* — a subscription — or *Unlimited* — auth's unlimited mark, which noesis reads too. A section and card of its own where the *Pro* card was, with the pitch and *Subscribe* under *Basic* where Pro is sold. Read from `ProView`. *Plan*: *Básico* / *Pro* / *Ilimitado*
 - **Getting-started channel** — The one channel a new account with nobody here is put into, called *Getting Started* and nothing else: four such arrivals and a *cohort host*, nobody a contact, leaveable like any other, and temporary — it stops being made when growth no longer needs seeding. Given only to somebody who can be told — push granted, or email notifications on for an email address — at the moment they become so, and never to a tombstone or to an address of ours
 - **Cohort-eligible** — That a *getting-started channel* is waiting on this account turning notifications on and on nothing else: not a *cohort host*, not already in one, within *reach* of nobody, and the feature switched on. `HomeView.cohortEligible`. Until 2026-10-17 it was what let the app raise the notification question for somebody who had nobody; the question is now raised at sign-in for everybody, and this decides only placement
 - **Guest** — Somebody holding a *seat* in a channel they are not a member of, admitted through a *guest link* or a *guest invitation*; with or without an account here. At most forty at once, of whom at most two may hold a microphone; no *paste*, made or seen, since 2026-11-19
@@ -142,7 +142,7 @@ caused; the list carries the meaning.
 - **Standing elsewhere** — The room you are in, seen from a device that is not the one holding it: since 2026-09-25 Home pins it there too, in the live bar's shape and hue, with a hollow dot and *On another device* in place of *tap to go back*. Presence is the account's and is held by one device, and before this the other devices of one account pinned nothing at all — the same person, the same moment, two different lists of hoisted rooms. A tap opens the channel and never steps in; moving the room is *In* on the channel's own screen, which displaces the device that was holding it
 - **Support tab** — Home's last tab: *Help*, *Chip in* and whatever else is about the application rather than about anybody you can reach
 - **Transcript** — Text made from a recording, on request, by a provider — offered only for a recording made with no *live transcript*, and drawn in the *Record* log under it as live lines are, since 2026-10-10, when its own screen went; behind *Labs* from 2026-09-06 to 2026-10-09, and behind nothing now
-- **Free minutes** — What an account without the `transcripts_unlimited` mark may spend on transcription each calendar week, from Monday 00:00 UTC: `FREE_TRANSCRIPT_MINUTES`, 60 unless set, shared between a recording's *transcript* (length times stems, held when asked for) and the *live transcript* (each session's open time, billed to whoever switched it on), and kept in `transcript_usage`. Since 2026-10-10, replacing one free transcript per account
+- **Free minutes** — What an account that is neither *Pro* nor marked unlimited may spend on transcription each calendar week, from Monday 00:00 UTC: `FREE_TRANSCRIPT_MINUTES`, 60 unless set, shared between a recording's *transcript* (length times stems, held when asked for) and the *live transcript* (each session's open time, billed to whoever switched it on), and kept in `transcript_usage`. Since 2026-10-10, replacing one free transcript per account
 - **Live transcript** — What is said in a channel, written down as it is said, with no recording: switched on for a sitting by somebody on the house or with *free minutes* left — who then pays, and whose text stops when they run out — with the *Text* switch on the *Record* tab (`ChannelState.liveTranscription`), or for every sitting by *Record automatically*'s Text, and ending with the room since 2026-10-10, and with a server restart since 2026-10-28; shown in the *Record* tab as one history, and announced by a *Transcribing* pill where the recording's goes; a finished *segment*'s deleted on its own by *Delete*'s *Text* box since 2026-11-18, *Delete text* from 2026-11-07. Since 2026-10-09
 - **Transcribing** — The header pill, and the seat page's sentence, saying the room's *live transcript* is listening: the recording's red and the recording's place, no clock, and drawn only while no recording is, the recording saying the same thing already
 - **Transcription model** — The grade of speech model a *recording*'s transcripts are asked for, *Standard* or *Pro* — *Pro* in a *Pro channel* since 2026-11-19, a channel setting only *Pro* could change from 2026-11-08 until then; not the *live transcript*, which streams on a model of its own. `TranscriptionModel`, server-side — and its *Pro* is a grade of model, not *Pro (the subscription)*
@@ -3296,7 +3296,7 @@ the wall clock, and kept in `live_lines` until the channel goes.
 **Switched on per channel, by somebody on the house or with *free minutes*
 left**, since 2026-10-10 — before that, only on the house. The setting is
 `ChannelState.liveTranscription`; who may turn it is the
-`transcripts_unlimited` mark or what is left of the week's minutes, checked by
+unlimited mark (or Pro) or what is left of the week's minutes, checked by
 the server's route. Whoever turns it on without the mark pays
 (`liveTranscriptionPaidBy`), each session's open time spending their minutes,
 and the server switches it off when they are gone. *Record automatically*'s
@@ -3348,8 +3348,7 @@ the text.
 ## Pro (the subscription)
 
 **A monthly App Store subscription that makes an account's transcription
-unmetered** — the hand-set `transcripts_unlimited` mark, bought rather than
-granted. Offered in a card on *Floor Settings*, on an iPhone only; being Pro
+unmetered** — the unlimited mark, bought rather than granted. Offered in a card on *Floor Settings*, on an iPhone only; being Pro
 shows on every platform. It lifts the weekly free minutes, and **since
 2026-11-19 it makes every channel its account is a member of a *Pro
 channel***, for everybody in it — from 2026-11-08 until then it was what
@@ -3359,10 +3358,16 @@ from 2026-11-13 its *Read aloud*, three cards on *Channel Settings* and a
 says is the *Plan* on *Floor Settings*.
 It is the only thing The Floor sells. **Since 2026-11-10 it is also what
 switches one's own *library* on in a channel**, noesis being read-only for
-everybody else. **And the hand-set `transcripts_unlimited` mark is Pro too,
-since 2026-11-10**, everywhere Pro decides (`isPro`, app.ts) — the operator's,
-testers' and App Review's accounts — where until then it metered nothing but
-chose nothing either. `ProView.until` still says only what was bought.
+everybody else. **And the unlimited mark is Pro too, since 2026-11-10**,
+everywhere Pro decides (`isPro`, app.ts) — the operator's, testers' and App
+Review's accounts, and people given it — where until then it metered nothing
+but chose nothing either. `ProView.until` still says only what was bought.
+**The mark is auth's since 2026-11-22**, kept by username and set by its
+operator (dianoia-auth's `scripts/accounts.py unlimited`), and noesis reads
+the same one, so unlimited at either is unlimited at both; The Floor keeps
+auth's last answer in the `unlimited` table, asked again each minute
+(`unlimited.ts`). Its own hand-set `transcripts_unlimited` column, which it
+replaced, is gone, and an account without a username cannot be marked.
 
 **Not the *Pro* grade**, which is what a *Pro channel* asks for — being Pro
 is what makes one, and a channel on it costs its other members nothing. In
@@ -3408,7 +3413,7 @@ fields they read (planning/SHIMS.md).
 
 **What *Floor Settings* says about the reader's own account, since
 2026-11-19: *Basic*, *Pro* or *Unlimited*.** *Pro* is a subscription (with
-when it renews), *Unlimited* the `transcripts_unlimited` mark (Pro without
+when it renews), *Unlimited* auth's unlimited mark (Pro without
 one), *Basic* neither — with the pitch and *Subscribe* under it only where Pro
 is sold. A section and card of its own where the *Pro* card was; read from
 `ProView`, *Unlimited* being `pro` with no `until`. It also decides which voice

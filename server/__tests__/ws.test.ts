@@ -960,7 +960,7 @@ describe('websocket', () => {
     expect(standard.view.channel).toMatchObject({ responseModel: 'standard', readAloud: 'standard' });
     b.close();
 
-    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.account.id);
+    app.db.prepare('INSERT INTO unlimited (username) SELECT username FROM accounts WHERE id = ?').run(alice.account.id);
     const again = new Client(bob.token, baseUrl);
     await again.open();
     again.send({ type: 'watch.channel', channelId });

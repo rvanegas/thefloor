@@ -100,6 +100,25 @@ export class AuthClient {
     return body.url;
   }
 
+  /**
+   * Who auth marks unlimited (`GET /unlimited`, since 2026-11-22), by user
+   * name, lowercase: the one mark The Floor and noesis both read. The Floor's
+   * own token, which any application's will do; throws where auth refuses or
+   * cannot be reached.
+   */
+  async unlimited(): Promise<string[]> {
+    const token = await this.ownToken('noesis:keep');
+    const response = await (this.options.fetch ?? fetch)(new URL('/unlimited', this.origin), {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!response.ok) throw new Error(`auth /unlimited answered ${response.status}`);
+    const body = (await response.json()) as { users?: unknown };
+    if (!Array.isArray(body.users) || !body.users.every((u): u is string => typeof u === 'string')) {
+      throw new Error('auth /unlimited answered without users');
+    }
+    return body.users.map((u) => u.toLowerCase());
+  }
+
   /** The token's claims, if auth signed it for this audience, it has not expired, and it carries `scope`. */
   async verify(token: string, scope: string): Promise<Claims | null> {
     const parts = token.split('.');

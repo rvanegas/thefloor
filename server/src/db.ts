@@ -142,14 +142,6 @@ export interface AccountRow {
    */
   leaderboard: number | null;
   /**
-   * Whether this account may transcribe without limit: 1 for yes, null or 0
-   * for no. Set by hand — `ts db --write` — like `debug` and `leaderboard`,
-   * and unlike either of those it is the only flag here that licenses
-   * spending. Everybody else gets free transcription minutes each week,
-   * which `transcript_usage` records.
-   */
-  transcripts_unlimited: number | null;
-  /**
    * The recording whose transcript spent this account's one free use, or null
    * while it is unspent.
    *
@@ -760,9 +752,6 @@ CREATE TABLE IF NOT EXISTS accounts (
   -- somebody sets it by hand; see the row type above for why there is no
   -- screen that does.
   leaderboard INTEGER,
-  -- Lets this account transcribe without limit. Null for everyone until
-  -- somebody sets it by hand; the only flag here that licenses spending.
-  transcripts_unlimited INTEGER,
   -- The recording whose transcript spent this account's one free use, and
   -- when. Unread since the free use became minutes a week, which
   -- transcript_usage records; see the row type above.
@@ -2184,6 +2173,16 @@ CREATE TABLE IF NOT EXISTS live_sessions (
 CREATE INDEX IF NOT EXISTS live_sessions_opened
   ON live_sessions(opened_at);
 
+-- Who auth says is unlimited, by username: its last answer to GET
+-- /unlimited, replaced whole each minute (unlimited.ts), so a restart while
+-- auth cannot be asked still knows. A copy, never the authority: the mark is
+-- auth's since 2026-11-22, set there by its operator, and the same one noesis
+-- reads, so unlimited at either is unlimited at both. An account with no
+-- username cannot be in it.
+CREATE TABLE IF NOT EXISTS unlimited (
+  username TEXT PRIMARY KEY COLLATE NOCASE
+);
+
 -- What an account without the unlimited mark has spent of its free
 -- transcription minutes, one row per spend: a recording's transcript when it
 -- is asked for, and a live session when it closes. A week's use is the sum of
@@ -2735,12 +2734,19 @@ function migrate(db: Db): void {
   if (!accountColumns.some((c) => c.name === 'leaderboard')) {
     db.exec('ALTER TABLE accounts ADD COLUMN leaderboard INTEGER');
   }
-  // Null for everyone, including the account that held TRANSCRIBE_IDENTIFIER
-  // before this existed. Marking that one is a deliberate act with a command
-  // behind it, not something a migration should infer from an env var. The
-  // variable itself was retired on 2026-10-10, once the column was set.
-  if (!accountColumns.some((c) => c.name === 'transcripts_unlimited')) {
-    db.exec('ALTER TABLE accounts ADD COLUMN transcripts_unlimited INTEGER');
+  // The hand-set unlimited mark, from 2026-10-10 until 2026-11-22, when the
+  // mark moved to auth (unlimited.ts). Its accounts seed the copy of auth's
+  // answer, so nobody it marked is metered in the moment before auth first
+  // answers; auth was given the same names before this ran, and its answer
+  // replaces the seed within the minute. Dropped rather than kept, since
+  // nothing reads it and a column that looks authoritative and is not is the
+  // thing to avoid.
+  if (accountColumns.some((c) => c.name === 'transcripts_unlimited')) {
+    db.exec(
+      `INSERT OR IGNORE INTO unlimited (username)
+         SELECT username FROM accounts WHERE transcripts_unlimited = 1 AND username IS NOT NULL`
+    );
+    db.exec('ALTER TABLE accounts DROP COLUMN transcripts_unlimited');
   }
   // Null for every existing account, which means every transcript made before
   // this column existed was free and nobody's allowance is retroactively

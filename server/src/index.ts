@@ -381,11 +381,9 @@ const channelLibraries =
 
 /**
  * `TRANSCRIBE_IDENTIFIER` named an address that transcribed without limit, and
- * was retired on 2026-10-10: the mark is the `transcripts_unlimited` column
- * alone, set with
- *
- *     ts db --write "update accounts set transcripts_unlimited = 1 \
- *       where identifier = 'someone@example.com'"
+ * was retired on 2026-10-10 for a column of its own, which went in turn on
+ * 2026-11-22 when the mark moved to auth (unlimited.ts), set there by its
+ * operator.
  *
  * Read only to say it is ignored, so that a .env still carrying it does not
  * look as though it means something.

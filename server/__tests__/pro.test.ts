@@ -134,7 +134,7 @@ describe('What Floor Settings is told', () => {
 
   it('says an account marked by hand is Pro, with no period to end', async () => {
     const me = await signIn('me@example.com');
-    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(me.account.id);
+    app.db.prepare('INSERT INTO unlimited (username) SELECT username FROM accounts WHERE id = ?').run(me.account.id);
     expect(await status(me.token)).toMatchObject({ pro: true, until: null });
   });
 

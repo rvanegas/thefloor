@@ -513,8 +513,9 @@ ORDER BY month DESC;
 .print '── Free minutes, and who is not held to them ───────────────────'
 .print ''
 -- Everybody gets FREE_TRANSCRIPT_MINUTES a calendar week (60 unless set),
--- recordings and the live transcript together; `transcripts_unlimited` lifts
--- it, set by hand with ts db --write. `this_week` counts accounts that have
+-- recordings and the live transcript together; being unlimited lifts it —
+-- auth's mark since 2026-11-22, set by its operator, of which the `unlimited`
+-- table is the last answer heard. `this_week` counts accounts that have
 -- spent anything since Monday 00:00 UTC.
 --
 -- Needs the 2026-10-10 table. Against a box that has not had that deploy
@@ -523,7 +524,7 @@ ORDER BY month DESC;
 SELECT (SELECT COUNT(*) FROM accounts WHERE identifier NOT LIKE 'erased:%') AS accounts,
        (SELECT COUNT(DISTINCT account_id) FROM transcript_usage
          WHERE at >= strftime('%s', date('now', '-6 days', 'weekday 1')) * 1000) AS this_week,
-       (SELECT COUNT(*) FROM accounts WHERE transcripts_unlimited = 1) AS unlimited;
+       (SELECT COUNT(*) FROM unlimited) AS unlimited;
 
 .print ''
 .print '── Where free minutes went this week, most first ───────────────'

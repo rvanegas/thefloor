@@ -2030,7 +2030,7 @@ describe('the library switch', () => {
     const status = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
     expect(status.json()).toMatchObject({ connected: true, pro: false });
     // The mark set by hand is Pro, since 2026-11-10, here as everywhere.
-    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.account.id);
+    app.db.prepare('INSERT INTO unlimited (username) SELECT username FROM accounts WHERE id = ?').run(alice.account.id);
     expect(set(channelId, alice.account.id, true)).toMatchObject({ ok: true });
     const again = await app.fastify.inject({ method: 'GET', url: '/me/noesis', headers: auth(alice.token) });
     expect(again.json()).toMatchObject({ connected: true, pro: true });

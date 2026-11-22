@@ -49,7 +49,7 @@ address, so the reviewer lands in it, contact and channels and all.
 
 | | |
 | --- | --- |
-| `Johnny Tahoe` | the demo account; the address and code go in the review notes; **Pro**, by the hand-set `transcripts_unlimited` mark |
+| `Johnny Tahoe` | the demo account; the address and code go in the review notes; **Pro**, by the unlimited mark, kept at auth |
 | `Sam Rivera` | its contact, and the reason is structural |
 | three channels | between the two of them, `Weekly Convo` among them |
 
@@ -63,8 +63,10 @@ notes; that one is worth keeping as it is.
 **The demo account is Pro, and a reviewer needs it to be** (Rodrigo,
 2026-11-13). Since 1.15.0 the review notes send a reviewer to *Read aloud* on
 *Channel Settings*, which only Pro changes, and the channel models and a
-channel's own library are Pro's too. The mark is `transcripts_unlimited`, set
-by hand rather than bought, so nothing lapses; clearing it greys what the
+channel's own library are Pro's too. The mark is unlimited, kept at auth by
+username since 2026-11-22 and set there by its operator (dianoia-auth's
+`scripts/accounts.py unlimited johnny_tahoe`; `transcripts_unlimited` here
+before) rather than bought, so nothing lapses; taking it away greys what the
 notes describe.
 
 The second account looks redundant and is not. `ChannelRegistry.create` refuses

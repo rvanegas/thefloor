@@ -1520,7 +1520,7 @@ export type ChannelAction =
   /**
    * Turns the live transcript on or off. Not a user action in the reducer's
    * sense: the server applies it after its own check of who asked — the
-   * `transcripts_unlimited` mark, which no `ChannelState` knows about — so it
+   * unlimited mark or Pro, which no `ChannelState` knows about — so it
    * carries no userId, and it is absent from the client's list of actions.
    */
   | {

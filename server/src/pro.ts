@@ -5,9 +5,10 @@ import type { Db } from './db';
 /**
  * *Pro*: a monthly App Store subscription that makes an account's
  * transcription unmetered and, since 2026-11-08, may choose a channel's
- * transcription and response models. The hand-set `transcripts_unlimited`
- * mark grants the same, everywhere Pro decides, since 2026-11-10: `isPro` in
- * app.ts asks both, and this class only the bought half. It is not the *Pro*
+ * transcription and response models. Being unlimited grants the same,
+ * everywhere Pro decides, since 2026-11-10 — auth's mark since 2026-11-22
+ * (unlimited.ts), a hand-set column here before: `isPro` in app.ts asks both,
+ * and this class only the bought half. It is not the *Pro*
  * grade of either (GLOSSARY.md, *Pro*).
  *
  * Donations are a separate thing and stay on the Ko-fi link; giving unlocks

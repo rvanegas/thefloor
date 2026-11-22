@@ -82,7 +82,7 @@ async function room(textAfterMs = 0) {
   const alice = await signIn('alice@example.com', 'Alice');
   const bob = await signIn('bob@example.com', 'Bob');
   app.db
-    .prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?')
+    .prepare('INSERT INTO unlimited (username) SELECT username FROM accounts WHERE id = ?')
     .run(alice.account.id);
   await app.fastify.inject({
     method: 'POST',

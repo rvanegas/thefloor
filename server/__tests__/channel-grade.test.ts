@@ -105,7 +105,7 @@ describe("a channel's grade", () => {
 
   it('is Pro while any member is marked unlimited', async () => {
     const { alice, channelId } = await channelOfTwo();
-    app.db.prepare('UPDATE accounts SET transcripts_unlimited = 1 WHERE id = ?').run(alice.id);
+    app.db.prepare('INSERT INTO unlimited (username) SELECT username FROM accounts WHERE id = ?').run(alice.id);
     expect(app.channels.isProChannel(channelId)).toBe(true);
   });
 

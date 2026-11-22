@@ -516,14 +516,6 @@ export class Accounts {
   }
 
   /**
-   * Whether this account transcribes without limit: the hand-set mark.
-   * Everybody else has free minutes a week, which `transcriptMsSince` counts.
-   */
-  transcribesUnlimited(id: string): boolean {
-    return this.byId(id)?.transcripts_unlimited === 1;
-  }
-
-  /**
    * How much of its free transcription this account has spent since `since`,
    * in transcription milliseconds — batch and live together, closed live
    * sessions only. The caller adds whatever is streaming now.
