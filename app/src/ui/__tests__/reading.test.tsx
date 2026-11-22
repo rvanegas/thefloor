@@ -72,8 +72,32 @@ describe('Read a document aloud', () => {
       await findButton(tree, 'On Attention')!.props.onPress();
     });
     await flush();
-    expect(read).toHaveBeenCalledWith('token', 'sess_1', DOCUMENT);
+    expect(read).toHaveBeenCalledWith('token', 'sess_1', DOCUMENT, undefined);
     expect(mockApp.act).toHaveBeenCalledWith('sess_1', { type: 'PLAY' });
+    act(() => tree.unmount());
+  });
+
+  it('reads a book a part at a time, the part chosen from its outline', async () => {
+    const BOOK = { name: 'h.source.epub', library: 'alice/philosophy', title: 'Tiempo de hormigas', parts: true };
+    spy('channelDocuments', { libraries: ['alice/philosophy'], documents: [BOOK] });
+    const PART = { number: 2, title: 'Uno', size: '5 words' };
+    spy('documentParts', { parts: [{ number: 1, title: 'Prólogo', size: '1,234 words' }, PART] });
+    const read = spy('readDocumentAloud', { track: {} });
+
+    showChannel(channelOf(), [], { pro: true });
+    const tree = render(<ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />);
+    showListen(tree);
+    act(() => findButton(tree, 'Read a document aloud')!.props.onPress());
+    await flush();
+    act(() => findButton(tree, 'Tiempo de hormigas')!.props.onPress());
+    await flush();
+    expect(read).not.toHaveBeenCalled();
+    expect(findButton(tree, 'Prólogo')).toBeDefined();
+    await act(async () => {
+      await findButton(tree, 'Uno')!.props.onPress();
+    });
+    await flush();
+    expect(read).toHaveBeenCalledWith('token', 'sess_1', BOOK, PART);
     act(() => tree.unmount());
   });
 

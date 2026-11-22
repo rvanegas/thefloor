@@ -37,6 +37,7 @@ afterEach(() => {
 
 const DOCUMENT = '# On Attention\n\nAttention is a kind of will. It chooses.\n\nThe end.';
 const SPANISH_NAME = '2026-01-03-la-atencion.document.md';
+const BOOK = '2026-01-04-tiempo-de-hormigas.source.epub';
 const SPANISH =
   '# La atención\n\nLa atención es una forma de la voluntad. Elige lo que está delante y lo que no, como el ojo y también como la mano.';
 
@@ -230,15 +231,26 @@ describe('the routes', () => {
       return Response.json({ user: 'alice', email: 'alice@example.com', libraries: ['alice/philosophy'] });
     }
     if (url.pathname === '/mcp' && init?.method === 'POST') {
-      const call = JSON.parse(String(init.body)) as { params: { name: string; arguments: Record<string, string> } };
+      const call = JSON.parse(String(init.body)) as {
+        params: { name: string; arguments: Record<string, string | number> };
+      };
+      const { name, part } = call.params.arguments;
+      // As noesis answers: a line naming the file before it, and a blank line.
+      const read = (body: string) => `${name}, the document.\n\n${body}`;
       const text =
         call.params.name === 'list_documents'
-          ? `${input_name} — On Attention\n2026-01-01-older.chat.md — Older (not yet indexed)`
-          : call.params.arguments.name === input_name
-            ? DOCUMENT
-            : call.params.arguments.name === SPANISH_NAME
-              ? SPANISH
-              : null;
+          ? `${input_name} — On Attention\n2026-01-01-older.chat.md — Older (not yet indexed)\n` +
+            `${BOOK} — Tiempo de hormigas (read in parts)`
+          : name === input_name
+            ? read(DOCUMENT)
+            : name === SPANISH_NAME
+              ? read(SPANISH)
+              : name === BOOK && part === undefined
+                ? `${BOOK}, the source.\n\nIt is an EPUB, read a part at a time. Its 2 parts:\n\n` +
+                  '1. Prólogo — 1,234 words\n2. Uno — 5 words'
+                : name === BOOK && part === 2
+                  ? `${BOOK}, the source.\nPart 2 of 2: Uno — 5 words.\n\nThe ants keep time.`
+                  : null;
       const result = text
         ? { content: [{ type: 'text', text }] }
         : { content: [{ type: 'text', text: 'no such document' }], isError: true };
@@ -338,8 +350,56 @@ describe('the routes', () => {
       documents: [
         { name: input.name, title: 'On Attention', library: 'alice/philosophy' },
         { name: '2026-01-01-older.chat.md', title: 'Older', library: 'alice/philosophy' },
+        { name: BOOK, title: 'Tiempo de hormigas', library: 'alice/philosophy', parts: true },
       ],
     });
+  });
+
+  it('reads a book a part at a time: its outline, then the part chosen', async () => {
+    speech.requests.length = 0;
+    const { bob, channelId } = await setUp();
+    const outline = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/documents/parts?name=${BOOK}&library=alice/philosophy`,
+      headers: auth(bob.token),
+    });
+    expect(outline.json()).toEqual({
+      parts: [
+        { number: 1, title: 'Prólogo', size: '1,234 words' },
+        { number: 2, title: 'Uno', size: '5 words' },
+      ],
+    });
+
+    const whole = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/reading`,
+      headers: auth(bob.token),
+      payload: { name: BOOK, library: 'alice/philosophy' },
+    });
+    expect(whole.statusCode).toBe(400);
+    const parted = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/reading`,
+      headers: auth(bob.token),
+      payload: { name: input.name, library: 'alice/philosophy', part: 1 },
+    });
+    expect(parted.statusCode).toBe(400);
+
+    const loaded = await app.fastify.inject({
+      method: 'POST',
+      url: `/channels/${channelId}/reading`,
+      headers: auth(bob.token),
+      payload: { name: BOOK, library: 'alice/philosophy', title: 'Tiempo de hormigas — Uno', part: 2 },
+    });
+    expect(loaded.statusCode).toBe(200);
+    expect(app.channels.get(channelId)!.playback.track!.title).toBe('Tiempo de hormigas — Uno');
+    const sentences = await app.fastify.inject({
+      method: 'GET',
+      url: `/channels/${channelId}/reading`,
+      headers: auth(bob.token),
+    });
+    // The part alone, and nothing of noesis's lines before it.
+    expect(sentences.json().sentences.map((s: { text: string }) => s.text)).toEqual(['The ants keep time.']);
   });
 
   it('is refused off Pro', async () => {

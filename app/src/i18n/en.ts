@@ -1769,6 +1769,9 @@ export const en = {
     searchTheLibrary: () => 'Search',
     noLibraryIsOn: () => 'Turn a library on in Channel Settings to choose a document from it.',
     noDocumentsFound: () => 'No documents found.',
+    /** A book or paper's outline, since 2026-11-22: it is read aloud a part at a time. */
+    noPartsToRead: () => 'It has no text to read aloud.',
+    back: () => 'Back',
     preparingTheReading: () => 'Preparing the reading\u2026 A long document takes a minute.',
     couldNotReadAloud: () => 'Could not read it aloud',
     cancelUpload: () => 'Cancel upload',

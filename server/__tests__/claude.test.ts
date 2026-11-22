@@ -17,6 +17,8 @@ import {
   documentBlock,
   heldIn,
   readDocument,
+  outlineOf,
+  readText,
   composeRecord,
   FALLBACK_BETA,
   LIBRARY_CONTINUATIONS,
@@ -2667,5 +2669,28 @@ describe("a press with the channel's own library", () => {
     const { calls, bob, channelId } = await setUp('pro', false);
     await press(channelId, bob.token);
     expect(calls[0].body).not.toHaveProperty('mcp_servers');
+  });
+});
+
+describe('a book read in parts', () => {
+  it('reads noesis\'s outline of an EPUB and of a PDF, with bookmarks or without', () => {
+    expect(
+      outlineOf(
+        'b.source.pdf, the source.\n\nIt is a PDF, read a part at a time. Its 3 parts:\n\n' +
+          '1. Introduction, pages 1–9\n2. pages 10–19\n3. page 20'
+      )
+    ).toEqual([
+      { number: 1, title: 'Introduction', size: 'pages 1–9' },
+      { number: 2, title: 'pages 10–19' },
+      { number: 3, title: 'page 20' },
+    ]);
+    expect(outlineOf('Its 1 parts:\n\n1. Prólogo, primera parte (1 of 2) — 20,000 words')).toEqual([
+      { number: 1, title: 'Prólogo, primera parte (1 of 2)', size: '20,000 words' },
+    ]);
+  });
+
+  it('reads aloud what follows noesis\'s lines, and nothing where nothing does', () => {
+    expect(readText('a.source.epub, the source.\nPart 1 of 2: Uno — 3 words.\n\nOne.\n\nTwo.')).toBe('One.\n\nTwo.');
+    expect(readText('a.source.pdf, the source.\nPart 1 of 1: page 1.\nIt has no text layer.')).toBe('');
   });
 });

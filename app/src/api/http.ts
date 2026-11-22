@@ -129,6 +129,16 @@ export interface LibraryDocument {
   title: string;
   /** Whose library, by noesis id. */
   library: string;
+  /** A book or paper, an EPUB or PDF, since 2026-11-22: read aloud a part at a time. */
+  parts?: true;
+}
+
+/** One part of a book or paper, as noesis's outline numbers it. */
+export interface DocumentPart {
+  number: number;
+  title: string;
+  /** `1,234 words` or `pages 3–12`, where the title does not already say. */
+  size?: string;
 }
 
 /** One guest link as channel settings lists it. */
@@ -991,8 +1001,16 @@ export const api = {
       { token }
     ),
 
+  /** A book's or paper's parts, since 2026-11-22, one of which is read aloud. */
+  documentParts: (token: string, channelId: string, document: LibraryDocument) =>
+    request<{ parts: DocumentPart[] }>(
+      `/channels/${channelId}/documents/parts?name=${encodeURIComponent(document.name)}&library=${encodeURIComponent(document.library)}`,
+      { token }
+    ),
+
   /**
-   * Reads a library document aloud into *Listen*, as the channel's track.
+   * Reads a library document aloud into *Listen*, as the channel's track:
+   * whole, or a book or paper by the `part` of it chosen, since 2026-11-22.
    * **Slow for a long document**, a minute or more the first time — it is
    * spoken whole before it plays — and quick for one kept from before.
    */
@@ -1000,14 +1018,19 @@ export const api = {
     token: string,
     channelId: string,
     document: LibraryDocument,
-    language?: string
+    part?: DocumentPart
   ) =>
     request<{ track: { id: string; title: string; durationMs: number } }>(
       `/channels/${channelId}/reading`,
       {
         method: 'POST',
         token,
-        body: { name: document.name, library: document.library, title: document.title, language },
+        body: {
+          name: document.name,
+          library: document.library,
+          title: part ? `${document.title} — ${part.title}` : document.title,
+          ...(part ? { part: part.number } : {}),
+        },
       }
     ),
 

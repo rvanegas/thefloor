@@ -69,7 +69,7 @@ import { isHere, pendingGuests } from '../../../core/guests';
 import type { Guest } from '../../../core/types';
 import type { ScreenDevice } from '../../../core/protocol';
 import type { SessionAudio } from '../audio/useSessionAudio';
-import { api, type LibraryDocument } from '../api/http';
+import { api, type DocumentPart, type LibraryDocument } from '../api/http';
 import { DocumentPicker } from './DocumentPicker';
 import { shareTrack } from '../api/download';
 import { pickAndUploadTrack } from '../api/upload';
@@ -2239,16 +2239,16 @@ export function ChannelView({
   };
 
   /**
-   * A document chosen from the picker, read aloud into this card: spoken by
+   * A document chosen from the picker, or a part of a book or paper, read aloud into this card: spoken by
    * the server, loaded as the track, and started, as a recording's *Play*
    * is.
    */
-  const readDocument = async (document: LibraryDocument) => {
+  const readDocument = async (document: LibraryDocument, part?: DocumentPart) => {
     if (!app.token || preparingReading) return;
     setPickingDocument(false);
     setPreparingReading(true);
     try {
-      await api.readDocumentAloud(app.token, channelId, document);
+      await api.readDocumentAloud(app.token, channelId, document, part);
       act({ type: 'PLAY' });
     } catch (e) {
       Alert.alert(t.couldNotReadAloud(), e instanceof Error ? e.message : String(e));

@@ -84,6 +84,9 @@ import {
   librariesFor,
   listDocuments,
   readDocument,
+  readInParts,
+  readOutline,
+  readText,
   readVoices,
   type ClaudeClient,
 } from './claude';
@@ -5432,6 +5435,35 @@ export function buildApp(options: BuildOptions = {}): App {
   });
 
   /**
+   * **A book's or paper's parts**, since 2026-11-22: an EPUB or PDF is read
+   * aloud a part at a time, as noesis reads it, so the picker shows its
+   * outline and the part pressed is the one read. Asked as the listing is.
+   */
+  fastify.get('/channels/:id/documents/parts', async (request, reply) => {
+    const account = await requireAccount(request, reply);
+    if (!account) return;
+    const { id } = request.params as { id: string };
+    const { name, library } = request.query as { name?: string; library?: string };
+    if (!name || !library) return reply.code(400).send({ error: 'Which document?' });
+    const channel = channels.get(id);
+    if (!channel || !isParticipant(channel, account.id)) {
+      return reply.code(404).send({ error: 'No such channel.' });
+    }
+    if (!readings) return reply.code(503).send({ error: 'Reading aloud is not available.' });
+    if (!channels.isProChannel(id)) {
+      return reply.code(403).send({ error: 'Reading a document aloud is part of Pro.' });
+    }
+    if (!readInParts(name)) return reply.code(400).send({ error: 'Only a book or paper is read in parts.' });
+    const entry = (await librariesFor(libraryOptions, channel, 'pro')).find((each) =>
+      each.libraries.includes(library)
+    );
+    if (!entry) return reply.code(404).send({ error: 'That library is not on in this channel.' });
+    const outline = await readOutline(libraryFetch, entry, name, library);
+    if (!outline.ok) return reply.code(502).send({ error: `The document could not be read: ${outline.error}.` });
+    return { parts: outline.parts };
+  });
+
+  /**
    * **Reads a library document aloud into *Listen***, since 2026-11-20: read
    * from noesis whole, spoken in the presser's *Pro voice* for the document's
    * own language (`speechLanguage`), kept a month, and loaded as the channel's
@@ -5445,10 +5477,22 @@ export function buildApp(options: BuildOptions = {}): App {
     const account = await requireAccount(request, reply);
     if (!account) return;
     const { id } = request.params as { id: string };
-    const body = (request.body ?? {}) as { name?: unknown; library?: unknown; title?: unknown; language?: unknown };
+    const body = (request.body ?? {}) as {
+      name?: unknown;
+      library?: unknown;
+      title?: unknown;
+      language?: unknown;
+      part?: unknown;
+    };
     const name = typeof body.name === 'string' ? body.name.trim() : '';
     const library = typeof body.library === 'string' ? body.library.trim() : '';
     if (!name || !library) return reply.code(400).send({ error: 'Which document?' });
+    // A book or paper only a part at a time, since 2026-11-22, and anything
+    // else only whole: a part's number is noesis's, from its outline.
+    const part = typeof body.part === 'number' && Number.isInteger(body.part) && body.part >= 1 ? body.part : undefined;
+    if (readInParts(name) !== (part !== undefined)) {
+      return reply.code(400).send({ error: readInParts(name) ? 'Which part?' : 'Only a book or paper is read in parts.' });
+    }
     const channel = channels.get(id);
     if (!channel || !isParticipant(channel, account.id)) {
       return reply.code(404).send({ error: 'No such channel.' });
@@ -5466,13 +5510,14 @@ export function buildApp(options: BuildOptions = {}): App {
     );
     if (!entry) return reply.code(404).send({ error: 'That library is not on in this channel.' });
 
-    const read = await readDocument(libraryFetch, entry, name, library);
+    const read = await readDocument(libraryFetch, entry, name, library, undefined, part);
     if (!read.ok) return reply.code(502).send({ error: `The document could not be read: ${read.error}.` });
-    if ([...read.text].length > MAX_READING_CHARACTERS) {
+    const text = readText(read.text);
+    if ([...text].length > MAX_READING_CHARACTERS) {
       return reply.code(413).send({ error: 'That document is too long to read aloud.' });
     }
     const language =
-      channels.speechLanguage(read.text, account.id, typeof body.language === 'string' ? body.language : undefined) ??
+      channels.speechLanguage(text, account.id, typeof body.language === 'string' ? body.language : undefined) ??
       'en';
     const voice = speechVoiceFor(accounts.settings(account.id).speechVoices, language);
     const title =
@@ -5484,7 +5529,7 @@ export function buildApp(options: BuildOptions = {}): App {
         name,
         library,
         title,
-        markdown: read.text,
+        markdown: text,
         voice,
         language,
         channelId: id,

@@ -1392,7 +1392,11 @@ with its library as the sublabel where more than one library is on, as
 *a choice of more than three goes down the page*. Not a sheet: there is none
 on the channel screen, and what is chosen is what this card plays. Its way
 out is `quiet` *Cancel*, which is disclosure — it folds the card back — and
-so inside that variant's one use. While a track is a *reading*, the sentence
+so inside that variant's one use. **A book or paper opens its outline in the
+same place**, since 2026-11-22: its title in `type.heading`, then a `Button` a
+part with its size as the sublabel, and `quiet` *Back* to the list, since
+noesis reads an EPUB or PDF a part at a time and a part is what is read aloud.
+While a track is a *reading*, the sentence
 being said is drawn under the progress labels in `type.body` at a fixed
 three lines' height (`readingLine`), so a short sentence and a long one leave
 the transport beneath where it was.

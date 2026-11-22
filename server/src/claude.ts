@@ -1298,9 +1298,77 @@ export async function readDocument(
   server: Pick<ConsultedLibrary, 'url' | 'token'>,
   name: string,
   library: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  part?: number
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-  return callLibraryTool(doFetch, server, 'read_file', { name, library }, signal);
+  return callLibraryTool(
+    doFetch,
+    server,
+    'read_file',
+    { name, library, ...(part === undefined ? {} : { part }) },
+    signal
+  );
+}
+
+/**
+ * **What a file says once noesis's own lines before it are gone**, for a
+ * *reading*: `read_file` opens with a line naming the file, one naming its
+ * companions, and for a book's part one saying which part it is, then a
+ * blank line and the file. Those are for a model, not a room, so nothing of
+ * them is read aloud. Empty where nothing follows them, as for a scan.
+ */
+export function readText(answer: string): string {
+  const blank = answer.indexOf('\n\n');
+  return blank < 0 ? '' : answer.slice(blank + 2);
+}
+
+/** Whether noesis reads this file a part at a time: an EPUB or a PDF (noesis's `READ_IN_PARTS`). */
+export function readInParts(name: string): boolean {
+  return /\.(epub|pdf)$/i.test(name);
+}
+
+/** One part of a book or paper, as noesis's outline of it numbers it. */
+export interface DocumentPart {
+  number: number;
+  /** Its chapter's title, or for a PDF without bookmarks its pages. */
+  title: string;
+  /** How long it is: `1,234 words`, or `pages 3–12`; absent where the title already says. */
+  size?: string;
+}
+
+/**
+ * **A book's or paper's parts**, since 2026-11-22: noesis's `read_file`
+ * without a `part`, its outline's numbered lines. An EPUB's line is
+ * `<title> — <n> words`, a PDF's `<title>, pages <a>–<b>`, or its pages alone
+ * where it has no bookmarks.
+ */
+export async function readOutline(
+  doFetch: typeof fetch,
+  server: Pick<ConsultedLibrary, 'url' | 'token'>,
+  name: string,
+  library: string,
+  signal?: AbortSignal
+): Promise<{ ok: true; parts: DocumentPart[] } | { ok: false; error: string }> {
+  const read = await callLibraryTool(doFetch, server, 'read_file', { name, library }, signal);
+  if (!read.ok) return read;
+  return { ok: true, parts: outlineOf(read.text) };
+}
+
+/** The numbered lines of noesis's outline, as `DocumentPart`s. */
+export function outlineOf(answer: string): DocumentPart[] {
+  const parts: DocumentPart[] = [];
+  for (const line of answer.split('\n')) {
+    const numbered = /^(\d+)\.\s+(.+)$/.exec(line.trim());
+    if (!numbered) continue;
+    const number = Number(numbered[1]);
+    const rest = numbered[2];
+    const words = /^(.*?)\s+—\s+([\d,]+ words?)$/.exec(rest);
+    const pages = /^(?:(.*), )?(pages? \d+(?:–\d+)?)$/.exec(rest);
+    if (words) parts.push({ number, title: words[1], size: words[2] });
+    else if (pages && pages[1]) parts.push({ number, title: pages[1], size: pages[2] });
+    else parts.push({ number, title: rest });
+  }
+  return parts;
 }
 
 /**
@@ -1314,7 +1382,9 @@ export async function listDocuments(
   library: string,
   query: string,
   signal?: AbortSignal
-): Promise<{ ok: true; documents: Array<{ name: string; title: string }> } | { ok: false; error: string }> {
+): Promise<
+  { ok: true; documents: Array<{ name: string; title: string; parts?: true }> } | { ok: false; error: string }
+> {
   const listed = await callLibraryTool(doFetch, server, 'list_documents', { library, query }, signal);
   if (!listed.ok) {
     // An empty library, or a query that matched nothing, is no failure.
@@ -1331,9 +1401,14 @@ export async function listDocuments(
   const documents = text
     .split('\n')
     .map((line) => line.trim())
-    .map((line) => /^(\S+\.md)\s+—\s+(.*?)(?:\s+\(not yet indexed\))?$/.exec(line))
+    // A book or paper, since 2026-11-22, is marked as read in parts.
+    .map((line) => /^(\S+\.(?:md|epub|pdf))\s+—\s+(.*?)(?:\s+\((not yet indexed|read in parts)\))?$/.exec(line))
     .filter((match): match is RegExpExecArray => match !== null)
-    .map((match) => ({ name: match[1], title: match[2].trim() || match[1] }));
+    .map((match) => ({
+      name: match[1],
+      title: match[2].trim() || match[1],
+      ...(match[3] === 'read in parts' || readInParts(match[1]) ? { parts: true as const } : {}),
+    }));
   return { ok: true, documents };
 }
 
@@ -1342,7 +1417,7 @@ async function callLibraryTool(
   doFetch: typeof fetch,
   server: Pick<ConsultedLibrary, 'url' | 'token'>,
   tool: string,
-  args: Record<string, string>,
+  args: Record<string, string | number>,
   signal?: AbortSignal
 ): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
   let response: Response;
