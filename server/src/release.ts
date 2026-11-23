@@ -43,7 +43,11 @@ import {
  * phone that matters, which after a public release means waiting rather than
  * deciding.
  *
- * **189 since 2026-11-07**, raised from 155 on the same order: `oldestBuild`
+ * **201 since 2026-11-22**, raised from 189 on the same order: `oldestBuild`
+ * read 201 and `silentBuilds` 0, so nobody was shown an update screen by the
+ * change.
+ *
+ * **189 from 2026-11-07**, raised from 155 on the same order: `oldestBuild`
  * read 189 and `silentBuilds` 0, so nobody was shown an update screen by the
  * change.
  *
@@ -85,7 +89,7 @@ import {
  * on `/healthz` has already passed the number, never in advance to license a
  * deletion.
  */
-export const MIN_SUPPORTED_BUILD = 189;
+export const MIN_SUPPORTED_BUILD = 201;
 
 /**
  * The first build that reports attention, and so the first the server may
