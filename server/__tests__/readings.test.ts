@@ -241,16 +241,18 @@ describe('the routes', () => {
         call.params.name === 'list_documents'
           ? `${input_name} — On Attention\n2026-01-01-older.chat.md — Older (not yet indexed)\n` +
             `${BOOK} — Tiempo de hormigas (read in parts)`
-          : name === input_name
-            ? read(DOCUMENT)
-            : name === SPANISH_NAME
-              ? read(SPANISH)
-              : name === BOOK && part === undefined
-                ? `${BOOK}, the source.\n\nIt is an EPUB, read a part at a time. Its 2 parts:\n\n` +
-                  '1. Prólogo — 1,234 words\n2. Uno — 5 words'
-                : name === BOOK && part === 2
-                  ? `${BOOK}, the source.\nPart 2 of 2: Uno — 5 words.\n\nThe ants keep time.`
-                  : null;
+          : call.params.name !== 'read_text'
+            ? null
+            : name === input_name
+              ? read(DOCUMENT)
+              : name === SPANISH_NAME
+                ? read(SPANISH)
+                : name === BOOK && part === undefined
+                  ? `${BOOK}, the source.\n\nIt is an EPUB, read a part at a time. Its 2 parts:\n\n` +
+                    '1. Prólogo — 1,234 words\n2. Uno — 5 words'
+                  : name === BOOK && part === 2
+                    ? `${BOOK}, the source.\nPart 2 of 2: Uno — 5 words.\n\nThe ants keep time.`
+                    : null;
       const result = text
         ? { content: [{ type: 'text', text }] }
         : { content: [{ type: 'text', text: 'no such document' }], isError: true };

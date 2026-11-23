@@ -785,7 +785,7 @@ let noesisLibraries = ['alice/philosophy'];
 let noesisScope = 'noesis:read noesis:import';
 /** How noesis's import answers. */
 let noesisImport: () => Response = () => new Response(null, { status: 500 });
-/** What noesis's MCP `read_file` returns, by name; anything else is not found. */
+/** What noesis's MCP `read_text` returns, by name; anything else is not found. */
 let noesisDocuments: Record<string, string> = {};
 /** Whether auth grants on The Floor's word for an address (`vouch`); it refuses unless a test says otherwise. */
 let authVouches = false;
@@ -819,9 +819,9 @@ const fakeNoesis = (async (input: unknown, init?: { body?: unknown; method?: str
   }
   if (url.pathname.endsWith('/import')) return noesisImport();
   if (url.pathname === '/mcp' && init?.method === 'POST') {
-    // noesis's MCP, stateless, answering one `read_file` as a server-sent event.
-    const call = JSON.parse(String(init.body)) as { params: { arguments: { name: string } } };
-    const text = noesisDocuments[call.params.arguments.name];
+    // noesis's MCP, stateless, answering one `read_text` as a server-sent event.
+    const call = JSON.parse(String(init.body)) as { params: { name: string; arguments: { name: string } } };
+    const text = call.params.name === 'read_text' ? noesisDocuments[call.params.arguments.name] : undefined;
     const result = text
       ? { content: [{ type: 'text', text }] }
       : { content: [{ type: 'text', text: `no such document: ${call.params.arguments.name}` }], isError: true };
@@ -1724,7 +1724,7 @@ describe('asking the room before reading', () => {
     expect(reads()[0].query).toEqual({ libraries: 'alice/philosophy' });
     expect(JSON.parse(reads()[0].body!)).toMatchObject({
       method: 'tools/call',
-      params: { name: 'read_file', arguments: { name: ATTENTION, library: 'alice/philosophy' } },
+      params: { name: 'read_text', arguments: { name: ATTENTION, library: 'alice/philosophy' } },
     });
 
     const second = calls[1].body as {

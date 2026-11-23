@@ -1288,10 +1288,12 @@ export function askedToRead(
 
 /**
  * **Reads one document from noesis, as the server rather than Claude**, since
- * 2026-11-20: a single MCP `tools/call` of `read_file` on the server and with
+ * 2026-11-20: a single MCP `tools/call` of `read_text` on the server and with
  * the token the press consulted it by. noesis's MCP is stateless, so the
  * call needs no handshake, and it may answer as JSON or as one server-sent
  * event. The text, or why not, in a sentence fit for the *Record*.
+ * `read_text` since 2026-11-23, not `read_file`, which gives a model a PDF's
+ * part as its pages: this server keeps a document as text, and reads it aloud.
  */
 export async function readDocument(
   doFetch: typeof fetch,
@@ -1304,7 +1306,7 @@ export async function readDocument(
   return callLibraryTool(
     doFetch,
     server,
-    'read_file',
+    'read_text',
     { name, library, ...(part === undefined ? {} : { part }) },
     signal
   );
@@ -1312,7 +1314,7 @@ export async function readDocument(
 
 /**
  * **What a file says once noesis's own lines before it are gone**, for a
- * *reading*: `read_file` opens with a line naming the file, one naming its
+ * *reading*: `read_text` opens with a line naming the file, one naming its
  * companions, and for a book's part one saying which part it is, then a
  * blank line and the file. Those are for a model, not a room, so nothing of
  * them is read aloud. Empty where nothing follows them, as for a scan.
@@ -1337,7 +1339,7 @@ export interface DocumentPart {
 }
 
 /**
- * **A book's or paper's parts**, since 2026-11-22: noesis's `read_file`
+ * **A book's or paper's parts**, since 2026-11-22: noesis's `read_text`
  * without a `part`, its outline's numbered lines. An EPUB's line is
  * `<title> — <n> words`, a PDF's `<title>, pages <a>–<b>`, or its pages alone
  * where it has no bookmarks.
@@ -1349,7 +1351,7 @@ export async function readOutline(
   library: string,
   signal?: AbortSignal
 ): Promise<{ ok: true; parts: DocumentPart[] } | { ok: false; error: string }> {
-  const read = await callLibraryTool(doFetch, server, 'read_file', { name, library }, signal);
+  const read = await callLibraryTool(doFetch, server, 'read_text', { name, library }, signal);
   if (!read.ok) return read;
   return { ok: true, parts: outlineOf(read.text) };
 }
