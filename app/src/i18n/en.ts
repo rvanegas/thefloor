@@ -177,7 +177,7 @@ export const en = {
     signIn: () => 'Sign in',
     signingIn: () => 'Signing in\u2026',
     signInHint: () =>
-      'One account for The Floor, noesis and Roxana: you sign in at auth.rvanegas.co, by a code sent to your email — or not at all, if you already are.',
+      'One account for The Floor, noesis and Roxana: you sign in at auth.twohands.co, by a code sent to your email — or not at all, if you already are.',
     serverHint: (url: string) => `Server: ${url}`,
     /**
      * **Returned in pieces because two of them are italic.** A sentence with
@@ -1017,7 +1017,7 @@ export const en = {
      */
     noesisLibrary: () => 'noesis library',
     noesisAbout: () =>
-      'Connect your noesis library to open your channels’ own libraries there, and with Pro, to let Claude consult yours in the channels you choose, on Channel Settings. Connecting asks you to sign in at auth.rvanegas.co — at once, if you already are.',
+      'Connect your noesis library to open your channels’ own libraries there, and with Pro, to let Claude consult yours in the channels you choose, on Channel Settings. Connecting asks you to sign in at auth.twohands.co — at once, if you already are.',
     noesisConnect: () => 'Connect',
     noesisConnecting: () => 'Connecting…',
     noesisConnectedAs: (user: string, email: string | null) =>
@@ -1044,7 +1044,7 @@ export const en = {
     noesisDisconnectBody: () =>
       'Claude stops consulting it in every channel where it is on. The library itself stays in noesis, and you can connect it again at any time.',
     noesisFailed: () =>
-      'Your library was not connected. Try again, and finish signing in at auth.rvanegas.co.',
+      'Your library was not connected. Try again, and finish signing in at auth.twohands.co.',
     storeUnreachable: () => 'The App Store cannot be reached right now.',
     /**
      * The server would not confirm a purchase StoreKit says succeeded. Not
@@ -1081,7 +1081,7 @@ export const en = {
      * that channels are not yours to take with you.
      */
     deleteAccountBody: () =>
-      'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nYour account at auth.rvanegas.co, which signs you in here and to noesis, stays: it is deleted at auth.rvanegas.co/account.\n\nThis cannot be undone.',
+      'Your address, your name, what you wrote about yourself and your contacts are removed immediately.\n\nChannels you share with other people carry on without you, and so do the recordings made in them — they belong to the channel. Channels you are the only member of are deleted with everything in them.\n\nYour account at auth.twohands.co, which signs you in here and to noesis, stays: it is deleted at auth.twohands.co/account.\n\nThis cannot be undone.',
     deleteConfirm: () => 'Delete',
   },
   channelSettings: {

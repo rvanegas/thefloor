@@ -184,7 +184,7 @@ export const api = {
     }),
 
   /**
-   * Where to sign in: dianoia-auth's page (`auth.rvanegas.co`), since
+   * Where to sign in: dianoia-auth's page (`auth.twohands.co`), since
    * 2026-11-09 the one sign-in for The Floor, noesis and the rest. The app
    * opens it in the system sheet; a web train goes there and comes back to
    * `path`. `prompt: 'login'` says somebody signed out on this install; the

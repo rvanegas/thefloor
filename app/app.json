@@ -44,6 +44,7 @@
         ]
       },
       "associatedDomains": [
+        "applinks:thefloor.twohands.co",
         "applinks:thefloor.rvanegas.co"
       ],
       "infoPlist": {

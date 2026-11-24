@@ -526,7 +526,7 @@ interface AppValue extends AppState {
    */
   lookAt: (channelId: string | null) => void;
   /**
-   * Signs in through dianoia-auth (`auth.rvanegas.co`): the system sheet on a
+   * Signs in through dianoia-auth (`auth.twohands.co`): the system sheet on a
    * phone, which a session in Safari finishes without a code; on the web, a
    * visit that comes back to this page. Resolves without signing in when the
    * person closes the sheet; rejects with what to say when it fails.

@@ -175,7 +175,7 @@ describe('signing in', () => {
   it('asks no address here: the code is dianoia-auth\'s', () => {
     const tree = render();
     expect(tree.root.findAll((n) => n.props?.placeholder !== undefined && typeof n.type === 'string')).toEqual([]);
-    expect(textOf(tree)).toContain('auth.rvanegas.co');
+    expect(textOf(tree)).toContain('auth.twohands.co');
   });
 
   it('signs in at a press, and says why when it cannot', async () => {

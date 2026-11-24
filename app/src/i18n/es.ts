@@ -152,7 +152,7 @@ export const es: Strings = {
     signIn: () => 'Entrar',
     signingIn: () => 'Entrando\u2026',
     signInHint: () =>
-      'Una sola cuenta para The Floor, noesis y Roxana: entras en auth.rvanegas.co con un c\u00f3digo que llega a tu correo, o sin \u00e9l si ya hab\u00edas entrado.',
+      'Una sola cuenta para The Floor, noesis y Roxana: entras en auth.twohands.co con un c\u00f3digo que llega a tu correo, o sin \u00e9l si ya hab\u00edas entrado.',
     serverHint: (url: string) => `Servidor: ${url}`,
     embeddedLead: () => 'Est\u00e1s en el navegador integrado de una app.',
     embeddedWhy: () =>
@@ -754,7 +754,7 @@ export const es: Strings = {
     proNotFound: () => 'No se encontr\u00f3 ninguna suscripci\u00f3n Pro para esta cuenta.',
     noesisLibrary: () => 'Biblioteca de noesis',
     noesisAbout: () =>
-      'Conecta tu biblioteca de noesis para abrir allí las bibliotecas de tus canales y, con Pro, dejar que Claude consulte la tuya en los canales que elijas, en Ajustes del canal. Para conectarla entras en auth.rvanegas.co; si ya habías entrado, al instante.',
+      'Conecta tu biblioteca de noesis para abrir allí las bibliotecas de tus canales y, con Pro, dejar que Claude consulte la tuya en los canales que elijas, en Ajustes del canal. Para conectarla entras en auth.twohands.co; si ya habías entrado, al instante.',
     noesisConnect: () => 'Conectar',
     noesisConnecting: () => 'Conectando…',
     noesisConnectedAs: (user: string, email: string | null) =>
@@ -775,7 +775,7 @@ export const es: Strings = {
     noesisDisconnectBody: () =>
       'Claude deja de consultarla en todos los canales donde está activada. La biblioteca sigue en noesis, y puedes volver a conectarla cuando quieras.',
     noesisFailed: () =>
-      'Tu biblioteca no se conect\u00f3. Int\u00e9ntalo de nuevo y termina de entrar en auth.rvanegas.co.',
+      'Tu biblioteca no se conect\u00f3. Int\u00e9ntalo de nuevo y termina de entrar en auth.twohands.co.',
     storeUnreachable: () => 'Ahora mismo no se puede acceder a la App Store.',
     proNotConfirmed: () =>
       'La App Store lo acept\u00f3, pero aqu\u00ed todav\u00eda no se pudo confirmar. Se volver\u00e1 a intentar la pr\u00f3xima vez que abras la app.',
@@ -802,7 +802,7 @@ export const es: Strings = {
     deleteAccount: () => 'Borrar la cuenta',
     deleteAccountAsk: () => '\u00bfBorrar tu cuenta?',
     deleteAccountBody: () =>
-      'Tu direcci\u00f3n, tu nombre, lo que escribiste sobre ti y tus contactos se eliminan de inmediato.\n\nLos canales que compartes con otras personas siguen sin ti, y tambi\u00e9n las grabaciones hechas en ellos: son del canal. Los canales en los que eres el \u00fanico miembro se borran con todo lo que hay dentro.\n\nTu cuenta en auth.rvanegas.co, con la que entras aqu\u00ed y en noesis, se conserva: se borra en auth.rvanegas.co/account.\n\nEsto no se puede deshacer.',
+      'Tu direcci\u00f3n, tu nombre, lo que escribiste sobre ti y tus contactos se eliminan de inmediato.\n\nLos canales que compartes con otras personas siguen sin ti, y tambi\u00e9n las grabaciones hechas en ellos: son del canal. Los canales en los que eres el \u00fanico miembro se borran con todo lo que hay dentro.\n\nTu cuenta en auth.twohands.co, con la que entras aqu\u00ed y en noesis, se conserva: se borra en auth.twohands.co/account.\n\nEsto no se puede deshacer.',
     deleteConfirm: () => 'Borrar',
   },
   channelSettings: {

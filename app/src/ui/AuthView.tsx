@@ -10,7 +10,7 @@ import { colors, spacing, type } from './theme';
 
 /**
  * Signed-out state, since 2026-11-09: one button, which signs in through
- * dianoia-auth (`auth.rvanegas.co`), the sign-in The Floor shares with noesis
+ * dianoia-auth (`auth.twohands.co`), the sign-in The Floor shares with noesis
  * and the rest. Identity is still an email address plus a one-time code, and
  * no password, but the code is asked on dianoia-auth's page, in the system
  * sheet — and not at all when the person is already signed in there, from

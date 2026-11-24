@@ -84,7 +84,7 @@ const REBUILD_COOLDOWN_MS = 20_000;
  * session pointed at a LAN server in development must not become a page with a
  * plain-http identity that YouTube then judges on its own terms.
  */
-const PAGE_ORIGIN = 'https://thefloor.rvanegas.co/';
+const PAGE_ORIGIN = 'https://thefloor.twohands.co/';
 
 /**
  * The page, which is a player and a postbox and nothing else.
