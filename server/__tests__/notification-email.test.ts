@@ -123,7 +123,7 @@ it('emails the push notification’s own words to somebody who asked', async () 
       to: 'bob@example.com',
       title: 'Alice',
       body: 'Invited you to a channel.',
-      link: 'https://thefloor.rvanegas.co/app',
+      link: 'https://thefloor.twohands.co/app',
     },
   ]);
   // Both switches on means both.

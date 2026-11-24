@@ -100,7 +100,7 @@ fi
 
 echo "→ waiting for the SFU"
 for _ in $(seq 1 15); do
-  if curl -sf --max-time 5 -o /dev/null https://livekit.rvanegas.co/; then
+  if curl -sf --max-time 5 -o /dev/null https://livekit.twohands.co/; then
     STILL=$($SSH "$HOST" 'sudo needrestart -b -r l 2>/dev/null' \
       | sed -n 's/^NEEDRESTART-SVC: //p' \
       | grep -E "^($SERVICES)\.service\$" | tr '\n' ' ' || true)

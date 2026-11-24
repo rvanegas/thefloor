@@ -161,7 +161,7 @@ import type { StreamingTranscriptionProvider } from './streaming';
  * notification email, minted inside a channel transition. `PUBLIC_URL`
  * overrides it, as it overrides `origin` below.
  */
-const DEFAULT_ORIGIN = 'https://thefloor.rvanegas.co';
+const DEFAULT_ORIGIN = 'https://thefloor.twohands.co';
 
 /**
  * The longest document read aloud, in characters: some four hours of speech
@@ -1658,7 +1658,7 @@ export function buildApp(options: BuildOptions = {}): App {
   }
 
   /**
-   * Signing in through auth (`auth.rvanegas.co`), since 2026-11-09: the one
+   * Signing in through auth (`auth.twohands.co`), since 2026-11-09: the one
    * sign-in for The Floor, noesis and the rest, which a session there
    * finishes without a code. The app opens the URL this returns in the system
    * sheet; auth comes back to `/noesis/callback`, which makes or finds the

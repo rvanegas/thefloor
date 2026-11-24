@@ -31,7 +31,7 @@ SSH="ssh -i $KEY -o BatchMode=yes -o StrictHostKeyChecking=accept-new"
 LIVEKIT_VERSION=${LIVEKIT_VERSION:-1.13.5}
 EGRESS_VERSION=${EGRESS_VERSION:-v1.14.0}
 
-LIVEKIT_HOSTNAME=${LIVEKIT_HOSTNAME:-livekit.rvanegas.co}
+LIVEKIT_HOSTNAME=${LIVEKIT_HOSTNAME:-livekit.twohands.co}
 
 # Generated once with `livekit-server generate-keys` and kept beside the APNs
 # key, under ~/.config/thefloor — a credential rather than data, and outside the

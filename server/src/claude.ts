@@ -1196,7 +1196,7 @@ const FAILURES: Record<Exclude<ClaudeOutcome, 'posted' | 'proposed'>, { status: 
  * and planning/decision/2026-11-01-each-account-connects-its-own-mdc-library.md.
  */
 export interface LibraryOptions {
-  /** noesis's MCP server, `https://noesis.rvanegas.co/mcp` in production. */
+  /** noesis's MCP server, `https://noesis.twohands.co/mcp` in production. */
   url: string;
   /**
    * A current token for an account's own library, or null when it has none

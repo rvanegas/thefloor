@@ -60,7 +60,7 @@ set -euo pipefail
 HOST=${THEFLOOR_HOST:-ubuntu@44.241.121.49}
 KEY=${THEFLOOR_KEY:-~/.ssh/lightsail-ubuntu}
 REMOTE_DB=/home/ubuntu/thefloor-data/thefloor.db
-HEALTH_URL=${THEFLOOR_URL:-https://thefloor.rvanegas.co}/healthz
+HEALTH_URL=${THEFLOOR_URL:-https://thefloor.twohands.co}/healthz
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 LOCAL_DB="$ROOT/server/thefloor.db"
 

@@ -51,7 +51,7 @@ client=$(setting NOESIS_CLIENT_ID)
 secret=$(setting NOESIS_CLIENT_SECRET)
 url=$(setting NOESIS_URL)
 auth_url=$(setting AUTH_URL)
-origin=$(printf '%s' "${url:-https://noesis.rvanegas.co/mcp}" | sed -E 's#^(https?://[^/]+).*#\1#')
+origin=$(printf '%s' "${url:-https://noesis.twohands.co/mcp}" | sed -E 's#^(https?://[^/]+).*#\1#')
 [ -n "$client" ] && [ -n "$secret" ] || {
   echo "ts library-spending: no NOESIS_CLIENT_ID and NOESIS_CLIENT_SECRET (ts env-pull?)" >&2
   exit 1
@@ -62,7 +62,7 @@ work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
 # token it is traded for likewise.
 printf 'data-urlencode = "client_id=%s"\ndata-urlencode = "client_secret=%s"\n' "$client" "$secret" > "$work/pair"
 token=$(curl -sS --fail-with-body -K "$work/pair" -d grant_type=client_credentials -d scope=noesis:keep \
-  "${auth_url:-https://auth.rvanegas.co}/token" | jq -r '.access_token // empty')
+  "${auth_url:-https://auth.twohands.co}/token" | jq -r '.access_token // empty')
 [ -n "$token" ] || { echo "ts library-spending: auth gave no token for noesis:keep" >&2; exit 1; }
 printf 'header = "Authorization: Bearer %s"\n' "$token" > "$work/auth"
 

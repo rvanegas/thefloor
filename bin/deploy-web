@@ -182,7 +182,7 @@ rsync -az --delete -e "$SSH" \
   "$WORK/out/" "$HOST:/home/ubuntu/thefloor/server/web/$train/"
 
 echo "→ checking"
-URL="https://thefloor.rvanegas.co$PREFIX"
+URL="https://thefloor.twohands.co$PREFIX"
 CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$URL")
 if [ "$CODE" != "200" ]; then
   echo "✗ $URL answered $CODE" >&2

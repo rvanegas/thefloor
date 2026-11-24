@@ -355,7 +355,7 @@ are not kept by The Floor.</p>
 `;
   const libraryParagraph = `<p>This server can also give Claude a library: one person's own writing,
 kept in noesis, a service the people who run The Floor keep. Since version 1.14,
-signing in to The Floor at auth.rvanegas.co connects your noesis library; in
+signing in to The Floor at auth.twohands.co connects your noesis library; in
 earlier versions you connect it on <em>Floor Settings</em>, by signing in there.
 The Floor then keeps a grant to read that library, sealed, along with the name
 and address it belongs to, until you disconnect it or delete your account. In a channel where that person has switched it on, Claude may
@@ -447,7 +447,7 @@ application collects little.</p>
 <ul>
   <li><strong>Your email address.</strong> It is how you sign in — a six-digit
   code is sent to it — and it is how somebody who knows your address can send
-  you a contact request. Since version 1.14 you sign in at auth.rvanegas.co,
+  you a contact request. Since version 1.14 you sign in at auth.twohands.co,
   the sign-in the people who run The Floor keep for it and their other
   services, which keeps your address, your username and when you signed in,
   and keeps you signed in in that browser for thirty days so that their other
@@ -458,7 +458,7 @@ application collects little.</p>
   your own profile: a code is sent to the new address, and nothing changes
   until that code comes back, so the address this account signs in with is
   always one somebody has proved they can read. Once you have signed in at
-  auth.rvanegas.co the address is that account's too, and it cannot be
+  auth.twohands.co the address is that account's too, and it cannot be
   changed from the app; write to the support address.</li>
   <li><strong>Your display name.</strong> It is shown to people you share a
   channel or a contact relationship with.</li>
@@ -637,10 +637,10 @@ with the name you had when each one was made — they are other people’s copie
 a conversation they were in, and they are not ours to take away. Nothing that
 remains identifies you or can be signed in to.</p>
 
-<p><strong>Your account at auth.rvanegas.co is separate</strong>, and deleting
+<p><strong>Your account at auth.twohands.co is separate</strong>, and deleting
 The Floor’s leaves it: it is the one sign-in for The Floor and the other
 services run alongside it, noesis among them. It is deleted at
-<a href="https://auth.rvanegas.co/account/delete">auth.rvanegas.co</a>, which
+<a href="https://auth.twohands.co/account/delete">auth.twohands.co</a>, which
 deletes this account too and whatever each of those services keeps for you; your
 noesis libraries are kept 30 days after that, so that a mistake
 can be undone by asking, and are then removed.</p>
