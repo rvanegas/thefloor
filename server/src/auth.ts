@@ -19,7 +19,7 @@ import { createPublicKey, verify, type KeyObject } from 'node:crypto';
  *   half minute for a key not known) by issuer, audience and expiry. Any of
  *   auth's names (`origin`, then `also`) will do as either: `auth.rvanegas.co`
  *   during the move to twohands.co. COMPATIBILITY: `also` goes no sooner than
- *   two weeks after the commons cutover (rvanegas-site's
+ *   2027-01-23, two months after the commons cutover (rvanegas-site's
  *   move-everything-from-rvanegas-co-to-twohands-co.md, step 8).
  * - **Handing a sign-in to a browser** (`handoff`): *Open noesis* opens the
  *   person's own browser, which knows nobody at auth; the link this makes signs
