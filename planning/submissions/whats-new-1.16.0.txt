@@ -1,0 +1,15 @@
+Ask Claude reads what was said in the last two hours. Hide from Claude, in a segment's menu, leaves a segment out for everybody; Show to Claude brings an older one back.
+
+When Claude wants a whole document from a library, it asks first: the room sees the documents, ticked, with Read and Answer without.
+
+Under a reply that used a library, a line such as "Searched 1 term · Read 1 document" opens to each step Claude took.
+
+Read a document aloud, on the Listen card in a Pro channel, reads a document from a library switched on in the channel, in your Pro voice, with each sentence shown as it is said. A book is read a part at a time, chosen from its outline.
+
+A channel is Pro while any of its members is. The Standard and Pro choices on Channel Settings are gone; Floor Settings shows your own plan.
+
+A segment's menu has one Delete, asking which of its audio, text and document go. A paste made during a segment goes with its text, and a paste of its own has a Delete in its menu.
+
+A paste's line in the Record ends in a menu, as a segment's does.
+
+The Floor is at thefloor.twohands.co, and sign-in at auth.twohands.co.
