@@ -353,6 +353,27 @@ export function ChannelView({
   const [pickingDocument, setPickingDocument] = useState(false);
   const [preparingReading, setPreparingReading] = useState(false);
   /**
+   * Whether your noesis library is connected, which *Read a document aloud*
+   * waits on since 2026-11-24, as *Open in noesis* does on the *Record* tab:
+   * to somebody without one it is noesis's offer, not theirs. Asked once as
+   * the channel opens; an older server, or a failure, is not.
+   */
+  const [noesisConnected, setNoesisConnected] = useState(false);
+  useEffect(() => {
+    const token = app.token;
+    if (!token) return;
+    let current = true;
+    api
+      .noesis(token)
+      .then((view) => {
+        if (current && view.available && view.connected) setNoesisConnected(true);
+      })
+      .catch(() => {});
+    return () => {
+      current = false;
+    };
+  }, [app.token]);
+  /**
    * The sentences of what is being read aloud, fetched once per reading, so
    * the card can show the one being said (core/reading.ts `sentenceAt`).
    */
@@ -4007,10 +4028,11 @@ export function ChannelView({
           {/*
             A *reading*, since 2026-11-20: a document from a library on in
             this channel, spoken in the presser's Pro voice. **Drawn only on
-            a Pro channel**, since nobody else could press it, and below the
+            a Pro channel**, since nobody else could press it, **and only to
+            somebody connected to noesis** (2026-11-24), and below the
             track's controls or the upload, a second way to put something on.
           */}
-          {view?.pro && app.token ? (
+          {view?.pro && noesisConnected && app.token ? (
             pickingDocument ? (
               <DocumentPicker
                 token={app.token}

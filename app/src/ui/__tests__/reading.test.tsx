@@ -27,7 +27,6 @@ jest.mock('../../state/AppProvider', () => require('../testing/harness').appProv
  * sentence being said. See server/__tests__/readings.test.ts for the rest.
  */
 
-beforeEach(resetHarness);
 /** This file's spies on `api`, put back after each test; the harness's own mocks are left alone. */
 const spies: jest.SpyInstance[] = [];
 afterEach(() => spies.splice(0).forEach((spy) => spy.mockRestore()));
@@ -37,13 +36,18 @@ const spy = <K extends string>(name: K, value: unknown) => {
   spies.push(made);
   return made;
 };
+/** Connected to noesis unless a test says otherwise, which the button waits on. */
+beforeEach(() => {
+  resetHarness();
+  spy('noesis', { available: true, connected: true, libraries: [] });
+});
 
 const flush = () => act(async () => new Promise((resolve) => setTimeout(resolve, 0)));
 
 const DOCUMENT = { name: 'x.document.md', library: 'alice/philosophy', title: 'On Attention' };
 
 describe('Read a document aloud', () => {
-  it('is offered only on a Pro channel', () => {
+  it('is offered only on a Pro channel', async () => {
     showChannel(channelOf());
     const standard = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
@@ -54,9 +58,20 @@ describe('Read a document aloud', () => {
 
     showChannel(channelOf(), [], { pro: true });
     const pro = render(<ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />);
+    await flush();
     showListen(pro);
     expect(findButton(pro, 'Read a document aloud')).toBeDefined();
     act(() => pro.unmount());
+  });
+
+  it('is offered only to somebody connected to noesis', async () => {
+    spy('noesis', { available: true, connected: false });
+    showChannel(channelOf(), [], { pro: true });
+    const tree = render(<ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />);
+    await flush();
+    showListen(tree);
+    expect(findButton(tree, 'Read a document aloud')).toBeUndefined();
+    act(() => tree.unmount());
   });
 
   it('lists the documents, and reads the one chosen into Listen and plays it', async () => {
@@ -65,6 +80,7 @@ describe('Read a document aloud', () => {
 
     showChannel(channelOf(), [], { pro: true });
     const tree = render(<ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />);
+    await flush();
     showListen(tree);
     act(() => findButton(tree, 'Read a document aloud')!.props.onPress());
     await flush();
@@ -86,6 +102,7 @@ describe('Read a document aloud', () => {
 
     showChannel(channelOf(), [], { pro: true });
     const tree = render(<ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />);
+    await flush();
     showListen(tree);
     act(() => findButton(tree, 'Read a document aloud')!.props.onPress());
     await flush();
@@ -105,6 +122,7 @@ describe('Read a document aloud', () => {
     spy('channelDocuments', { libraries: [], documents: [] });
     showChannel(channelOf(), [], { pro: true });
     const tree = render(<ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />);
+    await flush();
     showListen(tree);
     act(() => findButton(tree, 'Read a document aloud')!.props.onPress());
     await flush();

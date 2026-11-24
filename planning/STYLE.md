@@ -1386,7 +1386,8 @@ rather than "Empty".
 (`DocumentPicker`): *Read a document aloud*, a `default` `Button` with *From a
 library on in this channel* as its sublabel under *Play something together*
 or under the track's controls — drawn on a *Pro channel* alone, the rule of
-the *Pro voice* card, since nobody else could press it — opens the card
+the *Pro voice* card, since nobody else could press it, and since 2026-11-24
+only to somebody connected to noesis, as *Open in noesis* is — opens the card
 itself into a `Field` and the documents stacked full width, one `Button` each
 with its library as the sublabel where more than one library is on, as
 *a choice of more than three goes down the page*. Not a sheet: there is none
