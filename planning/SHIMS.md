@@ -43,7 +43,7 @@ Gate is the lowest `MIN_SUPPORTED_BUILD` at which the shim may go.
 | 429 | *Send to noesis* | `server/src/app.ts`, `server/src/noesis.ts`, `core/protocol.ts` |
 | 188 | `RejoinableView.nearby` / `InviteView.nearby` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
 | 189 | `RejoinableView.nearbyCount` / `InviteView.nearbyCount` optionality | `core/protocol.ts`, `app/src/ui/ChannelsView.tsx` |
-| first twohands build | The `rvanegas.co` names: `thefloor.` and `livekit.` | the box's Caddyfile, DNS (twohands's `DNS.md`), `app/app.json` |
+| 449 | The `rvanegas.co` names: `thefloor.` and `livekit.` | the box's Caddyfile, DNS (twohands's `DNS.md`), `app/app.json` |
 | 195 | `ChannelView.pingedWith` optionality | `core/protocol.ts`, `app/src/ui/ChannelView.tsx` |
 | 196 | `HomeView.tried` optionality | `core/protocol.ts`, `app/src/state/useIntroduction.ts` |
 | 196 | The keychain hand-up of the four tried rungs | `app/src/state/tried.ts`, `app/src/state/useIntroduction.ts` |
@@ -1166,15 +1166,16 @@ answer in a channel that is not Pro, which the new app relies on.
 Gate 440 because `build/439` is tagged and is the last build drawing the three
 cards.
 
-## Gate: the first build that dials twohands.co — the old names
+## Gate 449 — the old names, `thefloor.rvanegas.co` and `livekit.rvanegas.co`
 
 Since 2026-11-24 the server and LiveKit answer at `thefloor.twohands.co` and
 `livekit.twohands.co` as well as their `rvanegas.co` names (twohands's
 `move-everything-from-rvanegas-co-to-twohands-co.md`, step 6). Every build
 before the one carrying `cdd4b589` dials `thefloor.rvanegas.co` over HTTP and
 WebSocket and claims only it for universal links, and WebSocket and LiveKit
-follow no redirect. **Write that build's number in the table when it is
-uploaded.**
+follow no redirect. That build is **449**, uploaded 2026-11-24 (448's
+archive crashed the Swift compiler in `ExpoModulesCore`, so 448 does not
+exist; the retry built clean).
 
 What goes, once `oldestBuild` has passed it:
 
