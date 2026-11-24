@@ -6,6 +6,8 @@ import { AuthClient } from '../src/auth';
  * as auth's, the tokens it signs, and The Floor's own token by client_credentials.
  */
 export const AUTH_ORIGIN = 'https://auth.example';
+/** auth's old name during a move: its tokens are good too (auth.ts, `also`). */
+export const AUTH_OLD_ORIGIN = 'https://auth.old.example';
 export const OWN_TOKEN = 'floor-own-token';
 
 const { privateKey, publicKey } = generateKeyPairSync('ed25519');
@@ -50,5 +52,11 @@ export function fakeAuthFetch(asked: string[] = []): typeof fetch {
 }
 
 export function fakeAuth(asked: string[] = []): AuthClient {
-  return new AuthClient({ origin: AUTH_ORIGIN, clientId: 'thefloor', clientSecret: 'client-secret', fetch: fakeAuthFetch(asked) });
+  return new AuthClient({
+    origin: AUTH_ORIGIN,
+    also: [AUTH_OLD_ORIGIN],
+    clientId: 'thefloor',
+    clientSecret: 'client-secret',
+    fetch: fakeAuthFetch(asked),
+  });
 }

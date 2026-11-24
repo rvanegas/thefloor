@@ -462,8 +462,8 @@ Deliberately separate, so no single leak is worse than it has to be:
   no write since noesis `43be338`, a property of noesis, so the allowlist in the
   request is still what keeps a later noesis tool out of a room.
 
-  Marked `# env-push: optional`, with `NOESIS_URL`, `NOESIS_CALLBACK_URL` and
-  `AUTH_URL`, which are settings rather than secrets.
+  Marked `# env-push: optional`, with `NOESIS_URL`, `NOESIS_CALLBACK_URL`,
+  `AUTH_URL` and `AUTH_ALSO_URLS`, which are settings rather than secrets.
 
 `server/.env` on the box holds all of it, mode 600, and is excluded from the
 sync so a deploy cannot overwrite it — which also means nothing ever brought it

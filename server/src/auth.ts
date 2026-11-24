@@ -1,7 +1,7 @@
 import { createPublicKey, verify, type KeyObject } from 'node:crypto';
 
 /**
- * auth (`auth.rvanegas.co`), the one sign-in for The Floor, noesis, dianoia and
+ * auth (`auth.twohands.co`), the one sign-in for The Floor, noesis, dianoia and
  * Roxana since 2026-11-08 — rvanegas-site's
  * `planning/task/one-sign-in-for-every-project-at-auth-rvanegas-co.md`. noesis
  * was the authorization server before it, and The Floor's client there (its id
@@ -16,7 +16,11 @@ import { createPublicKey, verify, type KeyObject } from 'node:crypto';
  *   noesis presents one of its own, scope `thefloor:members`, when it asks who
  *   belongs to a channel. Checked against auth's published keys
  *   (`/.well-known/jwks.json`, kept five minutes, asked again at most every
- *   half minute for a key not known) by issuer, audience and expiry.
+ *   half minute for a key not known) by issuer, audience and expiry. Any of
+ *   auth's names (`origin`, then `also`) will do as either: `auth.rvanegas.co`
+ *   during the move to twohands.co. COMPATIBILITY: `also` goes no sooner than
+ *   two weeks after the commons cutover (rvanegas-site's
+ *   move-everything-from-rvanegas-co-to-twohands-co.md, step 8).
  * - **Handing a sign-in to a browser** (`handoff`): *Open noesis* opens the
  *   person's own browser, which knows nobody at auth; the link this makes signs
  *   it in on the way, so noesis does not ask again.
@@ -24,6 +28,8 @@ import { createPublicKey, verify, type KeyObject } from 'node:crypto';
 export interface AuthOptions {
   /** auth's origin, its issuer. */
   origin: string;
+  /** auth's other names, whose tokens are good too (AUTH_ALSO_URLS): its old one during a move. */
+  also?: string[];
   clientId: string;
   clientSecret: string;
   /** Tests answer for auth. */
@@ -49,9 +55,12 @@ export class AuthClient {
   private fetchedAt = -Infinity;
   private triedAt = -Infinity;
   readonly origin: string;
+  /** Every name auth signs as: `origin`, then `also`. */
+  readonly names: string[];
 
   constructor(private options: AuthOptions) {
     this.origin = new URL(options.origin).origin;
+    this.names = [this.origin, ...(options.also ?? []).map((u) => new URL(u).origin)];
   }
 
   private now(): number {
@@ -137,7 +146,7 @@ export class AuthClient {
     const signed = Buffer.from(`${parts[0]}.${parts[1]}`);
     if (!verify(null, signed, key, Buffer.from(parts[2], 'base64url'))) return null;
     const audiences = Array.isArray(claims.aud) ? claims.aud : [claims.aud];
-    if (claims.iss !== this.origin || !audiences.includes(this.origin)) return null;
+    if (!this.names.includes(claims.iss) || !audiences.some((a) => this.names.includes(a))) return null;
     if (typeof claims.exp !== 'number' || claims.exp * 1000 <= this.now()) return null;
     if (!(claims.scope ?? '').split(' ').includes(scope)) return null;
     return claims;

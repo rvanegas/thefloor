@@ -324,8 +324,11 @@ const claude = anthropicKey ? new Anthropic({ apiKey: anthropicKey }) : undefine
  * Anthropic's servers call `NOESIS_URL` with each owner's token, so it has to be
  * reachable from outside and served over HTTPS. See planning/CREDENTIALS.md.
  */
-const noesisUrl = process.env.NOESIS_URL || 'https://noesis.rvanegas.co/mcp';
-const authUrl = process.env.AUTH_URL || 'https://auth.rvanegas.co';
+const noesisUrl = process.env.NOESIS_URL || 'https://noesis.twohands.co/mcp';
+const authUrl = process.env.AUTH_URL || 'https://auth.twohands.co';
+// auth's other names, whose tokens are good too: its old one during the move
+// to twohands.co (auth.ts). COMPATIBILITY, as there.
+const authAlso = (process.env.AUTH_ALSO_URLS ?? '').split(',').map((u) => u.trim()).filter(Boolean);
 const noesisClientId = process.env.NOESIS_CLIENT_ID;
 const noesisClientSecret = process.env.NOESIS_CLIENT_SECRET;
 const noesisCallbackUrl = process.env.NOESIS_CALLBACK_URL || 'https://thefloor.rvanegas.co/noesis/callback';
@@ -339,7 +342,7 @@ if (
 }
 const auth =
   noesisClientId && noesisClientSecret
-    ? new AuthClient({ origin: authUrl, clientId: noesisClientId, clientSecret: noesisClientSecret })
+    ? new AuthClient({ origin: authUrl, also: authAlso, clientId: noesisClientId, clientSecret: noesisClientSecret })
     : undefined;
 const library =
   noesisClientId && noesisClientSecret

@@ -1,6 +1,6 @@
 import { buildApp, type App } from '../src/app';
 import { MemoryMailer } from '../src/mail';
-import { AUTH_ORIGIN, authToken, fakeAuth, strangerToken } from '../__stubs__/fakeAuth';
+import { AUTH_OLD_ORIGIN, AUTH_ORIGIN, authToken, fakeAuth, strangerToken } from '../__stubs__/fakeAuth';
 
 /**
  * Deleting an account at auth deletes The Floor's too (2026-11-09).
@@ -84,4 +84,20 @@ it('is auth’s alone to ask', async () => {
     expect((await erase(erta.username, token)).statusCode).toBe(401);
   }
   expect(app.accounts.byCurrentUsername(erta.username)).toBeDefined();
+});
+
+it('takes auth’s word under its old name too, during the move, and nobody else’s', async () => {
+  // COMPATIBILITY: goes with AuthClient's `also`.
+  const erta = await signIn('erta@example.com', 'Erta Example');
+  const ines = await signIn('ines@example.com', 'Ines Example');
+  const elsewhere = 'https://auth.elsewhere.example';
+  for (const token of [
+    authToken({ ...AUTH_ITSELF, iss: elsewhere }),
+    authToken({ ...AUTH_ITSELF, iss: AUTH_OLD_ORIGIN, aud: elsewhere }),
+  ]) {
+    expect((await erase(ines.username, token)).statusCode).toBe(401);
+  }
+  expect((await erase(erta.username, authToken({ ...AUTH_ITSELF, iss: AUTH_OLD_ORIGIN, aud: AUTH_OLD_ORIGIN }))).statusCode).toBe(204);
+  expect(app.accounts.byCurrentUsername(erta.username)).toBeUndefined();
+  expect(app.accounts.byCurrentUsername(ines.username)).toBeDefined();
 });
