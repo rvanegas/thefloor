@@ -6,6 +6,7 @@ import {
   speechLanguageOf,
   speechVoiceFor,
   textLanguage,
+  unspeakable,
   withSpeechVoice,
 } from '../speech';
 
@@ -94,5 +95,16 @@ describe('knownSpeechVoices', () => {
     expect(knownSpeechVoices({ en: 'aai-sara', es: 'aai-peter', fr: 'aai-nobody' })).toEqual({ en: 'aai-sara' });
     expect(knownSpeechVoices('aai-sara')).toEqual({});
     expect(knownSpeechVoices(null)).toEqual({});
+  });
+});
+
+describe('unspeakable', () => {
+  it('is a text mostly outside the Latin script the six are written in', () => {
+    expect(unspeakable('会議の名前はランタンにしましょう。')).toBe(true);
+    expect(unspeakable('Назовём проект «Фонарь».')).toBe(true);
+    // A name in another script inside a reply in one of the six is not.
+    expect(unspeakable('Call it Lantern — or 灯台, if you like.')).toBe(false);
+    expect(unspeakable('Llamadlo Linterna.')).toBe(false);
+    expect(unspeakable('42.')).toBe(false);
   });
 });

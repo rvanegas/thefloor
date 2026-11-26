@@ -36,4 +36,4 @@ server's own, so it changed with the deploy.
 rule, and its comment said "member or guest", but the route has always
 required membership (`isMemberOf`). Only the comment changed. Whether a guest
 should still *hear* a reply read aloud is a separate question:
-`task/guests-are-a-pro-feature.md`, which answers it by making guests a Pro feature.
+`2026-11-26-guests-are-a-pro-feature.md`, which answered it by making guests a Pro feature.

@@ -478,7 +478,8 @@ describe('Channel', () => {
           endedAt: NOW - 30_000,
           durationMs: 30_000,
         },
-      ]
+      ],
+      { pro: true }
     );
     const tree = render(<ChannelView
         channelId="sess_1"
@@ -1609,7 +1610,7 @@ describe('Channel', () => {
       All six all the time since the watch tab left Labs on 2026-09-18, so the
       order under test is the whole screen and nothing has to be arranged for.
     */
-    showChannel(channelOf());
+    showChannel(channelOf(), [], { pro: true });
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
@@ -2073,7 +2074,7 @@ describe('Channel', () => {
         { account: { id: 'acct_3', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],
     };
-    showChannel(channelOf());
+    showChannel(channelOf(), [], { pro: true });
     const tree = render(<ChannelView
         channelId="sess_1"
         audio={AUDIO}
@@ -2107,6 +2108,23 @@ describe('Channel', () => {
     expect(findButton(tree, 'Invite as guest')).toBeDefined();
     act(() => findNamed(tree, 'Invite')!.props.onPress());
     expect(findButton(tree, 'Invite as guest')).toBeUndefined();
+    act(() => tree.unmount());
+  });
+
+  it('offers a guest only in a Pro channel, and says so where it is not', () => {
+    mockApp.home = { invites: [], rejoinable: [], contacts: [] };
+    showChannel(channelOf());
+    const tree = render(<ChannelView
+        channelId="sess_1"
+        audio={AUDIO}
+        onClose={() => {}}
+        onExit={() => {}}
+      />);
+
+    showInvites(tree);
+    expect(findButton(tree, 'Invite as member')!.props.disabled).toBe(false);
+    expect(findButton(tree, 'Invite as guest')!.props.disabled).toBe(true);
+    expect(textOf(tree)).toContain('Guests, here for one conversation only, are part of Pro');
     act(() => tree.unmount());
   });
 

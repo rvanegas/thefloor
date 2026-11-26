@@ -470,6 +470,15 @@ export interface Clip {
    * planning/decision/2026-11-13-claude-s-reply-is-spoken-into-the-room-by-pro-voices.md.
    */
   speech?: true;
+  /**
+   * On a reply from Claude only: **nobody reads it aloud**, since 2026-11-26.
+   * Set in a *Pro* room whose reply is in a language AssemblyAI does not speak:
+   * the phones reading it instead was the *Standard* fallback, which a guest
+   * could never hear, and a Pro room has none. A build that predates it reads
+   * the reply itself, as it would without `speech`. Never with `speech`.
+   * See planning/decision/2026-11-26-guests-are-a-pro-feature.md.
+   */
+  unspoken?: true;
 }
 
 export type PlaybackStatus = 'idle' | 'playing' | 'paused';

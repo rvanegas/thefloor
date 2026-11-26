@@ -3753,6 +3753,7 @@ export function ChannelView({
               channel={channel}
               me={me}
               now={now}
+              pro={view?.pro ?? false}
               onInviteMember={(contactId) => act({ type: 'INVITE', contactId })}
             />
           )}

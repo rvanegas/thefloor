@@ -404,6 +404,25 @@ describe('a reply the room is hearing', () => {
     expect(probe.say).not.toHaveBeenCalled();
   });
 
+  it('is not read by the phone either when nobody is to read it', () => {
+    // A Pro room, in a language its voices do not speak: no Standard fallback.
+    const channel = joined();
+    const probe = mountRoom(channel);
+    probe.update(
+      reduce(
+        channel,
+        {
+          type: 'PASTE_CLIP',
+          userId: ME,
+          clip: { id: 'clip_1', authorId: CLAUDE_ID, pastedAt: NOW + 1_000, kind: 'text', text: 'こんにちは。', unspoken: true },
+        },
+        NOW + 1_000
+      ),
+      null
+    );
+    expect(probe.say).not.toHaveBeenCalled();
+  });
+
   it('draws the bar while the room says it, and restart asks for it again for everybody', () => {
     const channel = joined();
     const probe = mountRoom(channel);

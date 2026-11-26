@@ -54,6 +54,9 @@ beforeEach(async () => {
     pusher,
     trainRoot,
   });
+  // Everybody here is *Pro*: guests are a Pro feature (`canInviteGuest`), and
+  // this suite is about guests. guest-pro.test.ts is the channel that is not.
+  app.channels.isPro = () => true;
   await app.fastify.listen({ port: 0, host: '127.0.0.1' });
   const address = app.fastify.server.address();
   if (typeof address === 'string' || address === null) throw new Error('no port');

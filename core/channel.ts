@@ -2433,8 +2433,22 @@ export function canPing(
     (!isPresent(state, targetId) || targetId in state.disconnectedAt)
   );
 }
-export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
+/**
+ * Whether `userId` may offer somebody a seat: a *guest invitation* or the
+ * *guest link*.
+ *
+ * **`pro` is whether the channel is *Pro*, since 2026-11-26: guests are a Pro
+ * feature.** A guest page has no voice of its own, so a guest hears Claude's
+ * reply only where the room reader speaks it, which is a *Pro channel*; rather
+ * than give the page a voice, a guest is only ever in one. A subscription is
+ * account state that `ChannelState` knows nothing of, so the caller says it —
+ * the server from `isProChannel`, the app from `ChannelView.pro` — which is
+ * what keeps the Invite card and the refusal saying the same thing. See
+ * planning/decision/2026-11-26-guests-are-a-pro-feature.md.
+ */
+export function canInviteGuest(state: ChannelState, userId: UserId, pro: boolean): boolean {
   return (
+    pro &&
     state.status === 'active' &&
     !isLocked(state) &&
     isParticipant(state, userId) &&
@@ -2458,6 +2472,11 @@ export function canInviteGuest(state: ChannelState, userId: UserId): boolean {
  * **Capacity counts invitations too**, which is why this takes a clock it
  * would otherwise have no use for: a seat offered is a seat spoken for, and
  * an offer that has expired is not. See `guestsPromised`.
+ *
+ * **Not whether the channel is *Pro***, which `canInviteGuest` asks: refusing
+ * somebody needs no Pro, and a knock in a room that is not Pro can come only
+ * through a link made while it was. `Channels.answerKnock` refuses letting
+ * them in.
  */
 export function canAnswerKnock(
   state: ChannelState,

@@ -411,7 +411,7 @@ describe('Channel, with a guest in it', () => {
     mockApp.askInAsGuest.mockRejectedValueOnce(
       new Error('They already have a seat here.')
     );
-    showChannel(channelOf());
+    showChannel(channelOf(), [], { pro: true });
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
@@ -446,7 +446,7 @@ describe('Channel, with a guest in it', () => {
         { account: { id: 'acct_9', displayName: 'Miro Okafor' }, status: 'accepted' },
       ],
     };
-    showChannel(full);
+    showChannel(full, [], { pro: true });
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
@@ -580,7 +580,7 @@ describe('Channel, with a guest in it', () => {
     const share = jest
       .spyOn(Share, 'share')
       .mockResolvedValue({ action: 'sharedAction' } as never);
-    showChannel(channelOf());
+    showChannel(channelOf(), [], { pro: true });
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
@@ -608,7 +608,7 @@ describe('Channel, with a guest in it', () => {
     const copied = jest
       .spyOn(Clipboard, 'setStringAsync')
       .mockResolvedValue(true);
-    showChannel(channelOf());
+    showChannel(channelOf(), [], { pro: true });
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
@@ -633,7 +633,7 @@ describe('Channel, with a guest in it', () => {
     const copied = jest
       .spyOn(Clipboard, 'setStringAsync')
       .mockResolvedValue(false);
-    showChannel(channelOf());
+    showChannel(channelOf(), [], { pro: true });
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );
@@ -656,7 +656,7 @@ describe('Channel, with a guest in it', () => {
     abort.name = 'AbortError';
     const share = jest.spyOn(Share, 'share').mockRejectedValue(abort);
     const copied = jest.spyOn(Clipboard, 'setStringAsync');
-    showChannel(channelOf());
+    showChannel(channelOf(), [], { pro: true });
     const tree = render(
       <ChannelView channelId="sess_1" audio={AUDIO} onClose={() => {}} onExit={() => {}} />
     );

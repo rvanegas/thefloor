@@ -211,7 +211,7 @@ describe('a member of a community, who is not its owner', () => {
     const s = amHere();
     expect(canEditChannel(s, member(1))).toBe(false);
     expect(canInvite(s, member(1), 'usr_new')).toBe(false);
-    expect(canInviteGuest(s, member(1))).toBe(false);
+    expect(canInviteGuest(s, member(1), true)).toBe(false);
     expect(canStartRecording(s, member(1))).toBe(false);
     expect(canStartWatch(s, member(1))).toBe(false);
     expect(canControlWatch(s, member(1))).toBe(false);
@@ -229,7 +229,7 @@ describe('a member of a community, who is not its owner', () => {
     const s = amHere();
     expect(canEditChannel(s, OWNER)).toBe(true);
     expect(canInvite(s, OWNER, 'usr_new')).toBe(true);
-    expect(canInviteGuest(s, OWNER)).toBe(true);
+    expect(canInviteGuest(s, OWNER, true)).toBe(true);
     expect(canStartRecording(s, OWNER)).toBe(true);
     expect(canStartWatch(s, OWNER)).toBe(true);
     expect(canMuteOther(s, OWNER, member(2), true, T0)).toBe(true);
@@ -250,7 +250,7 @@ describe('a member of a community, who is not its owner', () => {
     s = reduce(s, { type: 'ENTER', userId: member(2) }, T0);
     expect(canEditChannel(s, member(2))).toBe(true);
     expect(canStartRecording(s, member(2))).toBe(true);
-    expect(canInviteGuest(s, member(2))).toBe(true);
+    expect(canInviteGuest(s, member(2), true)).toBe(true);
   });
 
   it('is never refused by name the floor, a self-mute, the clipboard or leaving', () => {

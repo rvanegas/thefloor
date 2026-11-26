@@ -462,6 +462,8 @@ export const es: Strings = {
       `Un miembro se une al canal y se queda; caben ${cap} y est\u00e1 lleno. Un invitado est\u00e1 solo para esta conversaci\u00f3n, y su sitio termina cuando termina la sala.`,
     memberOrGuest: () =>
       'Un miembro se une al canal y se queda. Un invitado est\u00e1 solo para esta conversaci\u00f3n: ve nombres y nada m\u00e1s, y su sitio termina cuando termina la sala.',
+    guestsArePro: () =>
+      'Un miembro se une al canal y se queda. Los invitados, solo para una conversaci\u00f3n, son parte de Pro: alguien del canal tiene que tenerlo.',
     guestOnlyFull: (cap: number) =>
       `Un invitado est\u00e1 solo para esta conversaci\u00f3n, y su sitio termina cuando termina la sala. No se ofrece ser miembro: el canal tiene ${cap} y est\u00e1 lleno.`,
     guestOnly: () =>

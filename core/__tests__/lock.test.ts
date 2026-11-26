@@ -89,7 +89,7 @@ describe('locking a channel', () => {
     const s = lock(asked());
     expect(canInvite(s, A, C, T0)).toBe(false);
     expect(canMintMemberLink(s, A, T0)).toBe(false);
-    expect(canInviteGuest(s, A)).toBe(false);
+    expect(canInviteGuest(s, A, true)).toBe(false);
     expect(canAnswerKnock(s, A, T0)).toBe(false);
     expect(reduce(s, { type: 'INVITE', userId: A, inviteeId: C }, T0)).toBe(s);
     expect(

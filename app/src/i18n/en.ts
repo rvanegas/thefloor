@@ -627,6 +627,9 @@ export const en = {
       `A member joins the channel and stays; it holds ${cap}, and is full. A guest is here for this conversation only, and the seat ends when the room does.`,
     memberOrGuest: () =>
       'A member joins the channel and stays. A guest is here for this conversation only — they see names and nothing else, and the seat ends when the room does.',
+    /** *Invite as guest* outside a Pro channel, since 2026-11-26. */
+    guestsArePro: () =>
+      'A member joins the channel and stays. Guests, here for one conversation only, are part of Pro: somebody in the channel has to have it.',
     guestOnlyFull: (cap: number) =>
       `A guest is here for this conversation only, and the seat ends when the room does. Membership is not on offer: the channel holds ${cap} and is full.`,
     guestOnly: () =>

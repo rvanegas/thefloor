@@ -373,8 +373,9 @@ export function useClaudeReadAloud(
 
     const { clip: pasted, fallback: otherwise, detect: recognize } = latest.current;
     if (pasted?.authorId !== CLAUDE_ID) return;
-    // Spoken by the server, into the room: heard here already.
-    if (pasted.speech) return;
+    // Spoken by the server, into the room: heard here already. Or, in a Pro
+    // room in a language its voices do not speak, by nobody (`Clip.unspoken`).
+    if (pasted.speech || pasted.unspoken) return;
     const reply = {
       text: pasted.text,
       locale: replyLocale(pasted.text, otherwise, recognize),

@@ -152,6 +152,20 @@ const MARKERS: Record<SpeechLanguage, ReadonlySet<string>> = {
 };
 
 /**
+ * **Whether a text is plainly in a language AssemblyAI does not speak**, since
+ * 2026-11-26: more than half its letters outside the Latin script, which all
+ * six of its languages are written in — Japanese, Russian, Arabic, Hindi.
+ * Another language in Latin letters, Dutch or Polish, is not caught here: the
+ * marker words cannot tell it from too short a text in one of the six.
+ */
+export function unspeakable(text: string): boolean {
+  const letters = text.match(/\p{L}/gu) ?? [];
+  if (letters.length === 0) return false;
+  const latin = letters.filter((letter) => /\p{Script=Latin}/u.test(letter)).length;
+  return latin * 2 < letters.length;
+}
+
+/**
  * **The language a text is written in**, from how many of each language's
  * marker words it uses, since 2026-11-21 — or null when it uses too few
  * for any language, or no language clearly leads (at least twice the

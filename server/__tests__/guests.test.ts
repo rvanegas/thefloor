@@ -33,12 +33,16 @@ afterEach(() => {
 });
 
 function boot(): App {
-  return buildApp({
+  const booted = buildApp({
     dbPath: join(dir, 'thefloor.db'),
     mailer: new MemoryMailer(),
     now: () => clock,
     roomCloseGraceMs: 0,
   });
+  // Everybody here is *Pro*: guests are a Pro feature (`canInviteGuest`), and
+  // this suite is about guests. guest-pro.test.ts is the channel that is not.
+  booted.channels.isPro = () => true;
+  return booted;
 }
 
 async function shutdown(app: App): Promise<void> {

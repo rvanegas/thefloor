@@ -137,6 +137,7 @@ import {
   speechLanguageOf,
   speechVoiceFor,
   textLanguage,
+  unspeakable,
   type SpeechLanguage,
   type SpeechVoices,
 } from '../../core/speech';
@@ -666,6 +667,16 @@ const OWNERS_ALONE: Refused = {
 };
 
 /**
+ * Offering a seat outside a *Pro channel*, since 2026-11-26: guests are a Pro
+ * feature (`canInviteGuest`). A 403, as the other Pro refusals are.
+ */
+const GUESTS_ARE_PRO: Refused = {
+  ok: false,
+  error: 'Guests are part of Pro.',
+  code: 'forbidden',
+};
+
+/**
  * Told that channels changed, and who left them on the way.
  *
  * `departed` exists because the audience for a change cannot be read off the
@@ -1185,8 +1196,34 @@ export class ChannelRegistry {
    */
   isProChannel(channelId: string): boolean {
     const state = this.channels.get(channelId);
+    if (!state) return false;
     const isPro = this.isPro;
-    return !!state && !!isPro && state.participants.some((id) => isPro(id));
+    const now = !!isPro && state.participants.some((id) => isPro(id));
+    if (now && this.roomOpen(channelId)) this.proRooms.add(channelId);
+    return now || this.proRooms.has(channelId);
+  }
+
+  /**
+   * **A room that was *Pro* stays *Pro* until it ends**, since 2026-11-26, at
+   * Rodrigo's word: the only Pro member's subscription lapsing, or their
+   * leaving, changes nothing for the rest of the sitting — the guests above
+   * all, whom a Standard room would leave unable to hear Claude, and whose
+   * seats end with the room in any case (`Guests.channelEmptied`). Latched
+   * when the room opens and whenever `isProChannel` finds it Pro while it is
+   * open; let go at `ROOM_ENDED` (`endRooms`), not when it empties, since a
+   * return inside `ROOM_DEPARTURE_MS` is the same room.
+   *
+   * In memory, as the room is: a restart drops every call in progress, and
+   * the next room is graded afresh.
+   */
+  private proRooms = new Set<string>();
+
+  /** A room is open: somebody is here, or it emptied and has not yet ended. */
+  private roomOpen(channelId: string): boolean {
+    const state = this.channels.get(channelId);
+    return (
+      !!state && (peopleHere(state).length > 0 || this.roomEmptiedAt.has(channelId))
+    );
   }
 
   /**
@@ -5555,6 +5592,8 @@ export class ChannelRegistry {
       const roomId = this.rooms.opened(after.id, this.now());
       this.digests?.opened(after.id, roomId, this.now());
       this.roomEmptiedAt.delete(after.id);
+      // Asked for its latch (`proRooms`): Pro as the room opens, Pro to its end.
+      this.isProChannel(after.id);
     }
     if (wereHere > 0 && herePeople === 0) {
       this.rooms.closed(after.id, this.now());
@@ -5699,6 +5738,7 @@ export class ChannelRegistry {
       setTimeout(() => {
         this.channels.delete(after.id);
         this.persisted.delete(after.id);
+        this.proRooms.delete(after.id);
         this.silenceStated.delete(after.id);
         this.unrestored.delete(after.id);
         this.restoringSince.delete(after.id);
@@ -6028,6 +6068,7 @@ export class ChannelRegistry {
     const since = this.roomEmptiedAt.get(state.id);
     if (since === undefined || now - since <= ROOM_DEPARTURE_MS) return state;
     this.roomEmptiedAt.delete(state.id);
+    this.proRooms.delete(state.id);
     return reduce(state, { type: 'ROOM_ENDED' }, now);
   }
 
@@ -7879,6 +7920,7 @@ export class ChannelRegistry {
         code: 'conflict',
       };
     }
+    if (!this.isProChannel(channelId)) return GUESTS_ARE_PRO;
     return {
       ok: true,
       link: this.guests.mintLink(channelId, userId, this.now()),
@@ -7923,6 +7965,7 @@ export class ChannelRegistry {
         code: 'conflict',
       };
     }
+    if (!this.isProChannel(channelId)) return GUESTS_ARE_PRO;
     if (!this.accounts.areContacts(userId, contactId)) {
       return { ok: false, error: 'Not a contact.', code: 'forbidden' };
     }
@@ -8237,7 +8280,8 @@ export class ChannelRegistry {
       kind: 'text' as const,
       text,
       ...(voices ? { voices } : {}),
-      ...(speaking ? { speech: true as const } : {}),
+      ...(speaking === 'spoken' ? { speech: true as const } : {}),
+      ...(speaking === 'unspoken' ? { unspoken: true as const } : {}),
     };
     const actor = channel.present.includes(askerId) ? askerId : channel.present[0];
     const keep = () => {
@@ -8255,7 +8299,7 @@ export class ChannelRegistry {
     } as Omit<ChannelAction, 'userId'> & { type: ChannelAction['type'] });
     if (!(applied.ok && applied.channel.clip?.id === clip.id)) return 'gone';
     keep();
-    if (speaking) this.say(channelId, id);
+    if (speaking === 'spoken') this.say(channelId, id);
     return 'posted';
   }
 
@@ -8270,11 +8314,12 @@ export class ChannelRegistry {
    * The language a text is spoken in: **the text's own** (`textLanguage`),
    * since 2026-11-21, then the asker's app language, then English. A
    * channel has no language: the first transcript's, which this was until
-   * then, read a Spanish document in English. Null where the asker's
-   * language is one AssemblyAI does not speak, and the phones read a reply
-   * themselves.
+   * then, read a Spanish document in English. **Null where the text is
+   * plainly in a language AssemblyAI does not speak** (`unspeakable`), since
+   * 2026-11-26: a Pro room then reads it to nobody (`Clip.unspoken`).
    */
   speechLanguage(text: string, askerId: string, askerLanguage?: string): SpeechLanguage | null {
+    if (unspeakable(text)) return null;
     const written = textLanguage(text);
     if (written) return written;
     const own = askerLanguage ?? this.speech?.accountLanguage(askerId);
@@ -8293,14 +8338,17 @@ export class ChannelRegistry {
     pasteId: string,
     text: string,
     askerLanguage?: string
-  ): Promise<boolean> {
+  ): Promise<'spoken' | 'unspoken' | false> {
     const speech = this.speech;
     const channel = this.channels.get(channelId);
     if (!speech || !channel) return false;
     if (!this.isProChannel(channelId)) return false;
     if ([...text].length > SPEECH_MAX_CHARACTERS) return false;
     const language = this.speechLanguage(text, askerId, askerLanguage);
-    if (!language) return false;
+    // **No Standard fallback in a Pro room**, since 2026-11-26, at Rodrigo's
+    // word: a language AssemblyAI does not speak is read by nobody, rather
+    // than by each phone, which a guest never hears (`Clip.unspoken`).
+    if (!language) return 'unspoken';
     const voice = speechVoiceFor(speech.voicesFor(askerId), language);
 
     speech.store.begin(pasteId, channelId);
@@ -8346,7 +8394,7 @@ export class ChannelRegistry {
 
     const spoke = await first;
     clearTimeout(timer);
-    return spoke;
+    return spoke ? 'spoken' : false;
   }
 
   /**
@@ -8564,6 +8612,10 @@ export class ChannelRegistry {
     if (isParticipant(channel, userId) && !holdsTheControls(channel, userId)) {
       return OWNERS_ALONE;
     }
+    // Asked apart, so a refusal for want of Pro says so rather than "not
+    // your channel" — and refusing is the one answer that needs no Pro.
+    const pro = this.isProChannel(channelId);
+    if (accept && !pro) return GUESTS_ARE_PRO;
     if (!canAnswerKnock(channel, userId, this.now())) {
       return { ok: false, error: 'Not your channel.', code: 'forbidden' };
     }

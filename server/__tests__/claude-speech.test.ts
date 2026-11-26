@@ -325,6 +325,39 @@ describe("Claude's reply, spoken", () => {
     expect(app.channels.get(channelId)!.clip!.speech).toBeUndefined();
   });
 
+  it('is read by nobody in a Pro channel, in a language its voices do not speak', async () => {
+    boot({ reply: '会議の名前はランタンにしましょう。短くて覚えやすいです。' });
+    const { alice, channelId } = await room2();
+    const res = await press(channelId, alice.token);
+    await settle();
+
+    expect(res.statusCode).toBe(200);
+    expect(speech.requests).toEqual([]);
+    const clip = app.channels.get(channelId)!.clip!;
+    // Not `speech`, which would say the room is hearing it; `unspoken`, so
+    // no phone reads it instead — the Standard fallback a guest never hears.
+    expect(clip.speech).toBeUndefined();
+    expect(clip.unspoken).toBe(true);
+  });
+
+  it('is read by the phones in a Standard channel, whatever its language', async () => {
+    boot({ reply: '会議の名前はランタンにしましょう。' });
+    const { alice, channelId } = await room2();
+    app.db.prepare('DELETE FROM unlimited WHERE username = (SELECT username FROM accounts WHERE id = ?)').run(alice.account.id);
+    // The room opened Pro, and stays so until it ends: end it first.
+    for (const id of [...app.channels.get(channelId)!.present]) {
+      app.channels.dispatch(channelId, id, { type: 'STEP_OUT' });
+    }
+    clock += 60_000;
+    app.channels.tick();
+    for (const id of [...app.channels.get(channelId)!.participants]) {
+      app.channels.dispatch(channelId, id, { type: 'ENTER' });
+    }
+    await press(channelId, alice.token);
+    await settle();
+    expect(app.channels.get(channelId)!.clip!.unspoken).toBeUndefined();
+  });
+
   it('is not spoken by a server without a provider', async () => {
     boot({ speech: false });
     const { alice, channelId } = await room2();

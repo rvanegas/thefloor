@@ -5534,9 +5534,16 @@ export function buildApp(options: BuildOptions = {}): App {
     if ([...text].length > MAX_READING_CHARACTERS) {
       return reply.code(413).send({ error: 'That document is too long to read aloud.' });
     }
-    const language =
-      channels.speechLanguage(text, account.id, typeof body.language === 'string' ? body.language : undefined) ??
-      'en';
+    // Refused rather than read in a voice of the wrong language, since
+    // 2026-11-26, as Claude's replies are (`Clip.unspoken`).
+    const language = channels.speechLanguage(
+      text,
+      account.id,
+      typeof body.language === 'string' ? body.language : undefined
+    );
+    if (!language) {
+      return reply.code(422).send({ error: 'That document is in a language the Pro voices do not speak.' });
+    }
     const voice = speechVoiceFor(accounts.settings(account.id).speechVoices, language);
     const title =
       (typeof body.title === 'string' && body.title.trim().slice(0, 300)) || name.replace(/\.[^.]+$/, '');

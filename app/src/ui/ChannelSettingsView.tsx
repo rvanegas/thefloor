@@ -8,13 +8,13 @@ import {
 } from '../../../core/constants';
 import {
   canEditChannel,
-  canInviteGuest,
   canLockChannel,
   canMakeCommunity,
   capacityOf,
   holdsTheControls,
   isLocked,
   isOwner,
+  presentOrEmpty,
 } from '../../../core/channel';
 import {
   DEFAULT_NOTIFICATION_LEVEL,
@@ -794,7 +794,10 @@ export function ChannelSettingsView({
         */}
         <GuestLinks
           channelId={channel.id}
-          mayRevoke={canInviteGuest(channel, app.me?.id ?? '')}
+          mayRevoke={
+            holdsTheControls(channel, app.me?.id ?? '') &&
+            presentOrEmpty(channel, app.me?.id ?? '')
+          }
           ownersAlone={community && !owner}
         />
       </Card>
@@ -1413,7 +1416,10 @@ function GuestLinks({
   ownersAlone,
 }: {
   channelId: string;
-  /** `canInviteGuest`, which the server asks again in `revokeGuestLink`. */
+  /**
+   * What `revokeGuestLink` asks: the controls, and the room. Not
+   * `canInviteGuest`, since 2026-11-26 — shutting a door needs no *Pro*.
+   */
   mayRevoke: boolean;
   /** A community whose controls are somebody else's: see `holdsTheControls`. */
   ownersAlone: boolean;

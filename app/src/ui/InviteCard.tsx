@@ -52,11 +52,14 @@ export function InviteCard({
   channel,
   me,
   now,
+  pro,
   onInviteMember,
 }: {
   channel: ChannelState;
   me: string;
   now: number;
+  /** Whether the channel is *Pro* (`ChannelView.pro`): guests are a Pro feature. */
+  pro: boolean;
   /** Asks a contact in as a member: the `INVITE` action. */
   onInviteMember: (contactId: string) => void;
 }) {
@@ -174,11 +177,12 @@ export function InviteCard({
           />
           <Button
             label={t.inviteAsGuest()}
-            disabled={!mayAskIn}
+            disabled={!mayAskIn || !pro}
             onPress={() => go('guest')}
           />
           <Text style={type.muted}>
-            {refusal ?? (full ? t.memberOrGuestFull(capacity) : t.memberOrGuest())}
+            {refusal ??
+              (full ? t.memberOrGuestFull(capacity) : pro ? t.memberOrGuest() : t.guestsArePro())}
           </Text>
         </Card>
       ) : null}
@@ -233,7 +237,7 @@ export function InviteCard({
                         disabled={
                           stage === 'member'
                             ? !canInvite(channel, me, id, now)
-                            : !mayAskIn
+                            : !mayAskIn || !pro
                         }
                         onPress={() =>
                           stage === 'member' ? onInviteMember(id) : void askAsGuest(id)
@@ -266,13 +270,13 @@ export function InviteCard({
               }
               disabled={
                 linking ||
-                (stage === 'guest' ? !canInviteGuest(channel, me) : !memberLinkAllowed)
+                (stage === 'guest' ? !canInviteGuest(channel, me, pro) : !memberLinkAllowed)
               }
               onPress={() => void shareTheLink(stage)}
             />
             <Text style={type.muted}>
               {stage === 'guest'
-                ? canInviteGuest(channel, me)
+                ? canInviteGuest(channel, me, pro)
                   ? tc.guestLinkWhat()
                   : ownersAlone
                     ? tc.ownerInvites()

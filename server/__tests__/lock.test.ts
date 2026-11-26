@@ -12,13 +12,18 @@ let app: App;
 let clock = 1_700_000_000_000;
 let dbPath = ':memory:';
 
-const boot = () =>
-  buildApp({
+const boot = () => {
+  const booted = buildApp({
     dbPath,
     mailer: new MemoryMailer(),
     now: () => clock,
     updateUrl: 'https://apps.apple.com/app/id0000000000',
   });
+  // Everybody here is *Pro*: guests are a Pro feature (`canInviteGuest`), and
+  // this suite is about guests. guest-pro.test.ts is the channel that is not.
+  booted.channels.isPro = () => true;
+  return booted;
+};
 
 beforeEach(() => {
   clock = 1_700_000_000_000;

@@ -141,7 +141,7 @@ describe('a guest is not a participant', () => {
       expect(act(state, action)).toBe(state);
     }
     expect(canStartRecording(state, DANA)).toBe(false);
-    expect(canInviteGuest(state, DANA)).toBe(false);
+    expect(canInviteGuest(state, DANA, true)).toBe(false);
   });
 
   it('may do the handful of things the capability list grants', () => {
@@ -761,5 +761,14 @@ describe('a guest’s name', () => {
       name: 'Alice',
     });
     expect(state.guests[DANA]?.name).toBe('Alice');
+  });
+});
+
+describe('guests are a Pro feature', () => {
+  it('offers a seat only in a Pro channel, whoever asks', () => {
+    // Alice is present in a channel that takes guests; the room is all
+    // `canInviteGuest` can see, so whether it is Pro is the caller's to say.
+    expect(canInviteGuest(alone(), ALICE, true)).toBe(true);
+    expect(canInviteGuest(alone(), ALICE, false)).toBe(false);
   });
 });

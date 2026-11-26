@@ -100,7 +100,7 @@ describe('the room rule', () => {
     expect(presentOrEmpty(withGuest, DANA)).toBe(true);
     expect(canManageGuest(withGuest, DANA, DANA)).toBe(false);
     expect(canControlPlayback(withGuest, DANA)).toBe(false);
-    expect(canInviteGuest(withGuest, DANA)).toBe(false);
+    expect(canInviteGuest(withGuest, DANA, true)).toBe(false);
     expect(canEditChannel(withGuest, DANA)).toBe(false);
     // Nor a paste, since 2026-11-19, which `isHere` had granted them: a guest
     // has no paste, neither making one nor seeing one.
@@ -119,7 +119,7 @@ describe('the room rule', () => {
     const cases: [string, (s: ChannelState) => boolean][] = [
       ['the name and description', (s) => canEditChannel(s, BOB)],
       ['inviting a contact', (s) => canInvite(s, BOB, CARA)],
-      ['minting a guest link', (s) => canInviteGuest(s, BOB)],
+      ['minting a guest link', (s) => canInviteGuest(s, BOB, true)],
     ];
 
     for (const [what, guard] of cases) {
